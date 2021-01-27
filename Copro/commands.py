@@ -7,39 +7,70 @@ import time
 
 def runCommand(data):
 	commandNum = data.pop(0)
-	hal.greenLed.on()
 	try:
-		response = commandList[commandNum](data)
+		if commandNum < len(commandList) and commandList[commandNum] is not None:
+			response = commandList[commandNum](data)
+		else:
+			print("Unexpected command received:", commandNum)
+			response = []
 	except Exception as e:
 		print("Error on command "+str(commandNum)+": " + str(e))
+		hal.raiseFault()
 		response = []
-	hal.greenLed.off()
 	return response
 
 def moboPower(args):
+	# Args: int boolean for setting, or empty to get
 	if len(args) == 1:
-		hal.Converter.moboPower.value(args[0])
-		return [1]
+		if args[0] == 1 or args[0] == 0:
+			hal.BB.moboPower.value(args[0])
+			return [1]
+		else:
+			return [0]
+	elif len(args) == 0:
+		return [hal.BB.moboPower.value()]
+	else:
+		print("Unexpected argument length for moboPower")
+		return []
 
-	return [hal.Converter.moboPower.value()]
-
-def jetsonPower(args):
-	if len(args) == 1:
-		hal.Converter.jetsonPower.value(args[0])
-		return [1]
-	return [hal.Converter.jetsonPower.value()]
+def lightingPower(args):
+	# Args: two byte array for the percentage on each light should be
+	if len(args) == 2:
+		successful = hal.BB.setLighting(args)
+		return [int(successful)]
+	elif len(args) == 0:
+		return hal.BB.currentLightValues
+	else:
+		print("Unexpected argument length for lightingPower")
+		return []
 
 def thrusterEnable(args):
+	# Args: int boolean for setting, or empty to get
 	if len(args) == 1:
-		hal.ESC.setThrusterEnable(args[0])
-		return [1]
-	return [hal.ESC.thrustersEnabled]
+		if args[0] == 1 or args[0] == 0:
+			successful = hal.ESC.setThrusterEnable(args[0])
+			return [int(successful)]
+		else:
+			return [0]
+	elif len(args) == 0:
+		return [hal.ESC.thrustersEnabled]
+	else:
+		print("Unexpected argument length for thrusterEnable")
+		return []
 
 def peltierPower(args):
+	# Args: int boolean for setting, or empty to get
 	if len(args) == 1:
-		hal.Converter.peltierPower.value(args[0])
-		return [1]
-	return [hal.Converter.peltierPower.value()]
+		if args[0] == 1 or args[0] == 0:
+			hal.BB.peltierPower.value(args[0])
+			return [1]
+		else:
+			return [0]
+	elif len(args) == 0:
+		return [hal.BB.peltierPower.value()]
+	else:
+		print("Unexpected argument length for peltierPower")
+		return []
 
 def getBatVolts(args):
 	portVolt = int(hal.BB.portVolt.value() * 100)
@@ -56,19 +87,25 @@ def getTemperature(args):
 	return [temp // 256, temp % 256]
 
 def thrusterForce(args):
+	# Args: 8 2-byte words (MSB) for each of the thrusters, or empty to get current thruster values
 	if len(args) == 16:
 		values = []
 		for i in range(8):
 			values.append((args[2 * i] << 8) + args[2 * i + 1])
-		hal.ESC.setThrusters(values)
-		return [1]
-	values = []
-	thrusts = hal.ESC.thrusts
-	for i in range(8):
-		values.append(thrusts[i] // 256)
-		values.append(thrusts[i] % 256)
-	return values
+		success = hal.ESC.setThrusters(values)
+		return [int(success)]
+	elif len(args) == 0:
+		values = []
+		thrusts = hal.ESC.currentThrusts
+		for i in range(8):
+			values.append(thrusts[i] // 256)
+			values.append(thrusts[i] % 256)
+		return values
+	else:  # If it wasn't empty or 8 values, return failure
+		print("Unexpected argument length for thrusterForce")
+		return []
 
+"""
 def logicCurrents(args):
 	threeCurrent = int(hal.Converter.threeCurrent.value() * 1000)
 	fiveCurrent = int(hal.Converter.fiveCurrent.value() * 1000)
@@ -80,30 +117,35 @@ def logicVolts(args):
 	fiveVolt = int(hal.Converter.fiveVolt.value() * 1000)
 	twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
 	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256, ]
+"""
 
 def switches(args):
 	data = hal.killSwitch.value()
-	data = (data << 1) + hal.switch1.value()
-	data = (data << 1) + hal.switch2.value()
-	data = (data << 1) + hal.switch3.value()
-	data = (data << 1) + hal.switch4.value()
-	data = (data << 1) + hal.resetSwitch.value()
-	return [0x3F - data]
+	data = (data << 1) + hal.auxSwitch.value()
+	return [0x3 - data]
 
 def depth(args):
 	data = int(hal.Depth.depth()*100000)
 	return [(data >> 16), (data >> 8) & 0xFF, data & 0xFF]
 
+
 def twelvePower(args):
 	if len(args) == 1:
-		hal.Converter.twelvePower.value(args[0])
-		return [1]
-	return [hal.Converter.twelvePower.value()]
+		if args[0] == 1 or args[0] == 0:
+			hal.BB.twelvePower.value(args[0])
+			return [1]
+		else:
+			return [0]
+	elif len(args) == 0:
+		return [hal.BB.twelvePower.value()]
+	else:
+		print("Unexpected argument length for twelvePower")
+		return []
 
 def fiveReset(args):
-	hal.Converter.fivePower.value(0)
+	hal.BB.fivePower.value(0)
 	time.sleep(1)
-	hal.Converter.fivePower.value(1)
+	hal.BB.fivePower.value(1)
 	return [1]
 
 def getThrusterCurrents(args):
@@ -117,11 +159,10 @@ def reset(args):
 	hal.Copro.restart()
 
 def actuator(args):
-	return hal.Converter.actuators(args)
+	return hal.BB.actuators(args)
 
 def latency_check(args):
 	return [1]
-
 
 def memory_check(args):
 	usage = int(hal.Copro.memory_usage()*(256*256-1))
@@ -139,15 +180,15 @@ def temp_threshold(args):
 
 commandList = [
 	moboPower,			#0
-	jetsonPower,		#1
+	lightingPower,		#1  Was jetsonPower, replaced since it is no longer in use
 	thrusterEnable,		#2
 	peltierPower,		#3
 	getBatVolts,		#4
 	getBatCurrents,		#5
 	getTemperature,		#6
 	thrusterForce,		#7
-	logicCurrents,		#8
-	logicVolts,			#9
+	None,				#8  Was logicCurrents but adc was removed from board
+	None,				#9  Was logicVolts but adc was removed from board
 	switches,			#10
 	depth,				#11
 	getThrusterCurrents,#12
@@ -157,5 +198,5 @@ commandList = [
 	actuator,	     	#16
 	latency_check,      #17 
 	memory_check,       #18 
-    temp_threshold      #19 
+	temp_threshold      #19 
 ]

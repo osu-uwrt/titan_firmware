@@ -12,8 +12,10 @@ nic.ifconfig(('192.168.1.42', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
 backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
 robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
 
-blueLed = machine.Pin('B4', machine.Pin.OUT)
-greenLed = machine.Pin('A15', machine.Pin.OUT)
+faultLed = machine.Pin('A8', machine.Pin.OUT, value=0)
+
+def raiseFault():
+	faultLed.value(1)
 
 def getTime():
     return time.ticks_ms()
@@ -37,10 +39,29 @@ class Sensor:
 
 
 class BBBoard:
-	deviceAddress = 0x1F
+	deviceAddress = 0x2F
+	numLights = 2
+	currentLightValues = []
 
 	def __init__(self):
 		try:
+			# Setup power control pins
+			self.moboPower = machine.Pin('C2', machine.Pin.OUT, value=1)
+			self.peltierPower = machine.Pin('B14', machine.Pin.OUT, value=1)
+			self.threePower = machine.Pin('C0', machine.Pin.OUT, value=1)
+			self.fivePower = machine.Pin('C13', machine.Pin.OUT, value=1)
+			self.twelvePower = machine.Pin('B0', machine.Pin.OUT, value=1)
+			
+			# Setup ligting power for pwm control (For that fancy dimming)
+			self.tim4 = Timer(4, freq=400)
+			self.lightingPower = [
+				self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
+				self.tim4.channel(4, Timer.PWM, pin=Pin('B9'))
+			]
+			assert len(self.lightingPower) == BBBoard.numLights
+			self.setLighting([0, 0])
+
+			# Initialize adc for voltage and current reading from Battery Balancer Board
 			while robotI2C.mem_read(1, BBBoard.deviceAddress, 0x0C)[0] & 0b00000010 != 0:
 				pass
 			# Operational mode 0 (includes temperature) and external vref
@@ -55,7 +76,24 @@ class BBBoard:
 			robotI2C.mem_write(chr(1), BBBoard.deviceAddress, 0x00)
 		except Exception as e: 
 			print("Error on BB init: " + str(e))
+			raiseFault()
 
+	def setLighting(self, values: list[int]) -> bool:
+		# Lighting values as percent value between 0 and 100
+		if len(values) != BBBoard.numLights:
+			return False
+		
+		for i in range(BBBoard.numLights):
+			if values[i] > 100 or values[i] < 0:
+				return False
+		
+		for i in range(BBBoard.numLights):
+			self.lightingPower[i].pulse_width_percent(values[i])
+		
+		self.currentLightValues = values
+		return True
+
+	# Callback functions, don't have access to class variables
 	def getStbdCurrent():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
@@ -86,7 +124,7 @@ class BBBoard:
 
 BB = BBBoard()
 
-
+"""
 class ConvBoard:
 	deviceAddress = 0x37
 	actuatorAddress = 0x1C
@@ -156,29 +194,43 @@ class ConvBoard:
 	temp = Sensor(getTemp)
 
 Converter = ConvBoard()
+"""
 
+class ActuatorBoard:
+	actuatorAddress = 0x1C
+
+	def __init__(self):
+		pass
+
+	def actuators(self, args):
+		backplaneI2C.send(bytearray(args), ActuatorBoard.actuatorAddress)
+		#data = backplaneI2C.recv(1, ConvBoard.actuatorAddress)
+		return [1]#list(backplaneI2C.recv(1, ConvBoard.actuatorAddress))
+	
+Actuator = ActuatorBoard()
 
 class ESCBoard():
-	deviceAddress = 0x2F
+	numThrusters = 8
+	deviceAddress = 0x2E
 	thrustersEnabled = 1
-	thrusts = []
+	currentThrusts = []  # The current pwm pulse width in microseconds
 
 	def __init__(self):
 		try:
-			self.tim4 = Timer(4, freq=400)
-			self.tim12 = Timer(12, freq=400)
 			self.tim2 = Timer(2, freq=400)
+			self.tim8 = Timer(8, freq=400)
 
 			self.thrusters = [
-				self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
-				self.tim4.channel(4, Timer.PWM, pin=Pin('B9')),
-				self.tim12.channel(1, Timer.PWM, pin=Pin('B14')),
-				self.tim12.channel(2, Timer.PWM, pin=Pin('B15')),
 				self.tim2.channel(1, Timer.PWM, pin=Pin('A0')),
 				self.tim2.channel(2, Timer.PWM, pin=Pin('A1')),
 				self.tim2.channel(3, Timer.PWM, pin=Pin('A2')),
-				self.tim2.channel(4, Timer.PWM, pin=Pin('A3'))
+				self.tim2.channel(4, Timer.PWM, pin=Pin('A3')),
+				self.tim8.channel(1, Timer.PWM, pin=Pin('C6')),
+				self.tim8.channel(2, Timer.PWM, pin=Pin('C7')),
+				self.tim8.channel(3, Timer.PWM, pin=Pin('C8')),
+				self.tim8.channel(4, Timer.PWM, pin=Pin('C9'))
 			]
+			assert len(self.thrusters) == ESCBoard.numThrusters
 			self.stopThrusters()
 			# Set the time when the kill switch position is changed
 			self.timeChange = 0
@@ -195,7 +247,9 @@ class ESCBoard():
 			backplaneI2C.mem_write(chr(0xFF), ESCBoard.deviceAddress, 0x03)
 			# Start ADC and disable interrupts
 			backplaneI2C.mem_write(chr(1), ESCBoard.deviceAddress, 0x00)
-		except Exception as e: print("Error on ESC init: " + str(e))
+		except Exception as e:
+			print("Error on ESC init: " + str(e))
+			raiseFault()
 
 	def getCurrents():
 		current_vals = []
@@ -205,93 +259,49 @@ class ESCBoard():
 			current_vals.append(max((voltage - .33) / .264, 0))
 		return current_vals
 
-	def stopThrusters(self):
-		self.thrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+	def stopThrusters(self) -> bool:
+		# Set the pwm pulse width to 1500 us (60% of a 400hz pwm signal) to put ESC in stopped position
+		# See https://bluerobotics.com/store/thrusters/speed-controllers/besc30-r3/ for the documentation
+		self.currentThrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
 		for t in self.thrusters:
 				t.pulse_width_percent(60)
+		return True
 
-	def setThrusters(self, thrusts):
+	def setThrusters(self, thrusts) -> bool:
 		if self.thrustersEnabled and killSwitch.value() == 0 and time.ticks_diff(getTime(), self.timeChange) > 5000:
-			for i in range(8):
-				value = thrusts[i] / 25
-				self.thrusters[i].pulse_width_percent(value)
-			self.thrusts = thrusts
+			if len(thrusts) != ESCBoard.numThrusters:
+				return False
 
-	def setThrusterEnable(self, enable):
-		self.thrustersEnabled = enable
-		self.stopThrusters()
+			# Convert the thrusts in us to pulse width in percentage of 400 Hz pwm pulse
+			# Calculation: (Pulse Width [us]) / ((1/400 Hz) * 1000000 [us/s]) * 100 (%)
+			# This leads to (Pulse Width [us]) / 25 -> Pulse Width Percent
+			pulse_width_conversion = 25
+
+			# Make sure an invalid duty cycle isn't requested
+			for i in range(ESCBoard.numThrusters):
+				if thrusts[i] / pulse_width_conversion > 100 or thrusts[i] / pulse_width_conversion < 0:
+					return False
+			
+			for i in range(ESCBoard.numThrusters):
+				value = thrusts[i] / pulse_width_conversion
+				self.thrusters[i].pulse_width_percent(value)
+			
+			self.currentThrusts = thrusts
+			return True
+
+		return False
+
+	def setThrusterEnable(self, enable) -> bool:
+		if enable == 1 or enable == 0:
+			self.thrustersEnabled = enable
+			self.stopThrusters()
+			return True
+		return False
 
 	currents = Sensor(getCurrents)
 
 ESC = ESCBoard()
 
-class StatusBoard():
-	screenAddress = 0x78
-	lightAddress = 0x20
-	green = 0
-	blue = 0
-	red = 0
-	blink = 0
-
-	def __init__(self):
-		try:
-			# Global intensity, no blink or interrupt
-			robotI2C.mem_write(chr(0b00000100), self.lightAddress, 0x0F)
-			# All outputs
-			robotI2C.mem_write(chr(0), self.lightAddress, 0x03)
-			# Always on / full intensity
-			robotI2C.mem_write(chr(0xFF), self.lightAddress, 0x0E)
-
-			#data = ''.join(map(chr, [0, 0x38]))
-			#robotI2C.send(data , self.screenAddress)
-			#time.sleep_ms(10)
-			#data = ''.join(map(chr, [0, 0x39]))
-			#robotI2C.send(data , self.screenAddress)
-			#time.sleep_ms(10)
-			#data = ''.join(map(chr, [0, 0x14, 0x78, 0x5E, 0x6D, 0x0C, 0x01, 0x06]))
-			#robotI2C.send(data , self.screenAddress)
-			#time.sleep_ms(10)
-
-			self.red = 1
-			self.updateLights()
-			time.sleep(.33)
-			self.red = 0
-			self.green = 1
-			self.updateLights()
-			time.sleep(.33)
-			self.green = 0
-			self.blue = 1
-			self.updateLights()
-			time.sleep(.33)
-			self.blue = 0
-			self.updateLights()
-		except Exception as e: print("Error on Status init: " + str(e))
-
-	def setRed(self, state):
-		self.red = state
-		self.updateLights()
-
-	def setGreen(self, state):
-		self.green = state
-		self.updateLights()
-
-	def setBlue(self, state):
-		self.blue = state
-		self.updateLights()
-
-	def setBlink(self, state):
-		self.blink = state
-		self.updateLights()
-
-	def updateLights(self):
-		# blink, red, blue, green
-		code = 8 * self.blink + 4 * self.red + 2 * self.blue + self.green
-		robotI2C.mem_write(chr(0xF - code), self.lightAddress, 0x01)
-
-	def write(self, text):
-		robotI2C.send(chr(0x40)+text, self.screenAddress)
-
-Status = None #StatusBoard()
 
 class DepthSensor():
 	deviceAddress = 0x76
@@ -317,7 +327,9 @@ class DepthSensor():
 			assert (self._C[0] & 0xF000) >> 12 == self.crc4(self._C), "PROM read error, CRC failed!"
 
 			self.initialized = True
-		except Exception as e: print("Error on Depth init: " + str(e))
+		except Exception as e:
+			print("Error on Depth init: " + str(e))
+			raiseFault()
 
 	# Cribbed from datasheet
 	def crc4(self, n_prom):
@@ -442,14 +454,7 @@ Copro = CoproBoard()
 
 
 killSwitch = machine.Pin('B12', machine.Pin.IN, machine.Pin.PULL_UP)
-switch1 = machine.Pin('B13', machine.Pin.IN, machine.Pin.PULL_UP)
-switch2 = machine.Pin('C6', machine.Pin.IN, machine.Pin.PULL_UP)
-switch3 = machine.Pin('C7', machine.Pin.IN, machine.Pin.PULL_UP)
-switch4 = machine.Pin('C4', machine.Pin.IN, machine.Pin.PULL_UP)
-resetSwitch = machine.Pin('B1', machine.Pin.IN, machine.Pin.PULL_UP)
-
-while (not resetSwitch.value()):
-	time.sleep(0.1)
+auxSwitch = machine.Pin('B13', machine.Pin.IN, machine.Pin.PULL_UP)
 
 def killSwitchChanged(pin):
 	ESC.stopThrusters()
@@ -457,9 +462,3 @@ def killSwitchChanged(pin):
 
 killSwitch.irq(killSwitchChanged)
 killSwitchChanged(killSwitch)
-
-def resetSwitchChanged(pin):
-	if (not pin.value()):
-		Copro.restart()
-
-resetSwitch.irq(resetSwitchChanged)
