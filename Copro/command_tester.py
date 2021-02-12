@@ -123,7 +123,8 @@ if '--fulltest' in argv:
 
     testLightingValues = [25, 50]
     print("Setting Lighting Brightness to L0: {0}; L1: {1}".format(testLightingValues[0], testLightingValues[1]))
-    dispatchCommandAndWait([1] + testLightingValues, enforceSuccess=True)
+    dispatchCommandAndWait([1, 1, testLightingValues[0]], enforceSuccess=True)
+    dispatchCommandAndWait([1, 2, testLightingValues[1]], enforceSuccess=True)
 
     checkedLightningValues = dispatchCommandAndWait([1])
     assert checkedLightningValues == bytearray(testLightingValues)
@@ -131,7 +132,8 @@ if '--fulltest' in argv:
     sleep(test_delay)
 
     print("Returning lightning to previous state")
-    dispatchCommandAndWait([1] + list(prevLightingValues), enforceSuccess=True)
+    dispatchCommandAndWait([1, 1, prevLightingValues[0]], enforceSuccess=True)
+    dispatchCommandAndWait([1, 2, prevLightingValues[1]], enforceSuccess=True)
 
     checkedLightningValues = dispatchCommandAndWait([1])
     assert checkedLightningValues == prevLightingValues

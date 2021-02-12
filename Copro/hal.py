@@ -1,21 +1,23 @@
 import machine
 import utime as time
 import network
-import pyb
-from pyb import Timer, Pin, I2C
+from pyb import Timer, Pin, I2C, LED
 import uasyncio as asyncio
 import gc
 
 nic = network.WIZNET5K(machine.SPI(1), machine.Pin('A4', machine.Pin.OUT), machine.Pin('C5', machine.Pin.OUT))
-nic.ifconfig(('192.168.1.42', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
+nic.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
 
 backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
 robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
 
-faultLed = machine.Pin('A8', machine.Pin.OUT, value=0)
+# Instead of directly addressing the pin, this will be using the built-in LEDs for micropython
+# This has the advantage of the fault led turning on in the event of a processor exception
+faultLed = LED(1)
+faultLed.off()
 
 def raiseFault():
-	faultLed.value(1)
+	faultLed.on()
 
 def getTime():
     return time.ticks_ms()
@@ -41,7 +43,7 @@ class Sensor:
 class BBBoard:
 	deviceAddress = 0x2F
 	numLights = 2
-	currentLightValues = []
+	currentLightValues = [0, 0]
 
 	def __init__(self):
 		try:
@@ -54,12 +56,10 @@ class BBBoard:
 			
 			# Setup ligting power for pwm control (For that fancy dimming)
 			self.tim4 = Timer(4, freq=400)
-			self.lightingPower = [
-				self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
-				self.tim4.channel(4, Timer.PWM, pin=Pin('B9'))
-			]
-			assert len(self.lightingPower) == BBBoard.numLights
-			self.setLighting([0, 0])
+			self.light1 = self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
+			self.light2 = self.tim4.channel(4, Timer.PWM, pin=Pin('B9'))
+			self.setLight1(0)
+			self.setLight2(0)
 
 			# Initialize adc for voltage and current reading from Battery Balancer Board
 			while robotI2C.mem_read(1, BBBoard.deviceAddress, 0x0C)[0] & 0b00000010 != 0:
@@ -78,19 +78,22 @@ class BBBoard:
 			print("Error on BB init: " + str(e))
 			raiseFault()
 
-	def setLighting(self, values: list[int]) -> bool:
-		# Lighting values as percent value between 0 and 100
-		if len(values) != BBBoard.numLights:
+	def setLight1(self, value: int) -> bool:
+		if value > 100 or value < 0:
 			return False
-		
-		for i in range(BBBoard.numLights):
-			if values[i] > 100 or values[i] < 0:
-				return False
-		
-		for i in range(BBBoard.numLights):
-			self.lightingPower[i].pulse_width_percent(values[i])
-		
-		self.currentLightValues = values
+
+		self.light1.pulse_width_percent(value)
+		self.currentLightValues[0] = value
+
+		return True
+
+	def setLight2(self, value: int) -> bool:
+		if value > 100 or value < 0:
+			return False
+
+		self.light2.pulse_width_percent(value)
+		self.currentLightValues[1] = value
+
 		return True
 
 	# Callback functions, don't have access to class variables
@@ -123,78 +126,6 @@ class BBBoard:
 	temp = Sensor(getTemp)
 
 BB = BBBoard()
-
-"""
-class ConvBoard:
-	deviceAddress = 0x37
-	actuatorAddress = 0x1C
-
-	def __init__(self):
-		try:
-			self.moboPower = machine.Pin('C2', machine.Pin.OUT, value=1)
-			self.jetsonPower = machine.Pin('C3', machine.Pin.OUT, value=1)
-			self.peltierPower = machine.Pin('C1', machine.Pin.OUT, value=1)
-			self.threePower = machine.Pin('C0', machine.Pin.OUT, value=1)
-			self.fivePower = machine.Pin('C13', machine.Pin.OUT, value=1)
-			self.twelvePower = machine.Pin('B0', machine.Pin.OUT, value=1)
-
-			while backplaneI2C.mem_read(1, ConvBoard.deviceAddress, 0x0C)[0] & 0b00000010 != 0:
-				pass
-			# Operational mode 0 (includes temperature) and internal vref
-			backplaneI2C.mem_write(chr(0b000), ConvBoard.deviceAddress, 0x0B)
-			# Set continuous conversion
-			backplaneI2C.mem_write(chr(1), ConvBoard.deviceAddress, 0x07)
-			# Disable unused channels
-			backplaneI2C.mem_write(chr(0b01000000), ConvBoard.deviceAddress, 0x08)
-			# Mask all interrupts
-			backplaneI2C.mem_write(chr(0xFF), ConvBoard.deviceAddress, 0x03)
-			# Start ADC and disable interrupts
-			backplaneI2C.mem_write(chr(1), ConvBoard.deviceAddress, 0x00)
-		except Exception as e: print("Error on Conv init: " + str(e))
-
-	def getFiveCurrent():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x20)
-		voltage = (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096
-		return max((voltage - .33) / .264, 0)
-	def getThreeCurrent():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x21)
-		voltage = (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096
-		return max((voltage - .33) / .264, 0)
-	def getTwelveCurrent():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x22)
-		voltage = (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096
-		return max((voltage - .33) / .264, 0)
-	def getTwelveVolt():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x23)
-		return (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096 * (12.4 / 2.4)
-	def getFiveVolt():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x24)
-		return (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096 * (18 / 8)
-	def getThreeVolt():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x25)
-		return (((data[0] << 8) + data[1]) >> 4) * 2.56 / 4096 * (30 / 20)
-	def getTemp():
-		data = backplaneI2C.mem_read(2, ConvBoard.deviceAddress, 0x27)
-		return ((data[0] << 8) + data[1]) / 256
-
-	def actuators(self, args):
-		print(args)
-		backplaneI2C.send(bytearray(args), ConvBoard.actuatorAddress)
-		#data = backplaneI2C.recv(1, ConvBoard.actuatorAddress)
-		return [1]#list(backplaneI2C.recv(1, ConvBoard.actuatorAddress))
-
-
-
-	fiveVolt = Sensor(getFiveVolt)
-	threeVolt = Sensor(getThreeVolt)
-	twelveVolt = Sensor(getTwelveVolt)
-	fiveCurrent = Sensor(getFiveCurrent)
-	threeCurrent = Sensor(getThreeCurrent)
-	twelveCurrent = Sensor(getTwelveCurrent)
-	temp = Sensor(getTemp)
-
-Converter = ConvBoard()
-"""
 
 class ActuatorBoard:
 	actuatorAddress = 0x1C
@@ -264,7 +195,7 @@ class ESCBoard():
 		# See https://bluerobotics.com/store/thrusters/speed-controllers/besc30-r3/ for the documentation
 		self.currentThrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
 		for t in self.thrusters:
-				t.pulse_width_percent(60)
+			t.pulse_width_percent(60)
 		return True
 
 	def setThrusters(self, thrusts) -> bool:

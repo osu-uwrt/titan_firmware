@@ -72,7 +72,7 @@ def raiseFault():
 
 class BBBoard:
 	numLights = 2
-	currentLightValues = []
+	currentLightValues = [0, 0]
 
 	def __init__(self):
 		try:
@@ -84,12 +84,10 @@ class BBBoard:
 			self.twelvePower = Pin("12V Power")
 			
 			# Setup ligting power for pwm control (For that fancy dimming)
-			self.lightingPower = [
-				PWM("Lighting 1"),
-				PWM("Lighting 2")
-			]
-			assert len(self.lightingPower) == BBBoard.numLights
-			self.setLighting([0, 0])
+			self.light1 = PWM("Lighting 1")
+			self.light2 = PWM("Lighting 2")
+			self.setLight1(0)
+			self.setLight2(0)
 
 			# Initialize adc for voltage and current reading from Battery Balancer Board
 			# Nothing to do, we are simulating it
@@ -97,19 +95,22 @@ class BBBoard:
 			print("Error on BB init: " + str(e))
 			raiseFault()
 
-	def setLighting(self, values: list[int]) -> bool:
-		# Lighting values as percent value between 0 and 100
-		if len(values) != BBBoard.numLights:
+	def setLight1(self, value: int) -> bool:
+		if value > 100 or value < 0:
 			return False
-		
-		for i in range(BBBoard.numLights):
-			if values[i] > 100 or values[i] < 0:
-				return False
-		
-		for i in range(BBBoard.numLights):
-			self.lightingPower[i].pulse_width_percent(values[i])
-		
-		self.currentLightValues = values
+
+		self.light1.pulse_width_percent(value)
+		self.currentLightValues[0] = value
+
+		return True
+
+	def setLight2(self, value: int) -> bool:
+		if value > 100 or value < 0:
+			return False
+
+		self.light2.pulse_width_percent(value)
+		self.currentLightValues[1] = value
+
 		return True
 
 	# Callback functions, don't have access to class variables

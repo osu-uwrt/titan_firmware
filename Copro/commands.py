@@ -36,8 +36,14 @@ def moboPower(args):
 def lightingPower(args):
 	# Args: two byte array for the percentage on each light should be
 	if len(args) == 2:
-		successful = hal.BB.setLighting(args)
-		return [int(successful)]
+		if args[0] == 1:
+			successful = hal.BB.setLight1(args[1])
+			return [int(successful)]
+		elif args[0] == 2:
+			successful = hal.BB.setLight2(args[1])
+			return [int(successful)]
+		else:
+			return [0]
 	elif len(args) == 0:
 		return hal.BB.currentLightValues
 	else:
@@ -122,7 +128,7 @@ def logicVolts(args):
 def switches(args):
 	data = hal.killSwitch.value()
 	data = (data << 1) + hal.auxSwitch.value()
-	return [0x3 - data]
+	return [data]
 
 def depth(args):
 	data = int(hal.Depth.depth()*100000)
