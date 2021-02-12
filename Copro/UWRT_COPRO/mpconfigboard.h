@@ -1,7 +1,7 @@
 #define MICROPY_HW_BOARD_NAME       "UWRT Coprocessor"
 #define MICROPY_HW_MCU_NAME         "STM32F405RG"
 
-#define MICROPY_HW_HAS_SWITCH       (1)
+#define MICROPY_HW_HAS_SWITCH       (0)
 #define MICROPY_HW_HAS_FLASH        (1)
 #define MICROPY_HW_HAS_SDCARD       (0)
 #define MICROPY_HW_HAS_MMA7660      (0)
@@ -12,17 +12,18 @@
 #define MICROPY_HW_ENABLE_DAC       (1)
 #define MICROPY_HW_ENABLE_USB       (1)
 
-// HSE is 12MHz
-#define MICROPY_HW_CLK_PLLM (12)
-#define MICROPY_HW_CLK_PLLN (336)
-#define MICROPY_HW_CLK_PLLP (RCC_PLLP_DIV2)
-#define MICROPY_HW_CLK_PLLQ (7)
+// Clock config
+// HSE is 12MHz (HSE will be used unless manually overridden with define)
+#define MICROPY_HW_CLK_PLLM (12)            // HSE -> Pre-pll division (Must result in 1-2 MHz clock [Datsheet recommends more towards 2 MHz])
+#define MICROPY_HW_CLK_PLLN (336)           // Main PLL Multiplication after M clock division -> VCO clock
+#define MICROPY_HW_CLK_PLLP (RCC_PLLP_DIV2) // System Clock Division from VCO Clock (Can't be > 168 MHz for stm324xx series)
+#define MICROPY_HW_CLK_PLLQ (7)             // Division for USB, SDIO, and RNG clocks from VCO Clock. Must result in 48 MHz for USB to work
 #define MICROPY_HW_CLK_LAST_FREQ (1)
 
 // The pyboard has a 32kHz crystal for the RTC
 #define MICROPY_HW_RTC_USE_LSE      (1)
 #define MICROPY_HW_RTC_USE_US       (0)
-#define MICROPY_HW_RTC_USE_CALOUT   (1)
+#define MICROPY_HW_RTC_USE_CALOUT   (0)     // This will output a 512 Hz calibration signal on P13. If needed set to 1
 
 // UART config
 #define MICROPY_HW_UART1_NAME   "XB"
@@ -73,18 +74,15 @@
 #define MICROPY_HW_CAN2_RX   (pin_B12) // Y5
 
 // USRSW has no pullup or pulldown, and pressing the switch makes the input go low
+/* There is no usr switch installed on the copro board
 #define MICROPY_HW_USRSW_PIN        (pin_B3)
 #define MICROPY_HW_USRSW_PULL       (GPIO_PULLUP)
 #define MICROPY_HW_USRSW_EXTI_MODE  (GPIO_MODE_IT_FALLING)
 #define MICROPY_HW_USRSW_PRESSED    (0)
+*/
 
-// The pyboard has 4 LEDs
-#define MICROPY_HW_LED1             (pin_A13) // red
-#define MICROPY_HW_LED2             (pin_A14) // green
-#define MICROPY_HW_LED3             (pin_A15) // yellow
-#define MICROPY_HW_LED4             (pin_B4)  // blue
-#define MICROPY_HW_LED3_PWM         { TIM2, 2, TIM_CHANNEL_1, GPIO_AF1_TIM2 }
-#define MICROPY_HW_LED4_PWM         { TIM3, 3, TIM_CHANNEL_1, GPIO_AF2_TIM3 }
+// This pyboard has 1 LED installed (Note: 4 total are available, see original config)
+#define MICROPY_HW_LED1             (pin_A8)  // MC_FAULT Pin
 #define MICROPY_HW_LED_ON(pin)      (mp_hal_pin_high(pin))
 #define MICROPY_HW_LED_OFF(pin)     (mp_hal_pin_low(pin))
 
@@ -98,8 +96,8 @@
 //#define MICROPY_HW_USB_VBUS_DETECT_PIN (pin_A9)
 //#define MICROPY_HW_USB_OTG_ID_PIN      (pin_A10)
 
-// MMA accelerometer config
-#define MICROPY_HW_MMA_AVDD_PIN     (pin_B5)
+// MMA accelerometer config (uncomment if mma accelerometer is used)
+//#define MICROPY_HW_MMA_AVDD_PIN     (pin_B5)
 
 // Bootloader configuration (only needed if Mboot is used)
 // #define MBOOT_I2C_PERIPH_ID 1
