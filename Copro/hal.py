@@ -3,6 +3,7 @@ import utime as time
 import network
 from pyb import Timer, Pin, I2C, LED
 import uasyncio as asyncio
+import uerrno
 import gc
 
 nic = network.WIZNET5K(machine.SPI(1), machine.Pin('A4', machine.Pin.OUT), machine.Pin('C5', machine.Pin.OUT))
@@ -20,7 +21,7 @@ def raiseFault():
 	faultLed.on()
 
 def getTime():
-    return time.ticks_ms()
+	return time.ticks_ms()
 
 class Sensor:
 	def __init__(self, collectFunction):
@@ -129,14 +130,103 @@ BB = BBBoard()
 
 class ActuatorBoard:
 	actuatorAddress = 0x1C
+	ACTUATOR_TIMEOUT = 2
+	MAX_RETRIES = 5
+
+	PACKET_MOSI_MAGIC_NIBBLE = 0b1001
+	PACKET_MISO_MAGIC_NIBBLE = 0b1010
+	PACKET_STATUS_SUCESSFUL = 1
+	PACKET_STATUS_CHECKSUM = 2
 
 	def __init__(self):
 		pass
 
+	def calc_crc(self, input_data: bytes, first_byte=None) -> int:
+		polynomial = 0x31
+		crc = 0xFF
+
+		data = bytearray()
+		if first_byte is not None:
+			data.append(first_byte)
+		
+		data += input_data
+
+		for byte_i in data:
+			crc ^= byte_i
+			crc &= 0xFF
+			for bit in range(8):
+				if (crc & (1<<7)) != 0:
+					crc <<= 1
+					crc &= 0xFF
+					crc ^= polynomial
+					crc &= 0xFF
+				else:
+					crc <<= 1
+					crc &= 0xFF
+
+		return crc
+
+	# See actuator firmware for protocol breakdown
 	def actuators(self, args):
-		backplaneI2C.send(bytearray(args), ActuatorBoard.actuatorAddress)
-		#data = backplaneI2C.recv(1, ConvBoard.actuatorAddress)
-		return [1]#list(backplaneI2C.recv(1, ConvBoard.actuatorAddress))
+		if len(args) > 15:
+			return [0, 0]
+
+		header = bytearray([ActuatorBoard.PACKET_MOSI_MAGIC_NIBBLE << 4 | len(args) & 0xF])
+		data = bytearray(len(args) + 1)
+		data[0:len(args)] = args
+		data[-1] = self.calc_crc(data[:-1], header[0])
+
+		tries = 0
+		successful = False
+		cmdStatus = 0
+		while tries < self.MAX_RETRIES:
+			tries += 1
+			try:
+				backplaneI2C.send(header, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+				backplaneI2C.send(data, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+			except OSError as e:
+				if e.args[0] == uerrno.ETIMEDOUT:
+					print("Send Timed Out")
+					continue
+				else:
+					raise
+			
+			recv_data = None
+			try:
+				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+			except OSError as e:
+				if e.args[0] == uerrno.ETIMEDOUT:
+					print("Receive Timed Out")
+					continue
+				else:
+					raise
+			
+			if recv_data[0] >> 4 != ActuatorBoard.PACKET_MISO_MAGIC_NIBBLE:
+				print("Invalid Packet Header")
+				continue
+
+			if self.calc_crc(recv_data[:2]) != recv_data[2]:
+				print("Invalid Checksum")
+				continue
+
+			status = recv_data[0] & 0xF
+
+			if status == ActuatorBoard.PACKET_STATUS_SUCESSFUL:
+				cmdStatus = recv_data[1]
+				successful = True
+				break
+			elif status == ActuatorBoard.PACKET_STATUS_CHECKSUM:
+				print("Actuator requested packet resend from checksum error")
+				continue
+			else:
+				print("Unexpected status code... Trying again")
+				continue
+		
+		if successful:
+			return [cmdStatus, tries]
+		else:
+			tries += 1
+			return [0, tries]
 	
 Actuator = ActuatorBoard()
 
@@ -369,17 +459,17 @@ class DepthSensor():
 Depth = DepthSensor()
 
 class CoproBoard():
-    def restart(self):
-        machine.reset()
+	def restart(self):
+		machine.reset()
 #<--TODO: check The memory usage-->
-    def memory_usage(self):
-        gc.collect()
-        free_memory = gc.mem_free()
-        occupy_memory = gc.mem_alloc()
-        total_memory = free_memory+occupy_memory
-        percent_usage = free_memory/total_memory
+	def memory_usage(self):
+		gc.collect()
+		free_memory = gc.mem_free()
+		occupy_memory = gc.mem_alloc()
+		total_memory = free_memory+occupy_memory
+		percent_usage = free_memory/total_memory
 
-        return percent_usage
+		return percent_usage
 
 Copro = CoproBoard()
 

@@ -165,7 +165,7 @@ def reset(args):
 	hal.Copro.restart()
 
 def actuator(args):
-	return hal.BB.actuators(args)
+	return hal.Actuator.actuators(args)
 
 def latency_check(args):
 	return [1]

@@ -1,3 +1,4 @@
+import socket
 import random
 import time
 import os
@@ -63,6 +64,104 @@ class PWM:
 			self.state = a
 
 
+ETIMEDOUT = 110
+class ActuatorI2C:
+	class ProtocolError(Exception):
+		pass
+
+	"""
+	Simulated I2C uses a Type, Length, Value packet format, where each direciton is independent
+	Types:
+	 - 0xA0: MOSI: Sent to start I2C tranaction with the data
+	 - 0xA1: MOSI: Sent to start I2C transaction from other device with length requested, expecting 0xB1 response
+	 - 0xA2: MOSI: Sent to acknowledge data received from 0xB1
+	 - 0xB0: MISO: Sent to acknowledge data from 0xA0
+	 - 0xB1: MISO: Sent to respond to 0xA1 request with data requested
+	"""
+	I2C_SIMULATOR_PORT = 40123
+
+	MOSI_TX_CONTENT = 0xA0
+	MOSI_RX_REQUEST = 0xA1
+	MOSI_RX_ACK = 0xA2
+	MISO_RX_ACK = 0xB0
+	MISO_TX_CONTENT = 0xB1
+
+	EXPECTED_ADDR = 0x1C
+
+	sock: socket.socket = None
+
+	def __init__(self):
+		# Setup socket and such
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.sock.connect(("localhost", ActuatorI2C.I2C_SIMULATOR_PORT))
+
+	def _recvall(self, size: int) -> bytes:
+		data = bytearray()
+		while len(data) < size:
+			recv_part = self.sock.recv(size - len(data))
+			if len(recv_part) == 0:
+				raise ActuatorI2C.ProtocolError("Connection Unexpectedly Closed")
+			data += recv_part
+		return data
+
+	def _sock_read_tlv(self, expected_type: int) -> bytes:
+		tl_part = self._recvall(2)
+
+		if tl_part[0] != expected_type:
+			self.sock.close()
+			raise ActuatorI2C.ProtocolError("Unexpected Packet Type {0}, expected {1}".format(tl_part[0], expected_type))
+
+		length = tl_part[1]
+
+		if length != 0:
+			return self._recvall(length)
+		else:
+			return bytearray(0)
+	
+	def _sock_send_tlv(self, type: int, value: bytes) -> None:
+		length = 0
+		if value is not None:
+			length = len(value)
+		header = bytearray([type, length])
+		self.sock.sendall(header)
+		if value is not None:
+			self.sock.sendall(value)
+		
+
+	def send(self, data: bytes, addr=0, timeout=5000):
+		assert len(data) < 256
+		if addr != ActuatorI2C.EXPECTED_ADDR:
+			raise RuntimeError("Only the actuators are implemented in the simulator")
+
+		self.sock.settimeout(timeout / 1000)
+		try:
+			self._sock_send_tlv(ActuatorI2C.MOSI_TX_CONTENT, data)
+			ack = self._sock_read_tlv(ActuatorI2C.MISO_RX_ACK)
+			if len(ack) != 1 or ack[0] != len(data):
+				raise ActuatorI2C.ProtocolError("Invalid ack packet")
+		except socket.timeout:
+			# Make an error that is expected during normal I2C operation
+			raise OSError(ETIMEDOUT)
+
+	def recv(self, size: int, addr=0, timeout=5000):
+		assert size > 0 and size < 256
+		if addr != ActuatorI2C.EXPECTED_ADDR:
+			raise RuntimeError("Only the actuators are implemented in the simulator")
+		
+		self.sock.settimeout(timeout / 1000)
+		data = None
+		try:
+			self._sock_send_tlv(ActuatorI2C.MOSI_RX_REQUEST, bytearray([size]))
+			data = self._sock_read_tlv(ActuatorI2C.MISO_TX_CONTENT)
+			if len(data) != size:
+				raise ActuatorI2C.ProtocolError("Invalid size response sent")
+			self._sock_send_tlv(ActuatorI2C.MOSI_RX_ACK, None)
+		except socket.timeout:
+			# Make an error that is expected during normal I2C operation
+			raise OSError(ETIMEDOUT)
+		return data
+
+backplaneI2C = ActuatorI2C()
 
 
 faultLed = Pin("Fault LED")
@@ -137,12 +236,103 @@ class BBBoard:
 BB = BBBoard()
 
 class ActuatorBoard:
+	actuatorAddress = 0x1C
+	ACTUATOR_TIMEOUT = 2
+	MAX_RETRIES = 5
+
+	PACKET_MOSI_MAGIC_NIBBLE = 0b1001
+	PACKET_MISO_MAGIC_NIBBLE = 0b1010
+	PACKET_STATUS_SUCESSFUL = 1
+	PACKET_STATUS_CHECKSUM = 2
+	
 	def __init__(self):
 		pass
 
+	def calc_crc(self, input_data: bytes, first_byte=None) -> int:
+		polynomial = 0x31
+		crc = 0xFF
+
+		data = bytearray()
+		if first_byte is not None:
+			data.append(first_byte)
+		
+		data += input_data
+
+		for byte_i in data:
+			crc ^= byte_i
+			crc &= 0xFF
+			for bit in range(8):
+				if (crc & (1<<7)) != 0:
+					crc <<= 1
+					crc &= 0xFF
+					crc ^= polynomial
+					crc &= 0xFF
+				else:
+					crc <<= 1
+					crc &= 0xFF
+
+		return crc
+
 	def actuators(self, args):
-		print("Command requested to actuator:", list(args))
-		return [1]
+		if len(args) > 15:
+			return [0, 0]
+
+		header = bytearray([ActuatorBoard.PACKET_MOSI_MAGIC_NIBBLE << 4 | len(args) & 0xF])
+		data = bytearray(len(args) + 1)
+		data[0:len(args)] = args
+		data[-1] = self.calc_crc(data[:-1], header[0])
+
+		tries = 0
+		successful = False
+		cmdStatus = 0
+		while tries < self.MAX_RETRIES:
+			tries += 1
+			try:
+				backplaneI2C.send(header, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+				backplaneI2C.send(data, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+			except OSError as e:
+				if e.args[0] == ETIMEDOUT:
+					print("Send Timed Out")
+					continue
+				else:
+					raise
+			
+			recv_data = None
+			try:
+				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+			except OSError as e:
+				if e.args[0] == ETIMEDOUT:
+					print("Receive Timed Out")
+					continue
+				else:
+					raise
+			
+			if recv_data[0] >> 4 != ActuatorBoard.PACKET_MISO_MAGIC_NIBBLE:
+				print("Invalid Packet Header")
+				continue
+
+			if self.calc_crc(recv_data[:2]) != recv_data[2]:
+				print("Invalid Checksum")
+				continue
+
+			status = recv_data[0] & 0xF
+
+			if status == ActuatorBoard.PACKET_STATUS_SUCESSFUL:
+				cmdStatus = recv_data[1]
+				successful = True
+				break
+			elif status == ActuatorBoard.PACKET_STATUS_CHECKSUM:
+				print("Actuator requested packet resend from checksum error")
+				continue
+			else:
+				print("Unexpected status code... Trying again")
+				continue
+		
+		if successful:
+			return [cmdStatus, tries]
+		else:
+			tries += 1
+			return [0, tries]
 	
 Actuator = ActuatorBoard()
 

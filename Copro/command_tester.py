@@ -55,11 +55,55 @@ def enforceBooleanData(data: bytes) -> bool:
 
     return bool(data[0])
 
+def enforceActuatorData(data: bytes) -> None:
+    if len(data) != 2:
+        raise RuntimeError("Unexpected actuator data of length {0}".format(len(data)))
+
+    if data[0] != 1 and data[1] != 1:
+        raise RuntimeError("Error during actuator command: (Status: {0} in {1} tries)".format(data[0], data[1]))
+
 def formatPinState(state: bool) -> str:
     if state:
         return "HIGH"
     else:
         return "LOW"
+
+config = {
+    "standby":       8500,
+    "coil_1_start1": 0,    
+    "coil_1_end1":   25000,
+    "coil_2_start1": 25000,
+    "coil_2_end1":   30000,
+    "coil_3_start1": 30000,
+    "coil_3_end1":   33600,
+    "coil_4_start1": 33600,
+    "coil_4_end1":   33750,
+    "coil_5_start1": 33750,
+    "coil_5_end1":   33900,
+    "coil_1_start2": 0,    
+    "coil_1_end2":   23000,
+    "coil_2_start2": 23000,
+    "coil_2_end2":   29000,
+    "coil_3_start2": 29000,
+    "coil_3_end2":   33300,
+    "coil_4_start2": 33300,
+    "coil_4_end2":   33400,
+    "coil_5_start2": 33400,
+    "coil_5_end2":   33500,
+}
+
+def reconfigure_callback():
+    for i in range(5):
+        start = config["coil_%d_start1" % (i+1)]
+        end = config["coil_%d_end1" % (i+1)]
+        enforceActuatorData(dispatchCommandAndWait([16, i, start // 256, start % 256, end // 256, end % 256]))
+
+        start = config["coil_%d_start2" % (i+1)]
+        end = config["coil_%d_end2" % (i+1)]
+        enforceActuatorData(dispatchCommandAndWait([16, i+16, start // 256, start % 256, end // 256, end % 256]))
+
+    enforceActuatorData(dispatchCommandAndWait([16, 5, 0, 0, config["standby"] // 256, config["standby"] % 256]))
+    enforceActuatorData(dispatchCommandAndWait([16, 21, 0, 0, config["standby"] // 256, config["standby"] % 256]))
 
 if '-h' in argv or 'help' in argv:
     print('Run this program to test individual commands with different arguments.')
@@ -383,6 +427,54 @@ if '--fulltest' in argv:
     
     print('Since the device was reset, the connection will just be dropped')
 
+elif '--actuatorstress' in sys.argv:
+    start_timer = time()
+    while time() - start_timer < 20:
+        start_time = 0
+        end_time = 5000
+        resp = dispatchCommandAndWait([16, 0, start_time >> 8, start_time & 0xFF, end_time >> 8, end_time & 0xFF])
+        if resp[0] != 1:
+            print("Error from board: {0} ({1} Tries)".format(resp[0], resp[1]))
+            break
+        if resp[1] != 1:
+            print("Multiple tries needed to execute: {0} Tries".format(resp[1]))
+            break
+    print('Closing')
+    s.sendall(bytearray([0]))
+
+elif '--actuator' in sys.argv:
+    reconfigure_callback()
+    while True:
+        try:
+            command = int(input("actuator command number -> "))
+            if command >= 8 or command < 0:
+                print("Invalid Command Num")
+                continue
+            cmd_args = int(input("lower 5-bit args -> "))
+            args = input("args -> ")
+            args = str(args).replace(" ", "").split(",")
+            if "" in args:
+                args.remove("")
+            args_array = [int(arg) for arg in args]
+            args_array.insert(0, 16)
+            args_array.insert(1, (command<<5) + cmd_args)
+            resp = dispatchCommandAndWait(args_array)
+            if resp[1] == 6:
+                print("Command failed to be processed (returned {0})".format(resp[0]))
+            else:
+                if resp[0] == 0:
+                    resp_readable = "FAILED"
+                elif resp[0] == 1:
+                    resp_readable = "succeeded"
+                else:
+                    resp_readable = "?? UNKNOWN ID {0} ??".format(resp[0])
+                print("Command {0} in {1} tries".format(resp_readable, resp[1]))
+
+        except (KeyboardInterrupt, Exception) as e:
+            print(e)
+            break    
+    print('Closing')
+    s.sendall(bytearray([0]))
 else:
     while True:
         try:

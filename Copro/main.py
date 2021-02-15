@@ -5,7 +5,7 @@ try:
 	import halSimulated as hal
 	import traceback
 	import asyncio
-except:
+except ImportError:
 	onCopro = True
 	import hal
 	import usocket as socket
