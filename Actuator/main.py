@@ -1,16 +1,15 @@
-try:
-    import hal
-    onCopro = True
-except ImportError:
-    onCopro = False
-    import halSimulated as hal
-    import traceback
-
-import sys
-import commands
-
-
 def mainLoop():
+    try:
+        import hal
+        onActuator = True
+    except ImportError:
+        onActuator = False
+        import halSimulated as hal
+        import traceback
+
+    import sys
+    import commands
+
     try:
         while True:
             # Read data from i2c, process it, then respond
@@ -23,11 +22,21 @@ def mainLoop():
 
     except Exception as exc:
         hal.raiseFault()
-        if not onCopro:
+        if not onActuator:
             traceback.print_exc()
             print(exc)
         else:
             sys.print_exception(exc)
 
 if __name__ == "__main__":
-    mainLoop()
+    try:
+        mainLoop()
+    finally:
+        # Always turn on fault led since the code shouldn't get this far
+        # If it is running in a simulator, it will just print an error
+        try:
+            from pyb import LED
+            faultLed = LED(1)
+            faultLed.on()
+        except:
+            print("Failed to turn on fault led at program termination")
