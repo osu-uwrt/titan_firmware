@@ -3,24 +3,9 @@ import random
 import time
 import os
 
-def getTime():
-    return int(time.time()*1000)
-
-class Sensor:
-	def __init__(self, collectFunction):
-		self.data = 0
-		self.lastCollectionTime = 0
-		self.cacheDuration = 100
-		self.collectFunction = collectFunction
-
-	def value(self):
-		if getTime() - self.lastCollectionTime > self.cacheDuration:
-			self.collect()
-		return self.data
-
-	def collect(self):
-		self.data = self.collectFunction()
-		self.lastCollectionTime = getTime()
+########################################
+## SIMULATOR DEVICE CREATION          ##
+########################################
 
 class Pin:
 	registered_names = []
@@ -45,6 +30,12 @@ class Pin:
 
 			print("Pin", self.name, "- Setting pin state to", state_name)
 			self.state = a
+
+	def off(self):
+		self.value(0)
+	
+	def on(self):
+		self.value(1)
 
 class PWM:
 	registered_names = []
@@ -163,15 +154,64 @@ class ActuatorI2C:
 
 backplaneI2C = ActuatorI2C()
 
+########################################
+## FAULT HANDLING CODE                ##
+########################################
 
 faultLed = Pin("Fault LED")
+faultLed.off()
 
-def raiseFault():
-	faultLed.value(1)
+PROGRAM_TERMINATED = 1
+MAIN_LOOP_CRASH = 2
+DEPTH_LOOP_CRASH = 3
+BATTERY_CHECKER_CRASH = 4
+AUTO_COOLING_CRASH = 5
+BB_INIT_FAIL = 6
+ESC_INIT_FAIL = 7
+DEPTH_INIT_FAIL = 8
+BACKPLANE_INIT_FAIL = 9
+COMMAND_EXEC_CRASH = 10
+FAULT_STATE_INVALID = 11
+
+faultList = []
+def raiseFault(faultId: int):
+	faultLed.on()
+	if faultId not in faultList:
+		faultList.append(faultId)
+
+
+########################################
+## UTILITY CODE                       ##
+########################################
+
+def getTime():
+    return int(time.time()*1000)
+
+class Sensor:
+	def __init__(self, collectFunction):
+		self.data = 0
+		self.lastCollectionTime = 0
+		self.cacheDuration = 100
+		self.collectFunction = collectFunction
+
+	def value(self):
+		if getTime() - self.lastCollectionTime > self.cacheDuration:
+			self.collect()
+		return self.data
+
+	def collect(self):
+		self.data = self.collectFunction()
+		self.lastCollectionTime = getTime()
+
+
+########################################
+## COPRO IMPLEMENTED INTERFACES       ##
+########################################
 
 class BBBoard:
 	numLights = 2
 	currentLightValues = [0, 0]
+	initialized = False
 
 	def __init__(self):
 		try:
@@ -190,9 +230,10 @@ class BBBoard:
 
 			# Initialize adc for voltage and current reading from Battery Balancer Board
 			# Nothing to do, we are simulating it
+			self.initialized = True
 		except Exception as e: 
 			print("Error on BB init: " + str(e))
-			raiseFault()
+			raiseFault(BB_INIT_FAIL)
 
 	def setLight1(self, value: int) -> bool:
 		if value > 100 or value < 0:
@@ -223,6 +264,10 @@ class BBBoard:
 		return random.uniform(19,21)
 	def getPortVolt():
 		return random.uniform(19,21)
+	def getFiveVolt():
+		return random.uniform(4.9,5.1)
+	def getThreeVolt():
+		return random.uniform(3.2,3.4)
 	def getTemp():
 		return random.uniform(0,70)
 
@@ -231,9 +276,10 @@ class BBBoard:
 	balancedVolt = Sensor(getBalancedVolt)
 	stbdVolt = Sensor(getStbdVolt)
 	portVolt = Sensor(getPortVolt)
+	fiveVolt = Sensor(getFiveVolt)
+	threeVolt = Sensor(getThreeVolt)
 	temp = Sensor(getTemp)
 
-BB = BBBoard()
 
 class ActuatorBoard:
 	actuatorAddress = 0x1C
@@ -246,7 +292,7 @@ class ActuatorBoard:
 	PACKET_STATUS_CHECKSUM = 2
 	
 	def __init__(self):
-		pass
+		self.initialized = True
 
 	def calc_crc(self, input_data: bytes, first_byte=None) -> int:
 		polynomial = 0x31
@@ -333,13 +379,13 @@ class ActuatorBoard:
 		else:
 			tries += 1
 			return [0, tries]
-	
-Actuator = ActuatorBoard()
+
 
 class ESCBoard():
 	numThrusters = 8
 	thrustersEnabled = 1
 	currentThrusts = []  # The current pwm pulse width in microseconds
+	initialized = False
 
 	def __init__(self):
 		try:
@@ -359,9 +405,10 @@ class ESCBoard():
 			self.timeChange = 0
 
 			# I2C init removed
+			self.initialized = True
 		except Exception as e:
 			print("Error on ESC init: " + str(e))
-			raiseFault()
+			raiseFault(ESC_INIT_FAIL)
 
 	def getCurrents():
 		current_vals = []
@@ -378,7 +425,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and killSwitch.value() == 0 and getTime() - self.timeChange > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and getTime() - self.timeChange > 5000:
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -410,12 +457,15 @@ class ESCBoard():
 
 	currents = Sensor(getCurrents)
 
-ESC = ESCBoard()
 
 class DepthSensor():
 	deviceAddress = 0x76
 	_fluidDensity = 997
 	_pressure = 0
+	initialized = False
+
+	def __init__(self):
+		self.initialized = True
 
 	def pressure(self):
 		return self._pressure
@@ -428,7 +478,6 @@ class DepthSensor():
 	def depth(self):
 		return (random.uniform(0, 2))
 
-Depth = DepthSensor()
 
 class CoproBoard():
 	def restart(self):
@@ -445,14 +494,30 @@ class CoproBoard():
 
 		return percent_usage
 
+
+class BackplaneBoard():
+	def __init__(self):
+		try:
+			self.killSwitch = Pin("Kill Switch")
+			self.auxSwitch = Pin("Aux Switch")
+
+			#self.killSwitch.irq(self.killSwitchChanged)
+			self.killSwitchChanged(self.killSwitch)
+		except Exception as e:
+			print("Error on Backplane init: " + str(e))
+			raiseFault(BACKPLANE_INIT_FAIL)
+
+	def killSwitchChanged(self, pin):
+		ESC.stopThrusters()
+		ESC.timeChange = getTime()
+
+########################################
+## COPRO INTERFACES CREATION          ##
+########################################
+
+BB = BBBoard()
+Actuator = ActuatorBoard()
+ESC = ESCBoard()
+Depth = DepthSensor()
 Copro = CoproBoard()
-
-
-killSwitch = Pin("Kill Switch")
-auxSwitch = Pin("Aux Switch")
-
-def killSwitchChanged(pin):
-	ESC.stopThrusters()
-	ESC.timeChange = getTime()
-
-killSwitchChanged(killSwitch)
+Backplane = BackplaneBoard()

@@ -6,19 +6,46 @@ import uasyncio as asyncio
 import uerrno
 import gc
 
+########################################
+## COMMUNICATION INTERFACE CREATION   ##
+########################################
+
 nic = network.WIZNET5K(machine.SPI(1), machine.Pin('A4', machine.Pin.OUT), machine.Pin('C5', machine.Pin.OUT))
 nic.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
 
 backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
 robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
 
-# Instead of directly addressing the pin, this will be using the built-in LEDs for micropython
-# This has the advantage of the fault led turning on in the event of a processor exception
+
+########################################
+## FAULT HANDLING CODE                ##
+########################################
+
 faultLed = LED(1)
 faultLed.off()
 
-def raiseFault():
+PROGRAM_TERMINATED = 1
+MAIN_LOOP_CRASH = 2
+DEPTH_LOOP_CRASH = 3
+BATTERY_CHECKER_CRASH = 4
+AUTO_COOLING_CRASH = 5
+BB_INIT_FAIL = 6
+ESC_INIT_FAIL = 7
+DEPTH_INIT_FAIL = 8
+BACKPLANE_INIT_FAIL = 9
+COMMAND_EXEC_CRASH = 10
+FAULT_STATE_INVALID = 11
+
+faultList = []
+def raiseFault(faultId: int):
 	faultLed.on()
+	if faultId not in faultList:
+		faultList.append(faultId)
+
+
+########################################
+## UTILITY CODE                       ##
+########################################
 
 def getTime():
 	return time.ticks_ms()
@@ -40,11 +67,15 @@ class Sensor:
 		self.lastCollectionTime = getTime()
 
 
+########################################
+## COPRO IMPLEMENTED INTERFACES       ##
+########################################
 
 class BBBoard:
 	deviceAddress = 0x2F
 	numLights = 2
 	currentLightValues = [0, 0]
+	initialized = False
 
 	def __init__(self):
 		try:
@@ -75,9 +106,10 @@ class BBBoard:
 			robotI2C.mem_write(chr(0xFF), BBBoard.deviceAddress, 0x03)
 			# Start ADC and disable interrupts
 			robotI2C.mem_write(chr(1), BBBoard.deviceAddress, 0x00)
+			self.initialized = True
 		except Exception as e: 
 			print("Error on BB init: " + str(e))
-			raiseFault()
+			raiseFault(BB_INIT_FAIL)
 
 	def setLight1(self, value: int) -> bool:
 		if value > 100 or value < 0:
@@ -115,6 +147,12 @@ class BBBoard:
 	def getPortVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
+	def getFiveVolt():
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25)
+		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
+	def getThreeVolt():
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26)
+		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 	def getTemp():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27)
 		return ((data[0] << 8) + data[1]) / 256
@@ -124,9 +162,10 @@ class BBBoard:
 	balancedVolt = Sensor(getBalancedVolt)
 	stbdVolt = Sensor(getStbdVolt)
 	portVolt = Sensor(getPortVolt)
+	fiveVolt = Sensor(getFiveVolt)
+	threeVolt = Sensor(getThreeVolt)
 	temp = Sensor(getTemp)
 
-BB = BBBoard()
 
 class ActuatorBoard:
 	actuatorAddress = 0x1C
@@ -139,7 +178,7 @@ class ActuatorBoard:
 	PACKET_STATUS_CHECKSUM = 2
 
 	def __init__(self):
-		pass
+		self.initialized = True
 
 	def calc_crc(self, input_data: bytes, first_byte=None) -> int:
 		polynomial = 0x31
@@ -227,14 +266,14 @@ class ActuatorBoard:
 		else:
 			tries += 1
 			return [0, tries]
-	
-Actuator = ActuatorBoard()
+
 
 class ESCBoard():
 	numThrusters = 8
 	deviceAddress = 0x2E
 	thrustersEnabled = 1
 	currentThrusts = []  # The current pwm pulse width in microseconds
+	initialized = False
 
 	def __init__(self):
 		try:
@@ -268,9 +307,10 @@ class ESCBoard():
 			backplaneI2C.mem_write(chr(0xFF), ESCBoard.deviceAddress, 0x03)
 			# Start ADC and disable interrupts
 			backplaneI2C.mem_write(chr(1), ESCBoard.deviceAddress, 0x00)
+			self.initialized = True
 		except Exception as e:
 			print("Error on ESC init: " + str(e))
-			raiseFault()
+			raiseFault(ESC_INIT_FAIL)
 
 	def getCurrents():
 		current_vals = []
@@ -289,7 +329,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and killSwitch.value() == 0 and time.ticks_diff(getTime(), self.timeChange) > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and time.ticks_diff(getTime(), self.timeChange) > 5000:
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -321,8 +361,6 @@ class ESCBoard():
 
 	currents = Sensor(getCurrents)
 
-ESC = ESCBoard()
-
 
 class DepthSensor():
 	deviceAddress = 0x76
@@ -350,7 +388,7 @@ class DepthSensor():
 			self.initialized = True
 		except Exception as e:
 			print("Error on Depth init: " + str(e))
-			raiseFault()
+			raiseFault(DEPTH_INIT_FAIL)
 
 	# Cribbed from datasheet
 	def crc4(self, n_prom):
@@ -456,7 +494,6 @@ class DepthSensor():
 
 		self.surfacePressure = self.surfacePressure * .7 + self._pressure * .3
 
-Depth = DepthSensor()
 
 class CoproBoard():
 	def restart(self):
@@ -471,15 +508,30 @@ class CoproBoard():
 
 		return percent_usage
 
+
+class BackplaneBoard():
+	def __init__(self):
+		try:
+			self.killSwitch = machine.Pin('B12', machine.Pin.IN, machine.Pin.PULL_UP)
+			self.auxSwitch = machine.Pin('B13', machine.Pin.IN, machine.Pin.PULL_UP)
+
+			self.killSwitch.irq(self.killSwitchChanged)
+			self.killSwitchChanged(self.killSwitch)
+		except Exception as e:
+			print("Error on Backplane init: " + str(e))
+			raiseFault(BACKPLANE_INIT_FAIL)
+
+	def killSwitchChanged(self, pin):
+		ESC.stopThrusters()
+		ESC.timeChange = getTime()
+
+########################################
+## COPRO INTERFACES CREATION          ##
+########################################
+
+BB = BBBoard()
+Actuator = ActuatorBoard()
+ESC = ESCBoard()
+Depth = DepthSensor()
 Copro = CoproBoard()
-
-
-killSwitch = machine.Pin('B12', machine.Pin.IN, machine.Pin.PULL_UP)
-auxSwitch = machine.Pin('B13', machine.Pin.IN, machine.Pin.PULL_UP)
-
-def killSwitchChanged(pin):
-	ESC.stopThrusters()
-	ESC.timeChange = getTime()
-
-killSwitch.irq(killSwitchChanged)
-killSwitchChanged(killSwitch)
+Backplane = BackplaneBoard()

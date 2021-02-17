@@ -15,7 +15,7 @@ def runCommand(data):
 			response = []
 	except Exception as e:
 		print("Error on command "+str(commandNum)+": " + str(e))
-		hal.raiseFault()
+		hal.raiseFault(hal.COMMAND_EXEC_CRASH)
 		response = []
 	return response
 
@@ -117,17 +117,18 @@ def logicCurrents(args):
 	fiveCurrent = int(hal.Converter.fiveCurrent.value() * 1000)
 	twelveCurrent = int(hal.Converter.twelveCurrent.value() * 1000)
 	return [threeCurrent // 256, threeCurrent % 256, fiveCurrent // 256, fiveCurrent % 256, twelveCurrent // 256, twelveCurrent % 256, ]
-
-def logicVolts(args):
-	threeVolt = int(hal.Converter.threeVolt.value() * 1000)
-	fiveVolt = int(hal.Converter.fiveVolt.value() * 1000)
-	twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
-	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256, ]
 """
 
+def logicVolts(args):
+	threeVolt = int(hal.BB.threeVolt.value() * 1000)
+	fiveVolt = int(hal.BB.fiveVolt.value() * 1000)
+	# twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
+	twelveVolt = 0  # 12V rail was removed from monitoring on this adc
+	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256, ]
+
 def switches(args):
-	data = hal.killSwitch.value()
-	data = (data << 1) + hal.auxSwitch.value()
+	data = hal.Backplane.killSwitch.value()
+	data = (data << 1) + hal.Backplane.auxSwitch.value()
 	return [data]
 
 def depth(args):
@@ -181,7 +182,18 @@ def temp_threshold(args):
         temp = args[0]
     return [temp]
     
-       
+def get_fault_state(args):
+	if len(hal.faultList) != 0:
+		# Make sure that the fault list doesn't have an invalid message causing the connection to drop
+		if len(hal.faultList) > 254:
+			return [1, hal.FAULT_STATE_INVALID]
+		
+		for entry in hal.faultList:
+			if type(entry) != int or entry < 0 or entry > 255:
+				return [1, hal.FAULT_STATE_INVALID]
+		return [1] + hal.faultList
+	else:
+		return [0]
 
 
 commandList = [
@@ -194,7 +206,7 @@ commandList = [
 	getTemperature,		#6
 	thrusterForce,		#7
 	None,				#8  Was logicCurrents but adc was removed from board
-	None,				#9  Was logicVolts but adc was removed from board
+	logicVolts,			#9
 	switches,			#10
 	depth,				#11
 	getThrusterCurrents,#12
@@ -204,5 +216,6 @@ commandList = [
 	actuator,	     	#16
 	latency_check,      #17 
 	memory_check,       #18 
-	temp_threshold      #19 
+	temp_threshold,     #19 
+	get_fault_state,	#20
 ]
