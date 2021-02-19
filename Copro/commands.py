@@ -124,7 +124,7 @@ def logicVolts(args):
 	#threeVolt = int(hal.BB.threeVolt.value() * 1000)  # 3.3V rail was removed from monitoring on this adc
 	threeVolt = 0
 	fiveVolt = int(hal.BB.fiveVolt.value() * 1000)
-	twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
+	twelveVolt = int(hal.BB.twelveVolt.value() * 500)
 	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256]
 
 def switches(args):

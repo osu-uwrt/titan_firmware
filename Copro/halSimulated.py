@@ -83,8 +83,11 @@ class ActuatorI2C:
 
 	def __init__(self):
 		# Setup socket and such
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.sock.connect(("localhost", ActuatorI2C.I2C_SIMULATOR_PORT))
+		try:
+			self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self.sock.connect(("localhost", ActuatorI2C.I2C_SIMULATOR_PORT))
+		except:
+			print("Failed to initialize actuator connection")
 
 	def _recvall(self, size: int) -> bytes:
 		data = bytearray()
@@ -266,8 +269,8 @@ class BBBoard:
 		return random.uniform(19,21)
 	def getFiveVolt():
 		return random.uniform(4.9,5.1)
-	def getThreeVolt():
-		return random.uniform(3.2,3.4)
+	def getTwelveVolt():
+		return random.uniform(11.9,12.1)
 	def getTemp():
 		return random.uniform(0,70)
 
@@ -277,7 +280,7 @@ class BBBoard:
 	stbdVolt = Sensor(getStbdVolt)
 	portVolt = Sensor(getPortVolt)
 	fiveVolt = Sensor(getFiveVolt)
-	threeVolt = Sensor(getThreeVolt)
+	twelveVolt = Sensor(getTwelveVolt)
 	temp = Sensor(getTemp)
 
 
