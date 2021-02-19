@@ -150,7 +150,7 @@ class BBBoard:
 	def getFiveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
-	def getThreeVolt():
+	def getTwelveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 	def getTemp():
@@ -163,7 +163,7 @@ class BBBoard:
 	stbdVolt = Sensor(getStbdVolt)
 	portVolt = Sensor(getPortVolt)
 	fiveVolt = Sensor(getFiveVolt)
-	threeVolt = Sensor(getThreeVolt)
+	twelveVolt = Sensor(getTwelveVolt)
 	temp = Sensor(getTemp)
 
 
@@ -264,7 +264,7 @@ class ActuatorBoard:
 		if successful:
 			return [cmdStatus, tries]
 		else:
-			tries += 1
+			tries = 0xFF
 			return [0, tries]
 
 

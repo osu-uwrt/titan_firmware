@@ -5,10 +5,14 @@ from pyb import Timer, Pin, I2C, LED
 
 faultLed = LED(1)
 faultLed.off()
+faultPresent = False
 
 def raiseFault():
     # This function must be interrupt safe (No memory allocation [like printing])
-	faultLed.on()
+    faultLed.on()
+    
+    global faultPresent
+    faultPresent = True
 
 """
 MOSI Packet Structure Format:

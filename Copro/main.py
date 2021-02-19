@@ -73,7 +73,7 @@ def processIncomingData(s):
 				response = commands.runCommand(command)
 				response = [len(response) + 1] + response
 				try:
-					s.send(bytearray(response))
+					s.sendall(bytearray(response))
 				except:
 					dropConnection(s)
 					return

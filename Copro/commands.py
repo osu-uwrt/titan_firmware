@@ -81,7 +81,8 @@ def peltierPower(args):
 def getBatVolts(args):
 	portVolt = int(hal.BB.portVolt.value() * 100)
 	stbdVolt = int(hal.BB.stbdVolt.value() * 100)
-	return [portVolt // 256, portVolt % 256, stbdVolt // 256, stbdVolt % 256]
+	balancedVolt = int(hal.BB.balancedVolt.value() * 100)
+	return [portVolt // 256, portVolt % 256, stbdVolt // 256, stbdVolt % 256, balancedVolt // 256, balancedVolt % 256]
 
 def getBatCurrents(args):
 	portCurrent = int(hal.BB.portCurrent.value() * 100)
@@ -120,11 +121,11 @@ def logicCurrents(args):
 """
 
 def logicVolts(args):
-	threeVolt = int(hal.BB.threeVolt.value() * 1000)
+	#threeVolt = int(hal.BB.threeVolt.value() * 1000)  # 3.3V rail was removed from monitoring on this adc
+	threeVolt = 0
 	fiveVolt = int(hal.BB.fiveVolt.value() * 1000)
-	# twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
-	twelveVolt = 0  # 12V rail was removed from monitoring on this adc
-	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256, ]
+	twelveVolt = int(hal.Converter.twelveVolt.value() * 500)
+	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256]
 
 def switches(args):
 	data = hal.Backplane.killSwitch.value()
@@ -132,8 +133,11 @@ def switches(args):
 	return [data]
 
 def depth(args):
-	data = int(hal.Depth.depth()*100000)
-	return [(data >> 16), (data >> 8) & 0xFF, data & 0xFF]
+	if hal.Depth.initialized:
+		data = int(hal.Depth.depth()*100000)
+		return [1, (data >> 16), (data >> 8) & 0xFF, data & 0xFF]
+	else:
+		return [0, 0, 0, 0]
 
 
 def twelvePower(args):

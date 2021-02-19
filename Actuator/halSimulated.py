@@ -29,9 +29,13 @@ class Pin:
             self.state = a
 
 faultLed = Pin("Fault LED")
+faultPresent = False
 
 def raiseFault():
     faultLed.value(1)
+    
+    global faultPresent
+    faultPresent = True
 
 
 ETIMEDOUT = 110

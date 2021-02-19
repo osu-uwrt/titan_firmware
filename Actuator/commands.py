@@ -228,6 +228,9 @@ def set_gripper_pwm(args: bytes) -> int:
     else:
         return cmdFailure
 
+def get_fault_status(args: bytes) -> int:
+    return int(hal.faultPresent)
+
 """
 All command functions use the same format:
 One argument contining bytes of incoming message
@@ -236,7 +239,7 @@ Expects byte of response to be returned (< 256)
 commandList = [
     torpedoController.set_torpedo_timing,   # ID 0
     reset_board,                            # ID 1
-    None,
+    get_fault_status,                       # ID 2
     torpedoController.get_torpedo_status,   # ID 3
     torpedoController.arm_torpedo,          # ID 4
     torpedoController.fire_torpedo,         # ID 5
