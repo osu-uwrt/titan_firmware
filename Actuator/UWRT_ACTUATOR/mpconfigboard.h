@@ -1,4 +1,4 @@
-#define MICROPY_HW_BOARD_NAME       "UWRT Acoustics Board"
+#define MICROPY_HW_BOARD_NAME       "UWRT Actuator Board"
 #define MICROPY_HW_MCU_NAME         "STM32F405RG"
 
 #define MICROPY_HW_HAS_SWITCH       (0)
