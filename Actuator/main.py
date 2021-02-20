@@ -19,12 +19,19 @@ def mainLoop():
                 command = hal.coproComm.receive_command()
                 responseVal = commands.processCommand(command)
                 hal.coproComm.send_response(responseVal)
-
         except Exception as exc:
             hal.raiseFault()
             if not onActuator:
                 traceback.print_exc()
                 print(exc)
+
+                # Exit if error is from socket
+                if isinstance(exc, OSError):
+                    if exc.errno == 10038:
+                        break
+                if isinstance(exc, hal.I2C.ProtocolError):
+                    break
+
             else:
                 print("Error during main program loop")
                 sys.print_exception(exc)

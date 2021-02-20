@@ -15,7 +15,7 @@ def runCommand(data):
 			response = []
 	except Exception as e:
 		print("Error on command "+str(commandNum)+": " + str(e))
-		hal.raiseFault(hal.COMMAND_EXEC_CRASH)
+		hal.raiseFault(hal.COMMAND_EXEC_CRASH_FLAG + commandNum)
 		response = []
 	return response
 

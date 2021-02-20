@@ -33,8 +33,10 @@ BB_INIT_FAIL = 6
 ESC_INIT_FAIL = 7
 DEPTH_INIT_FAIL = 8
 BACKPLANE_INIT_FAIL = 9
-COMMAND_EXEC_CRASH = 10
-FAULT_STATE_INVALID = 11
+FAULT_STATE_INVALID = 10
+
+# When this bit it set, the following 7 bits are the command number for fault
+COMMAND_EXEC_CRASH_FLAG = (1<<7)
 
 faultList = []
 def raiseFault(faultId: int):
@@ -225,7 +227,7 @@ class ActuatorBoard:
 				backplaneI2C.send(data, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
 			except OSError as e:
 				if e.args[0] == uerrno.ETIMEDOUT:
-					print("Send Timed Out")
+					# print("Send Timed Out")
 					continue
 				else:
 					raise
@@ -235,17 +237,17 @@ class ActuatorBoard:
 				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
 			except OSError as e:
 				if e.args[0] == uerrno.ETIMEDOUT:
-					print("Receive Timed Out")
+					# print("Receive Timed Out")
 					continue
 				else:
 					raise
 			
 			if recv_data[0] >> 4 != ActuatorBoard.PACKET_MISO_MAGIC_NIBBLE:
-				print("Invalid Packet Header")
+				# print("Invalid Packet Header")
 				continue
 
 			if self.calc_crc(recv_data[:2]) != recv_data[2]:
-				print("Invalid Checksum")
+				# print("Invalid Checksum")
 				continue
 
 			status = recv_data[0] & 0xF
@@ -255,10 +257,10 @@ class ActuatorBoard:
 				successful = True
 				break
 			elif status == ActuatorBoard.PACKET_STATUS_CHECKSUM:
-				print("Actuator requested packet resend from checksum error")
+				# print("Actuator requested packet resend from checksum error")
 				continue
 			else:
-				print("Unexpected status code... Trying again")
+				# print("Unexpected status code... Trying again")
 				continue
 		
 		if successful:
