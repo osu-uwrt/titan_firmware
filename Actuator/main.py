@@ -27,7 +27,7 @@ def mainLoop():
 
                 # Exit if error is from socket
                 if isinstance(exc, OSError):
-                    if exc.errno == 10038:
+                    if exc.errno == 10038 or exc.errno == 10054:
                         break
                 if isinstance(exc, hal.I2C.ProtocolError):
                     break

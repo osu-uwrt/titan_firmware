@@ -127,8 +127,8 @@ class ActuatorI2C:
 		if addr != ActuatorI2C.EXPECTED_ADDR:
 			raise RuntimeError("Only the actuators are implemented in the simulator")
 
-		self.sock.settimeout(timeout / 1000)
 		try:
+			self.sock.settimeout(timeout / 1000)
 			self._sock_send_tlv(ActuatorI2C.MOSI_TX_CONTENT, data)
 			ack = self._sock_read_tlv(ActuatorI2C.MISO_RX_ACK)
 			if len(ack) != 1 or ack[0] != len(data):
@@ -136,15 +136,17 @@ class ActuatorI2C:
 		except socket.timeout:
 			# Make an error that is expected during normal I2C operation
 			raise OSError(ETIMEDOUT)
+		except OSError:
+			raise OSError(ETIMEDOUT)
 
 	def recv(self, size: int, addr=0, timeout=5000):
 		assert size > 0 and size < 256
 		if addr != ActuatorI2C.EXPECTED_ADDR:
 			raise RuntimeError("Only the actuators are implemented in the simulator")
 		
-		self.sock.settimeout(timeout / 1000)
 		data = None
 		try:
+			self.sock.settimeout(timeout / 1000)
 			self._sock_send_tlv(ActuatorI2C.MOSI_RX_REQUEST, bytearray([size]))
 			data = self._sock_read_tlv(ActuatorI2C.MISO_TX_CONTENT)
 			if len(data) != size:
@@ -152,6 +154,8 @@ class ActuatorI2C:
 			self._sock_send_tlv(ActuatorI2C.MOSI_RX_ACK, None)
 		except socket.timeout:
 			# Make an error that is expected during normal I2C operation
+			raise OSError(ETIMEDOUT)
+		except OSError:
 			raise OSError(ETIMEDOUT)
 		return data
 
@@ -174,6 +178,8 @@ ESC_INIT_FAIL = 7
 DEPTH_INIT_FAIL = 8
 BACKPLANE_INIT_FAIL = 9
 FAULT_STATE_INVALID = 10
+BATT_LOW = 11
+WATCHDOG_RESET = 12
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -184,6 +190,11 @@ def raiseFault(faultId: int):
 	if faultId not in faultList:
 		faultList.append(faultId)
 
+def lowerFault(faultId: int):
+	if faultId in faultList:
+		faultList.remove(faultId)
+	if len(faultList) == 0:
+		faultLed.off()
 
 ########################################
 ## UTILITY CODE                       ##
@@ -482,6 +493,12 @@ class CoproBoard():
 	def restart(self):
 		print("Machine reset requested... Exiting simulation")
 		os._exit(0)
+
+	def start_watchdog(self):
+		pass
+
+	def feed_watchdog(self):
+		pass
 
 	def memory_usage(self):
 		"""gc.collect()

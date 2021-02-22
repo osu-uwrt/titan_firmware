@@ -79,19 +79,34 @@ def peltierPower(args):
 		return []
 
 def getBatVolts(args):
-	portVolt = int(hal.BB.portVolt.value() * 100)
-	stbdVolt = int(hal.BB.stbdVolt.value() * 100)
-	balancedVolt = int(hal.BB.balancedVolt.value() * 100)
-	return [portVolt // 256, portVolt % 256, stbdVolt // 256, stbdVolt % 256, balancedVolt // 256, balancedVolt % 256]
+	if not hal.BB.initialized:
+		return [0]
+	try:
+		portVolt = int(hal.BB.portVolt.value() * 100)
+		stbdVolt = int(hal.BB.stbdVolt.value() * 100)
+		balancedVolt = int(hal.BB.balancedVolt.value() * 100)
+		return [1, portVolt // 256, portVolt % 256, stbdVolt // 256, stbdVolt % 256, balancedVolt // 256, balancedVolt % 256]
+	except OSError:
+		return [0]
 
 def getBatCurrents(args):
-	portCurrent = int(hal.BB.portCurrent.value() * 100)
-	stbdCurrent = int(hal.BB.stbdCurrent.value() * 100)
-	return [portCurrent // 256, portCurrent % 256, stbdCurrent // 256, stbdCurrent % 256]
+	if not hal.BB.initialized:
+		return [0]
+	try:
+		portCurrent = int(hal.BB.portCurrent.value() * 100)
+		stbdCurrent = int(hal.BB.stbdCurrent.value() * 100)
+		return [1, portCurrent // 256, portCurrent % 256, stbdCurrent // 256, stbdCurrent % 256]
+	except OSError:
+		return [0]
 
 def getTemperature(args):
-	temp = int(hal.BB.temp.value() * 10)
-	return [temp // 256, temp % 256]
+	if not hal.BB.initialized:
+		return [0]
+	try:
+		temp = int(hal.BB.temp.value() * 10)
+		return [1, temp // 256, temp % 256]
+	except OSError:
+		return  [0]
 
 def thrusterForce(args):
 	# Args: 8 2-byte words (MSB) for each of the thrusters, or empty to get current thruster values
@@ -121,11 +136,16 @@ def logicCurrents(args):
 """
 
 def logicVolts(args):
-	#threeVolt = int(hal.BB.threeVolt.value() * 1000)  # 3.3V rail was removed from monitoring on this adc
-	threeVolt = 0
-	fiveVolt = int(hal.BB.fiveVolt.value() * 1000)
-	twelveVolt = int(hal.BB.twelveVolt.value() * 500)
-	return [threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256]
+	if not hal.BB.initialized:
+		return [0]
+	try:
+		#threeVolt = int(hal.BB.threeVolt.value() * 1000)  # 3.3V rail was removed from monitoring on this adc
+		threeVolt = 0
+		fiveVolt = int(hal.BB.fiveVolt.value() * 1000)
+		twelveVolt = int(hal.BB.twelveVolt.value() * 500)
+		return [1, threeVolt // 256, threeVolt % 256, fiveVolt // 256, fiveVolt % 256, twelveVolt // 256, twelveVolt % 256]
+	except OSError:
+		return [0]
 
 def switches(args):
 	data = hal.Backplane.killSwitch.value()
@@ -160,11 +180,16 @@ def fiveReset(args):
 	return [1]
 
 def getThrusterCurrents(args):
-	values = hal.ESC.currents.value()
-	data = []
-	for i in values:
-		data.append(int(i*25))
-	return data
+	if not hal.ESC.initialized:
+		return [0]
+	try:
+		values = hal.ESC.currents.value()
+		data = [1]
+		for i in values:
+			data.append(int(i*25))
+		return data
+	except OSError:
+		return [0]
 
 def reset(args):
 	hal.Copro.restart()

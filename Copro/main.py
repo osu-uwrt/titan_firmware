@@ -92,6 +92,8 @@ async def mainLoop():
 			for s in readable:
 				processIncomingData(s)
 
+			hal.Copro.feed_watchdog()
+
 			if not onCopro:
 				sleep(0.01)
 			else:
@@ -136,9 +138,13 @@ async def lowVolt():
 		while True:
 			await asyncio.sleep(1.0)
 			if hal.BB.portVolt.value() < 18.5 or hal.BB.stbdVolt.value() < 18.5:
-				hal.ESC.stopThrusters()
+				hal.ESC.setThrusterEnable(False)
 				# hal.blueLed.on()
 				print("Low Battery")
+				hal.raiseFault(hal.BATT_LOW)
+			else:
+				hal.ESC.setThrusterEnable(True)
+				hal.lowerFault(hal.BATT_LOW)
 	except Exception as exc:
 		print("Battery Checker error:")
 		sys.print_exception(exc)

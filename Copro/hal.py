@@ -34,6 +34,8 @@ ESC_INIT_FAIL = 7
 DEPTH_INIT_FAIL = 8
 BACKPLANE_INIT_FAIL = 9
 FAULT_STATE_INVALID = 10
+BATT_LOW = 11
+WATCHDOG_RESET = 12
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -44,6 +46,14 @@ def raiseFault(faultId: int):
 	if faultId not in faultList:
 		faultList.append(faultId)
 
+def lowerFault(faultId: int):
+	if faultId in faultList:
+		faultList.remove(faultId)
+	if len(faultList) == 0:
+		faultLed.off()
+
+if machine.reset_cause() == machine.WDT_RESET:
+	raiseFault(WATCHDOG_RESET)
 
 ########################################
 ## UTILITY CODE                       ##
@@ -498,9 +508,15 @@ class DepthSensor():
 
 
 class CoproBoard():
+	wdt = None
+
 	def restart(self):
 		machine.reset()
-#<--TODO: check The memory usage-->
+	def start_watchdog(self):
+		self.wdt = machine.WDT(timeout=2000)
+	def feed_watchdog(self):
+		if self.wdt is not None:
+			self.wdt.feed()
 	def memory_usage(self):
 		gc.collect()
 		free_memory = gc.mem_free()
