@@ -122,6 +122,9 @@ try:
         print('Connecting to robot. Use the --local flag to connect to the simulator')
         s.connect(('192.168.1.42', 50000))
         print('Connected')
+    hello_msg = s.recv(8)
+    if hello_msg != b"\010UWRT_Hi":
+        print("WARN: Hello message is invalid")
 except KeyboardInterrupt:
     print('')
     exit()

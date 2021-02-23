@@ -34,6 +34,10 @@ def dropConnection(s):
 def processIncomingData(s):
 	if s == incomingConnection:
 		conn, addr = incomingConnection.accept()
+		
+		# Send hello message
+		conn.sendall(b"\010UWRT_Hi")
+
 		print("Connected to "+str(addr))
 		connections.append(conn)
 		connectionsBuffers.append([])
