@@ -35,8 +35,15 @@ def processIncomingData(s):
 	if s == incomingConnection:
 		conn, addr = incomingConnection.accept()
 		
+		hello = conn.recv(8)
+
+		if hello != b"\010UWRT_Hi":
+			print("Invalid Hello Message")
+			dropConnection(s)
+			return
+
 		# Send hello message
-		conn.sendall(b"\010UWRT_Hi")
+		conn.send(b"\010UWRT_Hi")
 
 		print("Connected to "+str(addr))
 		connections.append(conn)
@@ -77,7 +84,7 @@ def processIncomingData(s):
 				response = commands.runCommand(command)
 				response = [len(response) + 1] + response
 				try:
-					s.sendall(bytearray(response))
+					s.send(bytearray(response))
 				except:
 					dropConnection(s)
 					return
