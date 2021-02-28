@@ -62,6 +62,9 @@ if machine.reset_cause() == machine.WDT_RESET:
 def getTime():
 	return time.ticks_ms()
 
+def getTimeDifference(end, start):
+	return time.ticks_diff(end, start)
+
 class Sensor:
 	def __init__(self, collectFunction):
 		self.data = 0
@@ -99,7 +102,7 @@ class BBBoard:
 			self.twelvePower = machine.Pin('B0', machine.Pin.OUT, value=1)
 			
 			# Setup ligting power for pwm control (For that fancy dimming)
-			self.tim4 = Timer(4, freq=400)
+			self.tim4 = Timer(4, freq=10000)
 			self.light1 = self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
 			self.light2 = self.tim4.channel(4, Timer.PWM, pin=Pin('B9'))
 			self.setLight1(0)

@@ -15,12 +15,15 @@ import sys
 import commands
 import select
 
+CONNECTION_TIMEOUT_MS = 1500
+
 print('Setting up socket...')
 incomingConnection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 incomingConnection.bind(('', 50000))
 incomingConnection.listen(5)
 connections = [incomingConnection]
 connectionsBuffers = [[]]
+connectionsLastResponse = [0]
 print('Listening for connections...')
 
 
@@ -28,14 +31,20 @@ def dropConnection(s):
 	s.close()
 	connectionIndex = connections.index(s)
 	del connectionsBuffers[connectionIndex]
+	del connectionsLastResponse[connectionIndex]
 	connections.remove(s)
+	hal.ESC.stopThrusters()
 	print("Lost connection")
 
 def processIncomingData(s):
 	if s == incomingConnection:
 		conn, addr = incomingConnection.accept()
 		
-		hello = conn.recv(8)
+		try:
+			hello = conn.recv(8)
+		except:
+			dropConnection(s)
+			return
 
 		if hello != b"\010UWRT_Hi":
 			print("Invalid Hello Message")
@@ -48,6 +57,7 @@ def processIncomingData(s):
 		print("Connected to "+str(addr))
 		connections.append(conn)
 		connectionsBuffers.append([])
+		connectionsLastResponse.append(hal.getTime())
 	else:
 		try:
 			data = s.recv(50)
@@ -59,6 +69,9 @@ def processIncomingData(s):
 			return
 
 		connectionIndex = connections.index(s)
+
+		# Update last connection time
+		connectionsLastResponse[connectionIndex] = hal.getTime()
 
 		# Command structure: Length, Command, Args...
 		# Response structure: Length, values
@@ -77,6 +90,8 @@ def processIncomingData(s):
 				print('Terminating a connection')
 				connections.pop(connectionIndex)
 				connectionsBuffers.pop(connectionIndex) 
+				connectionsLastResponse.pop(connectionIndex)
+				hal.ESC.stopThrusters()
 				
 				s.close()
 				return
@@ -97,21 +112,36 @@ def processIncomingData(s):
 
 async def mainLoop():
 	try:
-		f = open("watchdog_enable", "r")
-		f.close()
-		print("Enabling Watchdog Timer")
-		hal.Copro.start_watchdog()
-	except OSError:
-		print("Disabling Watchdog Timer")
-	try:
+		try:
+			f = open("watchdog_enable", "r")
+			f.close()
+			print("Enabling Watchdog Timer")
+			hal.Copro.start_watchdog()
+		except OSError:
+			print("Disabling Watchdog Timer")
 		while True:
+			# Handle any incoming data
 			readable, _, _ = select.select(connections, [], connections, 0)
 
 			for s in readable:
 				processIncomingData(s)
 
+			# Handle timeouts
+			dropList = []
+			for connectionIndex in range(len(connections)):
+				if connections[connectionIndex] == incomingConnection:
+					continue
+				if hal.getTimeDifference(hal.getTime(), connectionsLastResponse[connectionIndex]) >= CONNECTION_TIMEOUT_MS:
+					# The connection can't be dropped immediately since it would break the loop index
+					dropList.append(connections[connectionIndex])
+			
+			for connection in dropList:
+				dropConnection(connection)
+
+			# Feed Watchdog
 			hal.Copro.feed_watchdog()
 
+			# Yield
 			if not onCopro:
 				sleep(0.01)
 			else:
