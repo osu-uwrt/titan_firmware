@@ -6,12 +6,16 @@ import uasyncio as asyncio
 import uerrno
 import gc
 
+# Uncomment the robot in use
+import titanRobot as robotSpecific
+#import puddlesRobot as robotSpecific
+
 ########################################
 ## COMMUNICATION INTERFACE CREATION   ##
 ########################################
 
 nic = network.WIZNET5K(machine.SPI(1), machine.Pin('A4', machine.Pin.OUT), machine.Pin('C5', machine.Pin.OUT))
-nic.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
+nic.ifconfig((robotSpecific.IP_ADDRESS, '255.255.255.0', '192.168.1.1', '8.8.8.8'))
 
 backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
 robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
@@ -96,17 +100,17 @@ class BBBoard:
 		try:
 			# Setup power control pins
 			self.moboPower = machine.Pin('C2', machine.Pin.OUT, value=1)
-			self.peltierPower = machine.Pin('B14', machine.Pin.OUT, value=1)
 			self.threePower = machine.Pin('C0', machine.Pin.OUT, value=1)
 			self.fivePower = machine.Pin('C13', machine.Pin.OUT, value=1)
 			self.twelvePower = machine.Pin('B0', machine.Pin.OUT, value=1)
 			
-			# Setup ligting power for pwm control (For that fancy dimming)
-			self.tim4 = Timer(4, freq=10000)
-			self.light1 = self.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
-			self.light2 = self.tim4.channel(4, Timer.PWM, pin=Pin('B9'))
-			self.setLight1(0)
-			self.setLight2(0)
+			# Devices that are initialized differently on robots
+			self.peltierPower = None  # Should be initialized for both robots, but they use different pins
+			# Only initialized on titan
+			self.light1 = None
+			self.light2 = None
+
+			robotSpecific.bbInitCode(self)
 
 			# Initialize adc for voltage and current reading from Battery Balancer Board
 			while robotI2C.mem_read(1, BBBoard.deviceAddress, 0x0C)[0] & 0b00000010 != 0:
@@ -127,6 +131,10 @@ class BBBoard:
 			raiseFault(BB_INIT_FAIL)
 
 	def setLight1(self, value: int) -> bool:
+		# Support for puddles without lights
+		if self.light1 is None:
+			return False
+
 		if value > 100 or value < 0:
 			return False
 
@@ -136,6 +144,10 @@ class BBBoard:
 		return True
 
 	def setLight2(self, value: int) -> bool:
+		# Support for puddles without lights
+		if self.light2 is None:
+			return False
+
 		if value > 100 or value < 0:
 			return False
 
@@ -292,19 +304,11 @@ class ESCBoard():
 
 	def __init__(self):
 		try:
-			self.tim2 = Timer(2, freq=400)
-			self.tim8 = Timer(8, freq=400)
+			self.thrusters = []
 
-			self.thrusters = [
-				self.tim2.channel(1, Timer.PWM, pin=Pin('A0')),
-				self.tim2.channel(2, Timer.PWM, pin=Pin('A1')),
-				self.tim2.channel(3, Timer.PWM, pin=Pin('A2')),
-				self.tim2.channel(4, Timer.PWM, pin=Pin('A3')),
-				self.tim8.channel(1, Timer.PWM, pin=Pin('C6')),
-				self.tim8.channel(2, Timer.PWM, pin=Pin('C7')),
-				self.tim8.channel(3, Timer.PWM, pin=Pin('C8')),
-				self.tim8.channel(4, Timer.PWM, pin=Pin('C9'))
-			]
+			# Get the thruster configuration for the specific robot
+			robotSpecific.escInitCode(self)
+
 			assert len(self.thrusters) == ESCBoard.numThrusters
 			self.stopThrusters()
 			# Set the time when the kill switch position is changed
