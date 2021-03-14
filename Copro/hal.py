@@ -19,6 +19,7 @@ nic.ifconfig((robotSpecific.IP_ADDRESS, '255.255.255.0', '192.168.1.1', '8.8.8.8
 
 backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
 robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
+I2C_TIMEOUT = 10
 
 
 ########################################
@@ -158,30 +159,30 @@ class BBBoard:
 
 	# Callback functions, don't have access to class variables
 	def getStbdCurrent():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20, timeout=I2C_TIMEOUT)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
 	def getPortCurrent():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21, timeout=I2C_TIMEOUT)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
 	def getBalancedVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
 	def getStbdVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
 	def getPortVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
 	def getFiveVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
 	def getTwelveVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 	def getTemp():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27, timeout=I2C_TIMEOUT)
 		return ((data[0] << 8) + data[1]) / 256
 
 	stbdCurrent = Sensor(getStbdCurrent)
@@ -334,7 +335,7 @@ class ESCBoard():
 	def getCurrents():
 		current_vals = []
 		for i in range(8):
-			data = backplaneI2C.mem_read(2, ESCBoard.deviceAddress, 0x20 + i)
+			data = backplaneI2C.mem_read(2, ESCBoard.deviceAddress, 0x20 + i, timeout=I2C_TIMEOUT)
 			voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 			current_vals.append(max((voltage - .33) / .264, 0))
 		return current_vals
@@ -472,14 +473,14 @@ class DepthSensor():
 		oversampling = 5
 
 		# Request D1 conversion (temperature)
-		robotI2C.send(chr(0x40 + 2*oversampling), self.deviceAddress)
+		robotI2C.send(chr(0x40 + 2*oversampling), self.deviceAddress, timeout=I2C_TIMEOUT)
 
 		# Maximum conversion time increases linearly with oversampling
 		# max time (seconds) ~= 2.2e-6(x) where x = OSR = (2^8, 2^9, ..., 2^13)
 		# We use 2.5e-6 for some overhead
 		await asyncio.sleep_ms(int(2.5e-3 * 2**(8+oversampling)) + 2)
 
-		d = robotI2C.mem_read(3, self.deviceAddress, 0x00)
+		d = robotI2C.mem_read(3, self.deviceAddress, 0x00, timeout=I2C_TIMEOUT)
 		self._D1 = d[0] << 16 | d[1] << 8 | d[2]
 
 		# Request D2 conversion (pressure)
@@ -488,7 +489,7 @@ class DepthSensor():
 		# As above
 		await asyncio.sleep_ms(int(2.5e-3 * 2**(8+oversampling)) + 2)
 
-		d = robotI2C.mem_read(3, self.deviceAddress, 0x00)
+		d = robotI2C.mem_read(3, self.deviceAddress, 0x00, timeout=I2C_TIMEOUT)
 		self._D2 = d[0] << 16 | d[1] << 8 | d[2]
 
 		self.calculate()

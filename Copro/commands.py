@@ -186,7 +186,7 @@ def getThrusterCurrents(args):
 		values = hal.ESC.currents.value()
 		data = [1]
 		for i in values:
-			data.append(int(i*25))
+			data.append(min(int(i*25), 255))
 		return data
 	except OSError:
 		return [0]
