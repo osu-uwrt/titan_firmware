@@ -1,10 +1,13 @@
 import machine
+import digitalio
+import board
 from pyb import Timer, Pin
 
 IP_ADDRESS = '192.168.1.43'
 
 def bbInitCode(caller_class):
-    caller_class.peltierPower = machine.Pin('B14', machine.Pin.OUT, value=0)
+    caller_class.peltierPower = digitalio.DigitalInOut(board.B14)
+    caller_class.peltierPower.switch_to_output(value = False)
 
     caller_class.tim4 = Timer(4, freq=10000)
     caller_class.light1 = caller_class.tim4.channel(3, Timer.PWM, pin=Pin('B8')),

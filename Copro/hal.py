@@ -1,10 +1,14 @@
-import machine
-import utime as time
+import board
+import digitalio
+import time
 import network
 from pyb import Timer, Pin, I2C, LED
-import uasyncio as asyncio
+import asyncio
 import uerrno
 import gc
+import microcontroller
+import watchdog
+
 
 # Uncomment the robot in use
 import titanRobot as robotSpecific
@@ -65,10 +69,10 @@ if machine.reset_cause() == machine.WDT_RESET:
 ########################################
 
 def getTime():
-	return time.ticks_ms()
+	return int(time.monotonic() * 1000)
 
 def getTimeDifference(end, start):
-	return time.ticks_diff(end, start)
+	return (end - start)
 
 class Sensor:
 	def __init__(self, collectFunction):
@@ -78,7 +82,7 @@ class Sensor:
 		self.collectFunction = collectFunction
 
 	def value(self):
-		if time.ticks_diff(getTime(), self.lastCollectionTime) > self.cacheDuration:
+		if getTimeDifference(getTime(), self.lastCollectionTime) > self.cacheDuration:
 			self.collect()
 		return self.data
 
@@ -100,10 +104,14 @@ class BBBoard:
 	def __init__(self):
 		try:
 			# Setup power control pins
-			self.moboPower = machine.Pin('C2', machine.Pin.OUT, value=1)
-			self.threePower = machine.Pin('C0', machine.Pin.OUT, value=1)
-			self.fivePower = machine.Pin('C13', machine.Pin.OUT, value=1)
-			self.twelvePower = machine.Pin('B0', machine.Pin.OUT, value=1)
+			self.moboPower = digitalio.DigitalInOut(board.GP15)
+			self.moboPower.switch_to_output(value=True)
+			self.threePower = digitalio.DigitalInOut(board.GP13)
+			self.threePower.switch_to_output(value=True)
+			self.fivePower = digitalio.DigitalInOut(board.GP24)
+			self.fivePower.switch_to_output(value=True)
+			self.twelvePower = digitalio.DigitalInOut(board.GP20)
+			self.twelvePower.switch_to_output(value=True)
 			
 			# Devices that are initialized differently on robots
 			self.peltierPower = None  # Should be initialized for both robots, but they use different pins
@@ -349,7 +357,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and time.ticks_diff(getTime(), self.timeChange) > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and getTimeDifference(getTime(), self.timeChange) > 5000:
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -538,8 +546,10 @@ class CoproBoard():
 class BackplaneBoard():
 	def __init__(self):
 		try:
-			self.killSwitch = machine.Pin('B12', machine.Pin.IN, machine.Pin.PULL_UP)
-			self.auxSwitch = machine.Pin('B13', machine.Pin.IN, machine.Pin.PULL_UP)
+			self.killSwitch = digitalio.DigitalInOut(board.GP28)
+			self.killSwitch.switch_to_input(pull=digitalio.Pull.UP)
+			self.auxSwitch = digitalio.DigitalInOut(board.GP29)
+			self.auxSwitch.switch_to_input(pull=digitalio.Pull.UP)
 
 			self.killSwitch.irq(self.killSwitchChanged)
 			self.killSwitchChanged(self.killSwitch)
