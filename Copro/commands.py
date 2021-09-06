@@ -5,8 +5,10 @@ except:
 
 import time
 
-def runCommand(data):
-	commandNum = data.pop(0)
+def checkSafety():
+	
+
+def runCommand(commandNum, data):
 	try:
 		if commandNum < len(commandList) and commandList[commandNum] is not None:
 			response = commandList[commandNum](data)
@@ -17,7 +19,7 @@ def runCommand(data):
 		print("Error on command "+str(commandNum)+": " + str(e))
 		hal.raiseFault(hal.COMMAND_EXEC_CRASH_FLAG + commandNum)
 		response = []
-	return response
+	return bytearray(response)
 
 def moboPower(args):
 	# Args: int boolean for setting, or empty to get
@@ -224,6 +226,20 @@ def get_fault_state(args):
 	else:
 		return [0]
 
+def get_version(args):
+	if len(args) == 0 or args[0] == 0:  # Passing 0 or no argument will give the protocol version
+		# Quick version history here
+		# Note versions 1.0 don't have an official version number in them, but it is good for classification
+		# COPRO-1.0 is the original protocol that didn't have a handshake, used in puddles until March 2021
+		# COPRO-1.1 had the handshake added, and added in timeouts, but still had the same command structure and interface
+		# COPRO-2.0 is the switch to UDP and has a completely different packet format, but a lot simpler to work with
+		return b"COPRO-2.0"
+	elif args[0] == 1:  # Passing 1 will give the robot name
+		return hal.ROBOT_NAME_ENCODED
+	elif args[0] == 2:  # Passing 2 will give the chip name
+		return hal.CHIP_NAME_ENCODED
+	else:
+		return b"?"
 
 commandList = [
 	moboPower,			#0
@@ -247,4 +263,5 @@ commandList = [
 	memory_check,       #18 
 	temp_threshold,     #19 
 	get_fault_state,	#20
+	get_version,		#21
 ]

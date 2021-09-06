@@ -1,11 +1,74 @@
+import select
 import socket
 import random
 import time
 import os
 
+ROBOT_NAME_ENCODED = b"Simulator"
+CHIP_NAME_ENCODED = b"Simulator"
+
 ########################################
 ## SIMULATOR DEVICE CREATION          ##
 ########################################
+
+class CommandServer:
+	"""Wiznet5K Command Server Interface
+	Initializes a UDP socket for receiving commands from the network."""
+	def __init__(self, device, port: int) -> None:
+		"""Construct an SPI object on the given pins.
+		:param ~Wiznet5K device: the device to host the port on: Note this parameter is ignored
+		:param int port: the port to host the udp command server on"""
+		self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._sock.bind(('', 50000))
+		self._sock.setblocking(False)
+		print("Succesfully bound udp socket")
+
+	
+	def deinit(self) -> None:
+		"""Deinitializes the CommandServer and releases any hardware resources for reuse."""
+		if self._sock.fileno() != -1:
+			self._sock.close()
+	
+	def next_command(self):
+		"""Gets the next command from the command server
+		:returns: Tuple containing either three None elements if there is no next command, or
+		a tuple of the command id, the data bytes, and the packet data bytes to be sent with the reply"""
+		
+		r,_,_ = select.select([self._sock], [], [], 0)
+		if self._sock not in r:
+			return (None, None, None)
+	
+		length, addr = self._sock.recvfrom(1)
+		packet = self._sock.recv(length-1)
+		command_id = packet[0]
+		packet_id = (packet[1] << 8) + packet[2]
+		packet_data = (addr, packet_id)
+		data = packet[3:]
+		return (command_id, data, packet_data)
+	
+	def reply(self, response_data: bytes, packet_data) -> None:
+		"""Sends a reply to a received command with the specified data
+		:param bytes response_data: The data to respond with
+		:param bytes packet_data: The packet data from the incoming command packet"""
+		packet = bytearray([len(response_data + 3), packet_data[1] >> 8, packet_data[1] & 0xFF]) + response_data
+		self._sock.sendto(packet, packet_data[0])
+
+	@property
+	def open(self) -> bool:
+		"""If the given socket is open on the network device.
+		This should normally return true, unless deinited, but can return false
+		if the network device is deinited."""
+		return self._sock.fileno() != -1
+
+	# Removing since there's no way to get this information on normal computers
+
+	#rx_buffer_count: int
+	#"""The number of bytes in the rx buffer of the UDP socket"""
+
+	#rx_buffer_size: int
+	#"""The size of the rx buffer for the UDP socket"""
+
+commandServer = CommandServer(None, 2354)
 
 class Pin:
 	registered_names = []
@@ -180,6 +243,7 @@ BACKPLANE_INIT_FAIL = 9
 FAULT_STATE_INVALID = 10
 BATT_LOW = 11
 WATCHDOG_RESET = 12
+UNEXPECTED_NETWORK_ERROR = 13
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -201,7 +265,7 @@ def lowerFault(faultId: int):
 ########################################
 
 def getTime():
-    return int(time.time()*1000)
+	return int(time.time()*1000)
 
 def getTimeDifference(end, start):
 	return end - start
@@ -464,7 +528,8 @@ class ESCBoard():
 	def setThrusterEnable(self, enable) -> bool:
 		if enable == 1 or enable == 0:
 			self.thrustersEnabled = enable
-			self.stopThrusters()
+			if not enable:
+				self.stopThrusters()
 			return True
 		return False
 

@@ -1,6 +1,7 @@
 import machine
 from pyb import Timer, Pin
 
+ROBOT_NAME = 'Puddles'
 IP_ADDRESS = '192.168.1.42'
 
 def bbInitCode(caller_class):

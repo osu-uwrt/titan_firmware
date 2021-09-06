@@ -9,6 +9,8 @@ import gc
 import microcontroller
 import watchdog
 
+ROBOT_NAME_ENCODED = robotSpecific.ROBOT_NAME.encode()
+CHIP_NAME_ENCODED = b'RP2040'
 
 # Uncomment the robot in use
 import titanRobot as robotSpecific
@@ -383,7 +385,8 @@ class ESCBoard():
 	def setThrusterEnable(self, enable) -> bool:
 		if enable == 1 or enable == 0:
 			self.thrustersEnabled = enable
-			self.stopThrusters()
+			if not enable:
+				self.stopThrusters()
 			return True
 		return False
 
