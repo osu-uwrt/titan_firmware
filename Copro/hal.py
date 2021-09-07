@@ -1,20 +1,19 @@
 import board
 import digitalio
+import pwmio
 import time
 import network
-from pyb import Timer, Pin, I2C, LED
-import asyncio
-import uerrno
+import uasyncio as asyncio
+import errno
 import gc
 import microcontroller
-import watchdog
-
-ROBOT_NAME_ENCODED = robotSpecific.ROBOT_NAME.encode()
-CHIP_NAME_ENCODED = b'RP2040'
 
 # Uncomment the robot in use
 import titanRobot as robotSpecific
 #import puddlesRobot as robotSpecific
+
+ROBOT_NAME_ENCODED = robotSpecific.ROBOT_NAME.encode()
+CHIP_NAME_ENCODED = b'RP2040'
 
 ########################################
 ## COMMUNICATION INTERFACE CREATION   ##
@@ -78,13 +77,12 @@ def getTimeDifference(end, start):
 
 class Sensor:
 	def __init__(self, collectFunction):
-		self.data = 0
-		self.lastCollectionTime = 0
+		self.lastCollectionTime = -1
 		self.cacheDuration = 100
 		self.collectFunction = collectFunction
 
 	def value(self):
-		if getTimeDifference(getTime(), self.lastCollectionTime) > self.cacheDuration:
+		if self.lastCollectionTime == -1 or getTimeDifference(getTime(), self.lastCollectionTime) > self.cacheDuration:
 			self.collect()
 		return self.data
 
@@ -103,6 +101,12 @@ class BBBoard:
 	currentLightValues = [0, 0]
 	initialized = False
 
+	# Devices that are initialized differently on robots
+	peltierPower: digitalio.DigitalInOut  # Should be initialized for both robots, but they use different pins
+	# Only initialized on titan
+	light1: pwmio.PWMOut
+	light2: pwmio.PWMOut
+
 	def __init__(self):
 		try:
 			# Setup power control pins
@@ -114,12 +118,6 @@ class BBBoard:
 			self.fivePower.switch_to_output(value=True)
 			self.twelvePower = digitalio.DigitalInOut(board.GP20)
 			self.twelvePower.switch_to_output(value=True)
-			
-			# Devices that are initialized differently on robots
-			self.peltierPower = None  # Should be initialized for both robots, but they use different pins
-			# Only initialized on titan
-			self.light1 = None
-			self.light2 = None
 
 			robotSpecific.bbInitCode(self)
 
@@ -168,29 +166,37 @@ class BBBoard:
 		return True
 
 	# Callback functions, don't have access to class variables
+	@staticmethod
 	def getStbdCurrent():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20, timeout=I2C_TIMEOUT)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
+	@staticmethod
 	def getPortCurrent():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21, timeout=I2C_TIMEOUT)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
+	@staticmethod
 	def getBalancedVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
+	@staticmethod
 	def getStbdVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
+	@staticmethod
 	def getPortVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
+	@staticmethod
 	def getFiveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
+	@staticmethod
 	def getTwelveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26, timeout=I2C_TIMEOUT)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
+	@staticmethod
 	def getTemp():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27, timeout=I2C_TIMEOUT)
 		return ((data[0] << 8) + data[1]) / 256
@@ -262,7 +268,7 @@ class ActuatorBoard:
 				backplaneI2C.send(header, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
 				backplaneI2C.send(data, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
 			except OSError as e:
-				if e.args[0] == uerrno.ETIMEDOUT:
+				if e.args[0] == errno.ETIMEDOUT:
 					# print("Send Timed Out")
 					continue
 				else:
@@ -272,7 +278,7 @@ class ActuatorBoard:
 			try:
 				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
 			except OSError as e:
-				if e.args[0] == uerrno.ETIMEDOUT:
+				if e.args[0] == errno.ETIMEDOUT:
 					# print("Receive Timed Out")
 					continue
 				else:
@@ -310,12 +316,12 @@ class ESCBoard():
 	numThrusters = 8
 	deviceAddress = 0x2E
 	thrustersEnabled = 1
-	currentThrusts = []  # The current pwm pulse width in microseconds
+	currentThrusts: 'list[int]' = []  # The current pwm pulse width in microseconds
 	initialized = False
 
 	def __init__(self):
 		try:
-			self.thrusters = []
+			self.thrusters: 'list[pwmio.PWMOut]' = []
 
 			# Get the thruster configuration for the specific robot
 			robotSpecific.escInitCode(self)
@@ -342,6 +348,7 @@ class ESCBoard():
 			print("Error on ESC init: " + str(e))
 			raiseFault(ESC_INIT_FAIL)
 
+	@staticmethod
 	def getCurrents():
 		current_vals = []
 		for i in range(8):

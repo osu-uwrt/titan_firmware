@@ -5,8 +5,6 @@ except:
 
 import time
 
-def checkSafety():
-	
 
 def runCommand(commandNum, data):
 	try:

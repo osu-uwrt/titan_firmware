@@ -3,12 +3,13 @@ try:
 	import halSimulated as hal
 	from time import sleep
 	import traceback
+	import asyncio
 except ImportError:
 	onCopro = True
 	import hal
+	import uasyncio as asyncio
 
 import commands
-import asyncio
 import sys
 
 CONNECTION_TIMEOUT_MS = 1500

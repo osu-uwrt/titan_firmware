@@ -39,7 +39,7 @@ class CommandServer:
 			return (None, None, None)
 	
 		length, addr = self._sock.recvfrom(1)
-		packet = self._sock.recv(length-1)
+		packet = self._sock.recv(length[0]-1)
 		command_id = packet[0]
 		packet_id = (packet[1] << 8) + packet[2]
 		packet_data = (addr, packet_id)
@@ -50,7 +50,7 @@ class CommandServer:
 		"""Sends a reply to a received command with the specified data
 		:param bytes response_data: The data to respond with
 		:param bytes packet_data: The packet data from the incoming command packet"""
-		packet = bytearray([len(response_data + 3), packet_data[1] >> 8, packet_data[1] & 0xFF]) + response_data
+		packet = bytearray([len(response_data) + 3, packet_data[1] >> 8, packet_data[1] & 0xFF]) + response_data
 		self._sock.sendto(packet, packet_data[0])
 
 	@property
@@ -60,7 +60,7 @@ class CommandServer:
 		if the network device is deinited."""
 		return self._sock.fileno() != -1
 
-	# Removing since there's no way to get this information on normal computers
+	# Removing since there's no way to get this information with Cython reasonably
 
 	#rx_buffer_count: int
 	#"""The number of bytes in the rx buffer of the UDP socket"""
@@ -80,25 +80,19 @@ class Pin:
 		self.name = name
 		self.state = default_state
 
-	def value(self, a=None):
-		if a is None:
-			return self.state
+	@property
+	def value(self):
+		return self.state
+
+	@value.setter
+	def value(self, a: bool):
+		if a:
+			state_name = "HIGH"
 		else:
-			if a == 1:
-				state_name = "HIGH"
-			elif a == 0:
-				state_name = "LOW"
-			else:
-				raise RuntimeError("Unexpected pin state")
+			state_name = "LOW"
 
-			print("Pin", self.name, "- Setting pin state to", state_name)
-			self.state = a
-
-	def off(self):
-		self.value(0)
-	
-	def on(self):
-		self.value(1)
+		print("Pin", self.name, "- Setting pin state to", state_name)
+		self.state = a
 
 class PWM:
 	registered_names = []
@@ -142,12 +136,10 @@ class ActuatorI2C:
 
 	EXPECTED_ADDR = 0x1C
 
-	sock: socket.socket = None
-
 	def __init__(self):
 		# Setup socket and such
 		try:
-			self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self.sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.sock.connect(("localhost", ActuatorI2C.I2C_SIMULATOR_PORT))
 		except:
 			print("Failed to initialize actuator connection")
@@ -175,7 +167,7 @@ class ActuatorI2C:
 		else:
 			return bytearray(0)
 	
-	def _sock_send_tlv(self, type: int, value: bytes) -> None:
+	def _sock_send_tlv(self, type: int, value: 'bytes | None') -> None:
 		length = 0
 		if value is not None:
 			length = len(value)
@@ -229,7 +221,7 @@ backplaneI2C = ActuatorI2C()
 ########################################
 
 faultLed = Pin("Fault LED")
-faultLed.off()
+faultLed.value = False
 
 PROGRAM_TERMINATED = 1
 MAIN_LOOP_CRASH = 2
@@ -250,7 +242,7 @@ COMMAND_EXEC_CRASH_FLAG = (1<<7)
 
 faultList = []
 def raiseFault(faultId: int):
-	faultLed.on()
+	faultLed.value = True
 	if faultId not in faultList:
 		faultList.append(faultId)
 
@@ -258,7 +250,7 @@ def lowerFault(faultId: int):
 	if faultId in faultList:
 		faultList.remove(faultId)
 	if len(faultList) == 0:
-		faultLed.off()
+		faultLed.value = False
 
 ########################################
 ## UTILITY CODE                       ##
@@ -337,20 +329,28 @@ class BBBoard:
 		return True
 
 	# Callback functions, don't have access to class variables
+	@staticmethod
 	def getStbdCurrent():
 		return random.uniform(0,35)
+	@staticmethod
 	def getPortCurrent():
 		return random.uniform(0,35)
+	@staticmethod
 	def getBalancedVolt():
 		return random.uniform(19,21)
+	@staticmethod
 	def getStbdVolt():
 		return random.uniform(19,21)
+	@staticmethod
 	def getPortVolt():
 		return random.uniform(19,21)
+	@staticmethod
 	def getFiveVolt():
 		return random.uniform(4.9,5.1)
+	@staticmethod
 	def getTwelveVolt():
 		return random.uniform(11.9,12.1)
+	@staticmethod
 	def getTemp():
 		return random.uniform(0,70)
 
@@ -487,6 +487,7 @@ class ESCBoard():
 			print("Error on ESC init: " + str(e))
 			raiseFault(ESC_INIT_FAIL)
 
+	@staticmethod
 	def getCurrents():
 		current_vals = []
 		for i in range(8):
@@ -502,7 +503,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and getTime() - self.timeChange > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value == 0 and getTime() - self.timeChange > 5000:
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -539,6 +540,7 @@ class ESCBoard():
 class DepthSensor():
 	deviceAddress = 0x76
 	_fluidDensity = 997
+	_temperature = 2000
 	_pressure = 0
 	initialized = False
 
@@ -551,7 +553,7 @@ class DepthSensor():
 	def temperature(self):
 		degC = self._temperature / 100.0
 		return degC
-		
+
 	# Depth relative to MSL pressure in given fluid density
 	def depth(self):
 		return (random.uniform(0, 2))
