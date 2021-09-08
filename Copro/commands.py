@@ -23,12 +23,12 @@ def moboPower(args):
 	# Args: int boolean for setting, or empty to get
 	if len(args) == 1:
 		if args[0] == 1 or args[0] == 0:
-			hal.BB.moboPower.value(args[0])
+			hal.BB.moboPower.value=args[0]
 			return [1]
 		else:
 			return [0]
 	elif len(args) == 0:
-		return [hal.BB.moboPower.value()]
+		return [hal.BB.moboPower.value]
 	else:
 		print("Unexpected argument length for moboPower")
 		return []
@@ -68,12 +68,12 @@ def peltierPower(args):
 	# Args: int boolean for setting, or empty to get
 	if len(args) == 1:
 		if args[0] == 1 or args[0] == 0:
-			hal.BB.peltierPower.value(args[0])
+			hal.BB.peltierPower.value = args[0]
 			return [1]
 		else:
 			return [0]
 	elif len(args) == 0:
-		return [hal.BB.peltierPower.value()]
+		return hal.BB.peltierPower.value
 	else:
 		print("Unexpected argument length for peltierPower")
 		return []
@@ -148,8 +148,8 @@ def logicVolts(args):
 		return [0]
 
 def switches(args):
-	data = hal.Backplane.killSwitch.value()
-	data = (data << 1) + hal.Backplane.auxSwitch.value()
+	data = hal.Backplane.killSwitch.value
+	data = (data << 1) + hal.Backplane.auxSwitch.value
 	return [data]
 
 def depth(args):
@@ -163,20 +163,21 @@ def depth(args):
 def twelvePower(args):
 	if len(args) == 1:
 		if args[0] == 1 or args[0] == 0:
-			hal.BB.twelvePower.value(args[0])
+			hal.BB.twelvePower.value = args[0]
 			return [1]
 		else:
 			return [0]
 	elif len(args) == 0:
-		return [hal.BB.twelvePower.value()]
+		return hal.BB.twelvePower.value
 	else:
 		print("Unexpected argument length for twelvePower")
 		return []
 
 def fiveReset(args):
-	hal.BB.fivePower.value(0)
+	hal.BB.fivePower.value = False
 	time.sleep(1)
-	hal.BB.fivePower.value(1)
+	hal.BB.fivePower.value = True
+	
 	return [1]
 
 def getThrusterCurrents(args):

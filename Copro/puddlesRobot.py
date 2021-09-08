@@ -1,27 +1,31 @@
-import machine
-from pyb import Timer, Pin
+import digitalio
+import digitalio
+import pwmio
+import board
 
 ROBOT_NAME = 'Puddles'
 IP_ADDRESS = '192.168.1.42'
 
 def bbInitCode(caller_class):
     # Although the jetson power is no longer a command, it must be enabled so that the jetson will get power
-    caller_class.jetsonPower = machine.Pin('C3', machine.Pin.OUT, value=1)
+    caller_class.jetsonPower = digitalio.DigitalInOut(board.GP11)
+    caller_class.jetsonPower.switch_to_output(value = True)
+    
 
-    caller_class.peltierPower = machine.Pin('C1', machine.Pin.OUT, value=0)
+    caller_class.peltierPower = digitalio.DigitalInOut(board.GP15)
+    caller_class.jetsonPower.switch_to_output(value = False)
+
 
 def escInitCode(caller_class):
-    caller_class.tim4 = Timer(4, freq=400)
-    caller_class.tim12 = Timer(12, freq=400)
-    caller_class.tim2 = Timer(2, freq=400)
+   
 
     caller_class.thrusters = [
-        caller_class.tim4.channel(3, Timer.PWM, pin=Pin('B8')),
-        caller_class.tim4.channel(4, Timer.PWM, pin=Pin('B9')),
-        caller_class.tim12.channel(1, Timer.PWM, pin=Pin('B14')),
-        caller_class.tim12.channel(2, Timer.PWM, pin=Pin('B15')),
-        caller_class.tim2.channel(1, Timer.PWM, pin=Pin('A0')),
-        caller_class.tim2.channel(2, Timer.PWM, pin=Pin('A1')),
-        caller_class.tim2.channel(3, Timer.PWM, pin=Pin('A2')),
-        caller_class.tim2.channel(4, Timer.PWM, pin=Pin('A3'))
+        pwmio.PWMOut(board.GP7, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP5, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP6, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP14, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP13, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP12, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP11, frequency=10000, duty_cycle=0),
+        pwmio.PWMOut(board.GP10, frequency=10000, duty_cycle=0)
     ]

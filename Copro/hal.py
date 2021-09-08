@@ -31,8 +31,8 @@ I2C_TIMEOUT = 10
 ## FAULT HANDLING CODE                ##
 ########################################
 
-faultLed = LED(1)
-faultLed.off()
+faultLed = digitalio.DigitalInOut(board.GP4)
+faultLed.switch_to_output(value= False)
 
 PROGRAM_TERMINATED = 1
 MAIN_LOOP_CRASH = 2
@@ -52,7 +52,7 @@ COMMAND_EXEC_CRASH_FLAG = (1<<7)
 
 faultList = []
 def raiseFault(faultId: int):
-	faultLed.on()
+	faultLed.switch_to_output(value = True)
 	if faultId not in faultList:
 		faultList.append(faultId)
 
@@ -60,9 +60,9 @@ def lowerFault(faultId: int):
 	if faultId in faultList:
 		faultList.remove(faultId)
 	if len(faultList) == 0:
-		faultLed.off()
+		faultLed.switch_to_output(value = True)
 
-if machine.reset_cause() == machine.WDT_RESET:
+if microcontroller.cpu.reset_reason  == microcontroller.ResetReason.WATCHDOG:
 	raiseFault(WATCHDOG_RESET)
 
 ########################################
@@ -104,8 +104,8 @@ class BBBoard:
 	# Devices that are initialized differently on robots
 	peltierPower: digitalio.DigitalInOut  # Should be initialized for both robots, but they use different pins
 	# Only initialized on titan
-	light1: pwmio.PWMOut
-	light2: pwmio.PWMOut
+	light1: 'pwmio.PWMOut | None' = None
+	light2: 'pwmio.PWMOut | None' = None
 
 	def __init__(self):
 		try:
@@ -147,7 +147,7 @@ class BBBoard:
 		if value > 100 or value < 0:
 			return False
 
-		self.light1.pulse_width_percent(value)
+		self.light1.duty_cycle = int((value/100.0) * ((2**16)-1))
 		self.currentLightValues[0] = value
 
 		return True
@@ -160,7 +160,7 @@ class BBBoard:
 		if value > 100 or value < 0:
 			return False
 
-		self.light2.pulse_width_percent(value)
+		self.light2.duty_cycle = int((value/100.0) * ((2**16)-1))
 		self.currentLightValues[1] = value
 
 		return True
@@ -366,7 +366,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and Backplane.killSwitch.value() == 0 and getTimeDifference(getTime(), self.timeChange) > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value == 0 and getTimeDifference(getTime(), self.timeChange) > 5000:
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -534,15 +534,16 @@ class DepthSensor():
 
 
 class CoproBoard():
-	wdt = None
+	wdt_enabled = False
 
 	def restart(self):
-		machine.reset()
+		microcontroller.reset()
 	def start_watchdog(self):
-		self.wdt = machine.WDT(timeout=5000)
+		microcontroller.watchdog.timeout = 5
+		self.wdt_enabled = True
 	def feed_watchdog(self):
-		if self.wdt is not None:
-			self.wdt.feed()
+		if self.wdt_enabled:
+			microcontroller.watchdog.feed()
 	def memory_usage(self):
 		gc.collect()
 		free_memory = gc.mem_free()
@@ -558,7 +559,7 @@ class BackplaneBoard():
 		try:
 			self.killSwitch = digitalio.DigitalInOut(board.GP28)
 			self.killSwitch.switch_to_input(pull=digitalio.Pull.UP)
-			self.auxSwitch = digitalio.DigitalInOut(board.GP29)
+			self.auxSwitch = digitalio.DigitalInOut(board.GP27)
 			self.auxSwitch.switch_to_input(pull=digitalio.Pull.UP)
 
 			self.killSwitch.irq(self.killSwitchChanged)
