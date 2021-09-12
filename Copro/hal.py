@@ -2,7 +2,7 @@ import board
 import digitalio
 import pwmio
 import time
-import network
+import ethernet
 import uasyncio as asyncio
 import errno
 import gc
@@ -19,11 +19,26 @@ CHIP_NAME_ENCODED = b'RP2040'
 ## COMMUNICATION INTERFACE CREATION   ##
 ########################################
 
-nic = network.WIZNET5K(machine.SPI(1), machine.Pin('A4', machine.Pin.OUT), machine.Pin('C5', machine.Pin.OUT))
-nic.ifconfig((robotSpecific.IP_ADDRESS, '255.255.255.0', '192.168.1.1', '8.8.8.8'))
+def unpretty_ip(ip): return bytearray(map(lambda x: int(x), ip.split('.')))
 
-backplaneI2C = I2C(1, I2C.MASTER, baudrate=200000)
-robotI2C = I2C(2, I2C.MASTER, baudrate=200000)
+# MAC address format
+# Uses Raspberry Pi MAC address prefix: B8:27:EB
+# Except: Uses xA rather than x8 for the first byte, to make it a locally administred MAC
+# Then the last 3 bytes are the last 3 bytes of the microcontroller uid (which is actually
+# the nor flash id, since the RP2040 doesn't have a chip id burned onto it)
+# This should hopefully avoid mac address collisions since most devices will use a universal mac
+# and any other RP2040s shouldn't have the same mac address, but it is NOT GAURENTEED UNIQUE
+mac_address = bytearray((0xBA, 0x27, 0xEB, microcontroller.cpu.uid[5], microcontroller.cpu.uid[6], microcontroller.cpu.uid[7]))
+
+dev = ethernet.Wiznet5K(board.GP10, board.GP11, board.GP12, board.GP13, mac_address)
+dev.ifconfig(unpretty_ip(robotSpecific.IP_ADDRESS),     # IP Address
+             unpretty_ip('192.168.1.1'),                # Gateway
+             unpretty_ip('255.255.255.0'))              # Subnet Mask
+
+commandServer = ethernet.CommandServer(dev, 2354)
+
+backplaneI2C = digitalio.DriveMode.OPEN_DRAIN(1, I2C.MASTER, baudrate=200000)
+robotI2C = digitalio.DriveMode.OPEN_DRAIN(2, I2C.MASTER, baudrate=200000)
 I2C_TIMEOUT = 10
 
 
@@ -362,7 +377,8 @@ class ESCBoard():
 		# See https://bluerobotics.com/store/thrusters/speed-controllers/besc30-r3/ for the documentation
 		self.currentThrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
 		for t in self.thrusters:
-			t.pulse_width_percent(60)
+			t = pwmio.PWMOut(board.GP17, frequency=10000, duty_cycle=60)
+			
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
@@ -371,18 +387,18 @@ class ESCBoard():
 				return False
 
 			# Convert the thrusts in us to pulse width in percentage of 400 Hz pwm pulse
-			# Calculation: (Pulse Width [us]) / ((1/400 Hz) * 1000000 [us/s]) * 100 (%)
-			# This leads to (Pulse Width [us]) / 25 -> Pulse Width Percent
-			pulse_width_conversion = 25
+			# Calculation: (Pulse Width [us]) / ((1/400 Hz) * 1000000 [us/s]) * 65535 (%)
+			# This leads to (Pulse Width [us]) * 26.214 -> Pulse Width Percent
+			pulse_width_conversion = 26.214
 
 			# Make sure an invalid duty cycle isn't requested
 			for i in range(ESCBoard.numThrusters):
-				if thrusts[i] / pulse_width_conversion > 100 or thrusts[i] / pulse_width_conversion < 0:
+				if int(thrusts[i] * pulse_width_conversion) > 65535 or int(thrusts[i] * pulse_width_conversion) < 0:
 					return False
 			
 			for i in range(ESCBoard.numThrusters):
-				value = thrusts[i] / pulse_width_conversion
-				self.thrusters[i].pulse_width_percent(value)
+				value = int(thrusts[i] * pulse_width_conversion)
+				self.thrusters[i].duty_cycle = value
 			
 			self.currentThrusts = thrusts
 			return True
