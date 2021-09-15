@@ -3,7 +3,7 @@ import digitalio
 import board
 import pwmio
 
-
+ROBOT_NAME = 'Tempest'
 IP_ADDRESS = '192.168.1.43'
 
 def bbInitCode(caller_class):

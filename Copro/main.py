@@ -108,9 +108,9 @@ async def auto_cooling():
 			current_temp = hal.BB.temp.value()
 			temp_thresh = commands.temp_threshold([])[0]
 			if current_temp > temp_thresh:
-				hal.BB.peltierPower.value(1)
+				hal.BB.peltierPower.value = True
 			else:
-				hal.BB.peltierPower.value(0)
+				hal.BB.peltierPower.value = False
 			await asyncio.sleep(0)
 	except Exception as exc:
 		print ("Auto Cooling Error ")

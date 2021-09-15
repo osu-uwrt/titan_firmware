@@ -1,4 +1,5 @@
 import board
+import busio
 import digitalio
 import pwmio
 import time
@@ -37,8 +38,8 @@ dev.ifconfig(unpretty_ip(robotSpecific.IP_ADDRESS),     # IP Address
 
 commandServer = ethernet.CommandServer(dev, 2354)
 
-backplaneI2C = digitalio.DriveMode.OPEN_DRAIN(1, I2C.MASTER, baudrate=200000)
-robotI2C = digitalio.DriveMode.OPEN_DRAIN(2, I2C.MASTER, baudrate=200000)
+backplaneI2C = busio.I2C(board.GP1, board.GP0, frequency=200000)
+robotI2C = busio.I2C(board.GP7, board.GP6, frequency=200000)
 I2C_TIMEOUT = 10
 
 
@@ -117,7 +118,7 @@ class BBBoard:
 	initialized = False
 
 	# Devices that are initialized differently on robots
-	peltierPower: digitalio.DigitalInOut  # Should be initialized for both robots, but they use different pins
+	peltierPower: digitalio.DigitalInOut # Should be initialized for both robots, but they use different pins
 	# Only initialized on titan
 	light1: 'pwmio.PWMOut | None' = None
 	light2: 'pwmio.PWMOut | None' = None
@@ -555,10 +556,11 @@ class CoproBoard():
 	def restart(self):
 		microcontroller.reset()
 	def start_watchdog(self):
-		microcontroller.watchdog.timeout = 5
-		self.wdt_enabled = True
+		if microcontroller.watchdog is not None:
+			microcontroller.watchdog.timeout = 5
+			self.wdt_enabled = True
 	def feed_watchdog(self):
-		if self.wdt_enabled:
+		if self.wdt_enabled and microcontroller.watchdog is not None:
 			microcontroller.watchdog.feed()
 	def memory_usage(self):
 		gc.collect()

@@ -264,13 +264,12 @@ def getTimeDifference(end, start):
 
 class Sensor:
 	def __init__(self, collectFunction):
-		self.data = 0
-		self.lastCollectionTime = 0
+		self.lastCollectionTime = -1
 		self.cacheDuration = 100
 		self.collectFunction = collectFunction
 
 	def value(self):
-		if getTime() - self.lastCollectionTime > self.cacheDuration:
+		if self.lastCollectionTime == -1 or getTimeDifference(getTime(), self.lastCollectionTime) > self.cacheDuration:
 			self.collect()
 		return self.data
 
