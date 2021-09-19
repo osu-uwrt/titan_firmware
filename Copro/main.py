@@ -41,6 +41,7 @@ async def mainLoop():
 				hal.commandServer.reply(bytearray(resp_data), packet_data)
 			
 			# TODO: Implement safety timeout!
+			# TODO: Implement KILL SWITCH!!!
 
 			# Feed Watchdog
 			hal.Copro.feed_watchdog()

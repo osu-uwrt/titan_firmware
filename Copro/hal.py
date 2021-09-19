@@ -580,7 +580,8 @@ class BackplaneBoard():
 			self.auxSwitch = digitalio.DigitalInOut(board.GP27)
 			self.auxSwitch.switch_to_input(pull=digitalio.Pull.UP)
 
-			self.killSwitch.irq(self.killSwitchChanged)
+			# TODO: Implement IRQ Safety
+			#self.killSwitch.irq(self.killSwitchChanged)
 			self.killSwitchChanged(self.killSwitch)
 		except Exception as e:
 			print("Error on Backplane init: " + str(e))
