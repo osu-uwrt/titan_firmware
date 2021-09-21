@@ -33,14 +33,43 @@ mac_address = bytearray((0xBA, 0x27, 0xEB, microcontroller.cpu.uid[5], microcont
 
 dev = ethernet.Wiznet5K(board.GP10, board.GP11, board.GP12, board.GP13, mac_address)
 dev.ifconfig(unpretty_ip(robotSpecific.IP_ADDRESS),     # IP Address
-             unpretty_ip('192.168.1.1'),                # Gateway
-             unpretty_ip('255.255.255.0'))              # Subnet Mask
+			 unpretty_ip('192.168.1.1'),                # Gateway
+			 unpretty_ip('255.255.255.0'))              # Subnet Mask
 
 commandServer = ethernet.CommandServer(dev, 2354)
 
-backplaneI2C = busio.I2C(board.GP1, board.GP0, frequency=200000)
-robotI2C = busio.I2C(board.GP7, board.GP6, frequency=200000)
-I2C_TIMEOUT = 10
+class I2CMicropythonWrapper:
+	def __init__(self, i2c_bus):
+		self.bus = i2c_bus
+	
+	def send(self, data, addr):
+		assert self.bus.try_lock(), "Failed to lock bus"
+		self.bus.writeto(addr, data)
+		self.bus.unlock()
+
+	def recv(self, length, addr):
+		assert self.bus.try_lock(), "Failed to lock bus"
+		data = bytearray(length)
+		self.bus.readfrom(addr, data)
+		self.bus.unlock()
+		return data
+
+	def mem_read(self, bytes_to_read, addr, memaddr):
+		assert self.bus.try_lock(), "Failed to lock bus"
+		read_buf = bytearray(bytes_to_read)
+		self.bus.writeto_then_readfrom(addr, bytearray([memaddr]), read_buf)
+		self.bus.unlock()
+		return read_buf
+
+	def mem_write(self, data, addr, memaddr):
+		assert self.bus.try_lock(), "Failed to lock bus"
+		self.bus.writeto(addr, bytearray([memaddr]) + data)
+		self.bus.unlock()
+
+backplaneI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000)
+backplaneI2C = I2CMicropythonWrapper(backplaneI2C_bus)
+robotI2C_bus = busio.I2C(board.GP7, board.GP6, frequency=200000)
+robotI2C = I2CMicropythonWrapper(robotI2C_bus)
 
 
 ########################################
@@ -62,6 +91,8 @@ BACKPLANE_INIT_FAIL = 9
 FAULT_STATE_INVALID = 10
 BATT_LOW = 11
 WATCHDOG_RESET = 12
+UNEXPECTED_NETWORK_ERROR = 13
+KILL_SWITCH_MONITOR_CRASH = 14
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -184,37 +215,37 @@ class BBBoard:
 	# Callback functions, don't have access to class variables
 	@staticmethod
 	def getStbdCurrent():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
 	@staticmethod
 	def getPortCurrent():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
 	@staticmethod
 	def getBalancedVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
 	@staticmethod
 	def getStbdVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
 	@staticmethod
 	def getPortVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
 	@staticmethod
 	def getFiveVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
 	@staticmethod
 	def getTwelveVolt():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 	@staticmethod
 	def getTemp():
-		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27, timeout=I2C_TIMEOUT)
+		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27)
 		return ((data[0] << 8) + data[1]) / 256
 
 	stbdCurrent = Sensor(getStbdCurrent)
@@ -229,7 +260,6 @@ class BBBoard:
 
 class ActuatorBoard:
 	actuatorAddress = 0x1C
-	ACTUATOR_TIMEOUT = 2
 	MAX_RETRIES = 5
 
 	PACKET_MOSI_MAGIC_NIBBLE = 0b1001
@@ -281,8 +311,8 @@ class ActuatorBoard:
 		while tries < self.MAX_RETRIES:
 			tries += 1
 			try:
-				backplaneI2C.send(header, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
-				backplaneI2C.send(data, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+				backplaneI2C.send(header, ActuatorBoard.actuatorAddress)
+				backplaneI2C.send(data, ActuatorBoard.actuatorAddress)
 			except OSError as e:
 				if e.args[0] == errno.ETIMEDOUT:
 					# print("Send Timed Out")
@@ -292,7 +322,7 @@ class ActuatorBoard:
 			
 			recv_data = None
 			try:
-				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress, timeout=ActuatorBoard.ACTUATOR_TIMEOUT)
+				recv_data = backplaneI2C.recv(3, ActuatorBoard.actuatorAddress)
 			except OSError as e:
 				if e.args[0] == errno.ETIMEDOUT:
 					# print("Receive Timed Out")
@@ -368,7 +398,7 @@ class ESCBoard():
 	def getCurrents():
 		current_vals = []
 		for i in range(8):
-			data = backplaneI2C.mem_read(2, ESCBoard.deviceAddress, 0x20 + i, timeout=I2C_TIMEOUT)
+			data = backplaneI2C.mem_read(2, ESCBoard.deviceAddress, 0x20 + i)
 			voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 			current_vals.append(max((voltage - .33) / .264, 0))
 		return current_vals
@@ -508,14 +538,14 @@ class DepthSensor():
 		oversampling = 5
 
 		# Request D1 conversion (temperature)
-		robotI2C.send(chr(0x40 + 2*oversampling), self.deviceAddress, timeout=I2C_TIMEOUT)
+		robotI2C.send(chr(0x40 + 2*oversampling), self.deviceAddress)
 
 		# Maximum conversion time increases linearly with oversampling
 		# max time (seconds) ~= 2.2e-6(x) where x = OSR = (2^8, 2^9, ..., 2^13)
 		# We use 2.5e-6 for some overhead
 		await asyncio.sleep_ms(int(2.5e-3 * 2**(8+oversampling)) + 2)
 
-		d = robotI2C.mem_read(3, self.deviceAddress, 0x00, timeout=I2C_TIMEOUT)
+		d = robotI2C.mem_read(3, self.deviceAddress, 0x00)
 		self._D1 = d[0] << 16 | d[1] << 8 | d[2]
 
 		# Request D2 conversion (pressure)
@@ -524,7 +554,7 @@ class DepthSensor():
 		# As above
 		await asyncio.sleep_ms(int(2.5e-3 * 2**(8+oversampling)) + 2)
 
-		d = robotI2C.mem_read(3, self.deviceAddress, 0x00, timeout=I2C_TIMEOUT)
+		d = robotI2C.mem_read(3, self.deviceAddress, 0x00)
 		self._D2 = d[0] << 16 | d[1] << 8 | d[2]
 
 		self.calculate()
@@ -579,17 +609,9 @@ class BackplaneBoard():
 			self.killSwitch.switch_to_input(pull=digitalio.Pull.UP)
 			self.auxSwitch = digitalio.DigitalInOut(board.GP27)
 			self.auxSwitch.switch_to_input(pull=digitalio.Pull.UP)
-
-			# TODO: Implement IRQ Safety
-			#self.killSwitch.irq(self.killSwitchChanged)
-			self.killSwitchChanged(self.killSwitch)
 		except Exception as e:
 			print("Error on Backplane init: " + str(e))
 			raiseFault(BACKPLANE_INIT_FAIL)
-
-	def killSwitchChanged(self, pin):
-		ESC.stopThrusters()
-		ESC.timeChange = getTime()
 
 ########################################
 ## COPRO INTERFACES CREATION          ##

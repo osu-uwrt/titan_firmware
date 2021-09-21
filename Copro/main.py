@@ -35,13 +35,21 @@ async def mainLoop():
 		# Start main loop
 		while True:
 			# Handle network data
-			command_id, data, packet_data = hal.commandServer.next_command()
-			if command_id is not None:
-				resp_data = commands.runCommand(command_id, data)
-				hal.commandServer.reply(bytearray(resp_data), packet_data)
-			
+			try:
+				command_id, data, packet_data = hal.commandServer.next_command()
+				if command_id is not None:
+					resp_data = commands.runCommand(command_id, data)
+					hal.commandServer.reply(bytearray(resp_data), packet_data)
+			except Exception as exc:
+				print("Unexpected network error")
+				if not onCopro:
+					traceback.print_exc()
+					print(exc)
+				else:
+					sys.print_exception(exc)
+				hal.raiseFault(hal.UNEXPECTED_NETWORK_ERROR)
+
 			# TODO: Implement safety timeout!
-			# TODO: Implement KILL SWITCH!!!
 
 			# Feed Watchdog
 			hal.Copro.feed_watchdog()
@@ -118,6 +126,19 @@ async def auto_cooling():
 		sys.print_exception(exc)
 		hal.raiseFault(hal.AUTO_COOLING_CRASH)
 
+async def killSwitchMonitor():
+	try:
+		prev_state = not hal.Backplane.killSwitch.value  # Force an update immediately
+		while True:
+			cur_state = hal.Backplane.killSwitch.value
+			if cur_state != prev_state:
+				prev_state = cur_state
+				hal.ESC.stopThrusters()
+				hal.ESC.timeChange = hal.getTime()
+	except Exception as exc:
+		print("Kill Switch Monitor Error ")
+		sys.print_exception(exc)
+		hal.raiseFault(hal.KILL_SWITCH_MONITOR_CRASH)
 
 loop = asyncio.get_event_loop()
 loop.create_task(depthLoop())

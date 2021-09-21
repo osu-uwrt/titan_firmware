@@ -236,6 +236,7 @@ FAULT_STATE_INVALID = 10
 BATT_LOW = 11
 WATCHDOG_RESET = 12
 UNEXPECTED_NETWORK_ERROR = 13
+KILL_SWITCH_MONITOR_CRASH = 14
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -556,6 +557,12 @@ class DepthSensor():
 	# Depth relative to MSL pressure in given fluid density
 	def depth(self):
 		return (random.uniform(0, 2))
+	
+	async def read(self):
+		pass
+
+	async def zeroDepth(self):
+		pass
 
 
 class CoproBoard():
