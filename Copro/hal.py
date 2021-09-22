@@ -159,7 +159,7 @@ class BBBoard:
 			# Setup power control pins
 			self.moboPower = digitalio.DigitalInOut(board.GP15)
 			self.moboPower.switch_to_output(value=True)
-			self.threePower = digitalio.DigitalInOut(board.GP13)
+			self.threePower = digitalio.DigitalInOut(board.GP5)
 			self.threePower.switch_to_output(value=True)
 			self.fivePower = digitalio.DigitalInOut(board.GP24)
 			self.fivePower.switch_to_output(value=True)
