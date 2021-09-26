@@ -31,7 +31,7 @@ def unpretty_ip(ip): return bytearray(map(lambda x: int(x), ip.split('.')))
 # and any other RP2040s shouldn't have the same mac address, but it is NOT GAURENTEED UNIQUE
 mac_address = bytearray((0xBA, 0x27, 0xEB, microcontroller.cpu.uid[5], microcontroller.cpu.uid[6], microcontroller.cpu.uid[7]))
 
-dev = ethernet.Wiznet5K(board.GP10, board.GP11, board.GP12, board.GP13, mac_address)
+dev = ethernet.Wiznet5K(board.GP26, board.GP11, board.GP12, board.GP13, mac_address)
 dev.ifconfig(unpretty_ip(robotSpecific.IP_ADDRESS),     # IP Address
 			 unpretty_ip('192.168.1.1'),                # Gateway
 			 unpretty_ip('255.255.255.0'))              # Subnet Mask
@@ -68,7 +68,7 @@ class I2CMicropythonWrapper:
 
 backplaneI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000)
 backplaneI2C = I2CMicropythonWrapper(backplaneI2C_bus)
-robotI2C_bus = busio.I2C(board.GP7, board.GP6, frequency=200000)
+robotI2C_bus = busio.I2C(board.GP19, board.GP18, frequency=200000)
 robotI2C = I2CMicropythonWrapper(robotI2C_bus)
 
 
@@ -149,17 +149,17 @@ class BBBoard:
 	initialized = False
 
 	# Devices that are initialized differently on robots
-	peltierPower: digitalio.DigitalInOut # Should be initialized for both robots, but they use different pins
+	#peltierPower: digitalio.DigitalInOut # Should be initialized for both robots, but they use different pins
 	# Only initialized on titan
-	light1: 'pwmio.PWMOut | None' = None
-	light2: 'pwmio.PWMOut | None' = None
+	light1 = None
+	light2 = None
 
 	def __init__(self):
 		try:
 			# Setup power control pins
 			self.moboPower = digitalio.DigitalInOut(board.GP15)
 			self.moboPower.switch_to_output(value=True)
-			self.threePower = digitalio.DigitalInOut(board.GP5)
+			self.threePower = digitalio.DigitalInOut(board.GP25)
 			self.threePower.switch_to_output(value=True)
 			self.fivePower = digitalio.DigitalInOut(board.GP24)
 			self.fivePower.switch_to_output(value=True)
@@ -362,12 +362,12 @@ class ESCBoard():
 	numThrusters = 8
 	deviceAddress = 0x2E
 	thrustersEnabled = 1
-	currentThrusts: 'list[int]' = []  # The current pwm pulse width in microseconds
+	currentThrusts = []  # The current pwm pulse width in microseconds
 	initialized = False
 
 	def __init__(self):
 		try:
-			self.thrusters: 'list[pwmio.PWMOut]' = []
+			self.thrusters = []
 
 			# Get the thruster configuration for the specific robot
 			robotSpecific.escInitCode(self)

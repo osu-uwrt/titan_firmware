@@ -32,6 +32,10 @@ async def mainLoop():
 		except OSError:
 			print("Disabling Watchdog Timer")
 		
+		print("Halting...")
+		while True:
+			pass
+
 		# Start main loop
 		while True:
 			# Handle network data
