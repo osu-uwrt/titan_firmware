@@ -30,8 +30,7 @@ def unpretty_ip(ip): return bytearray(map(lambda x: int(x), ip.split('.')))
 # This should hopefully avoid mac address collisions since most devices will use a universal mac
 # and any other RP2040s shouldn't have the same mac address, but it is NOT GAURENTEED UNIQUE
 mac_address = bytearray((0xBA, 0x27, 0xEB, microcontroller.cpu.uid[5], microcontroller.cpu.uid[6], microcontroller.cpu.uid[7]))
-
-dev = ethernet.Wiznet5K(board.GP26, board.GP11, board.GP12, board.GP13, mac_address)
+dev = ethernet.Wiznet5K(board.GP10, board.GP11, board.GP12, board.GP13, mac_address)
 dev.ifconfig(unpretty_ip(robotSpecific.IP_ADDRESS),     # IP Address
 			 unpretty_ip('192.168.1.1'),                # Gateway
 			 unpretty_ip('255.255.255.0'))              # Subnet Mask
@@ -66,9 +65,10 @@ class I2CMicropythonWrapper:
 		self.bus.writeto(addr, bytearray([memaddr]) + data)
 		self.bus.unlock()
 
-backplaneI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000)
+backplaneI2C_bus = busio.I2C(board.GP26, board.GP27, frequency=200000)
 backplaneI2C = I2CMicropythonWrapper(backplaneI2C_bus)
-robotI2C_bus = busio.I2C(board.GP19, board.GP18, frequency=200000)
+# No pins assigned
+robotI2C_bus = busio.I2C(board.GP0, board.GP1, frequency=200000)
 robotI2C = I2CMicropythonWrapper(robotI2C_bus)
 
 
@@ -157,13 +157,13 @@ class BBBoard:
 	def __init__(self):
 		try:
 			# Setup power control pins
-			self.moboPower = digitalio.DigitalInOut(board.GP15)
+			self.moboPower = digitalio.DigitalInOut(board.GP17)
 			self.moboPower.switch_to_output(value=True)
-			self.threePower = digitalio.DigitalInOut(board.GP25)
+			self.threePower = digitalio.DigitalInOut(board.GP6)
 			self.threePower.switch_to_output(value=True)
-			self.fivePower = digitalio.DigitalInOut(board.GP24)
+			self.fivePower = digitalio.DigitalInOut(board.GP15)
 			self.fivePower.switch_to_output(value=True)
-			self.twelvePower = digitalio.DigitalInOut(board.GP20)
+			self.twelvePower = digitalio.DigitalInOut(board.GP7)
 			self.twelvePower.switch_to_output(value=True)
 
 			robotSpecific.bbInitCode(self)
@@ -605,9 +605,9 @@ class CoproBoard():
 class BackplaneBoard():
 	def __init__(self):
 		try:
-			self.killSwitch = digitalio.DigitalInOut(board.GP28)
+			self.killSwitch = digitalio.DigitalInOut(board.GP25)
 			self.killSwitch.switch_to_input(pull=digitalio.Pull.UP)
-			self.auxSwitch = digitalio.DigitalInOut(board.GP27)
+			self.auxSwitch = digitalio.DigitalInOut(board.GP23)
 			self.auxSwitch.switch_to_input(pull=digitalio.Pull.UP)
 		except Exception as e:
 			print("Error on Backplane init: " + str(e))
