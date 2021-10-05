@@ -240,6 +240,20 @@ def get_version(args):
 	else:
 		return b"?"
 
+def safety_keepalive(args):
+	if len(args) == 0 or (args[0] != 0 and args[0] != 1):
+		hal.ESC.invalidateKeepalive()
+		print("Invalid safety command received: invalidating safety ticket")
+		return [0]
+
+	if args[0] == 0:
+		hal.ESC.invalidateKeepalive()
+	
+	if args[0] == 1:
+		hal.ESC.refreshThrusterKeepalive()
+	
+	return [1]
+
 commandList = [
 	moboPower,			#0
 	lightingPower,		#1  Was jetsonPower, replaced since it is no longer in use
@@ -263,4 +277,5 @@ commandList = [
 	temp_threshold,     #19 
 	get_fault_state,	#20
 	get_version,		#21
+	safety_keepalive,   #22
 ]

@@ -236,7 +236,8 @@ FAULT_STATE_INVALID = 10
 BATT_LOW = 11
 WATCHDOG_RESET = 12
 UNEXPECTED_NETWORK_ERROR = 13
-KILL_SWITCH_MONITOR_CRASH = 14
+THRUSTER_SAFETY_MONITOR_CRASH = 14
+DEVICE_BOOTING = 15
 
 # When this bit it set, the following 7 bits are the command number for fault
 COMMAND_EXEC_CRASH_FLAG = (1<<7)
@@ -533,6 +534,17 @@ class ESCBoard():
 				self.stopThrusters()
 			return True
 		return False
+
+	# Safety specific code not implemented
+
+	def refreshThrusterKeepalive(self):
+		pass
+
+	def keepaliveValid(self) -> bool:
+		return False
+
+	def invalidateKeepalive(self):
+		pass
 
 	currents = Sensor(getCurrents)
 

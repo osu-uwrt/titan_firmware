@@ -9,6 +9,8 @@ import errno
 import gc
 import microcontroller
 
+import sys
+
 # Uncomment the robot in use
 import titanRobot as robotSpecific
 #import puddlesRobot as robotSpecific
@@ -17,8 +19,57 @@ ROBOT_NAME_ENCODED = robotSpecific.ROBOT_NAME.encode()
 CHIP_NAME_ENCODED = b'RP2040'
 
 ########################################
+## FAULT HANDLING CODE                ##
+########################################
+
+faultLed = digitalio.DigitalInOut(board.GP4)
+faultLed.switch_to_output(value=False)
+
+PROGRAM_TERMINATED = 1
+MAIN_LOOP_CRASH = 2
+DEPTH_LOOP_CRASH = 3
+BATTERY_CHECKER_CRASH = 4
+AUTO_COOLING_CRASH = 5
+BB_INIT_FAIL = 6
+ESC_INIT_FAIL = 7
+DEPTH_INIT_FAIL = 8
+BACKPLANE_INIT_FAIL = 9
+FAULT_STATE_INVALID = 10
+BATT_LOW = 11
+WATCHDOG_RESET = 12
+UNEXPECTED_NETWORK_ERROR = 13
+THRUSTER_SAFETY_MONITOR_CRASH = 14
+DEVICE_BOOTING = 15
+
+# When this bit it set, the following 7 bits are the command number for fault
+COMMAND_EXEC_CRASH_FLAG = (1<<7)
+
+faultList = []
+def raiseFault(faultId: int):
+	faultLed.value = True
+	if faultId not in faultList:
+		faultList.append(faultId)
+
+def lowerFault(faultId: int):
+	if faultId in faultList:
+		faultList.remove(faultId)
+	if len(faultList) == 0:
+		faultLed.value = False
+
+if microcontroller.cpu.reset_reason == microcontroller.ResetReason.WATCHDOG:
+	raiseFault(WATCHDOG_RESET)
+
+raiseFault(DEVICE_BOOTING)
+
+########################################
 ## COMMUNICATION INTERFACE CREATION   ##
 ########################################
+
+eth_rst_pin = digitalio.DigitalInOut(board.GP9)
+eth_rst_pin.switch_to_output(value=False)
+time.sleep(0.1)
+eth_rst_pin.value = True
+time.sleep(0.1)
 
 def unpretty_ip(ip): return bytearray(map(lambda x: int(x), ip.split('.')))
 
@@ -42,11 +93,15 @@ class I2CMicropythonWrapper:
 		self.bus = i2c_bus
 	
 	def send(self, data, addr):
+		if self.bus is None:
+			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
 		self.bus.writeto(addr, data)
 		self.bus.unlock()
 
 	def recv(self, length, addr):
+		if self.bus is None:
+			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
 		data = bytearray(length)
 		self.bus.readfrom(addr, data)
@@ -54,6 +109,8 @@ class I2CMicropythonWrapper:
 		return data
 
 	def mem_read(self, bytes_to_read, addr, memaddr):
+		if self.bus is None:
+			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
 		read_buf = bytearray(bytes_to_read)
 		self.bus.writeto_then_readfrom(addr, bytearray([memaddr]), read_buf)
@@ -61,56 +118,26 @@ class I2CMicropythonWrapper:
 		return read_buf
 
 	def mem_write(self, data, addr, memaddr):
+		if self.bus is None:
+			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
 		self.bus.writeto(addr, bytearray([memaddr]) + data)
 		self.bus.unlock()
 
-backplaneI2C_bus = busio.I2C(board.GP26, board.GP27, frequency=200000)
+try:
+	backplaneI2C_bus = busio.I2C(board.GP27, board.GP26, frequency=200000)
+except RuntimeError as e:
+	print("Failed to initialize backplane i2c bus:", e)
+	backplaneI2C_bus = None
 backplaneI2C = I2CMicropythonWrapper(backplaneI2C_bus)
-# No pins assigned
-robotI2C_bus = busio.I2C(board.GP0, board.GP1, frequency=200000)
+
+try:
+	robotI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000)
+except Exception as e:
+	print("Failed to initialize robot i2c bus:", e)
+	robotI2C_bus = None
 robotI2C = I2CMicropythonWrapper(robotI2C_bus)
 
-
-########################################
-## FAULT HANDLING CODE                ##
-########################################
-
-faultLed = digitalio.DigitalInOut(board.GP4)
-faultLed.switch_to_output(value= False)
-
-PROGRAM_TERMINATED = 1
-MAIN_LOOP_CRASH = 2
-DEPTH_LOOP_CRASH = 3
-BATTERY_CHECKER_CRASH = 4
-AUTO_COOLING_CRASH = 5
-BB_INIT_FAIL = 6
-ESC_INIT_FAIL = 7
-DEPTH_INIT_FAIL = 8
-BACKPLANE_INIT_FAIL = 9
-FAULT_STATE_INVALID = 10
-BATT_LOW = 11
-WATCHDOG_RESET = 12
-UNEXPECTED_NETWORK_ERROR = 13
-KILL_SWITCH_MONITOR_CRASH = 14
-
-# When this bit it set, the following 7 bits are the command number for fault
-COMMAND_EXEC_CRASH_FLAG = (1<<7)
-
-faultList = []
-def raiseFault(faultId: int):
-	faultLed.switch_to_output(value = True)
-	if faultId not in faultList:
-		faultList.append(faultId)
-
-def lowerFault(faultId: int):
-	if faultId in faultList:
-		faultList.remove(faultId)
-	if len(faultList) == 0:
-		faultLed.switch_to_output(value = True)
-
-if microcontroller.cpu.reset_reason  == microcontroller.ResetReason.WATCHDOG:
-	raiseFault(WATCHDOG_RESET)
 
 ########################################
 ## UTILITY CODE                       ##
@@ -213,37 +240,29 @@ class BBBoard:
 		return True
 
 	# Callback functions, don't have access to class variables
-	@staticmethod
 	def getStbdCurrent():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x20)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
-	@staticmethod
 	def getPortCurrent():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x21)
 		voltage = (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
 		return max((voltage - .33) / .066, 0)
-	@staticmethod
 	def getBalancedVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x22)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
-	@staticmethod
 	def getStbdVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x23)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
-	@staticmethod
 	def getPortVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x24)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)* .984
-	@staticmethod
 	def getFiveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x25)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096 * (118 / 18)
-	@staticmethod
 	def getTwelveVolt():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x26)
 		return (((data[0] << 8) + data[1]) >> 4) * 3.3 / 4096
-	@staticmethod
 	def getTemp():
 		data = robotI2C.mem_read(2, BBBoard.deviceAddress, 0x27)
 		return ((data[0] << 8) + data[1]) / 256
@@ -365,6 +384,10 @@ class ESCBoard():
 	currentThrusts = []  # The current pwm pulse width in microseconds
 	initialized = False
 
+	last_ping = -1
+
+	THRUSTER_TIMEOUT = 100  # Thruster timeout in ms
+
 	def __init__(self):
 		try:
 			self.thrusters = []
@@ -394,7 +417,6 @@ class ESCBoard():
 			print("Error on ESC init: " + str(e))
 			raiseFault(ESC_INIT_FAIL)
 
-	@staticmethod
 	def getCurrents():
 		current_vals = []
 		for i in range(8):
@@ -408,12 +430,12 @@ class ESCBoard():
 		# See https://bluerobotics.com/store/thrusters/speed-controllers/besc30-r3/ for the documentation
 		self.currentThrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
 		for t in self.thrusters:
-			t = pwmio.PWMOut(board.GP17, frequency=10000, duty_cycle=60)
+			t.duty_cycle = int((60.0/100.0) * (2**16))
 			
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and Backplane.killSwitch.value == 0 and getTimeDifference(getTime(), self.timeChange) > 5000:
+		if self.thrustersEnabled and Backplane.killSwitch.value == 0 and getTimeDifference(getTime(), self.timeChange) > 5000 and self.keepaliveValid():
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -443,6 +465,16 @@ class ESCBoard():
 				self.stopThrusters()
 			return True
 		return False
+
+	def refreshThrusterKeepalive(self):
+		self.last_ping = getTime()
+
+	def keepaliveValid(self) -> bool:
+		return self.last_ping != -1 and (self.last_ping + ESCBoard.THRUSTER_TIMEOUT) < getTime()
+
+	def invalidateKeepalive(self):
+		self.last_ping = -1
+		self.stopThrusters()
 
 	currents = Sensor(getCurrents)
 
@@ -586,8 +618,13 @@ class CoproBoard():
 	def restart(self):
 		microcontroller.reset()
 	def start_watchdog(self):
+		if microcontroller.cpu.reset_reason == microcontroller.ResetReason.RESET_PIN:
+			print("Reset pin pressed...")
+			print("Delaying watchdog enable by 5 seconds to allow recovery")
+			time.sleep(5)
+		
 		if microcontroller.watchdog is not None:
-			microcontroller.watchdog.timeout = 5
+			microcontroller.watchdog.timeout = 1
 			self.wdt_enabled = True
 	def feed_watchdog(self):
 		if self.wdt_enabled and microcontroller.watchdog is not None:

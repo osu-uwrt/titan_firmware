@@ -31,10 +31,12 @@ async def mainLoop():
 			hal.Copro.start_watchdog()
 		except OSError:
 			print("Disabling Watchdog Timer")
-		
-		print("Halting...")
-		while True:
-			pass
+
+		hal.lowerFault(hal.DEVICE_BOOTING)
+
+		hal.dev.ifconfig(hal.unpretty_ip("10.13.65.3"),     # IP Address
+			 hal.unpretty_ip('10.13.65.1'),                 # Gateway
+			 hal.unpretty_ip('255.255.255.0'))              # Subnet Mask
 
 		# Start main loop
 		while True:
@@ -53,8 +55,6 @@ async def mainLoop():
 					sys.print_exception(exc)
 				hal.raiseFault(hal.UNEXPECTED_NETWORK_ERROR)
 
-			# TODO: Implement safety timeout!
-
 			# Feed Watchdog
 			hal.Copro.feed_watchdog()
 
@@ -70,8 +70,7 @@ async def mainLoop():
 		else:
 			sys.print_exception(exc)
 			hal.raiseFault(hal.MAIN_LOOP_CRASH)
-		hal.commandServer.deinit()
-
+		hal.commandServer.deinit()	
 
 async def depthLoop():
 	try:
@@ -130,7 +129,7 @@ async def auto_cooling():
 		sys.print_exception(exc)
 		hal.raiseFault(hal.AUTO_COOLING_CRASH)
 
-async def killSwitchMonitor():
+async def thrusterSafetyMonitor():
 	try:
 		prev_state = not hal.Backplane.killSwitch.value  # Force an update immediately
 		while True:
@@ -139,16 +138,26 @@ async def killSwitchMonitor():
 				prev_state = cur_state
 				hal.ESC.stopThrusters()
 				hal.ESC.timeChange = hal.getTime()
+			
+			if not hal.ESC.keepaliveValid():
+				hal.ESC.stopThrusters()
+			
+			await asyncio.sleep(0.025)
 	except Exception as exc:
-		print("Kill Switch Monitor Error ")
-		sys.print_exception(exc)
-		hal.raiseFault(hal.KILL_SWITCH_MONITOR_CRASH)
+		print("Thruster Safety Monitor Error ")
+		if not onCopro:
+			traceback.print_exc()
+			print(exc)
+		else:
+			sys.print_exception(exc)
+			hal.raiseFault(hal.THRUSTER_SAFETY_MONITOR_CRASH)
 
 loop = asyncio.get_event_loop()
 loop.create_task(depthLoop())
 loop.create_task(mainLoop())
 loop.create_task(lowVolt())
 loop.create_task(auto_cooling())
+loop.create_task(thrusterSafetyMonitor())
 loop.run_forever()
 loop.close()
 
