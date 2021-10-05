@@ -96,33 +96,41 @@ class I2CMicropythonWrapper:
 		if self.bus is None:
 			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
-		self.bus.writeto(addr, data)
-		self.bus.unlock()
+		try:
+			self.bus.writeto(addr, data)
+		finally:
+			self.bus.unlock()
 
 	def recv(self, length, addr):
 		if self.bus is None:
 			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
-		data = bytearray(length)
-		self.bus.readfrom(addr, data)
-		self.bus.unlock()
-		return data
+		try:
+			data = bytearray(length)
+			self.bus.readfrom(addr, data)
+			return data
+		finally:
+			self.bus.unlock()
 
 	def mem_read(self, bytes_to_read, addr, memaddr):
 		if self.bus is None:
 			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
-		read_buf = bytearray(bytes_to_read)
-		self.bus.writeto_then_readfrom(addr, bytearray([memaddr]), read_buf)
-		self.bus.unlock()
-		return read_buf
+		try:
+			read_buf = bytearray(bytes_to_read)
+			self.bus.writeto_then_readfrom(addr, bytearray([memaddr]), read_buf)
+			return read_buf
+		finally:
+			self.bus.unlock()
 
 	def mem_write(self, data, addr, memaddr):
 		if self.bus is None:
 			raise OSError("Bus not initialized")
 		assert self.bus.try_lock(), "Failed to lock bus"
-		self.bus.writeto(addr, bytearray([memaddr]) + data)
-		self.bus.unlock()
+		try:
+			self.bus.writeto(addr, bytearray([memaddr]) + data)
+		finally:
+			self.bus.unlock()
 
 try:
 	backplaneI2C_bus = busio.I2C(board.GP27, board.GP26, frequency=200000)
@@ -435,7 +443,7 @@ class ESCBoard():
 		return True
 
 	def setThrusters(self, thrusts) -> bool:
-		if self.thrustersEnabled and Backplane.killSwitch.value == 0 and getTimeDifference(getTime(), self.timeChange) > 5000 and self.keepaliveValid():
+		if self.thrustersEnabled and not Backplane.killSwitch.value and getTimeDifference(getTime(), self.timeChange) > 5000 and self.keepaliveValid():
 			if len(thrusts) != ESCBoard.numThrusters:
 				return False
 
@@ -470,7 +478,7 @@ class ESCBoard():
 		self.last_ping = getTime()
 
 	def keepaliveValid(self) -> bool:
-		return self.last_ping != -1 and (self.last_ping + ESCBoard.THRUSTER_TIMEOUT) < getTime()
+		return self.last_ping != -1 and (self.last_ping + ESCBoard.THRUSTER_TIMEOUT) > getTime()
 
 	def invalidateKeepalive(self):
 		self.last_ping = -1

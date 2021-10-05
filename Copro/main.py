@@ -34,10 +34,6 @@ async def mainLoop():
 
 		hal.lowerFault(hal.DEVICE_BOOTING)
 
-		hal.dev.ifconfig(hal.unpretty_ip("10.13.65.3"),     # IP Address
-			 hal.unpretty_ip('10.13.65.1'),                 # Gateway
-			 hal.unpretty_ip('255.255.255.0'))              # Subnet Mask
-
 		# Start main loop
 		while True:
 			# Handle network data
@@ -135,6 +131,7 @@ async def thrusterSafetyMonitor():
 		while True:
 			cur_state = hal.Backplane.killSwitch.value
 			if cur_state != prev_state:
+				print("Kill switch changed!")
 				prev_state = cur_state
 				hal.ESC.stopThrusters()
 				hal.ESC.timeChange = hal.getTime()
