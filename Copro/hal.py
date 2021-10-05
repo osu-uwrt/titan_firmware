@@ -9,8 +9,6 @@ import errno
 import gc
 import microcontroller
 
-import sys
-
 # Uncomment the robot in use
 import titanRobot as robotSpecific
 #import puddlesRobot as robotSpecific
@@ -133,14 +131,14 @@ class I2CMicropythonWrapper:
 			self.bus.unlock()
 
 try:
-	backplaneI2C_bus = busio.I2C(board.GP27, board.GP26, frequency=200000)
+	backplaneI2C_bus = busio.I2C(board.GP27, board.GP26, frequency=200000, timeout=5)
 except RuntimeError as e:
 	print("Failed to initialize backplane i2c bus:", e)
 	backplaneI2C_bus = None
 backplaneI2C = I2CMicropythonWrapper(backplaneI2C_bus)
 
 try:
-	robotI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000)
+	robotI2C_bus = busio.I2C(board.GP1, board.GP0, frequency=200000, timeout=5)
 except Exception as e:
 	print("Failed to initialize robot i2c bus:", e)
 	robotI2C_bus = None
@@ -178,7 +176,7 @@ class Sensor:
 ########################################
 
 class BBBoard:
-	deviceAddress = 0x2F
+	deviceAddress = 0x1F
 	numLights = 2
 	currentLightValues = [0, 0]
 	initialized = False
@@ -387,7 +385,7 @@ class ActuatorBoard:
 
 class ESCBoard():
 	numThrusters = 8
-	deviceAddress = 0x2E
+	deviceAddress = 0x2F
 	thrustersEnabled = 1
 	currentThrusts = []  # The current pwm pulse width in microseconds
 	initialized = False

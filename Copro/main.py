@@ -139,7 +139,7 @@ async def thrusterSafetyMonitor():
 			if not hal.ESC.keepaliveValid():
 				hal.ESC.stopThrusters()
 			
-			await asyncio.sleep(0.025)
+			await asyncio.sleep_ms(25)
 	except Exception as exc:
 		print("Thruster Safety Monitor Error ")
 		if not onCopro:
