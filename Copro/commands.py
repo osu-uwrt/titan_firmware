@@ -9,15 +9,15 @@ import time
 def runCommand(commandNum, data):
 	try:
 		if commandNum < len(commandList) and commandList[commandNum] is not None:
-			response = commandList[commandNum](data)
+			response = bytearray(commandList[commandNum](data))
 		else:
 			print("Unexpected command received:", commandNum)
-			response = []
+			response = bytearray([])
 	except Exception as e:
 		print("Error on command "+str(commandNum)+": " + str(e))
 		hal.raiseFault(hal.COMMAND_EXEC_CRASH_FLAG + commandNum)
-		response = []
-	return bytearray(response)
+		response = bytearray([])
+	return response
 
 def moboPower(args):
 	# Args: int boolean for setting, or empty to get
@@ -149,12 +149,14 @@ def logicVolts(args):
 
 def switches(args):
 	data = hal.Backplane.auxSwitch.value
-	data = (data << 1) + hal.Backplane.killSwitch.value
+	data = (data << 1) + int(not hal.Backplane.killSwitch.value)
 	return [data]
 
 def depth(args):
 	if hal.Depth.initialized:
 		data = int(hal.Depth.depth()*100000)
+		if (data < 0):
+			data = 2**23 - data
 		return [1, (data >> 16), (data >> 8) & 0xFF, data & 0xFF]
 	else:
 		return [0, 0, 0, 0]
