@@ -1,4 +1,4 @@
-# Titan Firmware
+# Tempest Firmware
 Firmware related to Titan Copro and Actuator MCU
 
-Written in micropython for the STM32F405RGT6 MCU
+Written in C for the RP2040 MCU with micro-ros
