@@ -9,7 +9,7 @@ set(PICO_BOARD pico)
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
 # Set to Debug if debugging with gdb
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -18,29 +18,30 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
-project(copro_firmware C CXX ASM)
+project(pico_sdk_example C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 # Define executable
-add_executable(copro_firmware
+add_executable(pico_sdk_example
 	main.c
 )
 
 # Set version: major minor
-generate_version_tag(copro_firmware 1 0)
+generate_version_tag(pico_sdk_example 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(copro_firmware 0)
-pico_set_program_name(copro_firmware "Copro Firmware")
+pico_enable_stdio_usb(pico_sdk_example 1)
+pico_enable_stdio_uart(pico_sdk_example 0)
+pico_set_program_name(pico_sdk_example "Pico SDK Example")
+
+# Wait for 2 seconds for serial to connect
+target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(copro_firmware)
-
-# Enable microROS
-micro_ros_enable(copro_firmware)
+uwrt_use_upload_tool(pico_sdk_example)
 
 # Define linking and targets
-pico_add_extra_outputs(copro_firmware)
-target_link_libraries(copro_firmware pico_stdlib)
+pico_add_extra_outputs(pico_sdk_example)
+target_link_libraries(pico_sdk_example pico_stdlib)
