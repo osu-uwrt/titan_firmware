@@ -18,7 +18,7 @@ Acoustics/db/
 Acoustics/incremental_db/
 
 node_modules/
-#.vscode/
+.vscode/
 build/
 __pycache__/
 *.pyc
