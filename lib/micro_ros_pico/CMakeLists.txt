@@ -21,4 +21,5 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
 
 # Configure sdk parameters
 uwrt_enable_dual_uart(micro_ros_pico INTERFACE)
-target_compile_definitions(micro_ros_pico INTERFACE PICO_STDIO_USB_ENABLE_UNSENT_BUFFER=0)
+target_compile_definitions(micro_ros_pico INTERFACE PICO_STDIO_USB_ENABLE_UNSENT_BUFFER=1)
+target_compile_definitions(micro_ros_pico INTERFACE PICO_STDIO_USB_STDOUT_TIMEOUT_US=10000)

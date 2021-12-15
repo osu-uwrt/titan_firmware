@@ -97,14 +97,9 @@
 #define PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS 100
 #endif
 
-// PICO_CONFIG: PICO_STDIO_USB_ENABLE_UNSENT_BUFFER, enables buffer to hold stdio data if usb is not connected
-#ifndef PICO_STDIO_USB_ENABLE_UNSENT_BUFFER
-#define PICO_STDIO_USB_ENABLE_UNSENT_BUFFER 0
-#endif
-
 // PICO_CONFIG: PICO_STDIO_USB_UNSENT_BUFFER_SIZE, size of buffer for unsent stdio usb messages. Do not make too large or it will fail to flush properly
 #ifndef PICO_STDIO_USB_UNSENT_BUFFER_SIZE
-#define PICO_STDIO_USB_UNSENT_BUFFER_SIZE 256
+#define PICO_STDIO_USB_UNSENT_BUFFER_SIZE 1024
 #endif
 
 #ifdef __cplusplus

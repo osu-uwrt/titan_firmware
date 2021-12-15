@@ -3,6 +3,7 @@
 #include "pico/stdio_usb.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
+#include <rmw_microros/rmw_microros.h>
 
 void usleep(uint64_t us)
 {
@@ -35,7 +36,7 @@ bool pico_serial_transport_close(struct uxrCustomTransport * transport)
     return true;
 }
 
-size_t pico_serial_transport_write(struct uxrCustomTransport * transport, uint8_t *buf, size_t len, uint8_t *errcode)
+size_t pico_serial_transport_write(struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
     int sent = secondary_usb_out_chars(buf, len);
     if (sent != len){
@@ -64,4 +65,15 @@ size_t pico_serial_transport_read(struct uxrCustomTransport * transport, uint8_t
     }
     //printf("Read %d bytes from serial...\n", (len - bytes_remaining));
     return (len - bytes_remaining);
+}
+
+void pico_serial_transport_init(void){
+    rmw_uros_set_custom_transport(
+		true,
+		NULL,
+		pico_serial_transport_open,
+		pico_serial_transport_close,
+		pico_serial_transport_write,
+		pico_serial_transport_read
+	);
 }
