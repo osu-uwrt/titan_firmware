@@ -33,13 +33,17 @@ const size_t num_board_types = sizeof(board_types) / sizeof(struct rp2040_device
 
 // Note: Ensure that the board type name exists in boards or else it will fail during load
 const struct rp2040_board_instance board_definitions[] = {
-    {
+    {	// Robert Pafford's Pico
         .board_type_name = "pico",
         .serial = "E66038B713849D31",
     },
-    {
+    {   // The first backplane breakout board, built with a pico
         .board_type_name = "backplane_breakout_board",
         .serial = "E660B440070E5E2A",
+    },
+    {   // Team pico in Arduino box
+        .board_type_name = "pico",
+        .serial = "E660583883731D2D",
     },
 };
 

@@ -23,7 +23,7 @@ function(uwrt_use_upload_tool target)
 
         add_custom_target(serial
                     # By passing filename in it will auto-select the board for that given firmware
-                    COMMAND ${UPLOADTOOL_EXECUTABLE} -m -r -w 5000 -f $<IF:$<BOOL:$<TARGET_PROPERTY:${target},OUTPUT_NAME>>,$<TARGET_PROPERTY:${target},OUTPUT_NAME>,$<TARGET_PROPERTY:${target},NAME>>.uf2
+                    COMMAND ${UPLOADTOOL_EXECUTABLE} -m -w 5000 -f $<IF:$<BOOL:$<TARGET_PROPERTY:${target},OUTPUT_NAME>>,$<TARGET_PROPERTY:${target},OUTPUT_NAME>,$<TARGET_PROPERTY:${target},NAME>>.uf2
                     DEPENDS ${UPLOADTOOL_TARGET})
     else()
         message( WARNING "Could not find upload tool. Custom make targets will not be available" )

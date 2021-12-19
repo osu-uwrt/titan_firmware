@@ -26,6 +26,8 @@ pico_sdk_init()
 # Define executable
 add_executable(copro_firmware
 	main.c
+	ros.c
+	safety.c
 )
 
 # Set version: major minor
@@ -40,6 +42,8 @@ uwrt_use_upload_tool(copro_firmware)
 
 # Enable microROS
 micro_ros_enable(copro_firmware)
+
+target_compile_definitions(copro_firmware PUBLIC PICO_PANIC_FUNCTION=safety_panic)
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
