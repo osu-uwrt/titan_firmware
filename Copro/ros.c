@@ -22,7 +22,7 @@ static rcl_timer_t timer;
 static rclc_executor_t executor;
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Aborting.\n",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
-#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Continuing.\n",__LINE__,(int)temp_rc);}}
+#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Continuing.\n",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
 
 
 // ========================================
@@ -34,7 +34,7 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 	(void) last_call_time;
 	if (timer != NULL) {
 		RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
-		printf("Sent: %d\n", send_msg.data);
+		//printf("Sent: %d\n", send_msg.data);
 		send_msg.data++;
 	}
 }
@@ -44,6 +44,14 @@ void subscription_callback(const void * msgin)
 {
 	const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
 	printf("Received: %d\n", msg->data);
+	if (msg->data == 3) {
+		*(uint32_t*)(0xFFFFFFFC) = 0xDEADBEEF;
+	} else if (msg->data == 4) {
+		void (*bad_jump)(void) = (void*)(0xFFFFFFF0);
+		bad_jump();
+	} else if (msg->data == 5){
+		panic("IT DO GO DOWN!");
+	}
 }
 
 // ========================================

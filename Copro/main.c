@@ -4,27 +4,27 @@
 #include "pico_uart_transports.h"
 #include "build_version.h"
 
-#include "safety.h"
+#include "dio.h"
+#include "dshot.h"
 #include "ros.h"
-
-const uint LED_PIN = 25;
+#include "safety.h"
 
 int main()
 {
     serial_init_early();
     printf("%s\n", FULL_BUILD_TAG);
+    sleep_ms(1000);
     safety_setup();
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    dio_init();
 
     pico_serial_transport_init();
     ros_wait_for_connection();
 
     safety_init();
+    dshot_init();
     ros_start("tempest");
     printf("Connected to ROS\n");
-    gpio_put(LED_PIN, 1);
 
     while (true)
     {

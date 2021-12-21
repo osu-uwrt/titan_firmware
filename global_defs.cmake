@@ -18,6 +18,7 @@ function(uwrt_use_upload_tool target)
     if (UPLOADTOOL_FOUND)
         add_custom_target(upload
                     COMMAND ${UPLOADTOOL_EXECUTABLE} -u -f $<IF:$<BOOL:$<TARGET_PROPERTY:${target},OUTPUT_NAME>>,$<TARGET_PROPERTY:${target},OUTPUT_NAME>,$<TARGET_PROPERTY:${target},NAME>>.uf2
+                    COMMAND sleep 0.5
                     DEPENDS ${UPLOADTOOL_TARGET}
                     DEPENDS ${target})
 

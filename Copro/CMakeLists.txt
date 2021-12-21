@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD pico)
+set(PICO_BOARD backplane_breakout_board)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -26,9 +26,16 @@ pico_sdk_init()
 # Define executable
 add_executable(copro_firmware
 	main.c
+	dio.c
+	dshot.c
 	ros.c
 	safety.c
+	hard_fault_handler.S
 )
+
+pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/dshot.pio)
+
+target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor
 generate_version_tag(copro_firmware 1 0)
@@ -47,4 +54,8 @@ target_compile_definitions(copro_firmware PUBLIC PICO_PANIC_FUNCTION=safety_pani
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
-target_link_libraries(copro_firmware pico_stdlib)
+target_link_libraries(copro_firmware
+	pico_stdlib
+	hardware_exception
+	hardware_pio
+)

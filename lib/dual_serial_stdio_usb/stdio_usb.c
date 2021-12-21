@@ -25,7 +25,9 @@ static char unsent_buffer[PICO_STDIO_USB_UNSENT_BUFFER_SIZE];
 static int unsent_buffer_next_out = 0;
 static int unsent_buffer_next_in = 0;
 static bool unsent_buffer_overflow = false;
+static bool buffer_mutex_data_drop = false;
 static const char overflow_msg[] = "---DATA DROPPED---\r\n";
+static const char mutex_msg[] = "---DATA LOST MUTEX---\r\n";
 
 void _write_unsent_buffer(const char* buf, int length);
 
@@ -57,6 +59,15 @@ bool _try_handle_unsent_buffer(void) {
         int sent = _stdio_usb_out_data(overflow_msg, sizeof(overflow_msg));
         if (sent == sizeof(overflow_msg)) {
             unsent_buffer_overflow = false;
+        } else {
+            return false;
+        }
+    }
+
+    if (buffer_mutex_data_drop) {
+        int sent = _stdio_usb_out_data(mutex_msg, sizeof(mutex_msg));
+        if (sent == sizeof(mutex_msg)) {
+            buffer_mutex_data_drop = false;
         } else {
             return false;
         }
@@ -124,7 +135,10 @@ static int64_t timer_task(__unused alarm_id_t id, __unused void *user_data) {
 static void stdio_usb_out_chars(const char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
-        if (owner == get_core_num()) return; // would deadlock otherwise
+        if (owner == get_core_num()) { 
+            buffer_mutex_data_drop = true;
+            return; // would deadlock otherwise
+        }
         mutex_enter_blocking(&stdio_usb_mutex);
     }
     if (tud_cdc_n_connected(USBD_ITF_STDIO_CDC) && _try_handle_unsent_buffer()) {

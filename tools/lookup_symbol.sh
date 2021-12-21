@@ -5,4 +5,4 @@ if [ -z "$2" ]; then
     exit 1
 fi
 
-gdb -q "$1" -ex "printf \"Full Build Tag: %s\n\n\", FULL_BUILD_TAG" -ex "info symbol $2" -ex "quit"
+gdb -q "$1" -ex "printf \"Full Build Tag: %s\n\n\", FULL_BUILD_TAG" -ex "info symbol $2" -ex "info line *$2" -ex "quit"
