@@ -10,7 +10,7 @@
 // Thruster lookup macros
 // Thruster id is a value 1-8
 #define THRUSTER_PIO(thruster_id) (thruster_id > 4 ? pio1 : pio0)
-#define THRUSTER_SM(thruster_id) ((thruster_id % 4) - 1)
+#define THRUSTER_SM(thruster_id) (((thruster_id-1) % 4))
 #define THRUSTER_PRGM_OFFSET(thruster_id) (thruster_id > 4 ? offset_pio1 : offset_pio0)
 
 bool dshot_initialized = false;
@@ -36,23 +36,13 @@ static inline void dshot_send_internal(uint8_t thruster_id, uint16_t throttle_va
     cmd <<= 4;
     cmd |= crc;
 
+    // PIO reads from MSB first, so it needs to have the top 16 bits be the data to send
+    cmd <<= 16;
     if (!send_once) {
-        cmd |= (1 << 16);
+        cmd |= (1 << 15);
     }
 
     pio_sm_put_blocking(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), cmd);
-}
-
-/**
- * @brief Sends a stop command to the specified thruster
- * 
- * INITIALIZATION REQUIRED
- * 
- * @param thruster_id Thruster ID 1-8
- */
-static inline void dshot_stop_thruster(uint8_t thruster_id) {
-    // Tell pio to send all zeros (disable) with blocking)
-    pio_sm_put_blocking(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), (1 << 17));
 }
 
 
@@ -61,7 +51,7 @@ void dshot_stop_thrusters(void) {
     // So this can be called at any point, so just ignore call if dshot is not initialized yet
     if (dshot_initialized) {
         for (int i = 1; i <= 8; i++){
-            dshot_stop_thruster(i);
+            dshot_send_internal(i, 0, false, false);
         }
     }
 }
@@ -72,7 +62,6 @@ void dshot_stop_thrusters(void) {
 void dshot_init(void) {
     uint offset_pio0 = pio_add_program(pio0, &dshot_program);
     uint offset_pio1 = pio_add_program(pio1, &dshot_program);
-    printf("Loaded program at pio0: %d and pio1: %d\n", offset_pio0, offset_pio1);
 
     init_thruster_pio(1);
     init_thruster_pio(2);

@@ -17,10 +17,11 @@ SET PINDIRS, 1       ; Initialize pin to output
 
 force_read:
 PULL BLOCK           ; Block until there is data from the FIFO to send
-MOV X, OSR           ; Make copy in X for pulling without blocking
+JMP write_data
 
 .wrap_target
 PULL NOBLOCK         ; If there is updated data available, pull, if not, read from X
+write_data:
 MOV X, OSR           ; Update X with OSR in the event new data was pulled
 SET Y, 15            ; Set number of bits to send counter
 
@@ -36,6 +37,12 @@ OUT PINS 1 [2]       ; Set pin to bit state (3 cycles)
 SET PINS 0           ; Set pin to low state (1 cycle)
 JMP Y-- tx_loop      ; Jump if y not 0, and decrement (1 cycle)
 
+; Required frame delay
+SET Y, 5
+frame_reset:
+NOP [31]
+JMP Y-- frame_reset
+
 ; OSR should only have bit 16 left in it (bits 0-15 consumed)
 MOV Y, OSR
 JMP !Y, force_read   ; If bit 16 is not set (y is zero) block until a new fifo command is received
@@ -44,7 +51,7 @@ JMP !Y, force_read   ; If bit 16 is not set (y is zero) block until a new fifo c
 
 % c-sdk {
 
-#define DSHOT_RATE(rate) (rate * 8 * 1000)
+#define DSHOT_RATE(rate) ((float)(rate * 8.0 * 1000.0))
 
 static inline void dshot_program_init(PIO pio, uint sm, uint offset, float div, uint pin) {
     pio_sm_set_pins_with_mask(pio, sm, 0, 1u << pin);
@@ -52,7 +59,10 @@ static inline void dshot_program_init(PIO pio, uint sm, uint offset, float div, 
     pio_gpio_init(pio, pin);
 
     pio_sm_config c = dshot_program_get_default_config(offset);
+    sm_config_set_out_shift(&c, false, false, 17);
     sm_config_set_clkdiv(&c, div);
+    sm_config_set_set_pins(&c, pin, 1);
+    sm_config_set_out_pins(&c, pin, 1);
     pio_sm_init(pio, sm, offset + dshot_offset_start, &c);
 
     pio_sm_set_enabled(pio, sm, true);
