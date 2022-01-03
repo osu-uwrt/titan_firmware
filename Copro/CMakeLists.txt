@@ -31,6 +31,8 @@ add_executable(copro_firmware
 	ros.c
 	safety.c
 	hard_fault_handler.S
+	async_i2c.c
+	lux_sensor.c
 )
 
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/dshot.pio)
@@ -51,6 +53,7 @@ uwrt_use_upload_tool(copro_firmware)
 micro_ros_enable(copro_firmware)
 
 target_compile_definitions(copro_firmware PUBLIC PICO_PANIC_FUNCTION=safety_panic)
+target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
@@ -58,4 +61,5 @@ target_link_libraries(copro_firmware
 	pico_stdlib
 	hardware_exception
 	hardware_pio
+	hardware_i2c
 )

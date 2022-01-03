@@ -8,10 +8,12 @@
 // Fault Management Functions
 // ========================================
 
-#define MAX_FAULT_ID 31
-#define FAULT_WATCHDOG_RESET 0
-#define FAULT_ROS_SOFT_FAIL  1
-#define FAULT_DSHOT_ERROR    2
+#define MAX_FAULT_ID          31
+#define FAULT_WATCHDOG_RESET   0
+#define FAULT_ROS_SOFT_FAIL    1
+#define FAULT_DSHOT_ERROR      2
+#define FAULT_ASYNC_I2C_ERROR  3
+#define FAULT_LUX_ERROR        4
 
 /**
  * @brief A list of all the active faults as bits

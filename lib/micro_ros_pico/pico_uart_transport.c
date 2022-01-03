@@ -18,16 +18,19 @@ int clock_gettime(clockid_t unused, struct timespec *tp)
     return 0;
 }
 
+static bool transport_initialized = false;
 void serial_init_early(void)
 {
-    stdio_init_all();
-    dual_usb_init();
+    if (!transport_initialized) {
+        stdio_init_all();
+        dual_usb_init();
+        transport_initialized = true;
+    }
 }
 
 bool pico_serial_transport_open(struct uxrCustomTransport * transport)
 {
-    stdio_init_all();
-    dual_usb_init();
+    serial_init_early();
     return true;
 }
 

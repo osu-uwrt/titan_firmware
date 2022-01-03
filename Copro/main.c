@@ -8,6 +8,8 @@
 #include "dshot.h"
 #include "ros.h"
 #include "safety.h"
+#include "async_i2c.h"
+#include "lux_sensor.h"
 
 int main()
 {
@@ -17,6 +19,10 @@ int main()
     safety_setup();
 
     dio_init();
+    async_i2c_init(200000, 10);
+    lux_init();
+
+    //do {tight_loop_contents();} while(1);
 
     pico_serial_transport_init();
     ros_wait_for_connection();
