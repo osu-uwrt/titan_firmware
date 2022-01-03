@@ -62,4 +62,5 @@ target_link_libraries(copro_firmware
 	hardware_exception
 	hardware_pio
 	hardware_i2c
+	"-Wl,--wrap=__assert_func"
 )

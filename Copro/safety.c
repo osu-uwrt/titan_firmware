@@ -175,10 +175,12 @@ absolute_time_t safety_kill_get_last_change(void) {
 //     Byte 0: Total Watchdog Reset Counter
 //     Byte 1: Panic Reset Counter
 //     Byte 2: Hard Fault Reset Counter
+//     Byte 3: Assertion Fail Reset Counter
 #define UNKNOWN_SAFETY_PREINIT  0x1035001
 #define UNKNOWN_SAFETY_ACTIVE   0x1035002
 #define PANIC                   0x1035003
 #define HARD_FAULT              0x1035004
+#define ASSERT_FAIL             0x1035005
 
 // Very useful for debugging, prevents cpu from resetting while execution is halted for debugging
 // However, this should be ideally be disabled when not debugging in the event something goes horribly wrong
@@ -189,6 +191,27 @@ static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
 // Defined in hard_fault_handler.S
 extern void safety_hard_fault_handler(void);
 static exception_handler_t original_hardfault_handler = NULL;
+
+// Assertion Handling
+extern void __real___assert_func(const char *file, int line, const char *func, const char *failedexpr);
+
+void __wrap___assert_func(const char *file, int line, const char *func, const char *failedexpr) {
+    *reset_reason_reg = ASSERT_FAIL;
+    watchdog_hw->scratch[1] = (uint32_t) file;
+    watchdog_hw->scratch[2] = (uint32_t) line;
+    watchdog_hw->scratch[6] = (uint32_t) func;
+    watchdog_hw->scratch[7] = (uint32_t) failedexpr;
+    if ((watchdog_hw->scratch[3] & 0xFF000000) != 0xFF000000) {
+        watchdog_hw->scratch[3] += 0x1000000;
+    }
+
+    // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
+    if (original_hardfault_handler != NULL) {
+        exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
+    }
+    
+    __real___assert_func(file, line, func, failedexpr);
+}
 
 /**
  * @brief Custom panic handler to save the panic in watchdog scratch registers
@@ -245,6 +268,8 @@ static void safety_process_last_reset_cause(void) {
             printf("PANIC (Message: 0x%08x)\n", watchdog_hw->scratch[1]);
         } else if (reset_reason == HARD_FAULT) {
             printf("HARD_FAULT (Fault Address: 0x%08x)\n", watchdog_hw->scratch[1]);
+        } else if (reset_reason == ASSERT_FAIL) {
+            printf("ASSERT_FAIL (File: 0x%08x Line: %d - Function: 0x%08x - Expression: 0x%08x)\n", watchdog_hw->scratch[1], watchdog_hw->scratch[2], watchdog_hw->scratch[6], watchdog_hw->scratch[7]);
         } else {
             printf("Invalid Data in Reason Register");
         }

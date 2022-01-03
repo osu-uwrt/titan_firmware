@@ -22,8 +22,6 @@ int main()
     async_i2c_init(200000, 10);
     lux_init();
 
-    //do {tight_loop_contents();} while(1);
-
     pico_serial_transport_init();
     ros_wait_for_connection();
 
