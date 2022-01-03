@@ -39,8 +39,9 @@ pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/dshot.pio)
 
 target_include_directories(copro_firmware PUBLIC include)
 
-# Set version: major minor
-generate_version_tag(copro_firmware 1 0)
+# Set version: major minor release_type (see build_version.h for more info)
+# Release Types: PROTO, DEV, STABLE
+generate_version_tag(copro_firmware 1 0 PROTO)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(copro_firmware 0)
@@ -62,5 +63,5 @@ target_link_libraries(copro_firmware
 	hardware_exception
 	hardware_pio
 	hardware_i2c
-	"-Wl,--wrap=__assert_func"
+	"-Wl,--wrap=__assert_func"  # Enable safety assert wrapping
 )

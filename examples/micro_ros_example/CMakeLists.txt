@@ -28,8 +28,9 @@ add_executable(micro_ros_example
 	main.c
 )
 
-# Set version: major minor
-generate_version_tag(micro_ros_example 1 0)
+# Set version: major minor release_type (see build_version.h for more info)
+# Release Types: PROTO, DEV, STABLE
+generate_version_tag(micro_ros_example 1 0 PROTO)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(micro_ros_example 0)
