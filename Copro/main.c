@@ -10,6 +10,7 @@
 #include "safety.h"
 #include "async_i2c.h"
 #include "lux_sensor.h"
+#include "depth_sensor.h"
 
 int main()
 {
@@ -20,6 +21,7 @@ int main()
 
     dio_init();
     async_i2c_init(200000, 10);
+    depth_init();
     lux_init();
 
     pico_serial_transport_init();

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 
@@ -69,6 +70,8 @@ size_t pico_serial_transport_read(struct uxrCustomTransport * transport, uint8_t
     //printf("Read %d bytes from serial...\n", (len - bytes_remaining));
     return (len - bytes_remaining);
 }
+
+bi_decl(bi_program_feature("Micro-ROS"))
 
 void pico_serial_transport_init(void){
     rmw_uros_set_custom_transport(

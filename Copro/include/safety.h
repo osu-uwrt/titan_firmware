@@ -4,6 +4,16 @@
 #include <stdbool.h>
 #include "pico/stdlib.h"
 
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK, Enable/disable assertions for function lifetimes, type=bool, default=0, group=Copro
+#ifndef PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK
+#define PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK 0
+#endif
+
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety functions, type=bool, default=0, group=Copro
+#ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
+#define PARAM_ASSERTIONS_ENABLED_SAFETY 0
+#endif
+
 // ========================================
 // Fault Management Functions
 // ========================================
@@ -12,8 +22,12 @@
 #define FAULT_WATCHDOG_RESET   0
 #define FAULT_ROS_SOFT_FAIL    1
 #define FAULT_DSHOT_ERROR      2
-#define FAULT_ASYNC_I2C_ERROR  3
-#define FAULT_LUX_ERROR        4
+#define FAULT_DSHOT_BUF_STALL  3
+#define FAULT_DSHOT_TIMEOUT    4
+#define FAULT_ASYNC_I2C_ERROR  5
+#define FAULT_LUX_ERROR        6
+#define FAULT_DEPTH_INIT_ERROR 7
+#define FAULT_DEPTH_ERROR      8
 
 /**
  * @brief A list of all the active faults as bits

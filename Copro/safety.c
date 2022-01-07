@@ -21,41 +21,39 @@
 uint32_t fault_list = 0;
 
 void safety_raise_fault(uint32_t fault_id) {
-    if (fault_id > MAX_FAULT_ID) {
-        panic("Invalid fault id raised: %d", fault_id);
-    }
+    valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
+
     if ((fault_list & (1u<<fault_id)) == 0) {
         printf("Fault %d Raised\n", fault_id);
+
+        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
+        // the setting of the fault state and the fault LED
+
+        uint32_t prev_interrupt_state = save_and_disable_interrupts();
+        
+        fault_list |= (1<<fault_id);
+        dio_set_fault_led(true);
+        
+        restore_interrupts(prev_interrupt_state);
     }
-
-    // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-    // the setting of the fault state and the fault LED
-
-    uint32_t prev_interrupt_state = save_and_disable_interrupts();
-    
-    fault_list |= (1<<fault_id);
-    dio_set_fault_led(true);
-    
-    restore_interrupts(prev_interrupt_state);
 }
 
 void safety_lower_fault(uint32_t fault_id) {
-    if (fault_id > MAX_FAULT_ID) {
-        panic("Invalid fault id lowered: %d", fault_id);
-    }
+    valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
+
     if ((fault_list & (1u<<fault_id)) != 0) {
         printf("Fault %d Lowered\n", fault_id);
+        
+        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
+        // the setting of the fault state and the fault LED
+
+        uint32_t prev_interrupt_state = save_and_disable_interrupts();
+        
+        fault_list &= ~(1u<<fault_id);
+        dio_set_fault_led(fault_list != 0);
+        
+        restore_interrupts(prev_interrupt_state);
     }
-
-    // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-    // the setting of the fault state and the fault LED
-
-    uint32_t prev_interrupt_state = save_and_disable_interrupts();
-    
-    fault_list &= ~(1u<<fault_id);
-    dio_set_fault_led(fault_list != 0);
-    
-    restore_interrupts(prev_interrupt_state);
 }
 
 
@@ -118,7 +116,7 @@ static void safety_refresh_kill_switches(void) {
     // Update last state, and notify of kill if needed
     if (last_state_asserting_kill != asserting_kill) {
         last_state_asserting_kill = asserting_kill;
-        
+
         if (asserting_kill) {
             safety_kill_robot();
         } else {
@@ -128,9 +126,7 @@ static void safety_refresh_kill_switches(void) {
 }
 
 void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update){
-    if (switch_num >= MAX_KILL_SWITCHES) {
-        panic("Invalid kill switch number requested: %d", switch_num);
-    }
+    valid_params_if(SAFETY, switch_num < MAX_KILL_SWITCHES);
 
     kill_switch_states[switch_num].asserting_kill = asserting_kill;
     kill_switch_states[switch_num].update_timeout = make_timeout_time_ms(KILL_SWITCH_TIMEOUT_MS);
@@ -143,16 +139,12 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 }
 
 bool safety_kill_get_asserting_kill(void) {
-    if (!safety_initialized) {
-        panic("Safety not initialized");
-    }
+    hard_assert_if(LIFETIME_CHECK, !safety_initialized);
     return last_state_asserting_kill;
 }
 
 absolute_time_t safety_kill_get_last_change(void) {
-    if (!safety_initialized) {
-        panic("Safety not initialized");
-    }
+    hard_assert_if(LIFETIME_CHECK, !safety_initialized);
     return last_kill_switch_change;
 }
 
@@ -289,9 +281,7 @@ bool safety_initialized = false;
 bool safety_is_setup = false;
 
 void safety_setup(void) {
-    if (safety_is_setup || safety_initialized) {
-        panic("Safety already setup when setup called");
-    }
+    hard_assert_if(LIFETIME_CHECK, safety_setup || safety_initialized);
 
     // Set hardfault handler
     original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
@@ -307,12 +297,7 @@ void safety_setup(void) {
 }
 
 void safety_init(void) {
-    if (!safety_is_setup) {
-        panic("Safety not setup before init");
-    }
-    if (safety_initialized) {
-        panic("Safety already initialized when init called");
-    }
+    hard_assert_if(LIFETIME_CHECK, !safety_setup || safety_initialized);
 
     safety_initialized = true;
     *reset_reason_reg = UNKNOWN_SAFETY_ACTIVE;
@@ -325,9 +310,7 @@ void safety_init(void) {
 }
 
 void safety_tick(void) {
-    if (!safety_is_setup) {
-        panic("Safety not setup before tick");
-    }
+    hard_assert_if(LIFETIME_CHECK, !safety_setup);
 
     // Check for any kill switch timeouts
     if (safety_initialized) {

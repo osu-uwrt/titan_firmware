@@ -1,11 +1,15 @@
 #include <stdio.h>
 
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/pio.h"
 
+#include "dshot.h"
 #include "safety.h"
 #include "dshot.pio.h"
+
+static alarm_id_t dshot_timeout_alarm_id = 0;
 
 // Thruster lookup macros
 // Thruster id is a value 1-8
@@ -42,9 +46,32 @@ static inline void dshot_send_internal(uint8_t thruster_id, uint16_t throttle_va
         cmd |= (1 << 15);
     }
 
+    // The buffer should ideally never fill up. If it does unexpected results due to blocking during 
+    // high priority interrputs
+    if (pio_sm_is_tx_fifo_full(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id))) {
+        safety_raise_fault(FAULT_DSHOT_BUF_STALL);
+    }
+
     pio_sm_put_blocking(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), cmd);
 }
 
+static absolute_time_t dshot_time_thrusters_allowed;
+
+/**
+ * @brief Sends required initialization commands to the ESCs
+ * 
+ * DShot must be initialized for this
+ */
+static void dshot_init_thrusters(void) {
+    for (int i = 1; i <= 8; i++) {
+        // Clear any pending commands
+        pio_sm_clear_fifos(THRUSTER_PIO(i), THRUSTER_SM(i));
+        // TODO: Send 10 times
+        dshot_send_internal(i, 10, true, false);
+    }
+
+    dshot_time_thrusters_allowed = make_timeout_time_ms(5000);
+}
 
 void dshot_stop_thrusters(void) {
     // This command needs to be able to be called from kill switch callbacks
@@ -53,13 +80,69 @@ void dshot_stop_thrusters(void) {
         for (int i = 1; i <= 8; i++){
             dshot_send_internal(i, 0, false, false);
         }
+
+        if (dshot_timeout_alarm_id > 0) {
+            cancel_alarm(dshot_timeout_alarm_id);
+            dshot_timeout_alarm_id = 0;
+        }
     }
 }
 
+static bool dshot_needs_thruster_init_on_init = false;
+void dshot_notify_physical_kill_switch_change(bool new_value) { 
+    if (dshot_initialized) {
+        if (new_value) {
+            dshot_init_thrusters();
+        }
+    } else {
+        dshot_needs_thruster_init_on_init = true;
+    }
+}
 
-#define init_thruster_pio(thruster_id) dshot_program_init(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), THRUSTER_PRGM_OFFSET(thruster_id), \
+static int64_t dshot_update_timeout(alarm_id_t id, void *user_data) {
+    dshot_stop_thrusters();
+    dshot_time_thrusters_allowed = make_timeout_time_ms(DSHOT_UPDATE_DISABLE_TIME_MS);
+    safety_raise_fault(FAULT_DSHOT_TIMEOUT);
+    printf("Thrusters Timed Out\n");
+    return 0;
+}
+
+void dshot_update_thrusters(uint16_t *thruster_commands) {
+    hard_assert_if(LIFETIME_CHECK, !dshot_initialized);
+
+    if (absolute_time_diff_us(dshot_time_thrusters_allowed, get_absolute_time()) > 0) {
+        if (dshot_timeout_alarm_id > 0) {
+            cancel_alarm(dshot_timeout_alarm_id);
+            dshot_timeout_alarm_id = 0;
+        }
+
+        bool needs_timeout_scheduled = false;
+        for (int i = 0; i < 8; i++){
+            if ((thruster_commands[i] > 0 && thruster_commands[i] < 48) || thruster_commands[i] > 2047) {
+                printf("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
+                safety_raise_fault(FAULT_DSHOT_ERROR);
+                dshot_stop_thrusters();
+                return;
+            }
+
+            if (thruster_commands[i] > 0) {
+                needs_timeout_scheduled = true;
+            }
+            dshot_send_internal(i+1, thruster_commands[i], false, false);
+        }
+
+        if (needs_timeout_scheduled) {
+            dshot_timeout_alarm_id = add_alarm_in_ms(DSHOT_MAX_UPDATE_RATE_MS, &dshot_update_timeout, NULL, true);
+            hard_assert(dshot_timeout_alarm_id > 0);
+        }
+    }
+}
+
+#define init_thruster_pio(thruster_id) bi_decl_if_func_used(bi_1pin_with_name(THRUSTER_##thruster_id##_PIN, "Thruster " #thruster_id)); \
+                                       dshot_program_init(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), THRUSTER_PRGM_OFFSET(thruster_id), \
                                                           clock_get_hz(clk_sys) / DSHOT_RATE(300), THRUSTER_##thruster_id##_PIN)
 void dshot_init(void) {
+    hard_assert_if(LIFETIME_CHECK, dshot_initialized);
     uint offset_pio0 = pio_add_program(pio0, &dshot_program);
     uint offset_pio1 = pio_add_program(pio1, &dshot_program);
 
@@ -71,6 +154,10 @@ void dshot_init(void) {
     init_thruster_pio(6);
     init_thruster_pio(7);
     init_thruster_pio(8);
+
+    if (dshot_needs_thruster_init_on_init){
+        dshot_init_thrusters();
+    }
     
     dshot_initialized = true;
 

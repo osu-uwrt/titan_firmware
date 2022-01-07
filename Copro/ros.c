@@ -4,18 +4,17 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
-#include <std_msgs/msg/float64.h>
 #include <rmw_microros/rmw_microros.h>
 
 #include "pico_uart_transports.h"
 
 #include "ros.h"
 #include "safety.h"
-#include "lux_sensor.h"
+#include "depth_sensor.h"
 
 rcl_publisher_t publisher;
 rcl_subscription_t subscriber;
-std_msgs__msg__Float64 send_msg;
+std_msgs__msg__Int32 send_msg;
 std_msgs__msg__Int32 recv_msg;
 static rcl_allocator_t allocator;
 static rclc_support_t support;
@@ -35,11 +34,11 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
 	(void) last_call_time;
 	if (timer != NULL) {
-		if (lux_initialized)
-			send_msg.data = lux_read();
-		RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
+		if (depth_initialized) {
+			send_msg.data = depth_read();
+			RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
+		}
 		//printf("Sent: %d\n", send_msg.data);
-		send_msg.data++;
 	}
 }
 
@@ -86,7 +85,7 @@ void ros_start(const char* namespace) {
 	RCCHECK(rclc_publisher_init_default(
 		&publisher,
 		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64),
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"pico_publisher"));
 
   	// create subscriber

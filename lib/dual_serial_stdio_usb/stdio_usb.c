@@ -182,7 +182,7 @@ stdio_driver_t stdio_usb = {
 
 bool dual_usb_init(void) {
 #if !PICO_NO_BI_STDIO_USB
-    bi_decl_if_func_used(bi_program_feature("USB stdin / stdout"));
+    bi_decl_if_func_used(bi_program_feature("Dual USB stdin / stdout"));
 #endif
 
     // initialize TinyUSB
