@@ -351,6 +351,7 @@ static void depth_zero_depth(void) {
     } else {
         depth_initialized = true;
         assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
+        // TODO: Save surface pressure in watchdog scratch register
     }
 }
 

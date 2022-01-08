@@ -30,6 +30,7 @@ struct async_i2c_request {
     async_i2c_cb_t completed_callback;
     async_i2c_abort_cb_t failed_callback;
     const struct async_i2c_request *next_req_on_success;
+    void* user_data;
 };
 
 /**
@@ -48,7 +49,8 @@ struct async_i2c_request {
     .bytes_to_receive = rx_size, \
     .completed_callback = fn_callback, \
     .failed_callback = NULL, \
-    .next_req_on_success = NULL}
+    .next_req_on_success = NULL, \
+    .user_data = NULL}
 
 /**
  * @brief Creates a write request
@@ -66,7 +68,8 @@ struct async_i2c_request {
     .bytes_to_receive = 0, \
     .completed_callback = fn_callback, \
     .failed_callback = NULL, \
-    .next_req_on_success = NULL}
+    .next_req_on_success = NULL \
+    .user_data = NULL}
 
 /**
  * @brief Creates a read request
@@ -84,7 +87,8 @@ struct async_i2c_request {
     .bytes_to_receive = rx_size, \
     .completed_callback = fn_callback, \
     .failed_callback = NULL, \
-    .next_req_on_success = NULL}
+    .next_req_on_success = NULL \
+    .user_data = NULL}
 
 
 

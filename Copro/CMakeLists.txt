@@ -34,6 +34,9 @@ add_executable(copro_firmware
 	async_i2c.c
 	lux_sensor.c
 	depth_sensor.c
+	adc.c
+	balancer_adc.c
+	esc_adc.c
 )
 
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/dshot.pio)

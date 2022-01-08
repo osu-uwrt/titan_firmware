@@ -28,6 +28,9 @@
 #define FAULT_LUX_ERROR        6
 #define FAULT_DEPTH_INIT_ERROR 7
 #define FAULT_DEPTH_ERROR      8
+#define FAULT_ADC_ERROR        9
+#define FAULT_BB_ADC_ERROR    10
+#define FAULT_ESC_ADC_ERROR   11
 
 /**
  * @brief A list of all the active faults as bits

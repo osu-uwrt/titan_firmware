@@ -79,7 +79,6 @@ static void safety_kill_robot(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    // TODO: Implement kill notifier
     dshot_stop_thrusters();
 }
 
