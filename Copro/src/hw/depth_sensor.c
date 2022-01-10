@@ -3,11 +3,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "async_i2c.h"
-#include "depth_sensor.h"
-#include "safety.h"
-
-#include "depth_sensor_commands.h"
+#include "drivers/async_i2c.h"
+#include "drivers/safety.h"
+#include "hw/depth_sensor.h"
+#include "hw/depth_sensor_commands.h"
 
 #define DEPTH_POLLING_RATE_MS 50
 

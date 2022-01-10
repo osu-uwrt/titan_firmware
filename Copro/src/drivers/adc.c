@@ -4,9 +4,9 @@
 
 #include "pico/time.h"
 
-#include "async_i2c.h"
-#include "adc.h"
-#include "safety.h"
+#include "drivers/async_i2c.h"
+#include "drivers/adc.h"
+#include "drivers/safety.h"
 
 static int next_available_channel(struct adc_instance *inst, int next_id) {
     uint8_t polling_id_list = inst->config->monitored_channels >> next_id;

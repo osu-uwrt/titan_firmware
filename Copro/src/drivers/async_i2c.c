@@ -6,8 +6,8 @@
 #include "pico/mutex.h"
 #include "pico/time.h"
 
-#include "async_i2c.h"
-#include "safety.h"
+#include "drivers/async_i2c.h"
+#include "drivers/safety.h"
 
 bool async_i2c_initialized = false;
 static uint i2c_bus_timeout;

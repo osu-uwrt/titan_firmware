@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "async_i2c.h"
+#include "drivers/async_i2c.h"
 
 // Dirty hack to allow commands to be in separate header file
 static void depth_init_failure(const struct async_i2c_request *req, uint32_t abort_data);

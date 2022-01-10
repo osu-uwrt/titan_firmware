@@ -4,15 +4,14 @@
 #include "pico_uart_transports.h"
 #include "build_version.h"
 
-#include "dio.h"
-#include "dshot.h"
-#include "ros.h"
-#include "safety.h"
-#include "async_i2c.h"
-#include "lux_sensor.h"
-#include "depth_sensor.h"
-#include "balancer_adc.h"
-#include "esc_adc.h"
+#include "hw/dio.h"
+#include "hw/dshot.h"
+#include "tasks/ros.h"
+#include "drivers/safety.h"
+#include "drivers/async_i2c.h"
+#include "hw/depth_sensor.h"
+#include "hw/balancer_adc.h"
+#include "hw/esc_adc.h"
 
 int main()
 {
@@ -24,7 +23,6 @@ int main()
     dio_init();
     async_i2c_init(200000, 10);
     depth_init();
-    lux_init();
     balancer_adc_init();
     esc_adc_init();
 

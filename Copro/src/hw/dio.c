@@ -3,9 +3,9 @@
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 
-#include "dio.h"
-#include "safety.h"
-#include "dshot.h"
+#include "drivers/safety.h"
+#include "hw/dio.h"
+#include "hw/dshot.h"
 
 
 bool dio_initialized = false;

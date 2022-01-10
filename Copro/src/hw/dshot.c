@@ -5,8 +5,9 @@
 #include "hardware/clocks.h"
 #include "hardware/pio.h"
 
-#include "dshot.h"
-#include "safety.h"
+#include "drivers/safety.h"
+#include "hw/dshot.h"
+
 #include "dshot.pio.h"
 
 static alarm_id_t dshot_timeout_alarm_id = 0;

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "adc.h"
+#include "drivers/adc.h"
 
 extern struct adc_instance balancer_adc_inst;
 

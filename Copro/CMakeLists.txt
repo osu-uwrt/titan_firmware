@@ -25,21 +25,20 @@ pico_sdk_init()
 
 # Define executable
 add_executable(copro_firmware
-	main.c
-	dio.c
-	dshot.c
-	ros.c
-	safety.c
-	hard_fault_handler.S
-	async_i2c.c
-	lux_sensor.c
-	depth_sensor.c
-	adc.c
-	balancer_adc.c
-	esc_adc.c
+	src/main.c
+	src/hw/dio.c
+	src/hw/dshot.c
+	src/tasks/ros.c
+	src/drivers/safety.c
+	src/drivers/hard_fault_handler.S
+	src/drivers/async_i2c.c
+	src/hw/depth_sensor.c
+	src/drivers/adc.c
+	src/hw/balancer_adc.c
+	src/hw/esc_adc.c
 )
 
-pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/dshot.pio)
+pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
 target_include_directories(copro_firmware PUBLIC include)
 

@@ -8,9 +8,9 @@
 
 #include "pico_uart_transports.h"
 
-#include "ros.h"
-#include "safety.h"
-#include "depth_sensor.h"
+#include "drivers/safety.h"
+#include "hw/depth_sensor.h"
+#include "tasks/ros.h"
 
 rcl_publisher_t publisher;
 rcl_subscription_t subscriber;

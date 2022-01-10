@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "adc.h"
-#include "esc_adc.h"
-#include "safety.h"
+#include "drivers/adc.h"
+#include "drivers/safety.h"
+#include "hw/esc_adc.h"
 
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 

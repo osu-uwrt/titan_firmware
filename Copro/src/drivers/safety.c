@@ -10,9 +10,9 @@
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 
-#include "dio.h"
-#include "dshot.h"
-#include "safety.h"
+#include "drivers/safety.h"
+#include "hw/dio.h"
+#include "hw/dshot.h"
 
 // ========================================
 // Fault Management Functions
