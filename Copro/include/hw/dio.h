@@ -2,6 +2,13 @@
 #define _DIO_H
 
 /**
+ * @brief Time to toggle power rails for
+ * This is used for cases where toggling the power rail would disconnect the computer
+ * preventing the computer from being able to instruct it to be turned back on.
+ */
+#define POWER_RAIL_TOGGLE_TIME_MS 500
+
+/**
  * @brief Boolean if dio_init has been called
  */
 bool dio_initialized;
@@ -14,6 +21,36 @@ bool dio_initialized;
  * @param on The target led state
  */
 void dio_set_fault_led(bool on);
+
+/**
+ * @brief Returns the state of the aux switch
+ * 
+ * @return true Aux switch is placed on robot
+ * @return false Aux switch is removed from robot
+ */
+bool dio_get_aux_switch(void);
+
+/**
+ * @brief Lowers the 12V power rail for POWER_RAIL_TOGGLE_TIME_MS and then raises is again
+ */
+void dio_toggle_twelve_power(void);
+
+/**
+ * @brief Lowers the 5V power rail for POWER_RAIL_TOGGLE_TIME_MS and then raises is again
+ */
+void dio_toggle_five_power(void);
+
+/**
+ * @brief Lowers the Mobo power for POWER_RAIL_TOGGLE_TIME_MS and then raises is again
+ */
+void dio_toggle_mobo_power(void);
+
+/**
+ * @brief Sets the peltier control power line to the passed in value
+ * 
+ * @param on The value to set the peltier power to
+ */
+void dio_set_peltier_power(bool on);
 
 /**
  * @brief Initializes digital io required by the firmware

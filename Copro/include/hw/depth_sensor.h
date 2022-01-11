@@ -21,9 +21,9 @@ bool depth_initialized;
  * 
  * REQUIRES INITIALIZATION
  * 
- * @return int32_t The raw depth reading
+ * @return double The raw depth reading
  */
-int32_t depth_read(void);
+double depth_read(void);
 
 /**
  * @brief Begins initialization of depth sensor

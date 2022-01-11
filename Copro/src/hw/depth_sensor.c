@@ -37,7 +37,7 @@ static int depth_prom_read_index;
  * @param abort_data The contents of the abort register
  */
 static void depth_init_failure(const struct async_i2c_request *req, uint32_t abort_data) {
-    printf("Failed to init depth sensor (Tx Abort: %d)", abort_data);
+    printf("Failed to init depth sensor (Tx Abort: %d)\n", abort_data);
     safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
 }
 
@@ -367,7 +367,7 @@ static void depth_begin_zero_depth(void) {
 // Public Functions
 // ========================================
 
-int32_t depth_read(void) {
+double depth_read(void) {
     hard_assert_if(DEPTH, !depth_initialized);
 
     return ((depth_pressure - surface_pressure)*100)/(FLUID_DENSITY*9.80665);

@@ -1,5 +1,5 @@
-#ifndef _DEPTH_SENSOR_H
-#define _DEPTH_SENSOR_H
+#ifndef _ADC_H
+#define _ADC_H
 
 #include <stdbool.h>
 #include <stdint.h>

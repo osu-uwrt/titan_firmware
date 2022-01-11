@@ -8,7 +8,8 @@
 
 extern struct adc_instance balancer_adc_inst;
 
-#define balancer_adc_initialized (balancer_adc_inst->initialized);
+#define balancer_adc_initialized (balancer_adc_inst.initialized)
+#define balancer_adc_last_reading (balancer_adc_inst.last_reading_time)
 double balancer_adc_get_stbd_current(void);
 double balancer_adc_get_port_current(void);
 double balancer_adc_get_balanced_voltage(void);

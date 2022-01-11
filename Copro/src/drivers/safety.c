@@ -280,7 +280,7 @@ bool safety_initialized = false;
 bool safety_is_setup = false;
 
 void safety_setup(void) {
-    hard_assert_if(LIFETIME_CHECK, safety_setup || safety_initialized);
+    hard_assert_if(LIFETIME_CHECK, safety_is_setup || safety_initialized);
 
     // Set hardfault handler
     original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
@@ -296,7 +296,7 @@ void safety_setup(void) {
 }
 
 void safety_init(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_setup || safety_initialized);
+    hard_assert_if(LIFETIME_CHECK, !safety_is_setup || safety_initialized);
 
     safety_initialized = true;
     *reset_reason_reg = UNKNOWN_SAFETY_ACTIVE;
@@ -309,7 +309,7 @@ void safety_init(void) {
 }
 
 void safety_tick(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_setup);
+    hard_assert_if(LIFETIME_CHECK, !safety_is_setup);
 
     // Check for any kill switch timeouts
     if (safety_initialized) {

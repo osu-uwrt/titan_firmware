@@ -25,12 +25,14 @@
 #define FAULT_DSHOT_BUF_STALL  3
 #define FAULT_DSHOT_TIMEOUT    4
 #define FAULT_ASYNC_I2C_ERROR  5
-#define FAULT_LUX_ERROR        6
-#define FAULT_DEPTH_INIT_ERROR 7
-#define FAULT_DEPTH_ERROR      8
-#define FAULT_ADC_ERROR        9
-#define FAULT_BB_ADC_ERROR    10
-#define FAULT_ESC_ADC_ERROR   11
+#define FAULT_DEPTH_INIT_ERROR 6
+#define FAULT_DEPTH_ERROR      7
+#define FAULT_ADC_ERROR        8
+#define FAULT_BB_ADC_ERROR     9
+#define FAULT_ESC_ADC_ERROR   10
+#define FAULT_COOLING_STALE   11
+#define FAULT_LOWBATT_STALE   12
+#define FAULT_LOW_BATTERY     13
 
 /**
  * @brief A list of all the active faults as bits

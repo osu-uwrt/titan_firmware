@@ -8,7 +8,8 @@
 
 extern struct adc_instance esc_adc_inst;
 
-#define esc_adc_initialized (esc_adc_inst->initialized);
+#define esc_adc_initialized (esc_adc_inst.initialized)
+#define esc_adc_last_reading (esc_adc_inst.last_reading_time)
 double esc_adc_get_thruster_current(int thruster_id);
 void esc_adc_init(void);
 

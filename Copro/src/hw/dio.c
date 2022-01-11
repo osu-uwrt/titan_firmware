@@ -49,6 +49,53 @@ static void dio_gpio_callback(uint gpio, uint32_t events) {
     }
 }
 
+bool dio_get_aux_switch(void) {
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+
+    return !gpio_get(AUX_SWITCH_PIN);
+}
+
+/**
+ * @brief Callback for alarm to restore power to a rail
+ * This is needed if the computer is on the power rail and would not be able to re-enable itself
+ * 
+ * @param id The alarm id
+ * @param user_data The pin to toggle (stored directly in the 4-byte value)
+ * @return int64_t If to reschedule
+ */
+static int64_t dio_power_restore_cb(alarm_id_t id, void *user_data) {
+    uint gpio_pin = (uint) user_data;
+    gpio_put(gpio_pin, true);
+
+    return 0;
+}
+
+void dio_toggle_twelve_power(void) {
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+
+    gpio_put(REG_12_CTRL_PIN, false);
+    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_12_CTRL_PIN, true) > 0);
+}
+
+void dio_toggle_five_power(void) {
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+
+    gpio_put(REG_5_CTRL_PIN, false);
+    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_5_CTRL_PIN, true) > 0);
+}
+
+void dio_toggle_mobo_power(void) {
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+
+    gpio_put(MOBO_CTRL_PIN, false);
+    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)MOBO_CTRL_PIN, true) > 0);
+}
+
+void dio_set_peltier_power(bool on) {
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+
+    gpio_put(PELTIER_CTRL_PIN, on);
+}
 
 void dio_init(void) {
     hard_assert_if(LIFETIME_CHECK, dio_initialized);
@@ -57,9 +104,8 @@ void dio_init(void) {
     bi_decl_if_func_used(bi_1pin_with_name(FAULT_LED_PIN, "Fault LED"));
     gpio_init(FAULT_LED_PIN);
     gpio_set_dir(FAULT_LED_PIN, GPIO_OUT);
-    gpio_put(FAULT_LED_PIN, pending_fault_led_state);
 
-    // Kill Switch
+    // Switches
     bi_decl_if_func_used(bi_1pin_with_name(KILL_SWITCH_PIN, "Kill Switch"));
     gpio_init(KILL_SWITCH_PIN);
     gpio_set_dir(KILL_SWITCH_PIN, GPIO_IN);
@@ -67,5 +113,32 @@ void dio_init(void) {
     gpio_set_irq_enabled_with_callback(KILL_SWITCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &dio_gpio_callback);
     dio_gpio_callback(KILL_SWITCH_PIN, 0);
 
+    bi_decl_if_func_used(bi_1pin_with_name(AUX_SWITCH_PIN, "Aux Switch"));
+    gpio_init(AUX_SWITCH_PIN);
+    gpio_set_dir(AUX_SWITCH_PIN, GPIO_IN);
+    gpio_pull_up(AUX_SWITCH_PIN);
+
+    // Power Control
+    bi_decl_if_func_used(bi_1pin_with_name(PELTIER_CTRL_PIN, "Peltier Control"));
+    gpio_init(PELTIER_CTRL_PIN);
+    gpio_put(PELTIER_CTRL_PIN, false);
+    gpio_set_dir(PELTIER_CTRL_PIN, true);
+    
+    bi_decl_if_func_used(bi_1pin_with_name(REG_12_CTRL_PIN, "12V Regulator Conrol"));
+    gpio_init(REG_12_CTRL_PIN);
+    gpio_put(REG_12_CTRL_PIN, true);
+    gpio_set_dir(REG_12_CTRL_PIN, true);
+
+    bi_decl_if_func_used(bi_1pin_with_name(REG_5_CTRL_PIN, "5V Regulator Conrol"));
+    gpio_init(REG_5_CTRL_PIN);
+    gpio_put(REG_5_CTRL_PIN, true);
+    gpio_set_dir(REG_5_CTRL_PIN, true);
+
+    bi_decl_if_func_used(bi_1pin_with_name(MOBO_CTRL_PIN, "Mobo Power Conrol"));
+    gpio_init(MOBO_CTRL_PIN);
+    gpio_put(MOBO_CTRL_PIN, true);
+    gpio_set_dir(MOBO_CTRL_PIN, true);
+
+    gpio_put(FAULT_LED_PIN, pending_fault_led_state);
     dio_initialized = true;
 }
