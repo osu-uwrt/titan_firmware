@@ -19,6 +19,7 @@
 
 static_assert(PICO_STDIO_USB_LOW_PRIORITY_IRQ > RTC_IRQ, ""); // note RTC_IRQ is currently the last one
 static mutex_t stdio_usb_mutex;
+static mutex_t unsent_buffer_mutex;
 
 static const int unsent_buffer_size = PICO_STDIO_USB_UNSENT_BUFFER_SIZE;
 static char unsent_buffer[PICO_STDIO_USB_UNSENT_BUFFER_SIZE];
@@ -55,6 +56,10 @@ static inline int positive_modulo(int i, int n) {
 }
 
 bool _try_handle_unsent_buffer(void) {
+    if (!mutex_try_enter(&unsent_buffer_mutex, NULL)) {
+        return false;
+    }
+
     if (unsent_buffer_overflow) {
         int sent = _stdio_usb_out_data(overflow_msg, sizeof(overflow_msg));
         if (sent == sizeof(overflow_msg)) {
@@ -82,10 +87,21 @@ bool _try_handle_unsent_buffer(void) {
             sent += _stdio_usb_out_data(unsent_buffer, unsent_buffer_next_in);
     }
     unsent_buffer_next_out = ((unsent_buffer_next_out + sent) % unsent_buffer_size);
+
+    mutex_exit(&unsent_buffer_mutex);
     return unsent_buffer_next_out == unsent_buffer_next_in;
 }
 
 void _write_unsent_buffer(const char* buf, int length) {
+    uint32_t owner;
+    if (!mutex_try_enter(&unsent_buffer_mutex, &owner)) {
+        if (owner == get_core_num()) {  // would deadlock otherwise
+            buffer_mutex_data_drop = true;
+            return;
+        }
+        mutex_enter_blocking(&unsent_buffer_mutex);
+    }
+    
     // If the data is too big for buffer, truncate to end
     if (length >= unsent_buffer_size) {
         buf = &buf[length - (unsent_buffer_size - 1)];
@@ -112,6 +128,8 @@ void _write_unsent_buffer(const char* buf, int length) {
         memcpy(&unsent_buffer[unsent_buffer_next_in], buf, length);
         unsent_buffer_next_in += length;
     }
+
+    mutex_exit(&unsent_buffer_mutex);
 }
 
 static void low_priority_worker_irq(void) {
@@ -136,7 +154,10 @@ static void stdio_usb_out_chars(const char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
         if (owner == get_core_num()) { 
-            buffer_mutex_data_drop = true;
+            // As a last ditch attempt try to send to unsent buffer
+            // If this is also locked it will fail, but should allow writing when usb is locked
+            // This becomes useful if usb is commonly locked due to communication on the secondary port
+            _write_unsent_buffer(buf, length);
             return; // would deadlock otherwise
         }
         mutex_enter_blocking(&stdio_usb_mutex);
@@ -192,6 +213,7 @@ bool dual_usb_init(void) {
     irq_set_enabled(PICO_STDIO_USB_LOW_PRIORITY_IRQ, true);
 
     mutex_init(&stdio_usb_mutex);
+    mutex_init(&unsent_buffer_mutex);
     bool rc = add_alarm_in_us(PICO_STDIO_USB_TASK_INTERVAL_US, timer_task, NULL, true);
     if (rc) {
         stdio_set_driver_enabled(&stdio_usb, true);

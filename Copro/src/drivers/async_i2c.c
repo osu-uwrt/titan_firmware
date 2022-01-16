@@ -173,6 +173,11 @@ static void async_i2c_start_request_internal(const struct async_i2c_request *req
  * @param i2c The i2c inst which caused the interrupt
  */
 static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
+    if (!(i2c->hw->raw_intr_stat & i2c->hw->intr_mask)) {
+        return;  // In the event the IRQ went away, ignore it
+        // Could happen if the full/empty irq tripped during fill/emptying
+    }
+
     hard_assert_if(ASYNC_I2C, i2c != active_transfer.request->i2c);
 
     // Handle software issues first
@@ -192,7 +197,10 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     }
 
     // Handle error states
+    bool transfer_aborted = false;
     if (has_irq_pending(i2c, TX_ABRT)) {
+        transfer_aborted = true;
+
         if (active_transfer.alarm_active) {
             cancel_alarm(active_transfer.timeout_alarm);
             active_transfer.alarm_active = false;
@@ -226,7 +234,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     }
 
     // Handle normal states
-    if (has_irq_pending(i2c, TX_EMPTY)) {
+    if (!transfer_aborted && has_irq_pending(i2c, TX_EMPTY)) {
         // Transmit buffer needs to be filled (cleared by hw)
 
         while (i2c_get_write_available(i2c) && active_transfer.bytes_sent < active_transfer.request->bytes_to_send) {
@@ -246,7 +254,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         }
         
     }
-    if (has_irq_pending(i2c, RX_FULL)) {
+    if (!transfer_aborted && has_irq_pending(i2c, RX_FULL)) {
         // Receive buffer needs to be read in (cleared by hw)
         while (i2c_get_read_available(i2c)) {
             assert(active_transfer.bytes_received < active_transfer.request->bytes_to_receive);
@@ -289,9 +297,13 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
 
         // Only do processing on start bit if the data was properly received
         // If an abort occurs then stop occurs before abort, so it might not be detected for an abort
-        if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
+        if (transfer_aborted) {
+            // Do nothing on aborted transfer
+        } else if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
             async_i2c_start_receive_stage();
         } else if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.bytes_received == active_transfer.request->bytes_to_receive) {
+            hard_assert_if(ASYNC_I2C, active_transfer.request_state == I2C_TRANSMITTING || active_transfer.request_state == I2C_RECEIVING);
+
             if (active_transfer.alarm_active) {
                 cancel_alarm(active_transfer.timeout_alarm);
                 active_transfer.alarm_active = false;

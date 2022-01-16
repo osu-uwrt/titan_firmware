@@ -45,6 +45,10 @@ const struct rp2040_board_instance board_definitions[] = {
         .board_type_name = "pico",
         .serial = "E660583883731D2D",
     },
+    {   // The backplane breakout board that is designed for puddles
+        .board_type_name = "backplane_breakout_board",
+        .serial = "E660B440075F7B26"
+    },
 };
 
 const size_t num_board_definitions = sizeof(board_definitions) / sizeof(struct rp2040_board_instance);

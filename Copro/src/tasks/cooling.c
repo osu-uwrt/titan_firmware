@@ -19,6 +19,7 @@ void cooling_tick(void) {
 
         bool enabled = balancer_adc_get_temperature() >= cooling_threshold;
         dio_set_peltier_power(enabled);
+        cooling_enabled = enabled;
     } else {
         safety_raise_fault(FAULT_COOLING_STALE);
         dio_set_peltier_power(false);
