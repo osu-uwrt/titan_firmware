@@ -38,7 +38,7 @@
  * @brief A list of all the active faults as bits
  * DO NOT WRITE TO THIS! There are methods to safely raise and lower faults
  */
-uint32_t fault_list;
+extern uint32_t fault_list;
 
 /**
  * @brief Raises the specified fault id
@@ -115,13 +115,13 @@ absolute_time_t safety_kill_get_last_change(void);
  * @brief Boolean for if safety_setup has been called
  * If code requires safety to be setup and this is false, it should panic
  */
-bool safety_is_setup;
+extern bool safety_is_setup;
 
 /**
  * @brief Boolean for if safety_init has been called
  * If code requires safety to be initialized and this is false, it should panic
  */
-bool safety_initialized;
+extern bool safety_initialized;
 
 /**
  * @brief Performs core safety setup to be completed immediately after reset

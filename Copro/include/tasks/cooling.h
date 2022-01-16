@@ -9,12 +9,12 @@
 /**
  * @brief If the cooling task has been initialized
  */
-bool cooling_initialized;
+extern bool cooling_initialized;
 
 /**
  * @brief Threshold when peltier panel turns on in Deg C
  */
-int cooling_threshold;
+extern int cooling_threshold;
 
 /**
  * @brief Ticks the cooling task

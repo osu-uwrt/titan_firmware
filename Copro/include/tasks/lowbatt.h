@@ -24,7 +24,7 @@
 /**
  * @brief If the low battery task has been initialized
  */
-bool lowbatt_initialized;
+extern bool lowbatt_initialized;
 
 /**
  * @brief Ticks the low battery task

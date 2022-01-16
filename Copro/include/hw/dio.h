@@ -11,7 +11,7 @@
 /**
  * @brief Boolean if dio_init has been called
  */
-bool dio_initialized;
+extern bool dio_initialized;
 
 /**
  * @brief Sets the fault led. If dio has not been initialized yet, it will store the state for when dio is initialized

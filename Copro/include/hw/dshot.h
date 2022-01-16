@@ -12,7 +12,7 @@
 /**
  * @brief Boolean if dshot_init has been called
  */
-bool dshot_initialized;
+extern bool dshot_initialized;
 
 /**
  * @brief Sends stop command to all thrusters.

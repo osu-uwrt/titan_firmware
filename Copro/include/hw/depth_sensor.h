@@ -14,7 +14,7 @@
  * This will be false until all calibration and zeroing is complete
  * This may never become true if the depth sensor fails to initialize
  */
-bool depth_initialized;
+extern bool depth_initialized;
 
 /**
  * @brief Reads the value from the depth sensor
