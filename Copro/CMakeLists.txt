@@ -40,6 +40,8 @@ add_executable(copro_firmware
 	src/tasks/ros.c
 )
 
+add_compile_options(-Wall -Wextra -pedantic -Werror)
+
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
 target_include_directories(copro_firmware PUBLIC include)
