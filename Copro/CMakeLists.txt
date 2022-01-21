@@ -28,8 +28,8 @@ add_executable(copro_firmware
 	src/main.c
 	src/drivers/adc.c
 	src/drivers/async_i2c.c
-	src/drivers/hard_fault_handler.S
 	src/drivers/safety.c
+	src/drivers/safety_helper.S
 	src/hw/balancer_adc.c
 	src/hw/depth_sensor.c
 	src/hw/dio.c
@@ -70,5 +70,6 @@ target_link_libraries(copro_firmware
 	hardware_exception
 	hardware_pio
 	hardware_i2c
-	"-Wl,--wrap=__assert_func"  # Enable safety assert wrapping
+	# Hook required functions for safety watchdog reporting
+	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery"
 )

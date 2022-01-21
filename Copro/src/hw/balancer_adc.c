@@ -49,7 +49,7 @@ double balancer_adc_get_port_voltage(void) {
 }
 
 double balancer_adc_get_temperature(void) {
-    return adc_get_reading(&balancer_adc_inst, 4) >> 4;
+    return adc_get_reading(&balancer_adc_inst, 7)/16.0;
 }
 
 void balancer_adc_init(void) {

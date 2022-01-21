@@ -1,0 +1,10 @@
+Copro Firmware 1.0_proto-backplane_breakout_board micro-ros/9b09ef0-dirty rjp5th@RJP-UWRT 2022-01-20T19:52:51-05:00
+Clean boot
+PROM Data: 0001 7743 7906 47e2 4e5f 6eff 67fc 
+Depth Init Error - Invalid PROM Byte 0: 1
+Fault 6 Raised
+Connected to ROS
+Fault 11 Raised
+Fault 12 Raised
+Fault 11 Lowered
+Fault 12 Lowered

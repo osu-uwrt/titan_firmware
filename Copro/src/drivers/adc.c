@@ -40,7 +40,7 @@ static void adc_read_failure(const struct async_i2c_request * req, uint32_t abor
 static void adc_poll_channel(struct adc_instance *inst) {
     inst->channel_to_read = next_available_channel(inst, inst->channel_to_read);
     if (inst->channel_to_read >= 0) {
-        hard_assert_if(ADC, inst->channel_to_read < 8);
+        hard_assert_if(ADC, inst->channel_to_read >= 8);
         inst->tx_buffer[0] = ADC_REG_CHANNEL_DATA(inst->channel_to_read);
 
         async_i2c_enqueue(&inst->active_request, &inst->request_in_progress);
@@ -71,11 +71,11 @@ static void adc_channel_read_cb(const struct async_i2c_request * req) {
 static int64_t adc_poll_alarm_cb(alarm_id_t id, void *user_data) {
     struct adc_instance *inst = (struct adc_instance *)user_data;
 
-    if (inst->request_in_progress) {
+    if (inst->read_in_progress) {
         printf("ADC Read requested with a read still in progress\n");
         safety_raise_fault(FAULT_ADC_ERROR);
     } else {
-        inst->request_in_progress = true;
+        inst->read_in_progress = true;
         inst->channel_to_read = 0;
 
         inst->active_request.completed_callback = &adc_channel_read_cb;

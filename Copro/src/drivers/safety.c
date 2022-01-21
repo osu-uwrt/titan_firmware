@@ -158,10 +158,14 @@ absolute_time_t safety_kill_get_last_change(void) {
 // scratch[0]: Last Crash Action
 //  - UNKNOWN_SAFETY_PREINIT: Unknown, crashed after safety_setup
 //  - UNKNOWN_SAFETY_ACTIVE: Unknown, crashed after safety_init
-//  - PANIC
+//  - PANIC: Set on panic function call
 //     scratch[1]: Address of panic string (Won't be dereferenced for safety)
-//  - HARD_FAULT
+//  - HARD_FAULT: Set in the hard fault exception handler (Any unhandled exception raises this)
 //     scratch[1]: Faulting Address
+//  - ASSERT_FAIL: Set in assertion callback
+//     scratch[1]: Faulting File String Address
+//     scratch[2]: Faulting File Line
+//  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS master
 // scratch[3]: Watchdog Reset Counter (LSB order)
 //     Byte 0: Total Watchdog Reset Counter
 //     Byte 1: Panic Reset Counter
@@ -172,12 +176,14 @@ absolute_time_t safety_kill_get_last_change(void) {
 #define PANIC                   0x1035003
 #define HARD_FAULT              0x1035004
 #define ASSERT_FAIL             0x1035005
+#define IN_ROS_TRANSPORT_LOOP   0x1035006
 
 // Very useful for debugging, prevents cpu from resetting while execution is halted for debugging
 // However, this should be ideally be disabled when not debugging in the event something goes horribly wrong
 #define PAUSE_WATCHDOG_ON_DEBUG 1
 
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
+static volatile uint32_t *reset_counter = &watchdog_hw->scratch[3];
 
 // Defined in hard_fault_handler.S
 extern void safety_hard_fault_handler(void);
@@ -190,10 +196,8 @@ void __wrap___assert_func(const char *file, int line, const char *func, const ch
     *reset_reason_reg = ASSERT_FAIL;
     watchdog_hw->scratch[1] = (uint32_t) file;
     watchdog_hw->scratch[2] = (uint32_t) line;
-    watchdog_hw->scratch[6] = (uint32_t) func;
-    watchdog_hw->scratch[7] = (uint32_t) failedexpr;
-    if ((watchdog_hw->scratch[3] & 0xFF000000) != 0xFF000000) {
-        watchdog_hw->scratch[3] += 0x1000000;
+    if ((*reset_counter & 0xFF000000) != 0xFF000000) {
+        *reset_counter += 0x1000000;
     }
 
     // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
@@ -215,8 +219,8 @@ void __wrap___assert_func(const char *file, int line, const char *func, const ch
 void safety_panic(const char *fmt, ...) {
     *reset_reason_reg = PANIC;
     watchdog_hw->scratch[1] = (uint32_t) fmt;
-    if ((watchdog_hw->scratch[3] & 0xFF00) != 0xFF00) {
-        watchdog_hw->scratch[3] += 0x100;
+    if ((*reset_counter & 0xFF00) != 0xFF00) {
+        *reset_counter += 0x100;
     }
 
     puts("\n*** PANIC ***\n");
@@ -237,6 +241,45 @@ void safety_panic(const char *fmt, ...) {
     __breakpoint();
 }
 
+static bool had_watchdog_reboot = false;
+static uint32_t last_reset_reason = 0;
+static uint32_t prev_scratch1 = 0;
+static uint32_t prev_scratch2 = 0;
+
+static void safety_print_last_reset_cause(void){
+    if (had_watchdog_reboot) {
+        printf("Watchdog Reset (Total Crashes: %d", (*reset_counter) & 0xFF);
+        if ((*reset_counter) & 0xFF00) {
+            printf(" - Panics: %d", ((*reset_counter) >> 8) & 0xFF);
+        }
+        if ((*reset_counter) & 0xFF0000) {
+            printf(" - Hard Faults: %d", ((*reset_counter) >> 16) & 0xFF);
+        }
+        if ((*reset_counter) & 0xFF000000) {
+            printf(" - Assert Fails: %d", ((*reset_counter) >> 24) & 0xFF);
+        }
+        printf(") - Reason: ");
+
+        if (last_reset_reason == UNKNOWN_SAFETY_PREINIT) {
+            printf("UNKNOWN_SAFETY_PREINIT\n");
+        } else if (last_reset_reason == UNKNOWN_SAFETY_ACTIVE) {
+            printf("UNKNOWN_SAFETY_ACTIVE\n");
+        } else if (last_reset_reason == PANIC) {
+            printf("PANIC (Message: 0x%08x)\n", prev_scratch1);
+        } else if (last_reset_reason == HARD_FAULT) {
+            printf("HARD_FAULT (Fault Address: 0x%08x)\n", prev_scratch1);
+        } else if (last_reset_reason == ASSERT_FAIL) {
+            printf("ASSERT_FAIL (File: 0x%08x Line: %d)\n", prev_scratch1, prev_scratch2);
+        } else if (last_reset_reason == IN_ROS_TRANSPORT_LOOP) {
+            printf("ROS Master Disconnect\n");
+        } else {
+            printf("Invalid Data in Reason Register");
+        }
+    } else {
+        printf("Clean boot\n");
+    }
+}
+
 /**
  * @brief Does processing of the last reset cause and prints it to serial.
  * Also increments the total watchdog reset counter
@@ -244,31 +287,31 @@ void safety_panic(const char *fmt, ...) {
  * Should only be called once and before reset reason is overwritten
  */
 static void safety_process_last_reset_cause(void) {
-    // Print last state
+    // Handle data in watchdog registers
+    bool should_raise_fault = false;
     if (watchdog_enable_caused_reboot()) {
-        if ((watchdog_hw->scratch[3] & 0xFF) != 0xFF) watchdog_hw->scratch[3]++;
-
-        printf("Watchdog Reset (Counts: 0x%x) - Reason: ", watchdog_hw->scratch[3]);
-
-        uint32_t reset_reason = *reset_reason_reg;
-        if (reset_reason == UNKNOWN_SAFETY_PREINIT) {
-            printf("UNKNOWN_SAFETY_PREINIT\n");
-        } else if (reset_reason == UNKNOWN_SAFETY_ACTIVE) {
-            printf("UNKNOWN_SAFETY_ACTIVE\n");
-        } else if (reset_reason == PANIC) {
-            printf("PANIC (Message: 0x%08x)\n", watchdog_hw->scratch[1]);
-        } else if (reset_reason == HARD_FAULT) {
-            printf("HARD_FAULT (Fault Address: 0x%08x)\n", watchdog_hw->scratch[1]);
-        } else if (reset_reason == ASSERT_FAIL) {
-            printf("ASSERT_FAIL (File: 0x%08x Line: %d - Function: 0x%08x - Expression: 0x%08x)\n", watchdog_hw->scratch[1], watchdog_hw->scratch[2], watchdog_hw->scratch[6], watchdog_hw->scratch[7]);
-        } else {
-            printf("Invalid Data in Reason Register");
+        last_reset_reason = *reset_reason_reg;
+        prev_scratch1 = watchdog_hw->scratch[1];
+        prev_scratch2 = watchdog_hw->scratch[2];
+        had_watchdog_reboot = true;
+        
+        if (last_reset_reason != IN_ROS_TRANSPORT_LOOP) {
+            if (((*reset_counter) & 0xFF) != 0xFF) 
+                *reset_counter = *reset_counter + 1;
+            should_raise_fault = true;
         }
 
-        safety_raise_fault(FAULT_WATCHDOG_RESET);
+        if (*reset_counter != 0) {
+            should_raise_fault = true;
+        }
     } else {
-        watchdog_hw->scratch[3] = 0;
-        printf("Clean boot\n");
+        *reset_counter = 0;
+        had_watchdog_reboot = false;
+    }
+
+    safety_print_last_reset_cause();
+    if (should_raise_fault) {
+        safety_raise_fault(FAULT_WATCHDOG_RESET);
     }
 }
 

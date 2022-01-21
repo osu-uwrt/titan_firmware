@@ -302,7 +302,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         } else if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
             async_i2c_start_receive_stage();
         } else if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.bytes_received == active_transfer.request->bytes_to_receive) {
-            hard_assert_if(ASYNC_I2C, active_transfer.request_state == I2C_TRANSMITTING || active_transfer.request_state == I2C_RECEIVING);
+            hard_assert_if(ASYNC_I2C, active_transfer.request_state != I2C_TRANSMITTING && active_transfer.request_state != I2C_RECEIVING);
 
             if (active_transfer.alarm_active) {
                 cancel_alarm(active_transfer.timeout_alarm);

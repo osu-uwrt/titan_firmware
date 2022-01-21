@@ -10,6 +10,9 @@
 
 #include "drivers/safety.h"
 #include "hw/depth_sensor.h"
+#include "hw/balancer_adc.h"
+#include "hw/esc_adc.h"
+#include "hw/dio.h"
 #include "tasks/ros.h"
 
 rcl_publisher_t publisher;
@@ -36,8 +39,8 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 	if (timer != NULL) {
 		if (depth_initialized) {
 			send_msg.data = depth_read();
-			RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
 		}
+		RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
 		//printf("Sent: %d\n", send_msg.data);
 	}
 }
@@ -54,6 +57,39 @@ void subscription_callback(const void * msgin)
 		bad_jump();
 	} else if (msg->data == 5){
 		panic("IT DO GO DOWN!");
+	} else if (msg->data == 6) {
+		printf("===Connection Stats===\n");
+		printf("Balancer ADC:\n");
+		if (balancer_adc_initialized) {
+			printf("Port Battery Voltage: %f V\n", balancer_adc_get_port_voltage());
+			printf("Stbd Battery Voltage: %f V\n", balancer_adc_get_stbd_voltage());
+			printf("Port Battery Current: %f A\n", balancer_adc_get_port_current());
+			printf("Stbd Battery Current: %f A\n", balancer_adc_get_stbd_current());
+			printf("Balanced Battery Voltage: %f V\n", balancer_adc_get_balanced_voltage());
+			printf("Temperature: %f C\n", balancer_adc_get_temperature());
+		} else {
+			printf("-No Balancer ADC!-\n");
+		}
+
+		printf("\nESC Current ADC:\n");
+		if (esc_adc_initialized) {
+			for (int i = 0; i < 8; i++) {
+				printf("Thruster %d Current: %f A\n", i+1, esc_adc_get_thruster_current(i));
+			}
+		} else {
+			printf("-No ESC ADC!-\n");
+		}
+
+		printf("\nDepth Sensor:\n");
+		if (depth_initialized) {
+			printf("Depth Raw: %f\n\n", depth_read());
+		} else {
+			printf("-No Depth Sensor-\n\n");
+		}
+
+		printf("Aux Switch: %s\n\n", (dio_get_aux_switch() ? "Inserted" : "Removed"));
+	} else if (msg->data == 7) {
+		do {tight_loop_contents();} while(1);
 	}
 }
 
