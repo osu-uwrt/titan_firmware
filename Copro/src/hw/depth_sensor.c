@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "hardware/watchdog.h"
+
 #include "drivers/async_i2c.h"
 #include "drivers/safety.h"
 #include "hw/depth_sensor.h"
@@ -36,7 +38,7 @@ static int depth_prom_read_index;
  * @param req The request that failed
  * @param abort_data The contents of the abort register
  */
-static void depth_init_failure(const struct async_i2c_request *req, uint32_t abort_data) {
+static void depth_init_failure(__unused const struct async_i2c_request* req, uint32_t abort_data) {
     printf("Failed to init depth sensor (Tx Abort: %d)\n", abort_data);
     safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
 }
@@ -49,7 +51,7 @@ static void depth_init_failure(const struct async_i2c_request *req, uint32_t abo
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
  */
-static int64_t depth_reset_timer_callback(alarm_id_t id, void *user_data) {
+static int64_t depth_reset_timer_callback(__unused alarm_id_t id, __unused void *user_data) {
     depth_prom_read_index = 0;
     async_i2c_enqueue(&prom_read_req, &in_transaction);
     return 0;
@@ -60,9 +62,8 @@ static int64_t depth_reset_timer_callback(alarm_id_t id, void *user_data) {
  * 
  * @param req Request that caused the callback
  */
-static void depth_reset_finished(const struct async_i2c_request *req) {
-    printf("Scheduling alarm 2...\n");
-    assert(add_alarm_in_ms(10, depth_reset_timer_callback, NULL, true) > 0);
+static void depth_reset_finished(__unused const struct async_i2c_request *req) {
+    hard_assert(add_alarm_in_ms(10, depth_reset_timer_callback, NULL, true) > 0);
 }
 
 /**
@@ -102,7 +103,7 @@ static unsigned char crc4(uint16_t n_prom[]) // n_prom defined as 8x unsigned in
  * 
  * @param req The request which caused the callback
  */
-static void depth_prom_read_finished(const struct async_i2c_request *req) {
+static void depth_prom_read_finished(__unused const struct async_i2c_request *req) {
     depth_prom[depth_prom_read_index] = (prom_read_data[0] << 8) + prom_read_data[1];
     depth_prom_read_index++;
 
@@ -120,7 +121,7 @@ static void depth_prom_read_finished(const struct async_i2c_request *req) {
         uint8_t crc = (depth_prom[0] >> 12) & 0xF;
         uint8_t calculated_crc = crc4(depth_prom);
         if (crc != calculated_crc) {
-            printf("Depth Init Error - Invalid CRC: %d expected, %d calculated\n", crc, calculated_crc);
+            printf("Depth Init Error - Invalid CRC: 0x%02x expected, 0x%02x calculated\n", crc, calculated_crc);
             safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
             return;
         }
@@ -223,9 +224,9 @@ static void depth_calculate(uint32_t D1, uint32_t D2) {
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
  */
-static int64_t depth_adc_wait_callback(alarm_id_t id, void *user_data) {
-    printf("Alarm 3 fired\n");
+static int64_t depth_adc_wait_callback(__unused alarm_id_t id, __unused void *user_data) {
     async_i2c_enqueue(&adc_read_req, &in_transaction);
+    return 0;
 }
 
 /**
@@ -233,9 +234,8 @@ static int64_t depth_adc_wait_callback(alarm_id_t id, void *user_data) {
  * 
  * @param req The request which caused the callback
  */
-static void depth_convert_cmd_finished(const struct async_i2c_request *req) {
-    printf("Scheduling alarm 3...\n");
-    assert(add_alarm_in_ms((int)(2.5e-3 * (1<<(8+DEPTH_OVERSAMPLING))) + 2, &depth_adc_wait_callback, NULL, true) > 0);
+static void depth_convert_cmd_finished(__unused const struct async_i2c_request *req) {
+    hard_assert(add_alarm_in_ms((int)(2.5e-3 * (1<<(8+DEPTH_OVERSAMPLING))) + 2, &depth_adc_wait_callback, NULL, true) > 0);
 }
 
 /**
@@ -243,7 +243,7 @@ static void depth_convert_cmd_finished(const struct async_i2c_request *req) {
  * 
  * @param req The request which caused the callback
  */
-static void depth_adc_read_finished(const struct async_i2c_request *req){
+static void depth_adc_read_finished(__unused const struct async_i2c_request *req){
     if (depth_read_reading_d2) {
         // Do final processing
         uint32_t d2 = adc_read_data[0] << 16 | adc_read_data[1] << 8 | adc_read_data[2];
@@ -273,7 +273,7 @@ static void depth_adc_read_finished(const struct async_i2c_request *req){
  * @param req The request that failed
  * @param abort_data The contents of the abort register
  */
-static void depth_read_failure(const struct async_i2c_request *req, uint32_t abort_data) {
+static void depth_read_failure(__unused const struct async_i2c_request *req, uint32_t abort_data) {
     printf("Failed to read depth sensor (Tx Abort: %d)", abort_data);
     if (!depth_initialized) {
         // This callback could occur during calibration which would fail to initialize the sensor
@@ -311,7 +311,7 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
  */
-static int64_t depth_read_alarm_callback(alarm_id_t id, void *user_data) {
+static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data) {
     if (depth_read_running) {
         printf("Depth new transaction started with one still in progress\n");
         safety_raise_fault(FAULT_DEPTH_ERROR);
@@ -352,10 +352,11 @@ static void depth_zero_depth(void) {
     if (zero_count < 20) {
         depth_adc_queue_reads(2, &depth_zero_depth);
     } else {
-        printf("Scheduling alarm...\n");
+        // Save surface pressure in watchdog in case of crash while submerged
+        watchdog_hw->scratch[7] = (uint32_t)surface_pressure;
+
         depth_initialized = true;
-        assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
-        // TODO: Save surface pressure in watchdog scratch register
+        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
     }
 }
 
@@ -364,8 +365,17 @@ static void depth_zero_depth(void) {
  * Only call as part of the init process
  */
 static void depth_begin_zero_depth(void) {
-    zero_count = 0;
-    depth_adc_queue_reads(20, &depth_zero_depth);
+    if (watchdog_hw->scratch[7] == 0xFFFFFFFF) {
+        zero_count = 0;
+        depth_adc_queue_reads(20, &depth_zero_depth);
+    } else {
+        printf("Depth surface pressure found... Skipping Zeroing of Depth\n");
+        surface_pressure = (int32_t)watchdog_hw->scratch[7];
+
+        // Start depth sensor read task
+        depth_initialized = true;
+        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
+    }
 }
 
 // ========================================

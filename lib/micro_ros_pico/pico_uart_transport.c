@@ -11,7 +11,7 @@ void usleep(uint64_t us)
     sleep_us(us);
 }
 
-int clock_gettime(clockid_t unused, struct timespec *tp)
+int clock_gettime(__unused clockid_t unused, struct timespec *tp)
 {
     uint64_t m = time_us_64();
     tp->tv_sec = m / 1000000;
@@ -29,27 +29,27 @@ void serial_init_early(void)
     }
 }
 
-bool pico_serial_transport_open(struct uxrCustomTransport * transport)
+bool pico_serial_transport_open(__unused struct uxrCustomTransport * transport)
 {
     serial_init_early();
     return true;
 }
 
-bool pico_serial_transport_close(struct uxrCustomTransport * transport)
+bool pico_serial_transport_close(__unused struct uxrCustomTransport * transport)
 {
     return true;
 }
 
-size_t pico_serial_transport_write(struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
+size_t pico_serial_transport_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
-    int sent = secondary_usb_out_chars(buf, len);
+    size_t sent = secondary_usb_out_chars(buf, len);
     if (sent != len){
         *errcode = 1;
     }
     return sent;
 }
 
-size_t pico_serial_transport_read(struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
 {
     int64_t start_time_us = time_us_64();
     int64_t elapsed_time_us = timeout * 1000 - (time_us_64() - start_time_us);
@@ -67,7 +67,6 @@ size_t pico_serial_transport_read(struct uxrCustomTransport * transport, uint8_t
     if (bytes_remaining > 0) {
         *errcode = 1;
     }
-    //printf("Read %d bytes from serial...\n", (len - bytes_remaining));
     return (len - bytes_remaining);
 }
 

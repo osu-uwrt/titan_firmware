@@ -109,7 +109,7 @@ static void async_i2c_start_receive_stage(void) {
         bool last = active_transfer.receive_commands_queued + 1 == active_transfer.request->bytes_to_receive;
 
         i2c->hw->data_cmd =
-                bool_to_bit(i2c->restart_on_next) << I2C_IC_DATA_CMD_RESTART_LSB |
+                bool_to_bit(first && i2c->restart_on_next) << I2C_IC_DATA_CMD_RESTART_LSB |
                 bool_to_bit(last && !active_transfer.request->nostop) << I2C_IC_DATA_CMD_STOP_LSB |
                 I2C_IC_DATA_CMD_CMD_BITS; // -> 1 for read
 
@@ -122,7 +122,7 @@ static void async_i2c_start_receive_stage(void) {
     }
 }
 
-static int64_t async_i2c_timeout_callback(alarm_id_t id, void *user_data) {
+static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void *user_data) {
     active_transfer.alarm_active = false;
     i2c_inst_t *i2c = active_transfer.request->i2c;
 
@@ -152,11 +152,9 @@ static void async_i2c_start_request_internal(const struct async_i2c_request *req
     hard_assert_if(ASYNC_I2C, active_transfer.alarm_active);
     total_allocated_alarm_count++;
     alarm_id_t alarm_id = add_alarm_in_ms(i2c_bus_timeout, &async_i2c_timeout_callback, NULL, true);
-    hard_assert_if(ASYNC_I2C, alarm_id < 0);
+    hard_assert(alarm_id > 0);
     active_transfer.timeout_alarm = alarm_id;
     active_transfer.alarm_active = true;
-
-    // TODO: No stop on bus turnaround?
 
     if (request->bytes_to_send > 0) {
         async_i2c_start_transmit_stage();
@@ -183,7 +181,6 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     // Handle software issues first
     if (has_irq_pending(i2c, TX_OVER)) {
         // Tx Data Buffer Overflow
-        // TODO: See if these can be handled as a fault instead of panic
         panic("I2C TX Buffer Overflow");
     }
     if (has_irq_pending(i2c, RX_UNDER)) {
@@ -223,7 +220,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                                           I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS;
 
         if (abort_reason & ~(I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_BITS | valid_bus_faults)) {
-            printf("Unexpected TX Abort: %d\n", abort_reason);
+            printf("Unexpected TX Abort: %lu\n", abort_reason);
             safety_raise_fault(FAULT_ASYNC_I2C_ERROR);
         }
         
@@ -268,7 +265,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
             bool last = active_transfer.receive_commands_queued + 1 == active_transfer.request->bytes_to_receive;
 
             i2c->hw->data_cmd =
-                    bool_to_bit(i2c->restart_on_next) << I2C_IC_DATA_CMD_RESTART_LSB |
+                    bool_to_bit(first && i2c->restart_on_next) << I2C_IC_DATA_CMD_RESTART_LSB |
                     bool_to_bit(last && !active_transfer.request->nostop) << I2C_IC_DATA_CMD_STOP_LSB |
                     I2C_IC_DATA_CMD_CMD_BITS; // -> 1 for read
 

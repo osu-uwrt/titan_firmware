@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+#include <riptide_msgs2/msg/pwm_stamped.h>
+
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
@@ -131,15 +133,15 @@ void dshot_notify_physical_kill_switch_change(bool new_value) {
  * @param user_data not used
  * @return int64_t Reschedule time
  */
-static int64_t dshot_update_timeout(alarm_id_t id, void *user_data) {
+static int64_t dshot_update_timeout(__unused alarm_id_t id, __unused void *user_data) {
     dshot_stop_thrusters();
     dshot_time_thrusters_allowed = make_timeout_time_ms(DSHOT_UPDATE_DISABLE_TIME_MS);
-    safety_raise_fault(FAULT_DSHOT_TIMEOUT);
+    safety_raise_fault(FAULT_THRUSTER_TIMEOUT);
     printf("Thrusters Timed Out\n");
     return 0;
 }
 
-void dshot_update_thrusters(uint16_t *thruster_commands) {
+void dshot_update_thrusters(riptide_msgs2__msg__PwmStamped *thruster_commands) {
     hard_assert_if(LIFETIME_CHECK, !dshot_initialized);
 
     // If a timeout alarm is scheduled, cancel it since there's a new update
@@ -176,7 +178,7 @@ void dshot_update_thrusters(uint16_t *thruster_commands) {
     }
 
     if (needs_timeout_scheduled) {
-        dshot_timeout_alarm_id = add_alarm_in_ms(DSHOT_MAX_UPDATE_RATE_MS, &dshot_update_timeout, NULL, true);
+        dshot_timeout_alarm_id = add_alarm_in_ms(DSHOT_MIN_UPDATE_RATE_MS, &dshot_update_timeout, NULL, true);
         hard_assert(dshot_timeout_alarm_id > 0);
     }
 }

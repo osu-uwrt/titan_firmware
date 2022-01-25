@@ -3,6 +3,7 @@
 #include "drivers/safety.h"
 #include "hw/balancer_adc.h"
 #include "hw/dshot.h"
+#include "hw/esc_pwm.h"
 #include "tasks/lowbatt.h"
 
 bool lowbatt_initialized;
@@ -44,13 +45,26 @@ void lowbatt_tick(void) {
 
                 earliest_reenable_time = make_timeout_time_ms(LOWBATT_MIN_DISABLE_TIME);
                 safety_raise_fault(FAULT_LOW_BATTERY);
+
+#if HW_USE_DSHOT
                 dshot_set_lowbatt(true);
+#endif
+
+#if HW_USE_PWM
+                esc_pwm_set_lowbatt(true);
+#endif
             }
             else if (absolute_time_diff_us(earliest_reenable_time, get_absolute_time()) >= 0) {
                 prev_lowbatt_state = false;
-
                 safety_lower_fault(FAULT_LOW_BATTERY);
+
+#if HW_USE_DSHOT
                 dshot_set_lowbatt(false);
+#endif
+
+#if HW_USE_PWM
+                esc_pwm_set_lowbatt(true);
+#endif
             }
         }
     } else {

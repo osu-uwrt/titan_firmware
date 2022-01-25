@@ -68,7 +68,7 @@ static void adc_channel_read_cb(const struct async_i2c_request * req) {
     adc_poll_channel(inst);
 }
 
-static int64_t adc_poll_alarm_cb(alarm_id_t id, void *user_data) {
+static int64_t adc_poll_alarm_cb(__unused alarm_id_t id, __unused void *user_data) {
     struct adc_instance *inst = (struct adc_instance *)user_data;
 
     if (inst->read_in_progress) {
@@ -110,7 +110,7 @@ static void adc_enable_cb(const struct async_i2c_request * req) {
     struct adc_instance *inst = (struct adc_instance *)req->user_data;
 
     inst->poll_alarm_id = add_alarm_in_ms(inst->config->poll_rate_ms, &adc_poll_alarm_cb, inst, true);
-    assert(inst->poll_alarm_id > 0);
+    hard_assert(inst->poll_alarm_id > 0);
 }
 
 static void adc_interrupt_mask_cb(const struct async_i2c_request * req) {
@@ -168,7 +168,7 @@ static void adc_advanced_config_cb(const struct async_i2c_request * req) {
 static void adc_poll_readiness_cb(const struct async_i2c_request * req) {
     struct adc_instance *inst = (struct adc_instance *)req->user_data;
 
-    if (inst->rx_buffer[0] & 0b00000010 != 0) {
+    if ((inst->rx_buffer[0] & 0b00000010) != 0) {
         // Loop sending request until adc is ready
         async_i2c_enqueue(&inst->active_request, &inst->request_in_progress);
     } else {

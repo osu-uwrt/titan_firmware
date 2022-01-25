@@ -11,6 +11,7 @@
 #include "hw/dio.h"
 #include "hw/dshot.h"
 #include "hw/esc_adc.h"
+#include "hw/esc_pwm.h"
 #include "tasks/cooling.h"
 #include "tasks/lowbatt.h"
 #include "tasks/ros.h"
@@ -40,7 +41,12 @@ int main()
 
     // Initialize safety-sensitive hardware
     safety_init();
+#if HW_USE_DSHOT
     dshot_init();
+#endif
+#if HW_USE_PWM
+    esc_pwm_init();
+#endif
 
     // Initialize any other tasks
     cooling_init();

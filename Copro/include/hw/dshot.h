@@ -1,13 +1,18 @@
 #ifndef _DSHOT_H
 #define _DSHOT_H
 
+#if HW_USE_DSHOT
+
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DSHOT, Enable/disable assertions in the DSHOT module, type=bool, default=0, group=Copro
 #ifndef PARAM_ASSERTIONS_ENABLED_DSHOT
 #define PARAM_ASSERTIONS_ENABLED_DSHOT 0
 #endif
 
-#define DSHOT_MAX_UPDATE_RATE_MS 50
+#define DSHOT_MIN_UPDATE_RATE_MS 50
 #define DSHOT_UPDATE_DISABLE_TIME_MS 10000
+
+#include <stdint.h>
+#include <riptide_msgs2/msg/pwm_stamped.h>
 
 /**
  * @brief Boolean if dshot_init has been called
@@ -35,7 +40,7 @@ void dshot_notify_physical_kill_switch_change(bool new_value);
  * 
  * @param thruster_commands 
  */
-void dshot_update_thrusters(uint16_t *thruster_commands);
+void dshot_update_thrusters(riptide_msgs2__msg__PwmStamped *thruster_commands);
 
 /**
  * @brief Sets the robot into low battery state which will disable thrusters
@@ -49,4 +54,6 @@ void dshot_set_lowbatt(bool in_lowbatt_state);
  */
 void dshot_init(void);
 
-#endif
+#endif  // HW_USE_DSHOT
+
+#endif  // _DSHOT_H

@@ -33,7 +33,6 @@ static const char mutex_msg[] = "---DATA LOST MUTEX---\r\n";
 void _write_unsent_buffer(const char* buf, int length);
 
 static int _stdio_usb_out_data(const char *buf, int length) {
-    bool sent_all = true;
     int i;
     for (i = 0; i < length;) {
         int n = length - i;
@@ -245,10 +244,10 @@ bool stdio_usb_connected(void) {
  * Secondary USB Interface
  */
 
-int secondary_usb_out_chars(const char *buf, int length) {
+size_t secondary_usb_out_chars(const unsigned char *buf, int length) {
     static uint64_t last_avail_time_secondary;
     uint32_t owner;
-    int chars_sent = 0;
+    size_t chars_sent = 0;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
         if (owner == get_core_num()) return 0; // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
@@ -282,7 +281,7 @@ int secondary_usb_out_chars(const char *buf, int length) {
     return chars_sent;
 }
 
-int secondary_usb_in_chars(char *buf, int length) {
+int secondary_usb_in_chars(unsigned char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
         if (owner == get_core_num()) return PICO_ERROR_NO_DATA; // would deadlock otherwise

@@ -126,8 +126,8 @@ bool dual_usb_init(void);
  */
 bool stdio_usb_connected(void);
 
-int secondary_usb_out_chars(const char *buf, int length);
-int secondary_usb_in_chars(char *buf, int length);
+size_t secondary_usb_out_chars(const unsigned char *buf, int length);
+int secondary_usb_in_chars(unsigned char *buf, int length);
 
 /*! \brief Check if there is an active secondary CDC connection to a host
  *  \ingroup dual_serial_stdio_usb

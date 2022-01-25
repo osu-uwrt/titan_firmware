@@ -8,7 +8,7 @@
 
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 
-static void esc_adc_failure(const struct async_i2c_request * req, uint32_t abort_data) {
+static void esc_adc_failure(__unused const struct async_i2c_request * req, uint32_t abort_data) {
     printf("Failed to read ESC adc (Abort Data: %d)\n", abort_data);
     safety_raise_fault(FAULT_ESC_ADC_ERROR);
 }

@@ -33,17 +33,17 @@ add_executable(copro_firmware
 	src/hw/balancer_adc.c
 	src/hw/depth_sensor.c
 	src/hw/dio.c
-	src/hw/dshot.c
+#	src/hw/dshot.c
+	src/hw/esc_pwm.c
 	src/hw/esc_adc.c
 	src/tasks/cooling.c
 	src/tasks/lowbatt.c
 	src/tasks/ros.c
 )
 
-add_compile_options(-Wall -Wextra -pedantic -Werror)
-
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
+target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
 target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -68,7 +68,8 @@ pico_add_extra_outputs(copro_firmware)
 target_link_libraries(copro_firmware
 	pico_stdlib
 	hardware_exception
-	hardware_pio
+#	hardware_pio
+	hardware_pwm
 	hardware_i2c
 	# Hook required functions for safety watchdog reporting
 	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery"

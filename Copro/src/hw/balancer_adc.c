@@ -8,7 +8,7 @@
 
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 
-static void balancer_adc_failure(const struct async_i2c_request * req, uint32_t abort_data) {
+static void balancer_adc_failure(__unused const struct async_i2c_request * req, uint32_t abort_data) {
     printf("Failed to read BB adc (Abort Data: %d)\n", abort_data);
     safety_raise_fault(FAULT_BB_ADC_ERROR);
 }

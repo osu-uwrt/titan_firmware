@@ -13,6 +13,7 @@
 #include "drivers/safety.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"
+#include "hw/esc_pwm.h"
 
 // ========================================
 // Fault Management Functions
@@ -79,7 +80,12 @@ static void safety_kill_robot(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
+    #if HW_USE_DSHOT
     dshot_stop_thrusters();
+    #endif
+    #if HW_USE_PWM
+    esc_pwm_stop_thrusters();
+    #endif
 }
 
 /**
@@ -171,6 +177,10 @@ absolute_time_t safety_kill_get_last_change(void) {
 //     Byte 1: Panic Reset Counter
 //     Byte 2: Hard Fault Reset Counter
 //     Byte 3: Assertion Fail Reset Counter
+// scratch[7]: Depth Sensor Backup Data
+//     Default: Should be set to 0xFFFFFFFF on clean boot
+//     Will be set during zeroing of the depth sensor
+
 #define UNKNOWN_SAFETY_PREINIT  0x1035001
 #define UNKNOWN_SAFETY_ACTIVE   0x1035002
 #define PANIC                   0x1035003
@@ -306,6 +316,7 @@ static void safety_process_last_reset_cause(void) {
         }
     } else {
         *reset_counter = 0;
+        watchdog_hw->scratch[7] = 0xFFFFFFFF;
         had_watchdog_reboot = false;
     }
 

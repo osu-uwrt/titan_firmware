@@ -6,6 +6,7 @@
 #include "drivers/safety.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"
+#include "hw/esc_pwm.h"
 
 
 bool dio_initialized = false;
@@ -41,11 +42,14 @@ static inline bool dio_get_kill_switch(void){
  * @param gpio Pin that caused the interrupt
  * @param events Events contained in the interrupt
  */
-static void dio_gpio_callback(uint gpio, uint32_t events) {
+static void dio_gpio_callback(uint gpio, __unused uint32_t events) {
     if (gpio == KILL_SWITCH_PIN) {
         bool kill_switch_state = dio_get_kill_switch();
         safety_kill_switch_update(KILL_SWITCH_ID_PHYSICAL, kill_switch_state, false);
+
+#if HW_USE_DSHOT
         dshot_notify_physical_kill_switch_change(kill_switch_state);
+#endif
     }
 }
 
@@ -63,7 +67,7 @@ bool dio_get_aux_switch(void) {
  * @param user_data The pin to toggle (stored directly in the 4-byte value)
  * @return int64_t If to reschedule
  */
-static int64_t dio_power_restore_cb(alarm_id_t id, void *user_data) {
+static int64_t dio_power_restore_cb(__unused alarm_id_t id, void *user_data) {
     uint gpio_pin = (uint) user_data;
     gpio_put(gpio_pin, true);
 
@@ -74,21 +78,21 @@ void dio_toggle_twelve_power(void) {
     hard_assert_if(LIFETIME_CHECK, !dio_initialized);
 
     gpio_put(REG_12_CTRL_PIN, false);
-    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_12_CTRL_PIN, true) > 0);
+    hard_assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_12_CTRL_PIN, true) > 0);
 }
 
 void dio_toggle_five_power(void) {
     hard_assert_if(LIFETIME_CHECK, !dio_initialized);
 
     gpio_put(REG_5_CTRL_PIN, false);
-    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_5_CTRL_PIN, true) > 0);
+    hard_assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_5_CTRL_PIN, true) > 0);
 }
 
 void dio_toggle_mobo_power(void) {
     hard_assert_if(LIFETIME_CHECK, !dio_initialized);
 
     gpio_put(MOBO_CTRL_PIN, false);
-    assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)MOBO_CTRL_PIN, true) > 0);
+    hard_assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)MOBO_CTRL_PIN, true) > 0);
 }
 
 void dio_set_peltier_power(bool on) {
