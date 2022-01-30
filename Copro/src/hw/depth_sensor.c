@@ -111,13 +111,6 @@ static void depth_prom_read_finished(__unused const struct async_i2c_request *re
         prom_read_cmd[0] = DEPTH_CMD_PROM_READ(depth_prom_read_index);
         async_i2c_enqueue(&prom_read_req, &in_transaction);
     } else {
-        /*if ((depth_prom[0] & DEPTH_PROM_ID_MASK) != DEPTH_PROM_EXPECTED_ID) {
-            printf("Depth Init Error - Invalid PROM Byte 0: %d\n", depth_prom[0]);
-            safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
-            return;
-        }*/
-        // TODO: Find out why this is weird
-
         uint8_t crc = (depth_prom[0] >> 12) & 0xF;
         uint8_t calculated_crc = crc4(depth_prom);
         if (crc != calculated_crc) {
@@ -386,6 +379,11 @@ double depth_read(void) {
     hard_assert_if(DEPTH, !depth_initialized);
 
     return ((depth_pressure - surface_pressure)*100)/(FLUID_DENSITY*9.80665);
+}
+
+float depth_get_temperature(void) {
+    hard_assert_if(DEPTH, !depth_initialized);
+    return depth_temp / 100.0;
 }
 
 void depth_init(void) {

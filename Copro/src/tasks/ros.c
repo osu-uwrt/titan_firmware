@@ -1,97 +1,385 @@
 #include "pico/stdlib.h"
+#include <hardware/watchdog.h>
+
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
-#include <std_msgs/msg/int32.h>
 #include <rmw_microros/rmw_microros.h>
+
+#include <std_msgs/msg/int32.h>
+#include <riptide_msgs2/msg/actuator_command.h>
+#include <riptide_msgs2/msg/depth.h>
+#include <riptide_msgs2/msg/electrical_command.h>
+#include <riptide_msgs2/msg/electrical_readings.h>
+#include <riptide_msgs2/msg/firmware_state.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
+#include <riptide_msgs2/msg/lighting_command.h>
+#include <riptide_msgs2/msg/pwm_stamped.h>
+#include <riptide_msgs2/msg/robot_state.h>
 
 #include "pico_uart_transports.h"
 
+#include "drivers/memmonitor.h"
 #include "drivers/safety.h"
-#include "hw/depth_sensor.h"
 #include "hw/balancer_adc.h"
-#include "hw/esc_adc.h"
+#include "hw/depth_sensor.h"
 #include "hw/dio.h"
+#include "hw/esc_adc.h"
+#include "hw/esc_pwm.h"
 #include "tasks/ros.h"
-
-rcl_publisher_t publisher;
-rcl_subscription_t subscriber;
-std_msgs__msg__Int32 send_msg;
-std_msgs__msg__Int32 recv_msg;
-static rcl_allocator_t allocator;
-static rclc_support_t support;
-static rcl_node_t node;
-static rcl_timer_t timer;
-static rclc_executor_t executor;
+#include "tasks/cooling.h"
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Aborting.\n",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Continuing.\n",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
 
+static void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
+	ts->tv_sec = time_nanos / 1000000000;
+	ts->tv_nsec = time_nanos % 1000000000;
+}
 
 // ========================================
-// ROS Callbacks
+// Depth Reading Callbacks
 // ========================================
 
-void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
-{
-	(void) last_call_time;
+static rcl_publisher_t depth_publisher;
+static riptide_msgs2__msg__Depth depth_msg;
+static rcl_timer_t depth_publisher_timer;
+static char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
+static const float depth_variance = 0.003;  					// TODO: Load from config file or something
+static const int depth_publish_rate_ms = 50;
+
+static void depth_publisher_timer_callback(rcl_timer_t * timer, __unused int64_t last_call_time) {
+	if (timer != NULL && depth_initialized) {
+
+		struct timespec ts;
+		nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+		depth_msg.header.stamp.sec = ts.tv_sec;
+		depth_msg.header.stamp.nanosec = ts.tv_nsec;
+
+		depth_msg.depth = depth_read();
+		RCSOFTCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));  // TODO: See if allocator would be more efficient
+	}
+}
+
+static void depth_publisher_init(rclc_support_t *support, rcl_node_t *node, rclc_executor_t *executor) {
+	RCCHECK(rclc_publisher_init(
+		&depth_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
+		"depth/raw",
+		&rmw_qos_profile_sensor_data));
+
+	RCCHECK(rclc_timer_init_default(
+		&depth_publisher_timer,
+		support,
+		RCL_MS_TO_NS(depth_publish_rate_ms),
+		depth_publisher_timer_callback));
+
+	RCCHECK(rclc_executor_add_timer(executor, &depth_publisher_timer));
+
+	depth_msg.header.frame_id.data = depth_frame;
+	depth_msg.header.frame_id.capacity = sizeof(depth_frame);
+	depth_msg.header.frame_id.size = strlen(depth_frame);
+	depth_msg.variance = depth_variance;
+}
+
+static void depth_publisher_cleanup(rcl_node_t *node) {
+	RCCHECK(rcl_publisher_fini(&depth_publisher, node));
+	RCCHECK(rcl_timer_fini(&depth_publisher_timer));
+}
+
+// ========================================
+// Sensor Reading Callback
+// ========================================
+
+static rcl_publisher_t electrical_readings_publisher;
+static riptide_msgs2__msg__ElectricalReadings electrical_readings_msg;
+static rcl_publisher_t robot_state_publisher;
+static riptide_msgs2__msg__RobotState robot_state_msg;
+static rcl_publisher_t firmware_state_publisher;
+static riptide_msgs2__msg__FirmwareState firmware_state_msg;
+
+static rcl_timer_t state_publish_timer;
+static const int state_publish_rate_ms = 500;
+static char copro_frame[] = ROBOT_NAMESPACE "/coprocessor";
+
+static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_call_time) {
 	if (timer != NULL) {
-		if (depth_initialized) {
-			send_msg.data = depth_read();
-		}
-		RCSOFTCHECK(rcl_publish(&publisher, &send_msg, NULL));
-		//printf("Sent: %d\n", send_msg.data);
-	}
-}
+		struct timespec ts;
+		nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
 
-// Implementation example:
-void subscription_callback(const void * msgin)
-{
-	const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-	printf("Received: %d\n", msg->data);
-	if (msg->data == 3) {
-		*(uint32_t*)(0xFFFFFFFC) = 0xDEADBEEF;
-	} else if (msg->data == 4) {
-		void (*bad_jump)(void) = (void*)(0xFFFFFFF0);
-		bad_jump();
-	} else if (msg->data == 5){
-		panic("IT DO GO DOWN!");
-	} else if (msg->data == 6) {
-		printf("===Connection Stats===\n");
-		printf("Balancer ADC:\n");
-		if (balancer_adc_initialized) {
-			printf("Port Battery Voltage: %f V\n", balancer_adc_get_port_voltage());
-			printf("Stbd Battery Voltage: %f V\n", balancer_adc_get_stbd_voltage());
-			printf("Port Battery Current: %f A\n", balancer_adc_get_port_current());
-			printf("Stbd Battery Current: %f A\n", balancer_adc_get_stbd_current());
-			printf("Balanced Battery Voltage: %f V\n", balancer_adc_get_balanced_voltage());
-			printf("Temperature: %f C\n", balancer_adc_get_temperature());
-		} else {
-			printf("-No Balancer ADC!-\n");
-		}
+		if (esc_adc_initialized || balancer_adc_initialized) {
+			electrical_readings_msg.header.stamp.sec = ts.tv_sec;
+			electrical_readings_msg.header.stamp.nanosec = ts.tv_nsec;
 
-		printf("\nESC Current ADC:\n");
-		if (esc_adc_initialized) {
-			for (int i = 0; i < 8; i++) {
-				printf("Thruster %d Current: %f A\n", i+1, esc_adc_get_thruster_current(i));
+			if (esc_adc_initialized) {
+				for (int i = 0; i < 8; i++) {
+					electrical_readings_msg.esc_current[i] = esc_adc_get_thruster_current(i);
+				}
+			} else {
+				for (int i = 0; i < 8; i++) {
+					electrical_readings_msg.esc_current[i] = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+				}
 			}
-		} else {
-			printf("-No ESC ADC!-\n");
+
+			if (balancer_adc_initialized) {
+				electrical_readings_msg.port_voltage = balancer_adc_get_port_voltage();
+				electrical_readings_msg.stbd_voltage = balancer_adc_get_stbd_voltage();
+				electrical_readings_msg.port_current = balancer_adc_get_port_current();
+				electrical_readings_msg.stbd_current = balancer_adc_get_stbd_current();
+				electrical_readings_msg.balanced_voltage = balancer_adc_get_balanced_voltage();
+			} else {
+				electrical_readings_msg.port_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+				electrical_readings_msg.stbd_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+				electrical_readings_msg.port_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+				electrical_readings_msg.stbd_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+				electrical_readings_msg.balanced_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+			}
+
+			electrical_readings_msg.five_volt_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+			electrical_readings_msg.five_volt_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+			electrical_readings_msg.twelve_volt_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+			electrical_readings_msg.twelve_volt_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+
+			RCSOFTCHECK(rcl_publish(&electrical_readings_publisher, &electrical_readings_msg, NULL));
 		}
 
-		printf("\nDepth Sensor:\n");
-		if (depth_initialized) {
-			printf("Depth Raw: %f\n\n", depth_read());
-		} else {
-			printf("-No Depth Sensor-\n\n");
+		{
+			robot_state_msg.header.stamp.sec = ts.tv_sec;
+			robot_state_msg.header.stamp.nanosec = ts.tv_nsec;
+
+			robot_state_msg.kill_switch_inserted = !safety_kill_get_asserting_kill();
+			robot_state_msg.aux_switch_inserted = dio_get_aux_switch();
+			robot_state_msg.peltier_active = cooling_get_active();
+
+			if (balancer_adc_initialized) {
+				robot_state_msg.robot_temperature = balancer_adc_get_temperature();
+			} else {
+				robot_state_msg.robot_temperature = riptide_msgs2__msg__RobotState__NO_READING;
+			}
+
+			if (depth_initialized) {
+				robot_state_msg.water_temperature = depth_get_temperature();
+			} else {
+				robot_state_msg.water_temperature = riptide_msgs2__msg__RobotState__NO_READING;
+			}
+
+			RCSOFTCHECK(rcl_publish(&robot_state_publisher, &robot_state_msg, NULL));
 		}
 
-		printf("Aux Switch: %s\n\n", (dio_get_aux_switch() ? "Inserted" : "Removed"));
-	} else if (msg->data == 7) {
-		do {tight_loop_contents();} while(1);
+		{
+			firmware_state_msg.header.stamp.sec = ts.tv_sec;
+			firmware_state_msg.header.stamp.nanosec = ts.tv_nsec;
+
+			firmware_state_msg.actuator_connected = false;		// TODO: Add actuator support
+			firmware_state_msg.actuator_faults = 0;
+
+			firmware_state_msg.copro_faults = *fault_list;
+			firmware_state_msg.copro_memory_usage = memmonitor_get_total_use_percentage();
+			firmware_state_msg.depth_sensor_initialized = depth_initialized;
+			firmware_state_msg.peltier_cooling_threshold = cooling_threshold;
+
+			// TODO: Add firmware version
+
+			firmware_state_msg.kill_switches_enabled = 0;
+			firmware_state_msg.kill_switches_asserting_kill = 0;
+			firmware_state_msg.kill_switches_needs_update = 0;
+			firmware_state_msg.kill_switches_timed_out = 0;
+			absolute_time_t now = get_absolute_time();
+			for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
+				if (kill_switch_states[i].enabled) {
+					firmware_state_msg.kill_switches_enabled |= (1<<i);
+				}
+
+				if (kill_switch_states[i].asserting_kill) {
+					firmware_state_msg.kill_switches_asserting_kill |= (1<<i);
+				}
+				
+				if (kill_switch_states[i].needs_update) {
+					firmware_state_msg.kill_switches_needs_update |= (1<<i);
+				}
+
+				if (kill_switch_states[i].needs_update && absolute_time_diff_us(now, kill_switch_states[i].update_timeout) < 0) {
+					firmware_state_msg.kill_switches_timed_out |= (1<<i);
+				}
+			}
+
+			RCSOFTCHECK(rcl_publish(&firmware_state_publisher, &firmware_state_msg, NULL));
+		}
 	}
 }
+
+static void state_publish_init(rclc_support_t *support, rcl_node_t *node, rclc_executor_t *executor) {
+	RCCHECK(rclc_publisher_init(
+		&electrical_readings_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
+		"state/electrical",
+		&rmw_qos_profile_sensor_data));
+
+	RCCHECK(rclc_publisher_init(
+		&robot_state_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, RobotState),
+		"state/robot",
+		&rmw_qos_profile_sensor_data));
+
+	RCCHECK(rclc_publisher_init(
+		&firmware_state_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareState),
+		"state/firmware",
+		&rmw_qos_profile_sensor_data));
+
+	RCCHECK(rclc_timer_init_default(
+		&state_publish_timer,
+		support,
+		RCL_MS_TO_NS(state_publish_rate_ms),
+		state_publish_callback));
+
+	RCCHECK(rclc_executor_add_timer(executor, &state_publish_timer));
+
+	electrical_readings_msg.header.frame_id.data = copro_frame;
+	electrical_readings_msg.header.frame_id.capacity = sizeof(copro_frame);
+	electrical_readings_msg.header.frame_id.size = strlen(copro_frame);
+	
+	robot_state_msg.header.frame_id.data = copro_frame;
+	robot_state_msg.header.frame_id.capacity = sizeof(copro_frame);
+	robot_state_msg.header.frame_id.size = strlen(copro_frame);
+
+	firmware_state_msg.header.frame_id.data = copro_frame;
+	firmware_state_msg.header.frame_id.capacity = sizeof(copro_frame);
+	firmware_state_msg.header.frame_id.size = strlen(copro_frame);
+}
+
+static void state_publish_cleanup(rcl_node_t *node) {
+	RCCHECK(rcl_publisher_fini(&electrical_readings_publisher, node));
+	RCCHECK(rcl_publisher_fini(&robot_state_publisher, node));
+	RCCHECK(rcl_publisher_fini(&firmware_state_publisher, node));
+	RCCHECK(rcl_timer_fini(&state_publish_timer));
+}
+
+// ========================================
+// Subscriber Callbacks
+// ========================================
+
+static rcl_subscription_t pwm_subscriber;
+static riptide_msgs2__msg__PwmStamped pwm_msg;
+static void pwm_subscription_callback(const void * msgin)
+{
+	const riptide_msgs2__msg__PwmStamped * msg = (const riptide_msgs2__msg__PwmStamped *)msgin;
+	esc_pwm_update_thrusters(msg);
+}
+
+static rcl_subscription_t actuator_subscriber;
+static riptide_msgs2__msg__ActuatorCommand actuator_msg;
+static void actuator_subscription_callback(const void * msgin)
+{
+	__unused const riptide_msgs2__msg__ActuatorCommand * msg = (const riptide_msgs2__msg__ActuatorCommand *)msgin;
+	
+	printf("Actuator Commands Unimplemented!\n");
+	// TODO: Implement actuator commands
+}
+
+static rcl_subscription_t lighting_subscriber;
+static riptide_msgs2__msg__LightingCommand lighting_msg;
+static void lighting_subscription_callback(const void * msgin)
+{
+	const riptide_msgs2__msg__LightingCommand * msg = (const riptide_msgs2__msg__LightingCommand *)msgin;
+	printf("Unimplemented Command: Change Lighting (1: %d, 2: %d)\n", msg->light_1_brightness_percentage, msg->light_2_brightness_percentage);
+	// TODO: Implement in DIO
+}
+
+static rcl_subscription_t electrical_control_subscriber;
+static riptide_msgs2__msg__ElectricalCommand electrical_control_msg;
+static void electrical_control_subscription_callback(const void * msgin)
+{
+	const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+	
+	if (msg->cooling_threshold != riptide_msgs2__msg__ElectricalCommand__NO_COOLING_THRESH) {
+		cooling_threshold = msg->cooling_threshold;
+		printf("Setting cooling threshold: %d\n", cooling_threshold);
+	}
+
+	if (msg->reset_copro){
+		watchdog_reboot(0, 0, 0);
+	}
+
+	if (msg->reset_computer) {
+		dio_toggle_mobo_power();
+	}
+
+	if (msg->power_cycle_robot) {
+		printf("Unimplemented command: Power Cycle Robot\n");
+		// TODO: Implement in DIO
+	}
+
+	if (msg->kill_robot_electrical) {
+		printf("Unimplemented command: Kill Robot Electrical\n");
+		// TODO: Implement in DIO
+	}
+}
+
+static rcl_subscription_t software_kill_subscriber;
+static riptide_msgs2__msg__KillSwitchReport software_kill_msg;
+static char software_kill_frame_str[SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
+static void software_kill_subscription_callback(const void * msgin)
+{
+	__unused const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
+	safety_kill_msg_process(msg);
+}
+
+static void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {
+	RCCHECK(rclc_subscription_init_best_effort(
+		&pwm_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, PwmStamped),
+		"command/pwm"));
+
+	RCCHECK(rclc_subscription_init_default(
+		&actuator_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorCommand),
+		"command/actuator"));
+
+	RCCHECK(rclc_subscription_init_default(
+		&lighting_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LightingCommand),
+		"command/lighting"));
+
+	RCCHECK(rclc_subscription_init_default(
+		&electrical_control_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+		"control/electrical"));
+
+	RCCHECK(rclc_subscription_init_best_effort(
+		&software_kill_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+		"control/software_kill"));
+
+	RCCHECK(rclc_executor_add_subscription(executor, &pwm_subscriber, &pwm_msg, &pwm_subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_add_subscription(executor, &actuator_subscriber, &actuator_msg, &actuator_subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_add_subscription(executor, &lighting_subscriber, &lighting_msg, &lighting_subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_add_subscription(executor, &electrical_control_subscriber, &electrical_control_msg, &electrical_control_subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_add_subscription(executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
+
+	software_kill_msg.header.frame_id.data = software_kill_frame_str;
+	software_kill_msg.header.frame_id.capacity = SOFTWARE_KILL_FRAME_STR_SIZE;
+	software_kill_msg.header.frame_id.size = 0;
+}
+
+static void subscriptions_fini(rcl_node_t *node){
+	RCCHECK(rcl_subscription_fini(&pwm_subscriber, node));
+	RCCHECK(rcl_subscription_fini(&actuator_subscriber, node));
+	RCCHECK(rcl_subscription_fini(&lighting_subscriber, node));
+	RCCHECK(rcl_subscription_fini(&electrical_control_subscriber, node));
+	RCCHECK(rcl_subscription_fini(&software_kill_subscriber, node));
+}
+
 
 // ========================================
 // Public Methods
@@ -108,6 +396,11 @@ void ros_wait_for_connection(void) {
     } while (ret != RCL_RET_OK);
 }
 
+static rcl_allocator_t allocator;
+static rclc_support_t support;
+static rcl_node_t node;
+static rclc_executor_t executor;
+
 void ros_start(const char* namespace) {
     allocator = rcl_get_default_allocator();
 
@@ -115,45 +408,33 @@ void ros_start(const char* namespace) {
 	RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
 	// create node
+	node = rcl_get_zero_initialized_node();
 	RCCHECK(rclc_node_init_default(&node, "coprocessor_node", namespace, &support));
 
-	// create publisher
-	RCCHECK(rclc_publisher_init_default(
-		&publisher,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"pico_publisher"));
-
-  	// create subscriber
-	RCCHECK(rclc_subscription_init_default(
-		&subscriber,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"pico_subscriber"));
-
-	// create timer,
-	const unsigned int timer_timeout = 1000;
-	RCCHECK(rclc_timer_init_default(
-		&timer,
-		&support,
-		RCL_MS_TO_NS(timer_timeout),
-		timer_callback));
+	// Before starting anything else, synchronize time
+	RCCHECK(rmw_uros_sync_session(2000));
 
 	// create executor
+	const uint num_executor_tasks = 7;
 	executor = rclc_executor_get_zero_initialized_executor();
-	RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
-	RCCHECK(rclc_executor_add_timer(&executor, &timer));
-	RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &recv_msg, &subscription_callback, ON_NEW_DATA));
+	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
-	send_msg.data = 0;
+	depth_publisher_init(&support, &node, &executor);
+	state_publish_init(&support, &node, &executor);
+	subscriptions_init(&node, &executor);
 }
 
 void ros_spin_ms(long ms) {
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms));
+	RCSOFTCHECK(rmw_uros_ping_agent(50, 100));
+    RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 
 void ros_cleanup(void) {
-    RCCHECK(rcl_subscription_fini(&subscriber, &node));
-	RCCHECK(rcl_publisher_fini(&publisher, &node));
+	depth_publisher_cleanup(&node);
+	state_publish_cleanup(&node);
+	subscriptions_fini(&node);
+
+	RCCHECK(rclc_executor_fini(&executor));
 	RCCHECK(rcl_node_fini(&node));
+	RCCHECK(rclc_support_fini(&support));
 }

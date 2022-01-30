@@ -26,6 +26,15 @@ extern bool depth_initialized;
 double depth_read(void);
 
 /**
+ * @brief Returns the current temperature read from the depth sensor
+ * 
+ * REQUIRES INITIALIZATION
+ * 
+ * @return float 
+ */
+float depth_get_temperature(void);
+
+/**
  * @brief Begins initialization of depth sensor
  * 
  * Note: The sensor is not initialized until depth_initialized is true

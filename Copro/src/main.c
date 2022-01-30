@@ -36,7 +36,7 @@ int main()
     // Wait for ROS
     pico_serial_transport_init();
     ros_wait_for_connection();
-    ros_start("tempest");
+    ros_start(ROBOT_NAMESPACE);
     printf("Connected to ROS\n");
 
     // Initialize safety-sensitive hardware

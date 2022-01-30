@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
 
 #include "pico/binary_info.h"
@@ -82,8 +83,26 @@ static int64_t esc_pwm_update_timeout(__unused alarm_id_t id, __unused void *use
     return 0;
 }
 
-void esc_pwm_update_thrusters(riptide_msgs2__msg__PwmStamped *thruster_commands) {
+void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_commands) {
     hard_assert_if(LIFETIME_CHECK, !esc_pwm_initialized);
+
+    // Make sure time is synchronized with network before attempting to compare timestamps
+    if (!rmw_uros_epoch_synchronized()){
+        printf("ESC PWM No Time Synchronization for Comand Verification\n");
+        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
+        return;
+    }
+
+    // Check to make sure message isn't old
+    int64_t command_time = (thruster_commands->header.stamp.sec * 1000) + 
+                            (thruster_commands->header.stamp.nanosec / 1000000);
+    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
+
+    if (command_time_diff > ESC_PWM_COMMAND_MAX_TIME_DIFF_MS || command_time_diff < -ESC_PWM_COMMAND_MAX_TIME_DIFF_MS) {
+        printf("Stale PWM command received: %d ms old\n", command_time_diff);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
 
     // If a timeout alarm is scheduled, cancel it since there's a new update
     if (esc_pwm_timeout_alarm_id > 0) {

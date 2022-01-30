@@ -9,7 +9,7 @@
 #endif
 
 #define DSHOT_MIN_UPDATE_RATE_MS 50
-#define DSHOT_UPDATE_DISABLE_TIME_MS 10000
+#define DSHOT_UPDATE_DISABLE_TIME_MS 1000
 
 #include <stdint.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>

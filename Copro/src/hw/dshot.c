@@ -78,7 +78,8 @@ static inline void dshot_send_internal(uint8_t thruster_id, uint16_t throttle_va
     // The buffer should ideally never fill up. If it does unexpected results due to blocking during 
     // high priority interrputs
     if (pio_sm_is_tx_fifo_full(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id))) {
-        safety_raise_fault(FAULT_DSHOT_BUF_STALL);
+        printf("DShot PIO Buffer Stall\n");
+        safety_raise_fault(FAULT_DSHOT_ERROR);
     }
 
     pio_sm_put_blocking(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id), cmd);

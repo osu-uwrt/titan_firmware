@@ -6,6 +6,11 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD backplane_breakout_board)
 
+# The Target Robot
+# These can be found in lib/uwrt_boards/include/robots
+# Store any robot dependent configuration values in these files
+set(UWRT_ROBOT puddles)
+
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
 # Set to Debug if debugging with gdb
@@ -28,6 +33,7 @@ add_executable(copro_firmware
 	src/main.c
 	src/drivers/adc.c
 	src/drivers/async_i2c.c
+	src/drivers/memmonitor.c
 	src/drivers/safety.c
 	src/drivers/safety_helper.S
 	src/hw/balancer_adc.c
@@ -41,14 +47,14 @@ add_executable(copro_firmware
 	src/tasks/ros.c
 )
 
-pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+#pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
 target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
 target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
-generate_version_tag(copro_firmware 1 0 PROTO)
+generate_version_tag(copro_firmware 1 0 DEV)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(copro_firmware 0)
@@ -72,5 +78,5 @@ target_link_libraries(copro_firmware
 	hardware_pwm
 	hardware_i2c
 	# Hook required functions for safety watchdog reporting
-	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery"
+	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session"
 )

@@ -73,6 +73,7 @@ __wrap_\name:
 .endm
 
 hook_blocking_ros_transport_func uxr_run_session_until_confirm_delivery
+hook_blocking_ros_transport_func uxr_ping_agent_session
 
 #define HARD_FAULT_DATA 0x1035004
 

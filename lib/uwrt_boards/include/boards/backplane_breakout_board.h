@@ -3,15 +3,10 @@
 
 #include "boards/pico.h"
 
-// Make sure multiple boards aren't included
-// This might happen if one board is #included and another one is specified as the defined board in CMakeLists
 #ifdef UWRT_BOARD_DEFINED
-#error Multiple board types included
+#error Multiple board types defined
 #endif
 #define UWRT_BOARD_DEFINED
-
-#define HW_USE_DSHOT 0
-#define HW_USE_PWM   1
 
 // I2C Busses
 #define SENSOR_I2C_HW  i2c0

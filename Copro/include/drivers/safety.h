@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include "pico/stdlib.h"
 
+#include <riptide_msgs2/msg/kill_switch_report.h>
+
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK, Enable/disable assertions for function lifetimes, type=bool, default=0, group=Copro
 #ifndef PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK
 #define PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK 0
@@ -21,8 +23,8 @@
 #define MAX_FAULT_ID          31
 #define FAULT_WATCHDOG_RESET   0
 #define FAULT_ROS_SOFT_FAIL    1
-#define FAULT_DSHOT_ERROR      2
-#define FAULT_DSHOT_BUF_STALL  3
+#define FAULT_ROS_BAD_COMMAND  2
+#define FAULT_DSHOT_ERROR      3
 #define FAULT_THRUSTER_TIMEOUT 4
 #define FAULT_ASYNC_I2C_ERROR  5
 #define FAULT_DEPTH_INIT_ERROR 6
@@ -35,10 +37,10 @@
 #define FAULT_LOW_BATTERY     13
 
 /**
- * @brief A list of all the active faults as bits
+ * @brief A pointer to the list of all the active faults as bits
  * DO NOT WRITE TO THIS! There are methods to safely raise and lower faults
  */
-extern uint32_t fault_list;
+extern volatile uint32_t *fault_list;
 
 /**
  * @brief Raises the specified fault id
@@ -64,15 +66,26 @@ void safety_lower_fault(uint32_t fault_id);
 // Kill Switch Management Functions
 // ========================================
 
+#define SOFTWARE_KILL_MAX_TIME_DIFF_MS 50
+#define SOFTWARE_KILL_FRAME_STR_SIZE 32
 struct kill_switch_state {
     bool enabled;                   // If the specific kill switch is enabled
     bool asserting_kill;            // If the kill switch is asserting a robot kill
     bool needs_update;              // If the switch needs to be updated or it will be considered killed
     absolute_time_t update_timeout; // The last update timestamp of the switch
+
+    // The frame that asserted the kill switch
+    // Prevents another node from de-asserting kill by publishing that it is not killed with the same switch id
+    char locking_frame[SOFTWARE_KILL_FRAME_STR_SIZE];
 };
 #define KILL_SWITCH_TIMEOUT_MS 500
-#define MAX_KILL_SWITCHES 4
-#define KILL_SWITCH_ID_PHYSICAL 0  // The ID of the physical kill switch button on the robot
+static_assert(riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES <= 32, "Too many kill switches defined");
+
+/**
+ * @brief State of all of the kill switches
+ * DO NOT WRITE TO THIS! Use methods to write to this variable instead
+ */
+extern struct kill_switch_state kill_switch_states[];
 
 /**
  * @brief Updates a kill switch state
@@ -84,6 +97,14 @@ struct kill_switch_state {
  * @param needs_update Setting to true will require the kill switch to be updated within KILL_SWITCH_TIMEOUT_MS or else will assert kill
  */
 void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update);
+
+/**
+ * @brief Processes a KillSwitchReport message from a software kill switch.
+ * Performes various checks on the message to ensure that it is valid before processing it
+ * 
+ * @param msg The report message to process
+ */
+void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg);
 
 /**
  * @brief Returns if the kill switch is asserting a safety kill

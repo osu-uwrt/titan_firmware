@@ -10,6 +10,8 @@
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 
+#include <rmw_microros/rmw_microros.h>
+
 #include "drivers/safety.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"
@@ -19,12 +21,12 @@
 // Fault Management Functions
 // ========================================
 
-uint32_t fault_list = 0;
+volatile uint32_t *fault_list = &watchdog_hw->scratch[6];
 
 void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
-    if ((fault_list & (1u<<fault_id)) == 0) {
+    if ((*fault_list & (1u<<fault_id)) == 0) {
         printf("Fault %d Raised\n", fault_id);
 
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
@@ -32,7 +34,7 @@ void safety_raise_fault(uint32_t fault_id) {
 
         uint32_t prev_interrupt_state = save_and_disable_interrupts();
         
-        fault_list |= (1<<fault_id);
+        *fault_list |= (1<<fault_id);
         dio_set_fault_led(true);
         
         restore_interrupts(prev_interrupt_state);
@@ -42,7 +44,7 @@ void safety_raise_fault(uint32_t fault_id) {
 void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
-    if ((fault_list & (1u<<fault_id)) != 0) {
+    if ((*fault_list & (1u<<fault_id)) != 0) {
         printf("Fault %d Lowered\n", fault_id);
         
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
@@ -50,8 +52,8 @@ void safety_lower_fault(uint32_t fault_id) {
 
         uint32_t prev_interrupt_state = save_and_disable_interrupts();
         
-        fault_list &= ~(1u<<fault_id);
-        dio_set_fault_led(fault_list != 0);
+        *fault_list &= ~(1u<<fault_id);
+        dio_set_fault_led((*fault_list) != 0);
         
         restore_interrupts(prev_interrupt_state);
     }
@@ -65,7 +67,8 @@ void safety_lower_fault(uint32_t fault_id) {
 
 static absolute_time_t last_kill_switch_change;
 static bool last_state_asserting_kill = true; // Start asserting kill
-struct kill_switch_state kill_switch_states[MAX_KILL_SWITCHES] = {[0 ... MAX_KILL_SWITCHES-1] = { .enabled = false }};
+struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] = 
+    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
 
 /**
  * @brief Contains all callback functions to be called when robot is killed
@@ -100,7 +103,7 @@ static void safety_refresh_kill_switches(void) {
     // Check all kill switches for asserting kill
     bool asserting_kill = false;
     int num_switches_enabled = 0;
-    for (int i = 0; i < MAX_KILL_SWITCHES; i++) {
+    for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
             num_switches_enabled++;
 
@@ -131,7 +134,7 @@ static void safety_refresh_kill_switches(void) {
 }
 
 void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update){
-    valid_params_if(SAFETY, switch_num < MAX_KILL_SWITCHES);
+    valid_params_if(SAFETY, switch_num < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES);
 
     kill_switch_states[switch_num].asserting_kill = asserting_kill;
     kill_switch_states[switch_num].update_timeout = make_timeout_time_ms(KILL_SWITCH_TIMEOUT_MS);
@@ -141,6 +144,62 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
     if (safety_initialized && asserting_kill) {
         safety_kill_robot();
     }
+}
+
+void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
+    if (!rmw_uros_epoch_synchronized()){
+        printf("Safety Kill Switch: No Time Synchronization for Comand Verification!\n");
+        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
+        return;
+    }
+
+    // Check to make sure message isn't old
+    int64_t command_time = (msg->header.stamp.sec * 1000) + 
+                            (msg->header.stamp.nanosec / 1000000);
+    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
+
+    if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
+        printf("Stale kill switch report received: %d ms old\n", command_time_diff);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Make sure kill switch id is valid
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
+            msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
+        printf("Invalid kill switch id used %d\n", msg->kill_switch_id);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Make sure frame id isn't too large
+    if (msg->header.frame_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
+        printf("Software Kill Frame ID too large\n");
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
+
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
+            strncmp(kill_entry->locking_frame, msg->header.frame_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        printf("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)\n", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Set frame id of the switch requesting disable
+    // This can technically override previous kills and allow one node to kill when another is stopping
+    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
+    // If multiple points are needed to be separate, separate kill switch IDs should be used
+    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
+    // since it must be asserted as killed by the node to take ownership of the lock
+    if (msg->switch_asserting_kill) {
+        strncpy(kill_entry->locking_frame, msg->header.frame_id.data, msg->header.frame_id.size);
+        kill_entry->locking_frame[msg->header.frame_id.size] = '\0';
+    }
+
+    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
 bool safety_kill_get_asserting_kill(void) {
@@ -177,6 +236,7 @@ absolute_time_t safety_kill_get_last_change(void) {
 //     Byte 1: Panic Reset Counter
 //     Byte 2: Hard Fault Reset Counter
 //     Byte 3: Assertion Fail Reset Counter
+// scratch[6]: Bitwise Fault List
 // scratch[7]: Depth Sensor Backup Data
 //     Default: Should be set to 0xFFFFFFFF on clean boot
 //     Will be set during zeroing of the depth sensor
@@ -253,6 +313,7 @@ void safety_panic(const char *fmt, ...) {
 
 static bool had_watchdog_reboot = false;
 static uint32_t last_reset_reason = 0;
+static uint32_t last_fault_list = 0;
 static uint32_t prev_scratch1 = 0;
 static uint32_t prev_scratch2 = 0;
 
@@ -268,6 +329,11 @@ static void safety_print_last_reset_cause(void){
         if ((*reset_counter) & 0xFF000000) {
             printf(" - Assert Fails: %d", ((*reset_counter) >> 24) & 0xFF);
         }
+
+        if (last_fault_list != 0) {
+            printf(") (Faults: 0x%x", last_fault_list);
+        }
+
         printf(") - Reason: ");
 
         if (last_reset_reason == UNKNOWN_SAFETY_PREINIT) {
@@ -283,7 +349,7 @@ static void safety_print_last_reset_cause(void){
         } else if (last_reset_reason == IN_ROS_TRANSPORT_LOOP) {
             printf("ROS Master Disconnect\n");
         } else {
-            printf("Invalid Data in Reason Register");
+            printf("Invalid Data in Reason Register\n");
         }
     } else {
         printf("Clean boot\n");
@@ -301,6 +367,7 @@ static void safety_process_last_reset_cause(void) {
     bool should_raise_fault = false;
     if (watchdog_enable_caused_reboot()) {
         last_reset_reason = *reset_reason_reg;
+        last_fault_list = *fault_list;
         prev_scratch1 = watchdog_hw->scratch[1];
         prev_scratch2 = watchdog_hw->scratch[2];
         had_watchdog_reboot = true;
@@ -314,8 +381,12 @@ static void safety_process_last_reset_cause(void) {
         if (*reset_counter != 0) {
             should_raise_fault = true;
         }
+
+        // Clear any previous faults
+        *fault_list = 0;
     } else {
         *reset_counter = 0;
+        *fault_list = 0;
         watchdog_hw->scratch[7] = 0xFFFFFFFF;
         had_watchdog_reboot = false;
     }

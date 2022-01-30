@@ -45,7 +45,7 @@ static inline bool dio_get_kill_switch(void){
 static void dio_gpio_callback(uint gpio, __unused uint32_t events) {
     if (gpio == KILL_SWITCH_PIN) {
         bool kill_switch_state = dio_get_kill_switch();
-        safety_kill_switch_update(KILL_SWITCH_ID_PHYSICAL, kill_switch_state, false);
+        safety_kill_switch_update(riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL, kill_switch_state, false);
 
 #if HW_USE_DSHOT
         dshot_notify_physical_kill_switch_change(kill_switch_state);

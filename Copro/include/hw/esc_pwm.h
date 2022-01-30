@@ -3,8 +3,9 @@
 
 #if HW_USE_PWM
 
+#define ESC_PWM_COMMAND_MAX_TIME_DIFF_MS 50
 #define ESC_PWM_MIN_UPDATE_RATE_MS 50
-#define ESC_PWM_UPDATE_DISABLE_TIME_MS 10000
+#define ESC_PWM_UPDATE_DISABLE_TIME_MS 1000
 
 #include <stdint.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
@@ -26,7 +27,7 @@ void esc_pwm_stop_thrusters(void);
  * 
  * @param thruster_commands 
  */
-void esc_pwm_update_thrusters(riptide_msgs2__msg__PwmStamped *thruster_commands);
+void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_commands);
 
 /**
  * @brief Sets the robot into low battery state which will disable thrusters
