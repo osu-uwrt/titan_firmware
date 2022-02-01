@@ -58,7 +58,7 @@ static void depth_publisher_timer_callback(rcl_timer_t * timer, __unused int64_t
 		depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
 		depth_msg.depth = depth_read();
-		RCSOFTCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));  // TODO: See if allocator would be more efficient
+		RCSOFTCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
 	}
 }
 

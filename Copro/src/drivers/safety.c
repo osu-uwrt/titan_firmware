@@ -230,7 +230,7 @@ absolute_time_t safety_kill_get_last_change(void) {
 //  - ASSERT_FAIL: Set in assertion callback
 //     scratch[1]: Faulting File String Address
 //     scratch[2]: Faulting File Line
-//  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS master
+//  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
 // scratch[3]: Watchdog Reset Counter (LSB order)
 //     Byte 0: Total Watchdog Reset Counter
 //     Byte 1: Panic Reset Counter
@@ -347,7 +347,7 @@ static void safety_print_last_reset_cause(void){
         } else if (last_reset_reason == ASSERT_FAIL) {
             printf("ASSERT_FAIL (File: 0x%08x Line: %d)\n", prev_scratch1, prev_scratch2);
         } else if (last_reset_reason == IN_ROS_TRANSPORT_LOOP) {
-            printf("ROS Master Disconnect\n");
+            printf("ROS Agent Lost\n");
         } else {
             printf("Invalid Data in Reason Register\n");
         }
