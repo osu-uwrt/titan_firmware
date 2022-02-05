@@ -109,7 +109,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 		struct timespec ts;
 		nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
 
-		if (esc_adc_initialized || balancer_adc_initialized) {
+		{
 			electrical_readings_msg.header.stamp.sec = ts.tv_sec;
 			electrical_readings_msg.header.stamp.nanosec = ts.tv_nsec;
 
@@ -425,7 +425,7 @@ void ros_start(const char* namespace) {
 }
 
 void ros_spin_ms(long ms) {
-	RCSOFTCHECK(rmw_uros_ping_agent(50, 100));
+	RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 

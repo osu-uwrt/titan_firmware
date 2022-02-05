@@ -59,6 +59,7 @@ generate_version_tag(copro_firmware 1 0 DEV)
 # Configure pico-sdk
 pico_enable_stdio_uart(copro_firmware 0)
 pico_set_program_name(copro_firmware "Copro Firmware")
+target_compile_definitions(copro_firmware PUBLIC USB_PRODUCT_STR="Coprocessor")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(copro_firmware)

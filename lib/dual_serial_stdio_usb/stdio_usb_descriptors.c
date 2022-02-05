@@ -109,9 +109,13 @@ static const uint8_t usbd_desc_cfg[USBD_DESC_LEN] = {
 
 static char usbd_serial_str[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 
+#ifndef USB_PRODUCT_STR
+#define USB_PRODUCT_STR "Micro-ROS Agent"
+#endif
+
 static const char *const usbd_desc_str[] = {
     [USBD_STR_MANUF] = "OSU UWRT",
-    [USBD_STR_PRODUCT] = "Micro-ROS Agent",
+    [USBD_STR_PRODUCT] = USB_PRODUCT_STR,
     [USBD_STR_SERIAL] = usbd_serial_str,
     [USBD_STR_STDIO_CDC] = "Board CDC",
     [USBD_STR_SECONDARY_CDC] = "Micro-ROS",

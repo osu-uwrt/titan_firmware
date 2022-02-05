@@ -25,7 +25,7 @@ bi_decl(bi_1pin_with_name(THRUSTER_7_PIN, "Thruster 7"));
 bi_decl(bi_1pin_with_name(THRUSTER_8_PIN, "Thruster 8"));
 static const uint thruster_pins[] = {
     THRUSTER_1_PIN, THRUSTER_2_PIN, THRUSTER_3_PIN, THRUSTER_4_PIN,
-    THRUSTER_5_PIN, THRUSTER_6_PIN, THRUSTER_7_PIN, THRUSTER_7_PIN
+    THRUSTER_5_PIN, THRUSTER_6_PIN, THRUSTER_7_PIN, THRUSTER_8_PIN
 };
 
 #define POSITION_LOOKUP(name)  (thruster_pins[name##_ID - 1])
@@ -185,7 +185,7 @@ void esc_pwm_init(void) {
     // Finally enable requested pwm slices
     int slice_num = 0;
     while (initialized_slices != 0){
-        if (initialized_slices & (1<<slice_num)){
+        if (initialized_slices & 1){
             pwm_set_enabled(slice_num, true);
         }
         slice_num++;
