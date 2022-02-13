@@ -3,9 +3,15 @@
 
 #if HW_USE_PWM
 
-#define ESC_PWM_COMMAND_MAX_TIME_DIFF_MS 50
-#define ESC_PWM_MIN_UPDATE_RATE_MS 50
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ESC_PWM, Enable/disable assertions in the esc pwm module, type=bool, default=0, group=Copro
+#ifndef PARAM_ASSERTIONS_ENABLED_ESC_PWM
+#define PARAM_ASSERTIONS_ENABLED_ESC_PWM 0
+#endif
+
+#define ESC_PWM_COMMAND_MAX_TIME_DIFF_MS 250
+#define ESC_PWM_MIN_UPDATE_RATE_MS 1000
 #define ESC_PWM_UPDATE_DISABLE_TIME_MS 1000
+#define ESC_PWM_WAKEUP_DELAY_MS 5000
 
 #include <stdint.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>

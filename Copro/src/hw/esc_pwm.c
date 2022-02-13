@@ -28,10 +28,8 @@ static const uint thruster_pins[] = {
     THRUSTER_5_PIN, THRUSTER_6_PIN, THRUSTER_7_PIN, THRUSTER_8_PIN
 };
 
-#define POSITION_LOOKUP(name)  (thruster_pins[name##_ID - 1])
 #define set_thruster_pin(pin, val)  pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
-#define set_thruster_id(id, val)   set_thruster_pin(thruster_pins[name##_ID - 1], val)
-#define set_thruster_name(name, val)  set_thruster_pin(POSITION_LOOKUP(name), val)
+#define set_thruster_id(id, val)   do{ invalid_params_if(ESC_PWM, id > 8 || id < 1); set_thruster_pin(thruster_pins[id - 1], val); } while(0);
 
 /**
  * @brief The alarm id of the active timeout alarm.
@@ -58,7 +56,7 @@ void esc_pwm_stop_thrusters(void) {
     // So this can be called at any point, so just ignore call if dshot is not initialized yet
     if (esc_pwm_initialized) {
         for (int i = 1; i <= 8; i++){
-            set_thruster_pin(i, ESC_NEUTRAL_PWM_US);
+            set_thruster_id(i, ESC_NEUTRAL_PWM_US);
         }
 
         if (esc_pwm_timeout_alarm_id > 0) {
@@ -86,6 +84,11 @@ static int64_t esc_pwm_update_timeout(__unused alarm_id_t id, __unused void *use
 void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_commands) {
     hard_assert_if(LIFETIME_CHECK, !esc_pwm_initialized);
 
+    // Don't run thrusters if kill is being asserted
+    if (safety_kill_get_asserting_kill()) {
+        return;
+    }
+
     // Make sure time is synchronized with network before attempting to compare timestamps
     if (!rmw_uros_epoch_synchronized()){
         printf("ESC PWM No Time Synchronization for Comand Verification\n");
@@ -94,12 +97,12 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
     }
 
     // Check to make sure message isn't old
-    int64_t command_time = (thruster_commands->header.stamp.sec * 1000) + 
+    int64_t command_time = (((int64_t)thruster_commands->header.stamp.sec) * 1000) + 
                             (thruster_commands->header.stamp.nanosec / 1000000);
     int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
 
     if (command_time_diff > ESC_PWM_COMMAND_MAX_TIME_DIFF_MS || command_time_diff < -ESC_PWM_COMMAND_MAX_TIME_DIFF_MS) {
-        printf("Stale PWM command received: %d ms old\n", command_time_diff);
+        printf("Stale PWM command received: %lld ms old\n", command_time_diff);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -110,8 +113,13 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
         esc_pwm_timeout_alarm_id = 0;
     }
 
-    // Thrusters shouldn't move if they haven't initialized yet
+    // Thrusters shouldn't move if they have a timeout applied
     if (absolute_time_diff_us(esc_pwm_time_thrusters_allowed, get_absolute_time()) < 0) {
+        return;
+    }
+
+    // Thrusters shouldn't move if safety kill is disabled
+    if (absolute_time_diff_us(safety_kill_get_last_change(), get_absolute_time()) < ESC_PWM_WAKEUP_DELAY_MS*1000) {
         return;
     }
 
@@ -126,14 +134,21 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
     #define set_thruster_with_check(name, val)  if(val != 1500){needs_timeout_scheduled=true;}\
                                                 set_thruster_name(name, val);
         
-    set_thruster_with_check(HEAVE_STBD_AFT, thruster_commands->pwm.heave_stbd_aft);
-    set_thruster_with_check(HEAVE_STBD_FWD, thruster_commands->pwm.heave_stbd_fwd);
-    set_thruster_with_check(VECTOR_STBD_FWD, thruster_commands->pwm.vector_stbd_fwd);
-    set_thruster_with_check(VECTOR_STBD_AFT, thruster_commands->pwm.vector_stbd_aft);
-    set_thruster_with_check(HEAVE_PORT_FWD, thruster_commands->pwm.heave_port_fwd);
-    set_thruster_with_check(HEAVE_PORT_AFT, thruster_commands->pwm.heave_port_aft);
-    set_thruster_with_check(VECTOR_PORT_FWD, thruster_commands->pwm.vector_port_fwd);
-    set_thruster_with_check(VECTOR_PORT_AFT, thruster_commands->pwm.vector_port_aft);
+    for (int i = 0; i < 8; i++){
+        uint16_t val = thruster_commands->pwm[i];
+        if (val < 1100 || val > 1900) {
+            printf("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
+            safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+            esc_pwm_stop_thrusters();
+            return;
+        }
+
+        if (val != 1500) {
+            needs_timeout_scheduled = true;
+        }
+
+        set_thruster_id(i + 1, val);
+    }
 
     if (needs_timeout_scheduled) {
         esc_pwm_timeout_alarm_id = add_alarm_in_ms(ESC_PWM_MIN_UPDATE_RATE_MS, &esc_pwm_update_timeout, NULL, true);

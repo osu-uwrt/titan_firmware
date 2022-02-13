@@ -15,7 +15,7 @@ const struct rp2040_device_capabilities board_types[] = {
         .supports_i2c_proxy = false,
     },
     {
-        .board_type_name = "RP2040_eval_board",
+        .board_type_name = "rp2040_eval_board",
         .supports_general_code = true,
         .supports_i2c_upload = false,
         .supports_i2c_proxy = false,
@@ -48,6 +48,10 @@ const struct rp2040_board_instance board_definitions[] = {
     {   // The backplane breakout board that is designed for puddles
         .board_type_name = "backplane_breakout_board",
         .serial = "E660B440075F7B26"
+    },
+    {
+        .board_type_name = "rp2040_eval_board",
+        .serial = "E460CCB01B3F532C"
     },
 };
 

@@ -89,6 +89,8 @@ static void safety_kill_robot(void) {
     #if HW_USE_PWM
     esc_pwm_stop_thrusters();
     #endif
+
+    printf("Disabling Robot\n");
 }
 
 /**
@@ -128,6 +130,7 @@ static void safety_refresh_kill_switches(void) {
         if (asserting_kill) {
             safety_kill_robot();
         } else {
+            printf("Enabling Robot\n");
             last_kill_switch_change = get_absolute_time();
         }
     }

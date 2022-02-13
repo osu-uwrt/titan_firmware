@@ -26,16 +26,6 @@
 #define THRUSTER_7_PIN   14
 #define THRUSTER_8_PIN   19
 
-// Thruster Mappings
-#define HEAVE_STBD_AFT_ID   1
-#define HEAVE_STBD_FWD_ID   2
-#define VECTOR_STBD_FWD_ID  3
-#define VECTOR_STBD_AFT_ID  4
-#define HEAVE_PORT_FWD_ID   5
-#define HEAVE_PORT_AFT_ID   6
-#define VECTOR_PORT_FWD_ID  7
-#define VECTOR_PORT_AFT_ID  8
-
 // Switches
 #define KILL_SWITCH_PIN   2
 #define AUX_SWITCH_PIN    3
