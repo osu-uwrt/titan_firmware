@@ -7,21 +7,22 @@
 .DS_Store?
 
 #######################
-# IDE generated files #
+# Build/Cache Files   #
 #######################
-.idea
-
-#######################
-# Quartus build files #
-#######################
-Acoustics/db/
-Acoustics/incremental_db/
-
-node_modules/
 .vscode/
 build/
 __pycache__/
 *.pyc
 ._*
 
+#######################
+# libmicroros Files   #
+#######################
+/lib/micro_ros_pico/libmicroros/
+/lib/micro_ros_pico/available_ros2_types
+/lib/micro_ros_pico/built_packages
+
+#######################
+# Temporary Projects  #
+#######################
 /scratch_projects/

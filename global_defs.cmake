@@ -43,7 +43,6 @@ function(uwrt_enable_dual_uart target)
 endfunction()
 
 function (micro_ros_enable target)
-    set(MICRO_ROS_PICO_SDK_REPO ${REPO_DIR}/lib/micro_ros_raspberrypi_pico_sdk)
     add_subdirectory(${REPO_DIR}/lib/micro_ros_pico/ micro_ros_pico)
     # ARGV1 allows for specifying optional public for when needed for target_link_libraries
     target_link_libraries(${target} ${ARGV1} micro_ros_pico)
