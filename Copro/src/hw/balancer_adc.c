@@ -37,15 +37,15 @@ double balancer_adc_get_port_current(void) {
 }
 
 double balancer_adc_get_balanced_voltage(void) {
-    return adc_get_reading(&balancer_adc_inst, 2) * 3.3 / 4096 * (118 / 18);
+    return adc_get_reading(&balancer_adc_inst, 2) * 3.3 / 4096 * (118.0 / 18) * .958;
 }
 
 double balancer_adc_get_stbd_voltage(void) {
-    return adc_get_reading(&balancer_adc_inst, 3) * 3.3 / 4096 * (118 / 18)* .984;
+    return adc_get_reading(&balancer_adc_inst, 3) * 3.3 / 4096 * (118.0 / 18)* .958;
 }
 
 double balancer_adc_get_port_voltage(void) {
-    return adc_get_reading(&balancer_adc_inst, 4) * 3.3 / 4096 * (118 / 18)* .984;
+    return adc_get_reading(&balancer_adc_inst, 4) * 3.3 / 4096 * (118.0 / 18)* .958;
 }
 
 double balancer_adc_get_temperature(void) {

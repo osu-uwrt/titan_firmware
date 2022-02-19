@@ -66,7 +66,8 @@ void safety_lower_fault(uint32_t fault_id);
 // Kill Switch Management Functions
 // ========================================
 
-#define SOFTWARE_KILL_MAX_TIME_DIFF_MS 50
+#define SOFTWARE_KILL_MAX_TIME_DIFF_MS 500
+#define KILL_SWITCH_TIMEOUT_MS 500
 #define SOFTWARE_KILL_FRAME_STR_SIZE 32
 struct kill_switch_state {
     bool enabled;                   // If the specific kill switch is enabled
@@ -78,7 +79,6 @@ struct kill_switch_state {
     // Prevents another node from de-asserting kill by publishing that it is not killed with the same switch id
     char locking_frame[SOFTWARE_KILL_FRAME_STR_SIZE];
 };
-#define KILL_SWITCH_TIMEOUT_MS 500
 static_assert(riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES <= 32, "Too many kill switches defined");
 
 /**

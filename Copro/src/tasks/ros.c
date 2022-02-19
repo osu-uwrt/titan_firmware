@@ -7,7 +7,6 @@
 #include <rclc/executor.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include <std_msgs/msg/int32.h>
 #include <riptide_msgs2/msg/actuator_command.h>
 #include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/electrical_command.h>
@@ -113,7 +112,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			electrical_readings_msg.header.stamp.sec = ts.tv_sec;
 			electrical_readings_msg.header.stamp.nanosec = ts.tv_nsec;
 
-			if (esc_adc_initialized) {
+			if (esc_adc_initialized && !esc_adc_readng_stale) {
 				for (int i = 0; i < 8; i++) {
 					electrical_readings_msg.esc_current[i] = esc_adc_get_thruster_current(i);
 				}
@@ -123,7 +122,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				}
 			}
 
-			if (balancer_adc_initialized) {
+			if (balancer_adc_initialized && !balancer_adc_readng_stale) {
 				electrical_readings_msg.port_voltage = balancer_adc_get_port_voltage();
 				electrical_readings_msg.stbd_voltage = balancer_adc_get_stbd_voltage();
 				electrical_readings_msg.port_current = balancer_adc_get_port_current();
@@ -153,7 +152,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			robot_state_msg.aux_switch_inserted = dio_get_aux_switch();
 			robot_state_msg.peltier_active = cooling_get_active();
 
-			if (balancer_adc_initialized) {
+			if (balancer_adc_initialized && !balancer_adc_readng_stale) {
 				robot_state_msg.robot_temperature = balancer_adc_get_temperature();
 			} else {
 				robot_state_msg.robot_temperature = riptide_msgs2__msg__RobotState__NO_READING;

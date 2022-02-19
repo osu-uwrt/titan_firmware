@@ -30,10 +30,12 @@ void dio_set_fault_led(bool on);
  */
 bool dio_get_aux_switch(void);
 
+#ifdef REG_12_CTRL_PIN
 /**
  * @brief Lowers the 12V power rail for POWER_RAIL_TOGGLE_TIME_MS and then raises is again
  */
 void dio_toggle_twelve_power(void);
+#endif
 
 /**
  * @brief Lowers the 5V power rail for POWER_RAIL_TOGGLE_TIME_MS and then raises is again

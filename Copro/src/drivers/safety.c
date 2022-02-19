@@ -157,12 +157,12 @@ void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
     }
 
     // Check to make sure message isn't old
-    int64_t command_time = (msg->header.stamp.sec * 1000) + 
+    int64_t command_time = (((int64_t)msg->header.stamp.sec) * 1000) + 
                             (msg->header.stamp.nanosec / 1000000);
     int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
 
     if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
-        printf("Stale kill switch report received: %d ms old\n", command_time_diff);
+        printf("Stale kill switch report received: %lld ms old\n", command_time_diff);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }

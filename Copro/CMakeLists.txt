@@ -4,12 +4,12 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD backplane_breakout_board)
+set(PICO_BOARD backplane_breakout_board_eval_hat)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
 # Store any robot dependent configuration values in these files
-set(UWRT_ROBOT puddles)
+set(UWRT_ROBOT tempest)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging

@@ -9,7 +9,7 @@
 // ==============================
 
 // Dedicated I2C Header
-#define BUILTIN_I2C_HW      0
+#define BUILTIN_I2C_HW   i2c0
 #define BUILTIN_SDA_PIN     0
 #define BUILTIN_SCL_PIN     1
 

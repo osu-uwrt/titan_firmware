@@ -74,12 +74,14 @@ static int64_t dio_power_restore_cb(__unused alarm_id_t id, void *user_data) {
     return 0;
 }
 
+#ifdef REG_12_CTRL_PIN
 void dio_toggle_twelve_power(void) {
     hard_assert_if(LIFETIME_CHECK, !dio_initialized);
 
     gpio_put(REG_12_CTRL_PIN, false);
     hard_assert(add_alarm_in_ms(POWER_RAIL_TOGGLE_TIME_MS, &dio_power_restore_cb, (void*)REG_12_CTRL_PIN, true) > 0);
 }
+#endif
 
 void dio_toggle_five_power(void) {
     hard_assert_if(LIFETIME_CHECK, !dio_initialized);
@@ -128,10 +130,12 @@ void dio_init(void) {
     gpio_put(PELTIER_CTRL_PIN, false);
     gpio_set_dir(PELTIER_CTRL_PIN, true);
     
+#ifdef REG_12_CTRL_PIN
     bi_decl_if_func_used(bi_1pin_with_name(REG_12_CTRL_PIN, "12V Regulator Conrol"));
     gpio_init(REG_12_CTRL_PIN);
     gpio_put(REG_12_CTRL_PIN, true);
     gpio_set_dir(REG_12_CTRL_PIN, true);
+#endif
 
     bi_decl_if_func_used(bi_1pin_with_name(REG_5_CTRL_PIN, "5V Regulator Conrol"));
     gpio_init(REG_5_CTRL_PIN);

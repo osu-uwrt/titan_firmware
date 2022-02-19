@@ -16,8 +16,7 @@ static absolute_time_t earliest_reenable_time;
 void lowbatt_tick(void) {
     hard_assert_if(LIFETIME_CHECK, !lowbatt_initialized);
 
-    if (balancer_adc_initialized && 
-        absolute_time_diff_us(delayed_by_ms(balancer_adc_last_reading, LOWBATT_MAX_READING_AGE_MS), get_absolute_time()) < 0) {
+    if (balancer_adc_initialized && !balancer_adc_readng_stale) {
         safety_lower_fault(FAULT_LOWBATT_STALE);
 
         // Check for existance of batteries

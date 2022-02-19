@@ -2,11 +2,6 @@
 #define _LOWBATT_H
 
 /**
- * @brief The maximum age of the adc reading before treating as invalid
- */
-#define LOWBATT_MAX_READING_AGE_MS 2000
-
-/**
  * @brief The minimum disable time for when low battery state is entered
  */
 #define LOWBATT_MIN_DISABLE_TIME 5000

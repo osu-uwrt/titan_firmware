@@ -2,11 +2,6 @@
 #define _COOLING_H
 
 /**
- * @brief The maximum age of the adc reading before treating as invalid
- */
-#define COOLING_MAX_READING_AGE_MS 2000
-
-/**
  * @brief If the cooling task has been initialized
  */
 extern bool cooling_initialized;

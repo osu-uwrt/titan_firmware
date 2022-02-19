@@ -25,6 +25,12 @@ const struct rp2040_device_capabilities board_types[] = {
         .supports_general_code = false,
         .supports_i2c_upload = false,
         .supports_i2c_proxy = true,
+    },
+    {
+        .board_type_name = "backplane_breakout_board_eval_hat",
+        .supports_general_code = false,
+        .supports_i2c_upload = false,
+        .supports_i2c_proxy = true,
     }
 };
 const struct rp2040_device_capabilities *unknown_board_type = &board_types[0];
@@ -50,7 +56,7 @@ const struct rp2040_board_instance board_definitions[] = {
         .serial = "E660B440075F7B26"
     },
     {
-        .board_type_name = "rp2040_eval_board",
+        .board_type_name = "backplane_breakout_board_eval_hat",
         .serial = "E460CCB01B3F532C"
     },
 };
