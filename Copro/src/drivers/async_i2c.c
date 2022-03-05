@@ -27,6 +27,8 @@ struct pending_i2c_request {
 static int request_queue_next_entry = 0;
 static int request_queue_next_space = 0;
 
+#define I2C_DEBUG
+
 // ========================================
 // Bus Management Functions
 // ========================================
@@ -126,6 +128,7 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
     active_transfer.alarm_active = false;
     i2c_inst_t *i2c = active_transfer.request->i2c;
 
+    I2C_DEBUG("Timeout Called (0x%p)\n", active_transfer.request);
     hw_set_bits(&i2c->hw->enable, I2C_IC_ENABLE_ABORT_BITS);
     return 0;
 }
@@ -142,6 +145,7 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
  */
 int total_allocated_alarm_count = 0;
 static void async_i2c_start_request_internal(const struct async_i2c_request *request, bool *in_progress) {
+    I2C_DEBUG("Starting request 0x%p\n", request);
     active_transfer.request = request;
     active_transfer.in_progress = in_progress;
     active_transfer.bytes_received = 0;
@@ -175,6 +179,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         return;  // In the event the IRQ went away, ignore it
         // Could happen if the full/empty irq tripped during fill/emptying
     }
+    I2C_DEBUG("Interrupt callback on %s for 0x%p, active interrupts 0x%x\n", (i2c == i2c0 ? "i2c0" : (i2c == i2c1 ? "i2c1" : "Unknown")), active_transfer.request, i2c->hw->raw_intr_stat & i2c->hw->intr_mask);
 
     hard_assert_if(ASYNC_I2C, i2c != active_transfer.request->i2c);
 
@@ -299,6 +304,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         } else if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
             async_i2c_start_receive_stage();
         } else if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.bytes_received == active_transfer.request->bytes_to_receive) {
+            I2C_DEBUG("Finalizing Request 0x%p...\n", active_transfer.request);
             hard_assert_if(ASYNC_I2C, active_transfer.request_state != I2C_TRANSMITTING && active_transfer.request_state != I2C_RECEIVING);
 
             if (active_transfer.alarm_active) {
@@ -332,6 +338,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
             // Increment ring buffer
             request_queue_next_entry = (request_queue_next_entry + 1) % I2C_REQ_QUEUE_SIZE;
         } else {
+            I2C_DEBUG("Transferring to idle state (0x%p)\n", active_transfer.request);
             active_transfer.request_state = I2C_IDLE;
         }
     }
