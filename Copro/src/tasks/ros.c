@@ -50,7 +50,7 @@ static const float depth_variance = 0.003;  					// TODO: Load from config file 
 static const int depth_publish_rate_ms = 50;
 
 static void depth_publisher_timer_callback(rcl_timer_t * timer, __unused int64_t last_call_time) {
-	if (timer != NULL && depth_initialized) {
+	if (timer != NULL && depth_reading_valid()) {
 
 		struct timespec ts;
 		nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
@@ -169,7 +169,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				robot_state_msg.robot_temperature = riptide_msgs2__msg__RobotState__NO_READING;
 			}
 
-			if (depth_initialized) {
+			if (depth_reading_valid()) {
 				robot_state_msg.water_temperature = depth_get_temperature();
 			} else {
 				robot_state_msg.water_temperature = riptide_msgs2__msg__RobotState__NO_READING;

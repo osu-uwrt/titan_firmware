@@ -10,7 +10,16 @@
 #include "hw/depth_sensor.h"
 #include "hw/depth_sensor_commands.h"
 
+/**
+ * @brief The polling rate in milliseconds for how often the depth should refresh
+ */
 #define DEPTH_POLLING_RATE_MS 50
+
+/**
+ * @brief The number of invalid reads from the depth sensor before a fault is raised
+ */
+#define DEPTH_BAD_READS_FAULT_COUNT 3
+
 
 bool depth_initialized = false;
 static bool in_transaction = false;
@@ -136,6 +145,10 @@ static int32_t depth_pressure = 0;
  * @brief The last temperature reading from the sensor in hundreds of deg C
  */
 static int32_t depth_temp;
+/**
+ * @brief The timeout of the last reading for when it will be invalid
+ */
+static absolute_time_t depth_current_read_timeout = {0};
 
 
 // State management varaibles for the active depth reading command
@@ -166,6 +179,10 @@ static void (*depth_read_finished_cb)(void);
  */
 static uint32_t depth_read_d1_temp;
 
+/**
+ * @brief The number of bad reads. Used as a counter before raising a fault for losing depth sensor
+ */
+static int depth_num_bad_reads = 0;
 
 
 /**
@@ -208,6 +225,8 @@ static void depth_calculate(uint32_t D1, uint32_t D2) {
 
     depth_temp = (depth_temp-Ti);
     depth_pressure = (((D1*SENS2)/2097152-OFF2)/8192)/10.0;
+    depth_current_read_timeout = make_timeout_time_ms(DEPTH_POLLING_RATE_MS * 2);
+    depth_num_bad_reads = 0;
 }
 
 /**
@@ -272,7 +291,10 @@ static void depth_read_failure(__unused const struct async_i2c_request *req, uin
         // This callback could occur during calibration which would fail to initialize the sensor
         safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
     } else {
-        safety_raise_fault(FAULT_DEPTH_ERROR);
+        depth_num_bad_reads++;
+        if (depth_num_bad_reads >= DEPTH_BAD_READS_FAULT_COUNT){
+            safety_raise_fault(FAULT_DEPTH_ERROR);
+        }
     }
 
     depth_read_running = false;
@@ -379,6 +401,10 @@ double depth_read(void) {
     hard_assert_if(DEPTH, !depth_initialized);
 
     return ((depth_pressure - surface_pressure)*100)/(FLUID_DENSITY*9.80665);
+}
+
+bool depth_reading_valid(void) {
+    return depth_initialized && absolute_time_diff_us(depth_current_read_timeout, get_absolute_time()) < 0;
 }
 
 float depth_get_temperature(void) {

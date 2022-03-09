@@ -42,4 +42,12 @@ float depth_get_temperature(void);
  */
 void depth_init(void);
 
+/**
+ * @brief Returns if the depth reading is valid
+ * 
+ * @return true If depth_read will return a valid reading
+ * @return false If depth has not been initialized or the current depth reading is stale
+ */
+bool depth_reading_valid(void);
+
 #endif
