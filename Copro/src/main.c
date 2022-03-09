@@ -12,6 +12,7 @@
 #include "hw/dshot.h"
 #include "hw/esc_adc.h"
 #include "hw/esc_pwm.h"
+#include "hw/bmp280_temp.h"
 #include "tasks/cooling.h"
 #include "tasks/lowbatt.h"
 #include "tasks/ros.h"
@@ -28,10 +29,14 @@ int main()
 
     // Initialize sensor hardware
     dio_init();
+    bool got_temp_sensor = bmp280_temp_init();
+    
     async_i2c_init(200000, 10);
+    if (got_temp_sensor) bmp280_temp_start_reading();
+
     depth_init();
-    balancer_adc_init();
-    esc_adc_init();
+    //balancer_adc_init();
+    //esc_adc_init();
 
     // Wait for ROS
     pico_serial_transport_init();
@@ -49,16 +54,16 @@ int main()
 #endif
 
     // Initialize any other tasks
-    cooling_init();
-    lowbatt_init();
+    //cooling_init();
+    //lowbatt_init();
 
     // Main Run Loop
     while (true)
     {
         safety_tick();
         ros_spin_ms(30);
-        cooling_tick();
-        lowbatt_tick();
+        //cooling_tick();
+        //lowbatt_tick();
     }
     return 0;
 }

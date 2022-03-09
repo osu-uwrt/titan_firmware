@@ -62,4 +62,6 @@ void dio_set_peltier_power(bool on);
  */
 void dio_init(void);
 
+double dio_get_battery_voltage_hack(void);
+
 #endif

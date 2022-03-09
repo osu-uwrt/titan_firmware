@@ -28,6 +28,7 @@
 #include "hw/esc_pwm.h"
 #include "tasks/ros.h"
 #include "tasks/cooling.h"
+#include "hw/bmp280_temp.h"
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Aborting.\n",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Continuing.\n",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
@@ -56,7 +57,7 @@ static void depth_publisher_timer_callback(rcl_timer_t * timer, __unused int64_t
 		depth_msg.header.stamp.sec = ts.tv_sec;
 		depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
-		depth_msg.depth = depth_read();
+		depth_msg.depth = -depth_read();
 		RCSOFTCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
 	}
 }
@@ -122,7 +123,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				}
 			}
 
-			if (balancer_adc_initialized && !balancer_adc_readng_stale) {
+			/*if (balancer_adc_initialized && !balancer_adc_readng_stale) {
 				electrical_readings_msg.port_voltage = balancer_adc_get_port_voltage();
 				electrical_readings_msg.stbd_voltage = balancer_adc_get_stbd_voltage();
 				electrical_readings_msg.port_current = balancer_adc_get_port_current();
@@ -134,7 +135,16 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				electrical_readings_msg.port_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
 				electrical_readings_msg.stbd_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
 				electrical_readings_msg.balanced_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
-			}
+			}*/
+
+			double reading = dio_get_battery_voltage_hack();
+			electrical_readings_msg.port_voltage = reading;
+			electrical_readings_msg.stbd_voltage = reading;
+			electrical_readings_msg.balanced_voltage = reading;
+
+
+			electrical_readings_msg.port_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
+			electrical_readings_msg.stbd_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
 
 			electrical_readings_msg.five_volt_voltage = riptide_msgs2__msg__ElectricalReadings__NO_READING;
 			electrical_readings_msg.five_volt_current = riptide_msgs2__msg__ElectricalReadings__NO_READING;
@@ -152,8 +162,9 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			robot_state_msg.aux_switch_inserted = dio_get_aux_switch();
 			robot_state_msg.peltier_active = cooling_get_active();
 
-			if (balancer_adc_initialized && !balancer_adc_readng_stale) {
-				robot_state_msg.robot_temperature = balancer_adc_get_temperature();
+			double temp;
+			if (bmp280_temp_read(&temp)) {
+				robot_state_msg.robot_temperature = temp;
 			} else {
 				robot_state_msg.robot_temperature = riptide_msgs2__msg__RobotState__NO_READING;
 			}

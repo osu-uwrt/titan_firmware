@@ -27,7 +27,8 @@ struct pending_i2c_request {
 static int request_queue_next_entry = 0;
 static int request_queue_next_space = 0;
 
-#define I2C_DEBUG
+//#define I2C_DEBUG(...) do {printf("" __VA_ARGS__);} while(0);
+#define I2C_DEBUG(...) do {} while(0);
 
 // ========================================
 // Bus Management Functions

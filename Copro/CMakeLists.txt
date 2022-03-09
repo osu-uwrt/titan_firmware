@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD backplane_breakout_board_eval_hat)
+set(PICO_BOARD backplane_breakout_board)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -36,12 +36,14 @@ add_executable(copro_firmware
 	src/drivers/memmonitor.c
 	src/drivers/safety.c
 	src/drivers/safety_helper.S
+	src/drivers/bmp280.c
 	src/hw/balancer_adc.c
 	src/hw/depth_sensor.c
 	src/hw/dio.c
 #	src/hw/dshot.c
 	src/hw/esc_pwm.c
 	src/hw/esc_adc.c
+	src/hw/bmp280_temp.c
 	src/tasks/cooling.c
 	src/tasks/lowbatt.c
 	src/tasks/ros.c
@@ -78,6 +80,7 @@ target_link_libraries(copro_firmware
 #	hardware_pio
 	hardware_pwm
 	hardware_i2c
+	hardware_adc
 	# Hook required functions for safety watchdog reporting
 	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session"
 )

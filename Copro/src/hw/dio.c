@@ -2,6 +2,7 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
+#include "hardware/adc.h"
 
 #include "drivers/safety.h"
 #include "hw/dio.h"
@@ -103,6 +104,13 @@ void dio_set_peltier_power(bool on) {
     gpio_put(PELTIER_CTRL_PIN, on);
 }
 
+double dio_get_battery_voltage_hack(void){
+    hard_assert_if(LIFETIME_CHECK, !dio_initialized);
+    const double conversion_factor = 3.3 / (double)(1 << 12) * (61.1+9.88) / 9.88;
+    uint16_t result = adc_read();
+    return conversion_factor*result;
+}
+
 void dio_init(void) {
     hard_assert_if(LIFETIME_CHECK, dio_initialized);
 
@@ -146,6 +154,13 @@ void dio_init(void) {
     gpio_init(MOBO_CTRL_PIN);
     gpio_put(MOBO_CTRL_PIN, true);
     gpio_set_dir(MOBO_CTRL_PIN, true);
+
+    adc_init();
+
+    // Make sure GPIO is high-impedance, no pullups etc
+    adc_gpio_init(LIGHTS_1_PIN);
+    // Select ADC input 2 (GPIO28)
+    adc_select_input(2);
 
     gpio_put(FAULT_LED_PIN, pending_fault_led_state);
     dio_initialized = true;
