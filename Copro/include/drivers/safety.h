@@ -20,6 +20,7 @@
 // Fault Management Functions
 // ========================================
 
+// NOTE: If adding fault IDs make sure to update the fault_string_list in safety.c
 #define MAX_FAULT_ID          31
 #define FAULT_WATCHDOG_RESET   0
 #define FAULT_ROS_SOFT_FAIL    1
@@ -35,6 +36,22 @@
 #define FAULT_COOLING_STALE   11
 #define FAULT_LOWBATT_STALE   12
 #define FAULT_LOW_BATTERY     13
+static const char * const fault_string_list[] = {
+    "FAULT_WATCHDOG_RESET",
+    "FAULT_ROS_SOFT_FAIL",
+    "FAULT_ROS_BAD_COMMAND",
+    "FAULT_DSHOT_ERROR",
+    "FAULT_THRUSTER_TIMEOUT",
+    "FAULT_ASYNC_I2C_ERROR",
+    "FAULT_DEPTH_INIT_ERROR",
+    "FAULT_DEPTH_ERROR",
+    "FAULT_ADC_ERROR",
+    "FAULT_BB_ADC_ERROR",
+    "FAULT_ESC_ADC_ERROR",
+    "FAULT_COOLING_STALE",
+    "FAULT_LOWBATT_STALE",
+    "FAULT_LOW_BATTERY",
+};
 
 /**
  * @brief A pointer to the list of all the active faults as bits

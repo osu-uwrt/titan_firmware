@@ -58,5 +58,6 @@ echo "" > /project/built_packages
 for f in $(find $(pwd) -name .git -type d); do pushd $f > /dev/null; echo $(git config --get remote.origin.url) $(git rev-parse HEAD) >> /project/built_packages; popd > /dev/null; done;
 
 ######## Fix permissions ########
-#sudo chmod -R 777 /project/microros_static_library
-#sudo chmod -R -x+X /project/microros_static_library
+sudo chmod -R 777 /project/microros_static_library
+sudo chmod -R -x+X /project/microros_static_library
+sudo chmod +x /project/microros_static_library/library_generation/library_generation.sh

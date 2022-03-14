@@ -27,7 +27,7 @@ void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) == 0) {
-        printf("Fault %d Raised\n", fault_id);
+        printf("Fault %s (%d) Raised\n", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
 
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -45,7 +45,7 @@ void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) != 0) {
-        printf("Fault %d Lowered\n", fault_id);
+        printf("Fault %s (%d) Lowered\n", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
         
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED

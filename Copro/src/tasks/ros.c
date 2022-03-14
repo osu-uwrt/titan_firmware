@@ -5,8 +5,10 @@
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+#include <rclc_parameter/rclc_parameter.h>
 #include <rmw_microros/rmw_microros.h>
 
+#include <riptide_msgs2/msg/actuator_status.h>
 #include <riptide_msgs2/msg/actuator_command.h>
 #include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/electrical_command.h>
@@ -99,6 +101,8 @@ static rcl_publisher_t robot_state_publisher;
 static riptide_msgs2__msg__RobotState robot_state_msg;
 static rcl_publisher_t firmware_state_publisher;
 static riptide_msgs2__msg__FirmwareState firmware_state_msg;
+static rcl_publisher_t actuator_status_publisher;
+static riptide_msgs2__msg__ActuatorStatus actuator_status_msg;
 
 static rcl_timer_t state_publish_timer;
 static const int state_publish_rate_ms = 500;
@@ -217,6 +221,16 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 
 			RCSOFTCHECK(rcl_publish(&firmware_state_publisher, &firmware_state_msg, NULL));
 		}
+
+		if (false) {
+			actuator_status_msg.claw_state = riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
+			actuator_status_msg.torpedo1_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+			actuator_status_msg.torpedo2_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+			actuator_status_msg.dropper1_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+			actuator_status_msg.dropper2_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+
+			RCSOFTCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
+		}
 	}
 }
 
@@ -240,6 +254,13 @@ static void state_publish_init(rclc_support_t *support, rcl_node_t *node, rclc_e
 		node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareState),
 		"state/firmware",
+		&rmw_qos_profile_sensor_data));
+
+	RCCHECK(rclc_publisher_init(
+		&actuator_status_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorStatus),
+		"actuator_status",		// TODO: Figure out good topic for actuator status
 		&rmw_qos_profile_sensor_data));
 
 	RCCHECK(rclc_timer_init_default(
@@ -267,6 +288,7 @@ static void state_publish_cleanup(rcl_node_t *node) {
 	RCCHECK(rcl_publisher_fini(&electrical_readings_publisher, node));
 	RCCHECK(rcl_publisher_fini(&robot_state_publisher, node));
 	RCCHECK(rcl_publisher_fini(&firmware_state_publisher, node));
+	RCCHECK(rcl_publisher_fini(&actuator_status_publisher, node));
 	RCCHECK(rcl_timer_fini(&state_publish_timer));
 }
 
@@ -336,7 +358,7 @@ static riptide_msgs2__msg__KillSwitchReport software_kill_msg;
 static char software_kill_frame_str[SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
 static void software_kill_subscription_callback(const void * msgin)
 {
-	__unused const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
+	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
 	safety_kill_msg_process(msg);
 }
 
@@ -390,6 +412,37 @@ static void subscriptions_fini(rcl_node_t *node){
 	RCCHECK(rcl_subscription_fini(&software_kill_subscriber, node));
 }
 
+// ========================================
+// Parameter Server
+// ========================================
+
+// static rclc_parameter_server_t param_server;
+
+// static void on_parameter_changed(Parameter * param)
+// {
+// 	if (strcmp(param->name.data, "claw_move_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
+// 	{
+// 		printf("Setting claw move time to %ld ms\n", param->value.integer_value);
+// 	}
+// 	else if (strcmp(param->name.data, "dropper_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
+// 	{
+// 		printf("Setting dropper active time to %ld ms\n", param->value.integer_value);
+// 		panic("Killing for the test");
+// 	}
+// }
+
+// static void parameter_server_init(rcl_node_t *node, rclc_executor_t *executor) {
+//   	RCCHECK(rclc_parameter_server_init_default(&param_server, node));
+// 	RCCHECK(rclc_executor_add_parameter_server(executor, &param_server, on_parameter_changed));
+	
+// 	RCCHECK(rclc_add_parameter(&param_server, "claw_move_time_ms", RCLC_PARAMETER_INT));
+//     RCCHECK(rclc_add_parameter(&param_server, "dropper_time_ms", RCLC_PARAMETER_INT));
+// 	RCCHECK(rclc_add_parameter(&param_server, "torpedo_stop", RCLC_PARAMETER_INT));
+// }
+
+// static void parameter_server_fini(rcl_node_t *node){
+// 	rclc_parameter_server_fini(&param_server, node);
+// }
 
 // ========================================
 // Public Methods
@@ -425,10 +478,11 @@ void ros_start(const char* namespace) {
 	RCCHECK(rmw_uros_sync_session(2000));
 
 	// create executor
-	const uint num_executor_tasks = 7;
+	const uint num_executor_tasks = 7 + RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER;
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
+	//parameter_server_init(&node, &executor);
 	depth_publisher_init(&support, &node, &executor);
 	state_publish_init(&support, &node, &executor);
 	subscriptions_init(&node, &executor);
@@ -440,6 +494,7 @@ void ros_spin_ms(long ms) {
 }
 
 void ros_cleanup(void) {
+	//parameter_server_fini(&node);
 	depth_publisher_cleanup(&node);
 	state_publish_cleanup(&node);
 	subscriptions_fini(&node);
