@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 
 #include "pico_uart_transports.h"
+#include "basic_logging/logging.h"
 #include "build_version.h"
 
 #include "drivers/async_i2c.h"
@@ -19,9 +20,10 @@
 
 int main()
 {
+    basic_logger_set_global_log_level(LEVEL_DEBUG);
     // Immediate start code
     serial_init_early();
-    printf("%s\n", FULL_BUILD_TAG);
+    LOG_INFO(FULL_BUILD_TAG);
     sleep_ms(1000);
 
     // Safety must be the first item to initialize
@@ -42,7 +44,7 @@ int main()
     pico_serial_transport_init();
     ros_wait_for_connection();
     ros_start(ROBOT_NAMESPACE);
-    printf("Connected to ROS\n");
+    LOG_INFO("Connected to ROS");
 
     // Initialize safety-sensitive hardware
     safety_init();

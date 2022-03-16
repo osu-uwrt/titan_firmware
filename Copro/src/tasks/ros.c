@@ -19,10 +19,12 @@
 #include <riptide_msgs2/msg/pwm_stamped.h>
 #include <riptide_msgs2/msg/robot_state.h>
 
+#include "basic_logging/logging.h"
 #include "pico_uart_transports.h"
 
 #include "drivers/memmonitor.h"
 #include "drivers/safety.h"
+#include "hw/actuator.h"
 #include "hw/balancer_adc.h"
 #include "hw/depth_sensor.h"
 #include "hw/dio.h"
@@ -32,8 +34,8 @@
 #include "tasks/cooling.h"
 #include "hw/bmp280_temp.h"
 
-#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Aborting.\n",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
-#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on in " __FILE__ ":%d : %d. Continuing.\n",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
+#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_FATAL("Failed status on in : %d. Aborting.",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
+#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_ERROR("Failed status on in " __FILE__ ":%d : %d. Continuing.",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
 
 static void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 	ts->tv_sec = time_nanos / 1000000000;
@@ -310,7 +312,8 @@ static void actuator_subscription_callback(const void * msgin)
 {
 	__unused const riptide_msgs2__msg__ActuatorCommand * msg = (const riptide_msgs2__msg__ActuatorCommand *)msgin;
 	
-	printf("Actuator Commands Unimplemented!\n");
+	LOG_WARN("Actuator Commands Unimplemented!");
+	actuator_test();
 	// TODO: Implement actuator commands
 }
 
@@ -319,7 +322,7 @@ static riptide_msgs2__msg__LightingCommand lighting_msg;
 static void lighting_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__LightingCommand * msg = (const riptide_msgs2__msg__LightingCommand *)msgin;
-	printf("Unimplemented Command: Change Lighting (1: %d, 2: %d)\n", msg->light_1_brightness_percentage, msg->light_2_brightness_percentage);
+	LOG_WARN("Unimplemented Command: Change Lighting (1: %d, 2: %d)", msg->light_1_brightness_percentage, msg->light_2_brightness_percentage);
 	// TODO: Implement in DIO
 }
 
@@ -331,7 +334,7 @@ static void electrical_control_subscription_callback(const void * msgin)
 	
 	if (msg->cooling_threshold != riptide_msgs2__msg__ElectricalCommand__NO_COOLING_THRESH) {
 		cooling_threshold = msg->cooling_threshold;
-		printf("Setting cooling threshold: %d\n", cooling_threshold);
+		LOG_INFO("Setting cooling threshold: %d", cooling_threshold);
 	}
 
 	if (msg->reset_copro){
@@ -343,12 +346,12 @@ static void electrical_control_subscription_callback(const void * msgin)
 	}
 
 	if (msg->power_cycle_robot) {
-		printf("Unimplemented command: Power Cycle Robot\n");
+		LOG_WARN("Unimplemented command: Power Cycle Robot");
 		// TODO: Implement in DIO
 	}
 
 	if (msg->kill_robot_electrical) {
-		printf("Unimplemented command: Kill Robot Electrical\n");
+		LOG_WARN("Unimplemented command: Kill Robot Electrical");
 		// TODO: Implement in DIO
 	}
 }
@@ -422,11 +425,11 @@ static void subscriptions_fini(rcl_node_t *node){
 // {
 // 	if (strcmp(param->name.data, "claw_move_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
 // 	{
-// 		printf("Setting claw move time to %ld ms\n", param->value.integer_value);
+// 		LOG_INFO("Setting claw move time to %ld ms", param->value.integer_value);
 // 	}
 // 	else if (strcmp(param->name.data, "dropper_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
 // 	{
-// 		printf("Setting dropper active time to %ld ms\n", param->value.integer_value);
+// 		LOG_INFO("Setting dropper active time to %ld ms", param->value.integer_value);
 // 		panic("Killing for the test");
 // 	}
 // }
@@ -489,7 +492,7 @@ void ros_start(const char* namespace) {
 }
 
 void ros_spin_ms(long ms) {
-	RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
+	//RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 

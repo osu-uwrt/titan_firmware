@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "basic_logging/logging.h"
+
 #include "drivers/adc.h"
 #include "drivers/safety.h"
 #include "hw/balancer_adc.h"
@@ -9,7 +11,7 @@
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 
 static void balancer_adc_failure(__unused const struct async_i2c_request * req, uint32_t abort_data) {
-    printf("Failed to read BB adc (Abort Data: %d)\n", abort_data);
+    LOG_ERROR("Failed to read BB adc (Abort Data: %d)", abort_data);
     safety_raise_fault(FAULT_BB_ADC_ERROR);
 }
 

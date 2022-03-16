@@ -12,6 +12,8 @@
 
 #include <rmw_microros/rmw_microros.h>
 
+#include "basic_logging/logging.h"
+
 #include "drivers/safety.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"
@@ -27,7 +29,7 @@ void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) == 0) {
-        printf("Fault %s (%d) Raised\n", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
+        LOG_ERROR("Fault %s (%d) Raised", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
 
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -45,7 +47,7 @@ void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) != 0) {
-        printf("Fault %s (%d) Lowered\n", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
+        LOG_ERROR("Fault %s (%d) Lowered", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
         
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -90,7 +92,7 @@ static void safety_kill_robot(void) {
     esc_pwm_stop_thrusters();
     #endif
 
-    printf("Disabling Robot\n");
+    LOG_INFO("Disabling Robot");
 }
 
 /**
@@ -130,7 +132,7 @@ static void safety_refresh_kill_switches(void) {
         if (asserting_kill) {
             safety_kill_robot();
         } else {
-            printf("Enabling Robot\n");
+            LOG_INFO("Enabling Robot");
             last_kill_switch_change = get_absolute_time();
         }
     }
@@ -151,7 +153,7 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 
 void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
     if (!rmw_uros_epoch_synchronized()){
-        printf("Safety Kill Switch: No Time Synchronization for Comand Verification!\n");
+        LOG_ERROR("Safety Kill Switch: No Time Synchronization for Comand Verification!");
         safety_raise_fault(FAULT_ROS_SOFT_FAIL);
         return;
     }
@@ -162,7 +164,7 @@ void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
     int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
 
     if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
-        printf("Stale kill switch report received: %lld ms old\n", command_time_diff);
+        LOG_WARN("Stale kill switch report received: %lld ms old", command_time_diff);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -170,14 +172,14 @@ void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
     // Make sure kill switch id is valid
     if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
             msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
-        printf("Invalid kill switch id used %d\n", msg->kill_switch_id);
+        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
 
     // Make sure frame id isn't too large
     if (msg->header.frame_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
-        printf("Software Kill Frame ID too large\n");
+        LOG_WARN("Software Kill Frame ID too large");
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -186,7 +188,7 @@ void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
 
     if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
             strncmp(kill_entry->locking_frame, msg->header.frame_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
-        printf("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)\n", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -322,40 +324,44 @@ static uint32_t prev_scratch2 = 0;
 
 static void safety_print_last_reset_cause(void){
     if (had_watchdog_reboot) {
-        printf("Watchdog Reset (Total Crashes: %d", (*reset_counter) & 0xFF);
+        char message[256];
+        message[0] = '\0';
+
+        snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "Watchdog Reset (Total Crashes: %d", (*reset_counter) & 0xFF);
         if ((*reset_counter) & 0xFF00) {
-            printf(" - Panics: %d", ((*reset_counter) >> 8) & 0xFF);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, " - Panics: %d", ((*reset_counter) >> 8) & 0xFF);
         }
         if ((*reset_counter) & 0xFF0000) {
-            printf(" - Hard Faults: %d", ((*reset_counter) >> 16) & 0xFF);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, " - Hard Faults: %d", ((*reset_counter) >> 16) & 0xFF);
         }
         if ((*reset_counter) & 0xFF000000) {
-            printf(" - Assert Fails: %d", ((*reset_counter) >> 24) & 0xFF);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, " - Assert Fails: %d", ((*reset_counter) >> 24) & 0xFF);
         }
 
         if (last_fault_list != 0) {
-            printf(") (Faults: 0x%x", last_fault_list);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, ") (Faults: 0x%x", last_fault_list);
         }
 
-        printf(") - Reason: ");
+        snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, ") - Reason: ");
 
         if (last_reset_reason == UNKNOWN_SAFETY_PREINIT) {
-            printf("UNKNOWN_SAFETY_PREINIT\n");
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "UNKNOWN_SAFETY_PREINIT");
         } else if (last_reset_reason == UNKNOWN_SAFETY_ACTIVE) {
-            printf("UNKNOWN_SAFETY_ACTIVE\n");
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "UNKNOWN_SAFETY_ACTIVE");
         } else if (last_reset_reason == PANIC) {
-            printf("PANIC (Message: 0x%08x)\n", prev_scratch1);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "PANIC (Message: 0x%08x)", prev_scratch1);
         } else if (last_reset_reason == HARD_FAULT) {
-            printf("HARD_FAULT (Fault Address: 0x%08x)\n", prev_scratch1);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "HARD_FAULT (Fault Address: 0x%08x)", prev_scratch1);
         } else if (last_reset_reason == ASSERT_FAIL) {
-            printf("ASSERT_FAIL (File: 0x%08x Line: %d)\n", prev_scratch1, prev_scratch2);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "ASSERT_FAIL (File: 0x%08x Line: %d)", prev_scratch1, prev_scratch2);
         } else if (last_reset_reason == IN_ROS_TRANSPORT_LOOP) {
-            printf("ROS Agent Lost\n");
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "ROS Agent Lost");
         } else {
-            printf("Invalid Data in Reason Register\n");
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "Invalid Data in Reason Register");
         }
+        LOG_INFO(message);
     } else {
-        printf("Clean boot\n");
+        LOG_INFO("Clean boot");
     }
 }
 

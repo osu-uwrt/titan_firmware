@@ -56,7 +56,7 @@ const struct rp2040_board_instance board_definitions[] = {
         .serial = "E660B440075F7B26"
     },
     {
-        .board_type_name = "backplane_breakout_board_eval_hat",
+        .board_type_name = "rp2040_eval_board",
         .serial = "E460CCB01B3F532C"
     },
 };

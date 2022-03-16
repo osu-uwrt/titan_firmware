@@ -7,6 +7,8 @@
 #include "hardware/clocks.h"
 #include "hardware/pio.h"
 
+#include "basic_logging/logging.h"
+
 #include "drivers/safety.h"
 #include "hw/dshot.h"
 
@@ -78,7 +80,7 @@ static inline void dshot_send_internal(uint8_t thruster_id, uint16_t throttle_va
     // The buffer should ideally never fill up. If it does unexpected results due to blocking during 
     // high priority interrputs
     if (pio_sm_is_tx_fifo_full(THRUSTER_PIO(thruster_id), THRUSTER_SM(thruster_id))) {
-        printf("DShot PIO Buffer Stall\n");
+        LOG_ERROR("DShot PIO Buffer Stall");
         safety_raise_fault(FAULT_DSHOT_ERROR);
     }
 
@@ -138,7 +140,7 @@ static int64_t dshot_update_timeout(__unused alarm_id_t id, __unused void *user_
     dshot_stop_thrusters();
     dshot_time_thrusters_allowed = make_timeout_time_ms(DSHOT_UPDATE_DISABLE_TIME_MS);
     safety_raise_fault(FAULT_THRUSTER_TIMEOUT);
-    printf("Thrusters Timed Out\n");
+    LOG_ERROR("Thrusters Timed Out");
     return 0;
 }
 
@@ -166,7 +168,7 @@ void dshot_update_thrusters(riptide_msgs2__msg__PwmStamped *thruster_commands) {
 
     for (int i = 0; i < 8; i++){
         if ((thruster_commands[i] > 0 && thruster_commands[i] < 48) || thruster_commands[i] > 2047) {
-            printf("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
+            LOG_WARN("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
             safety_raise_fault(FAULT_DSHOT_ERROR);
             dshot_stop_thrusters();
             return;

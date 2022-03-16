@@ -37,6 +37,7 @@ add_executable(copro_firmware
 	src/drivers/safety.c
 	src/drivers/safety_helper.S
 	src/drivers/bmp280.c
+	src/hw/actuator.c
 	src/hw/balancer_adc.c
 	src/hw/depth_sensor.c
 	src/hw/dio.c
@@ -72,9 +73,17 @@ micro_ros_enable(copro_firmware)
 target_compile_definitions(copro_firmware PUBLIC PICO_PANIC_FUNCTION=safety_panic)
 target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
+# Include the actuator i2c interafce headers into this project
+add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
+add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_INFO)
+
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
 target_link_libraries(copro_firmware
+	actuator_i2c_interface
+	basic_logging
+	
 	pico_stdlib
 	hardware_exception
 #	hardware_pio

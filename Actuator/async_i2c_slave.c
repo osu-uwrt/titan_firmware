@@ -6,12 +6,10 @@
 #include "pico/mutex.h"
 #include "pico/time.h"
 
-#include "basic_logging/logging.h"
+#include "async_i2c_slave.h"
+//#include "drivers/safety.h"
 
-#include "drivers/async_i2c.h"
-#include "drivers/safety.h"
-
-bool async_i2c_initialized = false;
+bool async_i2c_slave_initialized = false;
 static uint i2c_bus_timeout;
 
 #define I2C_REQ_QUEUE_SIZE 16
@@ -20,14 +18,10 @@ static inline bool i2c_reserved_addr(uint8_t addr) {
     return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
 }
 
-// Define Ring Bufer
-struct pending_i2c_request {
-    const struct async_i2c_request *pending_request;
-    bool *in_progress;
-} pending_request_queue[I2C_REQ_QUEUE_SIZE];
+#define I2C_ERROR(...) do {printf("[I2C_ERROR]")}
 
-static int request_queue_next_entry = 0;
-static int request_queue_next_space = 0;
+#define I2C_DEBUG(...) do {printf("[I2C_DEBUG] " __VA_ARGS__);} while(0);
+//#define I2C_DEBUG(...) do {} while(0);
 
 // ========================================
 // Bus Management Functions
@@ -128,7 +122,7 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
     active_transfer.alarm_active = false;
     i2c_inst_t *i2c = active_transfer.request->i2c;
 
-    LOG_DEBUG("Timeout Called (0x%p)", active_transfer.request);
+    I2C_DEBUG("Timeout Called (0x%p)\n", active_transfer.request);
     hw_set_bits(&i2c->hw->enable, I2C_IC_ENABLE_ABORT_BITS);
     return 0;
 }
@@ -145,7 +139,7 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
  */
 int total_allocated_alarm_count = 0;
 static void async_i2c_start_request_internal(const struct async_i2c_request *request, bool *in_progress) {
-    LOG_DEBUG("Starting request 0x%p", request);
+    I2C_DEBUG("Starting request 0x%p\n", request);
     active_transfer.request = request;
     active_transfer.in_progress = in_progress;
     active_transfer.bytes_received = 0;
@@ -179,7 +173,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         return;  // In the event the IRQ went away, ignore it
         // Could happen if the full/empty irq tripped during fill/emptying
     }
-    LOG_DEBUG("Interrupt callback on %s for 0x%p, active interrupts 0x%x", (i2c == i2c0 ? "i2c0" : (i2c == i2c1 ? "i2c1" : "Unknown")), active_transfer.request, i2c->hw->raw_intr_stat & i2c->hw->intr_mask);
+    I2C_DEBUG("Interrupt callback on %s for 0x%p, active interrupts 0x%x\n", (i2c == i2c0 ? "i2c0" : (i2c == i2c1 ? "i2c1" : "Unknown")), active_transfer.request, i2c->hw->raw_intr_stat & i2c->hw->intr_mask);
 
     hard_assert_if(ASYNC_I2C, i2c != active_transfer.request->i2c);
 
@@ -187,10 +181,6 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     if (has_irq_pending(i2c, TX_OVER)) {
         // Tx Data Buffer Overflow
         panic("I2C TX Buffer Overflow");
-    }
-    if (has_irq_pending(i2c, RX_UNDER)) {
-        // Read when no data available
-        panic("I2C RX Underflow");
     }
     if (has_irq_pending(i2c, RX_OVER)) {
         // The i2c buffer wasn't read in time
@@ -225,7 +215,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                                           I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS;
 
         if (abort_reason & ~(I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_BITS | valid_bus_faults)) {
-            LOG_ERROR("Unexpected TX Abort: %lu", abort_reason);
+            printf("Unexpected TX Abort: %lu\n", abort_reason);
             safety_raise_fault(FAULT_ASYNC_I2C_ERROR);
         }
         
@@ -304,7 +294,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         } else if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
             async_i2c_start_receive_stage();
         } else if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.bytes_received == active_transfer.request->bytes_to_receive) {
-            LOG_DEBUG("Finalizing Request 0x%p...", active_transfer.request);
+            I2C_DEBUG("Finalizing Request 0x%p...\n", active_transfer.request);
             hard_assert_if(ASYNC_I2C, active_transfer.request_state != I2C_TRANSMITTING && active_transfer.request_state != I2C_RECEIVING);
 
             if (active_transfer.alarm_active) {
@@ -338,7 +328,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
             // Increment ring buffer
             request_queue_next_entry = (request_queue_next_entry + 1) % I2C_REQ_QUEUE_SIZE;
         } else {
-            LOG_DEBUG("Transferring to idle state (0x%p)", active_transfer.request);
+            I2C_DEBUG("Transferring to idle state (0x%p)\n", active_transfer.request);
             active_transfer.request_state = I2C_IDLE;
         }
     }
@@ -355,7 +345,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
  * @return true  Request is okay to send
  * @return false Part of the request has an invalid value
  */
-__unused static bool async_i2c_validate_request(const struct async_i2c_request *request) {
+static bool async_i2c_validate_request(const struct async_i2c_request *request) {
     // Check for reserved i2c addresses
     if (request->address >= 0x80 || i2c_reserved_addr(request->address)) {
         return false;
@@ -407,7 +397,7 @@ static bool async_i2c_queue_full(void) {
 }
 
 void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress) {
-    if (!async_i2c_initialized) {
+    if (!async_i2c_slave_initialized) {
         panic("Aync I2C not initialized");
     }
     
@@ -419,7 +409,7 @@ void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progres
 
     if (async_i2c_queue_full()) {
         restore_interrupts(prev_interrupt);
-        LOG_ERROR("Buffer overflow enqueuing i2c commands");
+        printf("Buffer overflow enqueuing i2c commands\n");
         safety_raise_fault(FAULT_ASYNC_I2C_ERROR);
         return;
     }
@@ -464,31 +454,30 @@ static void async_i2c_configure_interrupt_hw(i2c_inst_t *i2c) {
     i2c->hw->tx_tl = 6;
 }
 
-void async_i2c_init(uint baudrate, uint bus_timeout_ms) {
-    i2c_bus_timeout = bus_timeout_ms;
+void async_i2c_slave_init(uint baudrate, uint8_t i2c_address) {
+    assert(!i2c_reserved_addr(i2c_address));
 
-    i2c_init(SENSOR_I2C_HW, baudrate);
-    gpio_set_function(SENSOR_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(SENSOR_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(SENSOR_SDA_PIN);
-    gpio_pull_up(SENSOR_SCL_PIN);
-    irq_set_exclusive_handler(I2C0_IRQ, &async_i2c0_irq_handler);
-    async_i2c_configure_interrupt_hw(SENSOR_I2C_HW);
+    // I2C Definitions
+    const i2c_inst_t * const i2c_hw = BUILTIN_I2C_HW;
+    const uint sda_pin = BUILTIN_SDA_PIN;
+    const uint scl_pin = BUILTIN_SCL_PIN;
 
-    i2c_init(BOARD_I2C_HW, baudrate);
-    gpio_set_function(BOARD_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(BOARD_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(BOARD_SDA_PIN);
-    gpio_pull_up(BOARD_SCL_PIN);
-    irq_set_exclusive_handler(I2C1_IRQ, &async_i2c1_irq_handler);
-    async_i2c_configure_interrupt_hw(BOARD_I2C_HW);
 
-    irq_set_enabled(I2C0_IRQ, true);
-    irq_set_enabled(I2C1_IRQ, true);
+    const uint irq_num = (i2c_hw == i2c0 ? I2C0_IRQ : I2C1_IRQ);
+    const irq_handler_t irq_handler = (i2c_hw == i2c0 ? &async_i2c0_irq_handler : &async_i2c1_irq_handler);
+    i2c_init(i2c_hw, baudrate);
+    i2c_set_slave_mode(i2c_hw, true, i2c_address);
+    gpio_set_function(sda_pin, GPIO_FUNC_I2C);
+    gpio_set_function(scl_pin, GPIO_FUNC_I2C);
+    gpio_pull_up(sda_pin);
+    gpio_pull_up(scl_pin);
+    irq_set_exclusive_handler(irq_num, irq_handler);
+    async_i2c_configure_interrupt_hw(i2c_hw);
+
+    irq_set_enabled(irq_num, true);
 
     // Make the I2C pins available to picotool
-    bi_decl_if_func_used(bi_2pins_with_func(SENSOR_SDA_PIN, SENSOR_SCL_PIN, GPIO_FUNC_I2C));
-    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
+    bi_decl_if_func_used(bi_2pins_with_func(sda_pin, scl_pin, GPIO_FUNC_I2C));
 
-    async_i2c_initialized = true;
+    async_i2c_slave_initialized = true;
 }

@@ -1,6 +1,8 @@
 #include <malloc.h>
 #include <stdio.h>
 
+#include "basic_logging/logging.h"
+
 extern char __StackLimit;
 extern char __StackTop;
 extern char __data_start__;
@@ -26,17 +28,17 @@ void memmonitor_print_stats(void) {
 	size_t reserved_mem = total_mem - total_heap_mem;
 
 
-	printf("\n==========Allocation Data==========\n");
-	printf("Total heap memory available:           %zu\n", total_heap_mem);
-	printf("Total memory on chip:                  %zu\n", total_mem);
-	printf("Stack memory reserved:                 %zu\n", stack_mem);
-	printf("Static memory reserved:                %zu\n", static_mem);
-	printf("Memory Usage:                          %.1f%%\n", 100*(((double)(mi.arena - mi.keepcost + reserved_mem))/((double)total_mem)));
-	printf("Total non-mmapped bytes (arena):       %zu\n", mi.arena);
-           printf("# of free chunks (ordblks):            %zu\n", mi.ordblks);
-           printf("# of mapped regions (hblks):           %zu\n", mi.hblks);
-           printf("Bytes in mapped regions (hblkhd):      %zu\n", mi.hblkhd);
-           printf("Total allocated space (uordblks):      %zu\n", mi.uordblks);
-           printf("Total free space (fordblks):           %zu\n", mi.fordblks);
-           printf("Topmost releasable block (keepcost):   %zu\n", mi.keepcost);
+	LOG_INFO("\n==========Allocation Data==========");
+	LOG_INFO("Total heap memory available:           %zu", total_heap_mem);
+	LOG_INFO("Total memory on chip:                  %zu", total_mem);
+	LOG_INFO("Stack memory reserved:                 %zu", stack_mem);
+	LOG_INFO("Static memory reserved:                %zu", static_mem);
+	LOG_INFO("Memory Usage:                          %.1f%%", 100*(((double)(mi.arena - mi.keepcost + reserved_mem))/((double)total_mem)));
+	LOG_INFO("Total non-mmapped bytes (arena):       %zu", mi.arena);
+	LOG_INFO("# of free chunks (ordblks):            %zu", mi.ordblks);
+	LOG_INFO("# of mapped regions (hblks):           %zu", mi.hblks);
+	LOG_INFO("Bytes in mapped regions (hblkhd):      %zu", mi.hblkhd);
+	LOG_INFO("Total allocated space (uordblks):      %zu", mi.uordblks);
+	LOG_INFO("Total free space (fordblks):           %zu", mi.fordblks);
+	LOG_INFO("Topmost releasable block (keepcost):   %zu", mi.keepcost);
 }

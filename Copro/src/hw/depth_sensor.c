@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "basic_logging/logging.h"
+
 #include "hardware/watchdog.h"
 
 #include "drivers/async_i2c.h"
@@ -48,7 +50,7 @@ static int depth_prom_read_index;
  * @param abort_data The contents of the abort register
  */
 static void depth_init_failure(__unused const struct async_i2c_request* req, uint32_t abort_data) {
-    printf("Failed to init depth sensor (Tx Abort: %d, req: 0x%p)\n", abort_data, req);
+    LOG_ERROR("Failed to init depth sensor (Tx Abort: %d, req: 0x%p)", abort_data, req);
     safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
 }
 
@@ -123,7 +125,7 @@ static void depth_prom_read_finished(__unused const struct async_i2c_request *re
         uint8_t crc = (depth_prom[0] >> 12) & 0xF;
         uint8_t calculated_crc = crc4(depth_prom);
         if (crc != calculated_crc) {
-            printf("Depth Init Error - Invalid CRC: 0x%02x expected, 0x%02x calculated\n", crc, calculated_crc);
+            LOG_ERROR("Depth Init Error - Invalid CRC: 0x%02x expected, 0x%02x calculated", crc, calculated_crc);
             safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
             return;
         }
@@ -286,7 +288,7 @@ static void depth_adc_read_finished(__unused const struct async_i2c_request *req
  * @param abort_data The contents of the abort register
  */
 static void depth_read_failure(__unused const struct async_i2c_request *req, uint32_t abort_data) {
-    printf("Failed to read depth sensor (Tx Abort: %d)\n", abort_data);
+    LOG_WARN("Failed to read depth sensor (Tx Abort: %d)", abort_data);
     if (!depth_initialized) {
         // This callback could occur during calibration which would fail to initialize the sensor
         safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
@@ -328,7 +330,7 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
  */
 static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data) {
     if (depth_read_running) {
-        printf("Depth new transaction started with one still in progress\n");
+        LOG_ERROR("Depth new transaction started with one still in progress");
         safety_raise_fault(FAULT_DEPTH_ERROR);
     } else {
         depth_adc_queue_reads(1, NULL);
@@ -384,7 +386,7 @@ static void depth_begin_zero_depth(void) {
         zero_count = 0;
         depth_adc_queue_reads(20, &depth_zero_depth);
     } else {
-        printf("Depth surface pressure found... Skipping Zeroing of Depth\n");
+        LOG_INFO("Depth surface pressure found... Skipping Zeroing of Depth");
         surface_pressure = (int32_t)watchdog_hw->scratch[7];
 
         // Start depth sensor read task

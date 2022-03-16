@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "basic_logging/logging.h"
 #include "pico/time.h"
 
 #include "drivers/async_i2c.h"
@@ -72,7 +73,7 @@ static int64_t adc_poll_alarm_cb(__unused alarm_id_t id, __unused void *user_dat
     struct adc_instance *inst = (struct adc_instance *)user_data;
 
     if (inst->read_in_progress) {
-        printf("ADC Read requested with a read still in progress\n");
+        LOG_ERROR("ADC Read requested with a read still in progress");
         safety_raise_fault(FAULT_ADC_ERROR);
     } else {
         inst->read_in_progress = true;
@@ -198,7 +199,7 @@ static void adc_get_revision_cb(const struct async_i2c_request * req) {
     struct adc_instance *inst = (struct adc_instance *)req->user_data;
 
     if (inst->rx_buffer[0] != 9) {
-        printf("ADC: Invalid Revision ID (inst: %p - ID: %x)\n", inst, inst->rx_buffer[0]);
+        LOG_ERROR("ADC: Invalid Revision ID (inst: %p - ID: %x)", inst, inst->rx_buffer[0]);
         if (inst->config->failed_init_callback) {
             inst->config->failed_init_callback(req, 0);
         }
@@ -216,7 +217,7 @@ static void adc_get_manufacturer_cb(const struct async_i2c_request * req) {
     struct adc_instance *inst = (struct adc_instance *)req->user_data;
 
     if (inst->rx_buffer[0] != 1) {
-        printf("ADC: Invalid Manufactuer ID (inst: %p - ID: %x)\n", inst, inst->rx_buffer[0]);
+        LOG_ERROR("ADC: Invalid Manufactuer ID (inst: %p - ID: %x)", inst, inst->rx_buffer[0]);
         if (inst->config->failed_init_callback) {
             inst->config->failed_init_callback(req, 0);
         }

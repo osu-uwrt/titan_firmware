@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
+#include "basic_logging/logging.h"
 #include "build_version.h"
 
 #include "drivers/bmp280.h"
@@ -119,7 +120,7 @@ void get_uncomp_data_cb(const struct async_i2c_request * req) {
 }
 
 void get_uncomp_data_fail(__unused const struct async_i2c_request * req, long unsigned int fault_id) {
-    printf("Failed to read bp280 sensor: Fault %d\n", fault_id);
+    LOG_ERROR("Failed to read bp280 sensor: Fault %d", fault_id);
     safety_raise_fault(FAULT_ADC_ERROR);
 }
 
@@ -233,27 +234,26 @@ void print_rslt(const char api_name[], int8_t rslt)
 {
     if (rslt != BMP280_OK)
     {
-        printf("%s\t", api_name);
         if (rslt == BMP280_E_NULL_PTR)
         {
-            printf("Error [%d] : Null pointer error\r\n", rslt);
+            LOG_ERROR("%s\tError [%d] : Null pointer error", api_name, rslt);
         }
         else if (rslt == BMP280_E_COMM_FAIL)
         {
-            printf("Error [%d] : Bus communication failed\r\n", rslt);
+            LOG_ERROR("%s\tError [%d] : Bus communication failed", api_name, rslt);
         }
         else if (rslt == BMP280_E_IMPLAUS_TEMP)
         {
-            printf("Error [%d] : Invalid Temperature\r\n", rslt);
+            LOG_ERROR("%s\tError [%d] : Invalid Temperature", api_name, rslt);
         }
         else if (rslt == BMP280_E_DEV_NOT_FOUND)
         {
-            printf("Error [%d] : Device not found\r\n", rslt);
+            LOG_ERROR("%s\tError [%d] : Device not found", api_name, rslt);
         }
         else
         {
             /* For more error codes refer "*_defs.h" */
-            printf("Error [%d] : Unknown error code\r\n", rslt);
+            LOG_ERROR("%s\tError [%d] : Unknown error code", api_name, rslt);
         }
     }
 }

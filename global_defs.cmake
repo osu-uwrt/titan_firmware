@@ -10,6 +10,10 @@ include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 # Add versioning commands
 include(${REPO_DIR}/lib/version_tag/version_tag.cmake)
 
+# Useful definitions
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME_RAW__='$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))'")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__FILENAME_RAW__='$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))'")
+
 # Define custom functions for assorted features
 
 function(uwrt_use_upload_tool target)

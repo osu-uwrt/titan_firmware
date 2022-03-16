@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD pico)
+set(PICO_BOARD rp2040_eval_board)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -26,6 +26,7 @@ pico_sdk_init()
 # Define executable
 add_executable(actuator_firmware
 	main.c
+	async_i2c_slave.c
 )
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -43,6 +44,13 @@ target_compile_definitions(actuator_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
+# Include the actuator i2c interafce headers into this project
+add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
+
 # Define linking and targets
 pico_add_extra_outputs(actuator_firmware)
-target_link_libraries(actuator_firmware pico_stdlib)
+target_link_libraries(actuator_firmware 
+	actuator_i2c_interface
+	pico_stdlib
+	hardware_i2c
+)

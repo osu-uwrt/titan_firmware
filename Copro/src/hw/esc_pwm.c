@@ -3,6 +3,7 @@
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
 
+#include "basic_logging/logging.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
@@ -77,7 +78,7 @@ static int64_t esc_pwm_update_timeout(__unused alarm_id_t id, __unused void *use
     esc_pwm_stop_thrusters();
     esc_pwm_time_thrusters_allowed = make_timeout_time_ms(ESC_PWM_UPDATE_DISABLE_TIME_MS);
     safety_raise_fault(FAULT_THRUSTER_TIMEOUT);
-    printf("Thrusters Timed Out\n");
+    LOG_WARN("Thrusters Timed Out");
     return 0;
 }
 
@@ -91,7 +92,7 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
 
     // Make sure time is synchronized with network before attempting to compare timestamps
     if (!rmw_uros_epoch_synchronized()){
-        printf("ESC PWM No Time Synchronization for Comand Verification\n");
+        LOG_ERROR("ESC PWM No Time Synchronization for Comand Verification");
         safety_raise_fault(FAULT_ROS_SOFT_FAIL);
         return;
     }
@@ -102,7 +103,7 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
     int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
 
     if (command_time_diff > ESC_PWM_COMMAND_MAX_TIME_DIFF_MS || command_time_diff < -ESC_PWM_COMMAND_MAX_TIME_DIFF_MS) {
-        printf("Stale PWM command received: %lld ms old\n", command_time_diff);
+        LOG_WARN("Stale PWM command received: %lld ms old", command_time_diff);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -137,7 +138,7 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
     for (int i = 0; i < 8; i++){
         uint16_t val = thruster_commands->pwm[i];
         if (val < 1100 || val > 1900) {
-            printf("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
+            LOG_WARN("Invalid Thruster Command Sent: %d on Thruster %d", thruster_commands[i], i+1);
             safety_raise_fault(FAULT_ROS_BAD_COMMAND);
             esc_pwm_stop_thrusters();
             return;
