@@ -3,6 +3,9 @@
 
 #include "basic_logging/logging.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "memmonitor"
+
 extern char __StackLimit;
 extern char __StackTop;
 extern char __data_start__;

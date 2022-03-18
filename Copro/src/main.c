@@ -18,6 +18,9 @@
 #include "tasks/lowbatt.h"
 #include "tasks/ros.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "copro_main"
+
 int main()
 {
     basic_logger_set_global_log_level(LEVEL_DEBUG);

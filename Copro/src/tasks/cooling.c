@@ -5,6 +5,9 @@
 #include "hw/dio.h"
 #include "tasks/cooling.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "cooling"
+
 bool cooling_initialized;
 int cooling_threshold = 40;
 

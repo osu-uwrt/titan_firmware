@@ -9,6 +9,9 @@
 #include "drivers/adc.h"
 #include "drivers/safety.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "adc_driver"
+
 static int next_available_channel(struct adc_instance *inst, int next_id) {
     uint8_t polling_id_list = inst->config->monitored_channels >> next_id;
     if (polling_id_list == 0) {

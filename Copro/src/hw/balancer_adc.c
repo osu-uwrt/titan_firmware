@@ -8,6 +8,9 @@
 #include "drivers/safety.h"
 #include "hw/balancer_adc.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "balancer_adc"
+
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 
 static void balancer_adc_failure(__unused const struct async_i2c_request * req, uint32_t abort_data) {

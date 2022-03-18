@@ -12,6 +12,9 @@
 #include "hw/depth_sensor.h"
 #include "hw/depth_sensor_commands.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "depth_sensor"
+
 /**
  * @brief The polling rate in milliseconds for how often the depth should refresh
  */

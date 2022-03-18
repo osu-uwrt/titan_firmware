@@ -11,6 +11,9 @@
 #include "drivers/async_i2c.h"
 #include "drivers/safety.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "async_i2c"
+
 bool async_i2c_initialized = false;
 static uint i2c_bus_timeout;
 

@@ -3,6 +3,9 @@
 
 #include "basic_logging/logging.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "actuator_interface"
+
 static void test_request_done(__unused const struct async_i2c_request * req) {
     LOG_INFO("Request succesfully sent");
 }

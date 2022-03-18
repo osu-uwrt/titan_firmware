@@ -14,6 +14,9 @@
 
 #include "dshot.pio.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "dshot"
+
 // Thruster lookup macros
 // Thruster id is a value 1-8
 #define THRUSTER_PIO(thruster_id) (thruster_id > 4 ? pio1 : pio0)

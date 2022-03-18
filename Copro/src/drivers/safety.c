@@ -19,6 +19,9 @@
 #include "hw/dshot.h"
 #include "hw/esc_pwm.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "safety"
+
 // ========================================
 // Fault Management Functions
 // ========================================

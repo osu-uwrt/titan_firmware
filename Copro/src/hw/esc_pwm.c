@@ -12,6 +12,9 @@
 #include "drivers/safety.h"
 #include "hw/esc_pwm.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "esc_pwm"
+
 #define ESC_NEUTRAL_PWM_US 1500
 
 bool esc_pwm_initialized = false;

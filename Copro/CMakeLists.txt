@@ -77,6 +77,7 @@ target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
 add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_INFO)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)

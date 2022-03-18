@@ -8,6 +8,9 @@
 #include "drivers/safety.h"
 #include "hw/esc_adc.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "esc_adc"
+
 #define max(num1, num2) (num1 > num2 ? num1 : num2)
 
 static void esc_adc_failure(__unused const struct async_i2c_request * req, uint32_t abort_data) {

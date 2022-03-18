@@ -6,6 +6,9 @@
 #include "hw/esc_pwm.h"
 #include "tasks/lowbatt.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "lowbatt"
+
 bool lowbatt_initialized;
 
 static bool port_battery_sensed = false;

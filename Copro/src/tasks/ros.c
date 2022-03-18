@@ -34,6 +34,9 @@
 #include "tasks/cooling.h"
 #include "hw/bmp280_temp.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "ros"
+
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_FATAL("Failed status on in : %d. Aborting.",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_ERROR("Failed status on in " __FILE__ ":%d : %d. Continuing.",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
 
