@@ -86,8 +86,8 @@ void basic_logger_remove_custom_logger_callback(custom_logger_cb_t callback) {
     }
 }
 
-void basic_logger_log_common(const int log_level, const char * filename, const int line, const char * const function, const char * const fmt, ...) {
-    if (log_level >= dynamic_global_log_level) {
+void basic_logger_log_common(const int log_level, const int local_log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, ...) {
+    if (log_level >= dynamic_global_log_level || log_level >= local_log_level) {
         double uptime_seconds = to_us_since_boot(get_absolute_time()) / 1E6;
 
 #if BASIC_LOGGER_USE_COLOR_CODES
@@ -96,9 +96,9 @@ void basic_logger_log_common(const int log_level, const char * filename, const i
 
 
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-        printf("[%s] [%.6f] [%s:%d]: ", GET_LEVEL_STRING(log_level), uptime_seconds, filename, line);
+        printf("[%s] [%.6f] [%s] (%s:%d): ", GET_LEVEL_STRING(log_level), uptime_seconds, unit, filename, line);
 #else  
-        printf("[%s] [%.6lf]: ", GET_LEVEL_STRING(log_level), uptime_seconds);
+        printf("[%s] [%.6lf] [%s]: ", GET_LEVEL_STRING(log_level), uptime_seconds, unit);
 #endif
         printf(MSG_COLOR_STRING(log_level));
 
@@ -108,7 +108,7 @@ void basic_logger_log_common(const int log_level, const char * filename, const i
         printf(CLEAR_COLOR_STRING "\n");
         
         if (custom_cb) {
-            custom_cb(custom_cb_args, log_level, filename, line, function, fmt, args);
+            custom_cb(custom_cb_args, log_level, unit, filename, line, function, fmt, args);
         }
         va_end (args);
     }

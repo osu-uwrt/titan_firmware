@@ -26,31 +26,33 @@ pico_sdk_init()
 # Define executable
 add_executable(actuator_firmware
 	main.c
-	async_i2c_slave.c
+	async_i2c_target.c
 )
+
+target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
 generate_version_tag(actuator_firmware 1 0 PROTO)
 
 # Configure pico-sdk
-pico_enable_stdio_usb(actuator_firmware 1)
 pico_enable_stdio_uart(actuator_firmware 0)
 pico_set_program_name(actuator_firmware "Actuator Firmware")
-
-# Wait for 2 seconds for serial to connect
-target_compile_definitions(actuator_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
+uwrt_enable_dual_uart(actuator_firmware)
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
 # Include the actuator i2c interafce headers into this project
 add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
+add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_firmware)
 target_link_libraries(actuator_firmware 
 	actuator_i2c_interface
+	basic_logging
+
 	pico_stdlib
 	hardware_i2c
 )

@@ -3,6 +3,8 @@
 
 #include "actuator_i2c/commands.h"
 #include "actuator_i2c/crc8.h"
-#include "actuator_i2c/status.h"
+#include "actuator_i2c/responses.h"
+
+#define ACTUATOR_I2C_ADDR 0x3A
 
 #endif

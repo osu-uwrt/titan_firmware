@@ -49,22 +49,33 @@
 #define LEVEL_FATAL 5
 #define LEVEL_NO_LOGGING
 
-typedef void (*custom_logger_cb_t)(void* args, const int log_level, const char * filename, const int line, const char * const function, const char * const fmt, va_list argp);
+typedef void (*custom_logger_cb_t)(void* args, const int log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, va_list argp);
 extern void basic_logger_set_global_log_level(int log_level);
 extern void basic_logger_set_custom_logger_callback(custom_logger_cb_t callback, void* args);
-extern void basic_logger_log_common(const int log_level, const char * filename, const int line, const char * const function, const char * const fmt, ...);
+extern void basic_logger_log_common(const int log_level, const int local_log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, ...);
 
+
+// Logging Unit Definitions
+// These can be undefined and redefined to change local log settings
+#define LOGGING_UNIT_NAME "No Unit"
+#define LOGGING_UNIT_LOCAL_LEVEL BASIC_LOGGER_DEFAULT_LEVEL
+
+
+// String manipulation for converting raw filename to filename string
+// Primarily for intellise since it doesn't read the cmake files properly
 #define xstr(s) str(s)
 #define str(s) #s
 #define __FILENAME__ xstr(__FILENAME_RAW__)
 
+
+// Logging function definitions
 #if BASIC_LOGGER_MIN_SEVERITY > LEVEL_DEBUG
 #define LOG_DEBUG(...) do {} while(0);
 #else
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-#define LOG_DEBUG(...) do {basic_logger_log_common(LEVEL_DEBUG, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#define LOG_DEBUG(...) do {basic_logger_log_common(LEVEL_DEBUG, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
-#define LOG_DEBUG(...) do {basic_logger_log_common(LEVEL_DEBUG, "", 0, "", __VA_ARGS__);} while(0);
+#define LOG_DEBUG(...) do {basic_logger_log_common(LEVEL_DEBUG, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 
@@ -72,9 +83,9 @@ extern void basic_logger_log_common(const int log_level, const char * filename, 
 #define LOG_INFO(...) do {} while(0);
 #else
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-#define LOG_INFO(...) do {basic_logger_log_common(LEVEL_INFO, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#define LOG_INFO(...) do {basic_logger_log_common(LEVEL_INFO, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
-#define LOG_INFO(...) do {basic_logger_log_common(LEVEL_INFO, "", 0, "", __VA_ARGS__);} while(0);
+#define LOG_INFO(...) do {basic_logger_log_common(LEVEL_INFO, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 
@@ -82,9 +93,9 @@ extern void basic_logger_log_common(const int log_level, const char * filename, 
 #define LOG_WARN(...) do {} while(0);
 #else
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-#define LOG_WARN(...) do {basic_logger_log_common(LEVEL_WARN, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#define LOG_WARN(...) do {basic_logger_log_common(LEVEL_WARN, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
-#define LOG_WARN(...) do {basic_logger_log_common(LEVEL_WARN, "", 0, "", __VA_ARGS__);} while(0);
+#define LOG_WARN(...) do {basic_logger_log_common(LEVEL_WARN, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 
@@ -92,9 +103,9 @@ extern void basic_logger_log_common(const int log_level, const char * filename, 
 #define LOG_ERROR(...) do {} while(0);
 #else
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-#define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
-#define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, "", 0, "", __VA_ARGS__);} while(0);
+#define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 
@@ -102,9 +113,9 @@ extern void basic_logger_log_common(const int log_level, const char * filename, 
 #define LOG_FATAL(...) do {} while(0);
 #else
 #if BASIC_LOGGER_PRINT_SOURCE_LOCATION
-#define LOG_FATAL(...) do {basic_logger_log_common(LEVEL_FATAL, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#define LOG_FATAL(...) do {basic_logger_log_common(LEVEL_FATAL, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
-#define LOG_FATAL(...) do {basic_logger_log_common(LEVEL_FATAL, "", 0, "", __VA_ARGS__);} while(0);
+#define LOG_FATAL(...) do {basic_logger_log_common(LEVEL_FATAL, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 

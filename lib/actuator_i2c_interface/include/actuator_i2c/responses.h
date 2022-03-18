@@ -45,15 +45,40 @@ struct firmware_status {
 static_assert(sizeof(struct firmware_status) == 1, "Firmware status struct did not pack properly");
 
 
-typedef struct actuator_i2c_status {
-    uint8_t crc8;
+struct actuator_i2c_status {
     struct firmware_status firmware_status;
     enum claw_state claw_state;
     enum torpedo_state torpedo1_state;
     enum torpedo_state torpedo2_state;
     enum dropper_state dropper1_state;
     enum dropper_state dropper2_state;
-} __attribute__ ((packed)) actuator_i2c_status_t;
+} __attribute__ ((packed));
+#define ACTUATOR_STATUS_LENGTH sizeof(struct actuator_i2c_status)
 
+enum actuator_command_result {
+    ACTUATOR_RESULT_SUCCESSFUL = 0,
+    ACTUATOR_RESULT_FAILED = 1,
+    ACTUATOR_RESULT_RUNNING = 2,
+}  __attribute__ ((packed));
+static_assert(sizeof(enum claw_state) == 1, "Result enum did not pack properly");
+#define ACTUATOR_RESULT_LENGTH sizeof(enum claw_state)
+
+typedef struct actuator_i2c_response {
+    uint8_t crc8;
+    union {
+        struct actuator_i2c_status status;
+        enum actuator_command_result result;
+    } data;
+}  __attribute__ ((packed)) actuator_i2c_response_t;
+#define ACTUATOR_BASE_RESPONSE_LENGTH offsetof(actuator_i2c_response_t, data)
+
+
+#define ACTUATOR_GET_RESPONSE_SIZE(cmd_id) ( \
+    cmd_id == ACTUATOR_CMD_GET_STATUS ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_STATUS_LENGTH : \
+    cmd_id == ACTUATOR_CMD_OPEN_CLAW ? 0 : \
+    cmd_id == ACTUATOR_CMD_CLAW_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_TEST ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    0 \
+)
 
 #endif

@@ -481,7 +481,7 @@ void ros_start(const char* namespace) {
 	RCCHECK(rmw_uros_sync_session(2000));
 
 	// create executor
-	const uint num_executor_tasks = 7 + RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER;
+	const uint num_executor_tasks = 7 /*+ RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER*/;
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
@@ -492,7 +492,7 @@ void ros_start(const char* namespace) {
 }
 
 void ros_spin_ms(long ms) {
-	//RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
+	RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 
