@@ -495,7 +495,7 @@ void ros_start(const char* namespace) {
 }
 
 void ros_spin_ms(long ms) {
-	RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
+	//RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 

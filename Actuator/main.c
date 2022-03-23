@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "hardware/i2c.h"
+#include "hardware/watchdog.h"
 
 #include "actuator_i2c/interface.h"
 #include "basic_logging/logging.h"
@@ -21,6 +22,12 @@ int main() {
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, true);
     LOG_INFO("%s", FULL_BUILD_TAG);
+
+    async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
+
+    if (watchdog_enable_caused_reboot())
+        LOG_ERROR("Watchdog Reset");
+    watchdog_enable(3000, true);
 
     bool value = true;
 
@@ -72,6 +79,7 @@ int main() {
 
             LOG_INFO("Waiting for data...");
         }
+        watchdog_update();
     }
     return 0;
 }

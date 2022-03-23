@@ -23,7 +23,6 @@
 
 int main()
 {
-    basic_logger_set_global_log_level(LEVEL_DEBUG);
     // Immediate start code
     serial_init_early();
     LOG_INFO(FULL_BUILD_TAG);

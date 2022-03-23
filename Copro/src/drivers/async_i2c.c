@@ -287,6 +287,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
 
     }
     if (has_irq_pending(i2c, STOP_DET)) {
+        LOG_DEBUG("Stop Detected");
         // Cleanup previous request
         i2c->hw->clr_stop_det;
         hw_clear_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS | I2C_IC_INTR_MASK_M_RX_FULL_BITS);
@@ -303,8 +304,10 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         // Only do processing on start bit if the data was properly received
         // If an abort occurs then stop occurs before abort, so it might not be detected for an abort
         if (transfer_aborted) {
+            LOG_DEBUG("Transfer aborted");
             // Do nothing on aborted transfer
         } else if (active_transfer.request_state == I2C_TRANSMITTING && active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.request->bytes_to_receive > 0) {
+            LOG_DEBUG("Starting receive stage");
             async_i2c_start_receive_stage();
         } else if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send && active_transfer.bytes_received == active_transfer.request->bytes_to_receive) {
             LOG_DEBUG("Finalizing Request 0x%p...", active_transfer.request);
@@ -328,6 +331,8 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
             if (active_transfer.request->completed_callback) {
                 active_transfer.request->completed_callback(active_transfer.request);
             }
+        } else {
+            LOG_DEBUG("Unexpected STOP");
         }
     }
 
@@ -468,6 +473,7 @@ static void async_i2c_configure_interrupt_hw(i2c_inst_t *i2c) {
 }
 
 void async_i2c_init(uint baudrate, uint bus_timeout_ms) {
+    LOG_DEBUG("Initializing Async I2C");
     i2c_bus_timeout = bus_timeout_ms;
 
     i2c_init(SENSOR_I2C_HW, baudrate);

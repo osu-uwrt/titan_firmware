@@ -47,7 +47,11 @@
 #define LEVEL_WARN  3
 #define LEVEL_ERROR 4
 #define LEVEL_FATAL 5
-#define LEVEL_NO_LOGGING
+#define LEVEL_NO_LOGGING 6
+
+#if BASIC_LOGGER_DEFAULT_LEVEL < BASIC_LOGGER_MIN_SEVERITY
+#error Default logging level is below minimum severity
+#endif
 
 typedef void (*custom_logger_cb_t)(void* args, const int log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, va_list argp);
 extern void basic_logger_set_global_log_level(int log_level);
