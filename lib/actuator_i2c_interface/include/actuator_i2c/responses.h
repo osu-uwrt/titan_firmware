@@ -39,10 +39,11 @@ static_assert(sizeof(enum dropper_state) == 1, "Dropper status enum did not pack
 
 
 struct firmware_status {
-    uint8_t fault_present:1;
-    uint8_t firmware_version:7;
+    uint8_t version_major:4;
+    uint8_t version_minor:4;
+    uint8_t fault_list;
 } __attribute__ ((packed)) status;
-static_assert(sizeof(struct firmware_status) == 1, "Firmware status struct did not pack properly");
+static_assert(sizeof(struct firmware_status) == 2, "Firmware status struct did not pack properly");
 
 
 struct actuator_i2c_status {
@@ -72,12 +73,23 @@ typedef struct actuator_i2c_response {
 }  __attribute__ ((packed)) actuator_i2c_response_t;
 #define ACTUATOR_BASE_RESPONSE_LENGTH offsetof(actuator_i2c_response_t, data)
 
+#define ACTUATOR_STATUS_RESP_LENGTH (ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_STATUS_LENGTH)
+#define ACTUATOR_RESULT_RESP_LENGTH (ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH)
 
 #define ACTUATOR_GET_RESPONSE_SIZE(cmd_id) ( \
     cmd_id == ACTUATOR_CMD_GET_STATUS ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_STATUS_LENGTH : \
-    cmd_id == ACTUATOR_CMD_OPEN_CLAW ? 0 : \
+    cmd_id == ACTUATOR_CMD_OPEN_CLAW ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_CLOSE_CLAW ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
     cmd_id == ACTUATOR_CMD_CLAW_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
-    cmd_id == ACTUATOR_CMD_TEST ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_ARM_TORPEDO ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_DISARM_TORPEDO ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_FIRE_TORPEDO ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_TORPEDO_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_DROP_MARKER ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_CLEAR_DROPPER_STATUS ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_MARKER_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_KILL_SWITCH ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_RESET_ACTUATORS ? 0 : \
     0 \
 )
 

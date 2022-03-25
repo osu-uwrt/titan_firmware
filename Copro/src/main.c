@@ -7,6 +7,7 @@
 
 #include "drivers/async_i2c.h"
 #include "drivers/safety.h"
+#include "hw/actuator.h"
 #include "hw/balancer_adc.h"
 #include "hw/depth_sensor.h"
 #include "hw/dio.h"
@@ -35,10 +36,11 @@ int main()
     dio_init();
     bool got_temp_sensor = bmp280_temp_init();
     
-    async_i2c_init(200000, 10);
+    async_i2c_init(200000, 5);
     if (got_temp_sensor) bmp280_temp_start_reading();
 
     depth_init();
+    actuator_init();
     //balancer_adc_init();
     //esc_adc_init();
 

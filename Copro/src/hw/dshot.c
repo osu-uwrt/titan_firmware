@@ -1,3 +1,5 @@
+#if HW_USE_DSHOT
+
 #include <stdio.h>
 
 #include <riptide_msgs2/msg/pwm_stamped.h>
@@ -221,3 +223,5 @@ void dshot_init(void) {
 
     dshot_stop_thrusters();
 }
+
+#endif

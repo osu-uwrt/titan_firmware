@@ -92,6 +92,8 @@ static void async_i2c_target_abort(i2c_inst_t *i2c) {
     async_i2c_restart_hardware(i2c);
 }
 
+#define I2C_PROTOCOL_ERR(...) LOG_WARN(__VA_ARGS__); // TODO: Raise Fault
+
 /**
  * @brief Common irq handler for i2c related tasks
  * 
@@ -125,7 +127,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         uint32_t abort_reason = i2c->hw->tx_abrt_source;
         i2c->hw->clr_tx_abrt;
 
-        LOG_WARN("Transmit aborted: %d bytes lost, reason: 0x%x", 
+        I2C_PROTOCOL_ERR("Transmit aborted: %d bytes lost, reason: 0x%x", 
                     (abort_reason>>I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_LSB) + (active_transfer.response_size-active_transfer.bytes_sent), 
                     abort_reason&(~I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_BITS));
     }
@@ -138,13 +140,13 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         
         if (active_transfer.state == I2C_TARGET_RESPONDING) {
             if (active_transfer.bytes_sent != active_transfer.response_size && i2c_get_hw(i2c)->txflr != 0) {
-                LOG_WARN("Response terminated early, %d/%d bytes queued, %d in buffer", active_transfer.bytes_sent, active_transfer.response_size, i2c_get_hw(i2c)->txflr);
+                I2C_PROTOCOL_ERR("Response terminated early, %d/%d bytes queued, %d in buffer", active_transfer.bytes_sent, active_transfer.response_size, i2c_get_hw(i2c)->txflr);
             }
 
             active_transfer.state = I2C_TARGET_IDLE;
             hw_clear_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS);
         } else {
-            LOG_WARN("Unexpected rx done in invalid state %d", active_transfer.state);
+            I2C_PROTOCOL_ERR("Unexpected rx done in invalid state %d", active_transfer.state);
         }
     }
 
@@ -173,11 +175,11 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                 async_i2c_fill_transmit_queue();
             } else {
                 i2c->hw->data_cmd = 0xFF;
-                LOG_WARN("Too many bytes read");
+                I2C_PROTOCOL_ERR("Too many bytes read");
             }
         } else {
             i2c->hw->data_cmd = 0xFF;
-            LOG_WARN("Unexpected read request");
+            I2C_PROTOCOL_ERR("Unexpected read request");
         }
     }
 
@@ -197,7 +199,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                 bool can_process_data = true;
                 if (raw_data_cmd & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) {
                     if (active_transfer.state != I2C_TARGET_IDLE){
-                        LOG_WARN("New command received before previous command finished... dropping previous command");
+                        I2C_PROTOCOL_ERR("New command received before previous command finished... dropping previous command");
                     }
                     active_transfer.bytes_received = 0;
                     active_transfer.recv_size = offsetof(actuator_i2c_cmd_t, cmd_id) + 1;
@@ -217,7 +219,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                     }
                     if (active_transfer.recv_size == 0){
                         async_i2c_target_abort(i2c);
-                        LOG_WARN("Invalid command received %d", data_byte);
+                        I2C_PROTOCOL_ERR("Invalid command received %d", data_byte);
                     } else {
                         assert(active_transfer.bytes_received < max_recv_buffer_size);
                         raw_recv_buffer[active_transfer.bytes_received++] = data_byte;
@@ -229,7 +231,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
 
             if (dropped_bytes > 0){
                 async_i2c_target_abort(i2c);
-                LOG_WARN("Dropping %d unexpected bytes", dropped_bytes);
+                I2C_PROTOCOL_ERR("Dropping %d unexpected bytes", dropped_bytes);
             }
 
             if (active_transfer.state == I2C_TARGET_RECEIVING && active_transfer.bytes_received == active_transfer.recv_size) {
@@ -239,12 +241,12 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
                     active_transfer.state = I2C_TARGET_CMD_RECEIVED;
                 } else {
                     async_i2c_target_abort(i2c);
-                    LOG_WARN("Invalid CRC on message, 0x%02x received, 0x%02x calculated", active_transfer.received_command.crc8, calculated_crc);
+                    I2C_PROTOCOL_ERR("Invalid CRC on message, 0x%02x received, 0x%02x calculated", active_transfer.received_command.crc8, calculated_crc);
                 }
             }
         } else {
             async_i2c_restart_hardware(i2c);
-            LOG_WARN("Data sent to device while busy with request, dropping data");
+            I2C_PROTOCOL_ERR("Data sent to device while busy with request, dropping data");
         }
     }
 }
@@ -292,7 +294,7 @@ void async_i2c_target_finish_command(actuator_i2c_response_t *response, size_t s
 
     if (response == NULL || size == 0) {
         if (active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE) {
-            LOG_WARN("I2C attempting to read response with no response to active command");
+            I2C_PROTOCOL_ERR("I2C attempting to read response with no response to active command");
         }
         async_i2c_target_abort(i2c_inst);
         return;

@@ -113,6 +113,50 @@ static rcl_timer_t state_publish_timer;
 static const int state_publish_rate_ms = 500;
 static char copro_frame[] = ROBOT_NAMESPACE "/coprocessor";
 
+static uint8_t actuator_to_ros_dropper_state(enum dropper_state dropper_state) {
+	if (dropper_state == DROPPER_STATE_READY) {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
+	} else if (dropper_state == DROPPER_STATE_DROPPING) {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
+	} else if (dropper_state == DROPPER_STATE_DROPPED) {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPED;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+	}
+}
+
+static uint8_t actuator_to_ros_torpedo_state(enum torpedo_state torpedo_state) {
+	if (torpedo_state == TORPEDO_STATE_DISARMED) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
+	} else if (torpedo_state == TORPEDO_STATE_CHARGING) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
+	} else if (torpedo_state == TORPEDO_STATE_READY) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
+	} else if (torpedo_state == TORPEDO_STATE_FIRING) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
+	} else if (torpedo_state == TORPEDO_STATE_FIRED) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRED;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+	}
+}
+
+static uint8_t actuator_to_ros_claw_state(enum claw_state claw_state) {
+	if (claw_state == CLAW_STATE_UNKNOWN_POSITION) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_UNKNOWN;
+	} else if (claw_state == CLAW_STATE_OPENED) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENED;
+	} else if (claw_state == CLAW_STATE_CLOSED) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSED;
+	} else if (claw_state == CLAW_STATE_OPENING) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENING;
+	} else if (claw_state == CLAW_STATE_CLOSING) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSING;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
+	}
+}
+
 static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_call_time) {
 	if (timer != NULL) {
 		struct timespec ts;
@@ -191,8 +235,12 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			firmware_state_msg.header.stamp.sec = ts.tv_sec;
 			firmware_state_msg.header.stamp.nanosec = ts.tv_nsec;
 
-			firmware_state_msg.actuator_connected = false;		// TODO: Add actuator support
-			firmware_state_msg.actuator_faults = 0;
+			firmware_state_msg.actuator_connected = actuator_is_connected();
+			if (actuator_is_connected()){
+				firmware_state_msg.actuator_faults = actuator_last_status.firmware_status.fault_list;
+			} else {
+				firmware_state_msg.actuator_faults = 0;
+			}
 
 			firmware_state_msg.copro_faults = *fault_list;
 			firmware_state_msg.copro_memory_usage = memmonitor_get_total_use_percentage();
@@ -227,12 +275,12 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			RCSOFTCHECK(rcl_publish(&firmware_state_publisher, &firmware_state_msg, NULL));
 		}
 
-		if (false) {
-			actuator_status_msg.claw_state = riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
-			actuator_status_msg.torpedo1_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
-			actuator_status_msg.torpedo2_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
-			actuator_status_msg.dropper1_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
-			actuator_status_msg.dropper2_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+		if (actuator_is_connected()) {
+			actuator_status_msg.claw_state = actuator_to_ros_claw_state(actuator_last_status.claw_state);
+			actuator_status_msg.torpedo1_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo1_state);
+			actuator_status_msg.torpedo2_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo2_state);
+			actuator_status_msg.dropper1_state = actuator_to_ros_dropper_state(actuator_last_status.dropper1_state);
+			actuator_status_msg.dropper2_state = actuator_to_ros_dropper_state(actuator_last_status.dropper2_state);
 
 			RCSOFTCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
 		}
@@ -315,9 +363,36 @@ static void actuator_subscription_callback(const void * msgin)
 {
 	__unused const riptide_msgs2__msg__ActuatorCommand * msg = (const riptide_msgs2__msg__ActuatorCommand *)msgin;
 	
-	LOG_WARN("Actuator Commands Unimplemented!");
-	actuator_test();
-	// TODO: Implement actuator commands
+	if (msg->open_claw) {
+		actuator_open_claw();
+	}
+	if (msg->close_claw) {
+		actuator_close_claw();
+	}
+	if (msg->arm_torpedo) {
+		actuator_arm_torpedo();
+	}
+	if (msg->disarm_torpedo) {
+		actuator_disarm_torpedo();
+	}
+	if (msg->fire_torpedo_1) {
+		actuator_fire_torpedo(1);
+	}
+	if (msg->fire_torpedo_2) {
+		actuator_fire_torpedo(2);
+	}
+	if (msg->drop_1) {
+		actuator_drop_marker(1);
+	}
+	if (msg->drop_2) {
+		actuator_drop_marker(2);
+	}
+	if (msg->clear_dropper_status) {
+		actuator_clear_dropper_status();
+	}
+	if (msg->reset_actuators) {
+		actuator_reset_actuators();
+	}
 }
 
 static rcl_subscription_t lighting_subscriber;

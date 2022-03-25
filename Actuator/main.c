@@ -13,6 +13,20 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuator_main"
 
+static void populate_status_msg(struct actuator_i2c_status *status){
+    // NOTE: The firmware version in the CMakeLists should match the expected firmware version in actuator_i2c/interface.h
+    status->firmware_status.version_major = MAJOR_VERSION;
+    status->firmware_status.version_minor = MINOR_VERSION;
+
+    status->firmware_status.fault_list = 0;     // TODO: Implement safety & faults
+
+    status->claw_state = CLAW_STATE_UNITIALIZED;
+    status->dropper1_state = DROPPER_STATE_UNITIALIZED;
+    status->dropper2_state = DROPPER_STATE_UNITIALIZED;
+    status->torpedo1_state = TORPEDO_STATE_UNITIALIZED;
+    status->torpedo2_state = TORPEDO_STATE_UNITIALIZED;
+}
+
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 
 int main() {
@@ -27,57 +41,80 @@ int main() {
 
     if (watchdog_enable_caused_reboot())
         LOG_ERROR("Watchdog Reset");
-    watchdog_enable(3000, true);
+    watchdog_enable(1000, true);
 
-    bool value = true;
+    actuator_i2c_cmd_t cmd;
+    actuator_i2c_response_t response;
 
-    actuator_i2c_cmd_t my_cmd;
-    actuator_i2c_response_t my_response;
-
-    LOG_INFO("Waiting for data...");
     while (true) {
-        if (async_i2c_target_get_next_command(&my_cmd)) {
-            LOG_INFO("New Command: %d", my_cmd.cmd_id);
-
-            size_t command_size = 2;
-            size_t response_data_size = 0;
-            switch (my_cmd.cmd_id) {
-                case ACTUATOR_CMD_CLAW_TIMING:
-                    LOG_INFO("Claw Timings Command - Open Time: %d ms - Close Time: %d ms", my_cmd.data.claw_timing.open_time_ms, my_cmd.data.claw_timing.close_time_ms);
-                    command_size += ACTUATOR_CMD_CLAW_TIMING_LENGTH;
-
-                    response_data_size = sizeof(my_response.data.result);
-                    my_response.data.result = ACTUATOR_RESULT_SUCCESSFUL;
-                    break;
-                case ACTUATOR_CMD_TEST:
-                    LOG_INFO("Test Command - Data 1: 0x%08x - Data 2: 0x%08x", my_cmd.data.test.data1, my_cmd.data.test.data2);
-                    command_size += ACTUATOR_CMD_TEST_LENGTH;
-
-                    response_data_size = sizeof(my_response.data.result);
-                    my_response.data.result = ACTUATOR_RESULT_SUCCESSFUL;
-                    break;
-                case ACTUATOR_CMD_OPEN_CLAW:
-                    LOG_INFO("Open Claw Command");
-                default:
-                    LOG_INFO("Unknown command!");
-            }
-
-            printf("Raw Command Data: ");
-            uint8_t *raw_data = (uint8_t*)(&my_cmd);
-            for (int i = 0; i < command_size; i++) {
-                printf("%s0x%02x", (i ==0 ? "" : ", "), raw_data[i]);
-            }
-            printf("\n\n");
+        if (async_i2c_target_get_next_command(&cmd)) {
+            LOG_DEBUG("Received Command: %d", cmd.cmd_id);
 
             size_t response_size = 0;
-            if (response_data_size != 0) {
-                response_size = ACTUATOR_BASE_RESPONSE_LENGTH + response_data_size;
+            switch (cmd.cmd_id) {
+                case ACTUATOR_CMD_GET_STATUS:
+                    populate_status_msg(&response.data.status);
+                    response_size = ACTUATOR_STATUS_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_OPEN_CLAW:
+                    LOG_INFO("Opening Claw");
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_CLOSE_CLAW:
+                    LOG_INFO("Closing Claw");
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_CLAW_TIMING:
+                    LOG_INFO("Setting claw timing (Open %d ms, Close %d ms)", cmd.data.claw_timing.open_time_ms, cmd.data.claw_timing.close_time_ms);
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_ARM_TORPEDO:
+                    LOG_INFO("Arming Torpedo");
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_DISARM_TORPEDO:
+                    LOG_INFO("Disarming Torpedo");
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_FIRE_TORPEDO:
+                    LOG_INFO("Firing Torpedo %d", cmd.data.fire_torpedo.torpedo_num);
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_TORPEDO_TIMING:
+                    LOG_INFO("Setting Torpedo Timings for torpedo %d (Timing type: %d, timing: %d us)", cmd.data.torpedo_timing.torpedo_num, cmd.data.torpedo_timing.timing_type, cmd.data.torpedo_timing.time_us);
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_DROP_MARKER:
+                    LOG_INFO("Dropping Marker %d", cmd.data.drop_marker.marker_num);
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_CLEAR_DROPPER_STATUS:
+                    LOG_INFO("Clearing Dropper Status");
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_MARKER_TIMING:
+                    LOG_INFO("Setting marker timings to %d ms", cmd.data.marker_timing.active_time_ms);
+                    response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_RESET_ACTUATORS:
+                    LOG_INFO("Reboot command sent");
+                    watchdog_reboot(0, 0, 0);
+                    break;
+                default:
+                    LOG_WARN("Unknown command 0x%02x", cmd.cmd_id);
             }
 
-            assert(response_size == ACTUATOR_GET_RESPONSE_SIZE(my_cmd.cmd_id));
-            async_i2c_target_finish_command(&my_response, response_size);
-
-            LOG_INFO("Waiting for data...");
+            async_i2c_target_finish_command(&response, response_size);
         }
         watchdog_update();
     }

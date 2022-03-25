@@ -29,28 +29,12 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 # Define executable
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c" "src/*.S")
 add_executable(copro_firmware
-	src/main.c
-	src/drivers/adc.c
-	src/drivers/async_i2c.c
-	src/drivers/memmonitor.c
-	src/drivers/safety.c
-	src/drivers/safety_helper.S
-	src/drivers/bmp280.c
-	src/hw/actuator.c
-	src/hw/balancer_adc.c
-	src/hw/depth_sensor.c
-	src/hw/dio.c
-#	src/hw/dshot.c
-	src/hw/esc_pwm.c
-	src/hw/esc_adc.c
-	src/hw/bmp280_temp.c
-	src/tasks/cooling.c
-	src/tasks/lowbatt.c
-	src/tasks/ros.c
+	${SOURCES}
 )
 
-#pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
 target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
 target_include_directories(copro_firmware PUBLIC include)
@@ -88,7 +72,7 @@ target_link_libraries(copro_firmware
 	
 	pico_stdlib
 	hardware_exception
-#	hardware_pio
+	hardware_pio
 	hardware_pwm
 	hardware_i2c
 	hardware_adc
