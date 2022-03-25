@@ -27,6 +27,7 @@ pico_sdk_init()
 add_executable(actuator_firmware
 	main.c
 	async_i2c_target.c
+	safety_interface.c
 )
 
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
@@ -43,9 +44,6 @@ uwrt_enable_dual_uart(actuator_firmware)
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
-# Include the actuator i2c interafce headers into this project
-add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
-add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 
@@ -54,6 +52,7 @@ pico_add_extra_outputs(actuator_firmware)
 target_link_libraries(actuator_firmware 
 	actuator_i2c_interface
 	basic_logging
+	safety
 
 	pico_stdlib
 	hardware_i2c

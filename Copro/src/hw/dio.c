@@ -4,6 +4,8 @@
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
 
+#include <riptide_msgs2/msg/kill_switch_report.h>
+
 #include "drivers/safety.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"

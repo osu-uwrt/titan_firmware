@@ -2,25 +2,57 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
 #include "hardware/exception.h"
 #include "hardware/structs/watchdog.h"
-#include "hardware/structs/psm.h"
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 
-#include <rmw_microros/rmw_microros.h>
-
 #include "basic_logging/logging.h"
 
-#include "drivers/safety.h"
-#include "hw/dio.h"
-#include "hw/dshot.h"
-#include "hw/esc_pwm.h"
+#include "safety/safety.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety"
+
+#define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
+
+// ========================================
+// External Interface Functions
+// ========================================
+// NOTE: These functions need to be defined in the code using the safety library
+
+extern const int num_kill_switches;
+extern struct kill_switch_state kill_switch_states[];
+
+/**
+ * @brief Called to set the fault led light
+ * 
+ * @param on Logic level of the light
+ */
+void safety_set_fault_led(bool on);
+
+/**
+ * @brief Callback for when the robot is killed. This should stop any actions that must stop when disabled
+ */
+void safety_kill_robot(void);
+
+/**
+ * @brief Callback for when the robot is enabled
+ */
+void safety_enable_robot(void);
+
+/**
+ * @brief Looks up fault id name for a given fault id
+ * 
+ * @param fault_id The fault id to lookup
+ * @return const char* The fault name
+ */
+const char * safety_lookup_fault_id(uint32_t fault_id);
+
 
 // ========================================
 // Fault Management Functions
@@ -32,7 +64,7 @@ void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) == 0) {
-        LOG_ERROR("Fault %s (%d) Raised", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
+        LOG_ERROR("Fault %s (%d) Raised", safety_lookup_fault_id(fault_id), fault_id);
 
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -40,7 +72,7 @@ void safety_raise_fault(uint32_t fault_id) {
         uint32_t prev_interrupt_state = save_and_disable_interrupts();
         
         *fault_list |= (1<<fault_id);
-        dio_set_fault_led(true);
+        safety_set_fault_led(true);
         
         restore_interrupts(prev_interrupt_state);
     }
@@ -50,7 +82,7 @@ void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) != 0) {
-        LOG_ERROR("Fault %s (%d) Lowered", (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN"), fault_id);
+        LOG_ERROR("Fault %s (%d) Lowered", safety_lookup_fault_id(fault_id), fault_id);
         
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -58,12 +90,11 @@ void safety_lower_fault(uint32_t fault_id) {
         uint32_t prev_interrupt_state = save_and_disable_interrupts();
         
         *fault_list &= ~(1u<<fault_id);
-        dio_set_fault_led((*fault_list) != 0);
+        safety_set_fault_led((*fault_list) != 0);
         
         restore_interrupts(prev_interrupt_state);
     }
 }
-
 
 
 // ========================================
@@ -72,30 +103,20 @@ void safety_lower_fault(uint32_t fault_id) {
 
 static absolute_time_t last_kill_switch_change;
 static bool last_state_asserting_kill = true; // Start asserting kill
-struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] = 
-    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
 
 /**
- * @brief Contains all callback functions to be called when robot is killed
+ * @brief Local utility function to do common tasks for when the robot is killed
  * Called from any function that will kill the robot
  * 
  * This function should only be called when safety is initialized
  */
-static void safety_kill_robot(void) {
+static void safety_local_kill_robot(void) {
     last_state_asserting_kill = true;
     last_kill_switch_change = get_absolute_time();
 
-    // Note: Any calls made in this function must be safe to be called from interrupts
-    // This is because safety_kill_switch_update can be called from interrupts
+    safety_kill_robot();
 
-    #if HW_USE_DSHOT
-    dshot_stop_thrusters();
-    #endif
-    #if HW_USE_PWM
-    esc_pwm_stop_thrusters();
-    #endif
-
-    LOG_INFO("Disabling Robot");
+    LOG_DEBUG("Disabling Robot");
 }
 
 /**
@@ -110,7 +131,7 @@ static void safety_refresh_kill_switches(void) {
     // Check all kill switches for asserting kill
     bool asserting_kill = false;
     int num_switches_enabled = 0;
-    for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
+    for (int i = 0; i < num_kill_switches; i++) {
         if (kill_switch_states[i].enabled) {
             num_switches_enabled++;
 
@@ -133,16 +154,17 @@ static void safety_refresh_kill_switches(void) {
         last_state_asserting_kill = asserting_kill;
 
         if (asserting_kill) {
-            safety_kill_robot();
+            safety_local_kill_robot();
         } else {
-            LOG_INFO("Enabling Robot");
+            LOG_DEBUG("Enabling Robot");
             last_kill_switch_change = get_absolute_time();
+            safety_enable_robot();
         }
     }
 }
 
 void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update){
-    valid_params_if(SAFETY, switch_num < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES);
+    valid_params_if(SAFETY, switch_num < num_kill_switches);
 
     kill_switch_states[switch_num].asserting_kill = asserting_kill;
     kill_switch_states[switch_num].update_timeout = make_timeout_time_ms(KILL_SWITCH_TIMEOUT_MS);
@@ -150,64 +172,8 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
     kill_switch_states[switch_num].enabled = true;
 
     if (safety_initialized && asserting_kill) {
-        safety_kill_robot();
+        safety_local_kill_robot();
     }
-}
-
-void safety_kill_msg_process(const riptide_msgs2__msg__KillSwitchReport *msg) {
-    if (!rmw_uros_epoch_synchronized()){
-        LOG_ERROR("Safety Kill Switch: No Time Synchronization for Comand Verification!");
-        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
-        return;
-    }
-
-    // Check to make sure message isn't old
-    int64_t command_time = (((int64_t)msg->header.stamp.sec) * 1000) + 
-                            (msg->header.stamp.nanosec / 1000000);
-    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
-
-    if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
-        LOG_WARN("Stale kill switch report received: %lld ms old", command_time_diff);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
-        return;
-    }
-
-    // Make sure kill switch id is valid
-    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
-            msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
-        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
-        return;
-    }
-
-    // Make sure frame id isn't too large
-    if (msg->header.frame_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
-        LOG_WARN("Software Kill Frame ID too large");
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
-        return;
-    }
-
-    struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
-
-    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
-            strncmp(kill_entry->locking_frame, msg->header.frame_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
-        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
-        return;
-    }
-
-    // Set frame id of the switch requesting disable
-    // This can technically override previous kills and allow one node to kill when another is stopping
-    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
-    // If multiple points are needed to be separate, separate kill switch IDs should be used
-    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
-    // since it must be asserted as killed by the node to take ownership of the lock
-    if (msg->switch_asserting_kill) {
-        strncpy(kill_entry->locking_frame, msg->header.frame_id.data, msg->header.frame_id.size);
-        kill_entry->locking_frame[msg->header.frame_id.size] = '\0';
-    }
-
-    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
 bool safety_kill_get_asserting_kill(void) {
@@ -429,7 +395,7 @@ void safety_setup(void) {
     safety_is_setup = true;
 
     // Enable slow watchdog while connecting
-    watchdog_enable(3000, PAUSE_WATCHDOG_ON_DEBUG);
+    watchdog_enable(SAFETY_WATCHDOG_SETUP_TIMER_MS, PAUSE_WATCHDOG_ON_DEBUG);
 }
 
 void safety_init(void) {
@@ -442,7 +408,7 @@ void safety_init(void) {
     last_kill_switch_change = get_absolute_time();
 
     // Set tight watchdog timer for normal operation
-    watchdog_enable(250, PAUSE_WATCHDOG_ON_DEBUG);
+    watchdog_enable(SAFETY_WATCHDOG_ACTIVE_TIMER_MS, PAUSE_WATCHDOG_ON_DEBUG);
 }
 
 void safety_tick(void) {

@@ -29,19 +29,17 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 # Define executable
-file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c" "src/*.S")
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(copro_firmware
 	${SOURCES}
 )
-
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
 target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
 target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(copro_firmware 1 0 DEV)
+generate_version_tag(copro_firmware 1 0 DEV)  # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
 pico_enable_stdio_uart(copro_firmware 0)
@@ -51,31 +49,26 @@ target_compile_definitions(copro_firmware PUBLIC USB_PRODUCT_STR="Coprocessor")
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(copro_firmware)
 
-# Enable microROS
+# Enable micro-ROS
 micro_ros_enable(copro_firmware)
 
-target_compile_definitions(copro_firmware PUBLIC PICO_PANIC_FUNCTION=safety_panic)
+# Compile Definitions
 target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
-
-# Include the actuator i2c interafce headers into this project
-add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
-add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
+target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
 target_link_libraries(copro_firmware
 	actuator_i2c_interface
 	basic_logging
+	safety
 	
 	pico_stdlib
-	hardware_exception
 	hardware_pio
 	hardware_pwm
 	hardware_i2c
 	hardware_adc
-	# Hook required functions for safety watchdog reporting
-	"-Wl,--wrap=__assert_func,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session"
 )

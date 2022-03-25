@@ -8,6 +8,8 @@
 #include "basic_logging/logging.h"
 #include "build_version.h"
 
+#include "safety.h"
+
 #include "async_i2c_target.h"
 
 #undef LOGGING_UNIT_NAME
@@ -18,8 +20,11 @@ static void populate_status_msg(struct actuator_i2c_status *status){
     status->firmware_status.version_major = MAJOR_VERSION;
     status->firmware_status.version_minor = MINOR_VERSION;
 
-    status->firmware_status.fault_list = 0;     // TODO: Implement safety & faults
+    uint32_t faults = *fault_list;
+    assert(faults < (1<<8));
+    status->firmware_status.fault_list = faults;
 
+    // TODO: Populate this
     status->claw_state = CLAW_STATE_UNITIALIZED;
     status->dropper1_state = DROPPER_STATE_UNITIALIZED;
     status->dropper2_state = DROPPER_STATE_UNITIALIZED;
@@ -32,16 +37,17 @@ const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 int main() {
     stdio_init_all();
     dual_usb_init();
+    LOG_INFO("%s", FULL_BUILD_TAG);
+
+    safety_setup();
+
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, true);
-    LOG_INFO("%s", FULL_BUILD_TAG);
 
     async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
 
-    if (watchdog_enable_caused_reboot())
-        LOG_ERROR("Watchdog Reset");
-    watchdog_enable(1000, true);
+    safety_init();
 
     actuator_i2c_cmd_t cmd;
     actuator_i2c_response_t response;
@@ -65,6 +71,7 @@ int main() {
                     LOG_INFO("Closing Claw");
                     response.data.result = ACTUATOR_RESULT_FAILED;
                     response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    safety_raise_fault(FAULT_CLAW_ERROR);
                     break;
                 case ACTUATOR_CMD_CLAW_TIMING:
                     LOG_INFO("Setting claw timing (Open %d ms, Close %d ms)", cmd.data.claw_timing.open_time_ms, cmd.data.claw_timing.close_time_ms);
@@ -100,10 +107,16 @@ int main() {
                     LOG_INFO("Clearing Dropper Status");
                     response.data.result = ACTUATOR_RESULT_FAILED;
                     response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    assert(false);
                     break;
                 case ACTUATOR_CMD_MARKER_TIMING:
                     LOG_INFO("Setting marker timings to %d ms", cmd.data.marker_timing.active_time_ms);
                     response.data.result = ACTUATOR_RESULT_FAILED;
+                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
+                    break;
+                case ACTUATOR_CMD_KILL_SWITCH:
+                    safety_kill_switch_update(KILL_SWITCH_I2C_MSG, cmd.data.kill_switch.asserting_kill, true);
+                    response.data.result = ACTUATOR_RESULT_SUCCESSFUL;
                     response_size = ACTUATOR_RESULT_RESP_LENGTH;
                     break;
                 case ACTUATOR_CMD_RESET_ACTUATORS:
@@ -116,7 +129,7 @@ int main() {
 
             async_i2c_target_finish_command(&response, response_size);
         }
-        watchdog_update();
+        safety_tick();
     }
     return 0;
 }

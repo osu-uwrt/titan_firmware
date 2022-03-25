@@ -14,7 +14,7 @@
 #define LOGGING_UNIT_LOCAL_LEVEL LEVEL_INFO
 
 #include "async_i2c_target.h"
-//#include "drivers/safety.h"
+#include "safety.h"
 
 bool async_i2c_target_initialized = false;
 
@@ -75,8 +75,9 @@ static void async_i2c_fill_transmit_queue(void) {
 }
 
 static void async_i2c_restart_hardware(i2c_inst_t *i2c) {
-    if (has_irq_pending(i2c, RD_REQ)) {
+    if (i2c->hw->status & I2C_IC_STATUS_SLV_ACTIVITY_BITS) {
         LOG_ERROR("Cannot restart hw with active read request");
+        safety_raise_fault(FAULT_I2C_ERROR);
         return;
     }
 
@@ -92,7 +93,7 @@ static void async_i2c_target_abort(i2c_inst_t *i2c) {
     async_i2c_restart_hardware(i2c);
 }
 
-#define I2C_PROTOCOL_ERR(...) LOG_WARN(__VA_ARGS__); // TODO: Raise Fault
+#define I2C_PROTOCOL_ERR(...) LOG_WARN(__VA_ARGS__); safety_raise_fault(FAULT_I2C_PROTO_ERROR);
 
 /**
  * @brief Common irq handler for i2c related tasks
@@ -121,6 +122,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         LOG_DEBUG("TX_ABRT INT");
         if (active_transfer.state != I2C_TARGET_RESPONDING){
             LOG_ERROR("TX Abort interrupt in invalid state %d", active_transfer.state);
+            safety_raise_fault(FAULT_I2C_ERROR);
         }
 
         // Transmit abort
@@ -155,7 +157,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         
         if (active_transfer.state != I2C_TARGET_RESPONDING) {
             LOG_ERROR("TX Empty interrupt in invalid state %d", active_transfer.state);
-            // TODO: Raise Fault
+            safety_raise_fault(FAULT_I2C_ERROR);
             hw_clear_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS);
         } else {
             async_i2c_fill_transmit_queue();
@@ -295,8 +297,11 @@ void async_i2c_target_finish_command(actuator_i2c_response_t *response, size_t s
     if (response == NULL || size == 0) {
         if (active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE) {
             I2C_PROTOCOL_ERR("I2C attempting to read response with no response to active command");
+            async_i2c_target_abort(i2c_inst);
+            i2c_inst->hw->data_cmd = 0xFF;  // Send a command since if waiting for a response the read req has been cleared
+        } else {
+            active_transfer.state = I2C_TARGET_IDLE;
         }
-        async_i2c_target_abort(i2c_inst);
         return;
     }
 

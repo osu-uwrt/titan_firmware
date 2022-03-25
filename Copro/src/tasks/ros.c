@@ -440,7 +440,60 @@ static char software_kill_frame_str[SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
 static void software_kill_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
-	safety_kill_msg_process(msg);
+	
+	if (!rmw_uros_epoch_synchronized()){
+        LOG_ERROR("Safety Kill Switch: No Time Synchronization for Comand Verification!");
+        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
+        return;
+    }
+
+    // Check to make sure message isn't old
+    int64_t command_time = (((int64_t)msg->header.stamp.sec) * 1000) + 
+                            (msg->header.stamp.nanosec / 1000000);
+    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
+
+    if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
+        LOG_WARN("Stale kill switch report received: %lld ms old", command_time_diff);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Make sure kill switch id is valid
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
+            msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
+        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Make sure frame id isn't too large
+    if (msg->header.frame_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
+        LOG_WARN("Software Kill Frame ID too large");
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
+
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
+            strncmp(kill_entry->locking_frame, msg->header.frame_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Set frame id of the switch requesting disable
+    // This can technically override previous kills and allow one node to kill when another is stopping
+    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
+    // If multiple points are needed to be separate, separate kill switch IDs should be used
+    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
+    // since it must be asserted as killed by the node to take ownership of the lock
+    if (msg->switch_asserting_kill) {
+        strncpy(kill_entry->locking_frame, msg->header.frame_id.data, msg->header.frame_id.size);
+        kill_entry->locking_frame[msg->header.frame_id.size] = '\0';
+    }
+
+    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
 static void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {

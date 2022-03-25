@@ -16,7 +16,7 @@ prev_scratch_reg:
 prev_link_reg:
 .word 0
 
-
+#ifdef SAFETY_ROS_SUPPORT
 .text
 
 .macro hook_blocking_ros_transport_func name:req
@@ -74,6 +74,8 @@ __wrap_\name:
 
 hook_blocking_ros_transport_func uxr_run_session_until_confirm_delivery
 hook_blocking_ros_transport_func uxr_ping_agent_session
+
+#endif
 
 #define HARD_FAULT_DATA 0x1035004
 

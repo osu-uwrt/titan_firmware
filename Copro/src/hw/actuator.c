@@ -6,6 +6,7 @@
 #include "actuator_i2c/interface.h"
 #include "basic_logging/logging.h"
 
+#include "hw/actuator.h"
 #include "drivers/safety.h"
 
 #undef LOGGING_UNIT_NAME
@@ -172,6 +173,7 @@ static void actuator_status_callback(actuator_cmd_data_t * cmd) {
     }
 }
 
+static bool actuator_has_been_polled = false;
 /**
  * @brief Alarm callback to poll the actuator board
  * 
@@ -180,11 +182,20 @@ static void actuator_status_callback(actuator_cmd_data_t * cmd) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t actuator_poll_alarm_callback(__unused alarm_id_t id, __unused void *user_data) {
+    if (actuator_has_been_polled) {
+        if (!actuator_is_connected()){
+            safety_raise_fault(FAULT_NO_ACTUATOR);
+        } else {
+            safety_lower_fault(FAULT_NO_ACTUATOR);
+        }
+    } else {
+        actuator_has_been_polled = true;
+    }
+
     if (status_command.in_use) {
         LOG_ERROR("Unable to poll actuator board, request still in progress");
         safety_raise_fault(FAULT_ACTUATOR_FAIL);
     } else {
-        // TODO: Raise fault if actuator not connected
         status_command.in_use = true;
         actuator_send_command(&status_command);
     }
