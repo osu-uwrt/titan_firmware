@@ -21,14 +21,14 @@ static void *custom_cb_args = NULL;
 #define COLOR_TAG_INFO  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_INFO_NUM) "m"
 #define COLOR_TAG_WARN  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_WARN_NUM) "m"
 #define COLOR_TAG_ERROR "\033[1;" xstr(COLOR_DARK) xstr(COLOR_ERROR_NUM) "m"
-#define COLOR_TAG_FAULT "\033[1;38:5:214m"
+#define COLOR_TAG_FAULT "\033[1;38:5:166m"
 #define COLOR_TAG_FATAL "\033[1;" xstr(COLOR_DARK) xstr(COLOR_FATAL_NUM) "m"
 
 #define COLOR_MSG_DEBUG "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_DEBUG_NUM) "m"
 #define COLOR_MSG_INFO  "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_INFO_NUM) "m"
 #define COLOR_MSG_WARN  "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_WARN_NUM) "m"
 #define COLOR_MSG_ERROR "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_ERROR_NUM) "m"
-#define COLOR_MSG_FAULT "\033[0;38:5:215m"
+#define COLOR_MSG_FAULT "\033[0;38:5:202m"
 #define COLOR_MSG_FATAL "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_FATAL_NUM) "m"
 
 #define TAG_COLOR_STRING(level) ( \

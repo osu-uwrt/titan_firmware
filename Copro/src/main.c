@@ -21,6 +21,8 @@
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "copro_main"
+#undef LOGGING_UNIT_LOCAL_LEVEL
+#define LOGGING_UNIT_LOCAL_LEVEL LEVEL_DEBUG
 
 int main()
 {

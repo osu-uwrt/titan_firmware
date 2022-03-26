@@ -21,6 +21,7 @@
 #include <std_msgs/msg/empty.h>
 
 #include "basic_logger/logging.h"
+#include "build_version.h"
 #include "pico_uart_transports.h"
 
 #include "drivers/memmonitor.h"
@@ -250,7 +251,8 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			firmware_state_msg.depth_sensor_initialized = depth_initialized;
 			firmware_state_msg.peltier_cooling_threshold = cooling_threshold;
 
-			// TODO: Add firmware version
+			firmware_state_msg.version_major = MAJOR_VERSION;
+			firmware_state_msg.version_minor = MINOR_VERSION;
 
 			firmware_state_msg.kill_switches_enabled = 0;
 			firmware_state_msg.kill_switches_asserting_kill = 0;
