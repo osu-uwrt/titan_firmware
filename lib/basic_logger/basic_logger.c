@@ -11,6 +11,7 @@ static void *custom_cb_args = NULL;
 #define COLOR_INFO_NUM  7
 #define COLOR_WARN_NUM  3
 #define COLOR_ERROR_NUM 1
+#define COLOR_FAULT_NUM 1
 #define COLOR_FATAL_NUM 1
 
 #define COLOR_BRIGHT 9
@@ -20,12 +21,14 @@ static void *custom_cb_args = NULL;
 #define COLOR_TAG_INFO  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_INFO_NUM) "m"
 #define COLOR_TAG_WARN  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_WARN_NUM) "m"
 #define COLOR_TAG_ERROR "\033[1;" xstr(COLOR_DARK) xstr(COLOR_ERROR_NUM) "m"
+#define COLOR_TAG_FAULT "\033[1;38:5:214m"
 #define COLOR_TAG_FATAL "\033[1;" xstr(COLOR_DARK) xstr(COLOR_FATAL_NUM) "m"
 
 #define COLOR_MSG_DEBUG "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_DEBUG_NUM) "m"
 #define COLOR_MSG_INFO  "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_INFO_NUM) "m"
 #define COLOR_MSG_WARN  "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_WARN_NUM) "m"
 #define COLOR_MSG_ERROR "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_ERROR_NUM) "m"
+#define COLOR_MSG_FAULT "\033[0;38:5:215m"
 #define COLOR_MSG_FATAL "\033[0;" xstr(COLOR_BRIGHT) xstr(COLOR_FATAL_NUM) "m"
 
 #define TAG_COLOR_STRING(level) ( \
@@ -33,6 +36,7 @@ static void *custom_cb_args = NULL;
     (level == LEVEL_INFO)  ? COLOR_TAG_INFO : \
     (level == LEVEL_WARN)  ? COLOR_TAG_WARN : \
     (level == LEVEL_ERROR) ? COLOR_TAG_ERROR : \
+    (level == LEVEL_FAULT) ? COLOR_TAG_FAULT : \
     (level == LEVEL_FATAL) ? COLOR_TAG_FATAL : \
     "" \
 )
@@ -42,6 +46,7 @@ static void *custom_cb_args = NULL;
     (level == LEVEL_INFO)  ? COLOR_MSG_INFO : \
     (level == LEVEL_WARN)  ? COLOR_MSG_WARN : \
     (level == LEVEL_ERROR) ? COLOR_MSG_ERROR : \
+    (level == LEVEL_FAULT) ? COLOR_MSG_FAULT : \
     (level == LEVEL_FATAL) ? COLOR_MSG_FATAL : \
     "" \
 )
@@ -61,6 +66,7 @@ static void *custom_cb_args = NULL;
     (level == LEVEL_INFO)  ? "INFO" : \
     (level == LEVEL_WARN)  ? "WARN" : \
     (level == LEVEL_ERROR) ? "ERROR" : \
+    (level == LEVEL_FAULT) ? "FAULT" : \
     (level == LEVEL_FATAL) ? "FATAL" : \
     "INVALID_LEVEL" \
 )

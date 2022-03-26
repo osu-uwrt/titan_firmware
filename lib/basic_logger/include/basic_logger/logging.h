@@ -46,7 +46,8 @@
 #define LEVEL_INFO  2
 #define LEVEL_WARN  3
 #define LEVEL_ERROR 4
-#define LEVEL_FATAL 5
+#define LEVEL_FAULT 5   // NOTE: Special level for safety fault messages
+#define LEVEL_FATAL 6
 #define LEVEL_NO_LOGGING 6
 
 #if BASIC_LOGGER_DEFAULT_LEVEL < BASIC_LOGGER_MIN_SEVERITY
@@ -110,6 +111,16 @@ extern void basic_logger_log_common(const int log_level, const int local_log_lev
 #define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
 #else
 #define LOG_ERROR(...) do {basic_logger_log_common(LEVEL_ERROR, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
+#endif
+#endif
+
+#if BASIC_LOGGER_MIN_SEVERITY > LEVEL_FAULT
+#define LOG_FAULT(...) do {} while(0);
+#else
+#if BASIC_LOGGER_PRINT_SOURCE_LOCATION
+#define LOG_FAULT(...) do {basic_logger_log_common(LEVEL_FAULT, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, __FILENAME__, __LINE__, __func__, __VA_ARGS__);} while(0);
+#else
+#define LOG_FAULT(...) do {basic_logger_log_common(LEVEL_FAULT, LOGGING_UNIT_LOCAL_LEVEL, LOGGING_UNIT_NAME, "", 0, "", __VA_ARGS__);} while(0);
 #endif
 #endif
 

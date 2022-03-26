@@ -64,7 +64,7 @@ void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) == 0) {
-        LOG_ERROR("Fault %s (%d) Raised", safety_lookup_fault_id(fault_id), fault_id);
+        LOG_FAULT("Fault %s (%d) Raised", safety_lookup_fault_id(fault_id), fault_id);
 
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
@@ -82,7 +82,7 @@ void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list & (1u<<fault_id)) != 0) {
-        LOG_ERROR("Fault %s (%d) Lowered", safety_lookup_fault_id(fault_id), fault_id);
+        LOG_FAULT("Fault %s (%d) Lowered", safety_lookup_fault_id(fault_id), fault_id);
         
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
         // the setting of the fault state and the fault LED
