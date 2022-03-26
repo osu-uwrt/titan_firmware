@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include <stdio.h>
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "memmonitor"

@@ -9,7 +9,7 @@
 #include "hardware/clocks.h"
 #include "hardware/pio.h"
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 #include "drivers/safety.h"
 #include "hw/dshot.h"

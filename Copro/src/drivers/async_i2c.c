@@ -6,7 +6,7 @@
 #include "pico/mutex.h"
 #include "pico/time.h"
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 #include "drivers/async_i2c.h"
 #include "drivers/safety.h"

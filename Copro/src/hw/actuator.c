@@ -4,7 +4,7 @@
 #include "drivers/async_i2c.h"
 
 #include "actuator_i2c/interface.h"
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 #include "hw/actuator.h"
 #include "drivers/safety.h"

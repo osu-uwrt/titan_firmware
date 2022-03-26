@@ -51,7 +51,7 @@ target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LO
 pico_add_extra_outputs(actuator_firmware)
 target_link_libraries(actuator_firmware 
 	actuator_i2c_interface
-	basic_logging
+	basic_logger
 	safety
 
 	pico_stdlib

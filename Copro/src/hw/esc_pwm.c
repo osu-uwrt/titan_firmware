@@ -3,7 +3,7 @@
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"

@@ -63,7 +63,7 @@ target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
 pico_add_extra_outputs(copro_firmware)
 target_link_libraries(copro_firmware
 	actuator_i2c_interface
-	basic_logging
+	basic_logger
 	safety
 	
 	pico_stdlib

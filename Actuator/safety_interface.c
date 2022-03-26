@@ -1,7 +1,7 @@
 #include "safety.h"
 
 #include "pico/stdlib.h"
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 // ========================================
 // Implementation dependent variable declarations

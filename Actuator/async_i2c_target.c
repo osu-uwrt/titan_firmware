@@ -7,7 +7,7 @@
 #include "pico/mutex.h"
 #include "pico/time.h"
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "async_i2c_target"
 #undef LOGGING_UNIT_LOCAL_LEVEL

@@ -5,7 +5,7 @@
 #include "hardware/watchdog.h"
 
 #include "actuator_i2c/interface.h"
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #include "build_version.h"
 
 #include "safety.h"

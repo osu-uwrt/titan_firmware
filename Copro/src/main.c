@@ -2,7 +2,7 @@
 #include "pico/stdlib.h"
 
 #include "pico_uart_transports.h"
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #include "build_version.h"
 
 #include "drivers/async_i2c.h"
@@ -40,7 +40,7 @@ int main()
     if (got_temp_sensor) bmp280_temp_start_reading();
 
     depth_init();
-    actuator_init();
+    //actuator_init();
     //balancer_adc_init();
     //esc_adc_init();
 

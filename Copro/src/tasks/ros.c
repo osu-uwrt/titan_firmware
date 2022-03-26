@@ -18,8 +18,9 @@
 #include <riptide_msgs2/msg/lighting_command.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
 #include <riptide_msgs2/msg/robot_state.h>
+#include <std_msgs/msg/empty.h>
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #include "pico_uart_transports.h"
 
 #include "drivers/memmonitor.h"
@@ -100,6 +101,8 @@ static void depth_publisher_cleanup(rcl_node_t *node) {
 // Sensor Reading Callback
 // ========================================
 
+static rcl_publisher_t heartbeat_publisher;
+static std_msgs__msg__Empty heartbeat_msg;
 static rcl_publisher_t electrical_readings_publisher;
 static riptide_msgs2__msg__ElectricalReadings electrical_readings_msg;
 static rcl_publisher_t robot_state_publisher;
@@ -284,10 +287,21 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 
 			RCSOFTCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
 		}
+
+		// Publishing a heartbeat with a reliable QOS to block if no connection forcing watchdog reset
+		// This must succeed. Make it crash on failure and let the watchdog handle it
+		RCCHECK(rcl_publish(&heartbeat_publisher, &heartbeat_msg, NULL));
 	}
 }
 
 static void state_publish_init(rclc_support_t *support, rcl_node_t *node, rclc_executor_t *executor) {
+	RCCHECK(rclc_publisher_init(
+		&heartbeat_publisher,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty),
+		"copro_heartbeat",
+		&rmw_qos_profile_default));
+
 	RCCHECK(rclc_publisher_init(
 		&electrical_readings_publisher,
 		node,
@@ -623,7 +637,6 @@ void ros_start(const char* namespace) {
 }
 
 void ros_spin_ms(long ms) {
-	//RCSOFTCHECK(rmw_uros_ping_agent(10, 250));
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(ms)));
 }
 

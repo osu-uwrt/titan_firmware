@@ -10,7 +10,7 @@
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 
 #include "safety/safety.h"
 

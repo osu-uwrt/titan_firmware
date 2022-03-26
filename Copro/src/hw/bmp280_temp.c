@@ -4,7 +4,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
-#include "basic_logging/logging.h"
+#include "basic_logger/logging.h"
 #include "build_version.h"
 
 #include "drivers/bmp280.h"

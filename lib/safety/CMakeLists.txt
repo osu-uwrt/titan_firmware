@@ -8,7 +8,7 @@ target_sources(safety INTERFACE
 )
 
 target_link_libraries(safety INTERFACE 
-    basic_logging
+    basic_logger
     pico_stdlib
     hardware_exception
 	
