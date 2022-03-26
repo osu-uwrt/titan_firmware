@@ -8,9 +8,8 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
-#include "safety.h"
-
-#include "async_i2c_target.h"
+#include "drivers/async_i2c_target.h"
+#include "drivers/safety.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuator_main"

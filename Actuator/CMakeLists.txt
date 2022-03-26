@@ -24,12 +24,12 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 # Define executable
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(actuator_firmware
-	main.c
-	async_i2c_target.c
-	safety_interface.c
+	${SOURCES}
 )
-
+target_compile_options(actuator_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
+target_include_directories(actuator_firmware PUBLIC include)
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
 # Set version: major minor release_type (see build_version.h for more info)

@@ -13,8 +13,8 @@
 #undef LOGGING_UNIT_LOCAL_LEVEL
 #define LOGGING_UNIT_LOCAL_LEVEL LEVEL_INFO
 
-#include "async_i2c_target.h"
-#include "safety.h"
+#include "drivers/async_i2c_target.h"
+#include "drivers/safety.h"
 
 bool async_i2c_target_initialized = false;
 
