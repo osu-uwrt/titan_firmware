@@ -329,7 +329,7 @@ static void state_publish_init(rclc_support_t *support, rcl_node_t *node, rclc_e
 		&actuator_status_publisher,
 		node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorStatus),
-		"actuator_status",		// TODO: Figure out good topic for actuator status
+		"state/actuator",
 		&rmw_qos_profile_sensor_data));
 
 	RCCHECK(rclc_timer_init_default(
@@ -463,17 +463,6 @@ static void software_kill_subscription_callback(const void * msgin)
         return;
     }
 
-    // Check to make sure message isn't old
-    int64_t command_time = (((int64_t)msg->header.stamp.sec) * 1000) + 
-                            (msg->header.stamp.nanosec / 1000000);
-    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
-
-    if (command_time_diff > SOFTWARE_KILL_MAX_TIME_DIFF_MS || command_time_diff < -SOFTWARE_KILL_MAX_TIME_DIFF_MS) {
-        LOG_WARN("Stale kill switch report received: %lld ms old", command_time_diff);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
-        return;
-    }
-
     // Make sure kill switch id is valid
     if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
             msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
@@ -483,7 +472,7 @@ static void software_kill_subscription_callback(const void * msgin)
     }
 
     // Make sure frame id isn't too large
-    if (msg->header.frame_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
+    if (msg->sender_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
         LOG_WARN("Software Kill Frame ID too large");
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
@@ -492,8 +481,8 @@ static void software_kill_subscription_callback(const void * msgin)
     struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
 
     if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
-            strncmp(kill_entry->locking_frame, msg->header.frame_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
-        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->header.frame_id.data);
+            strncmp(kill_entry->locking_frame, msg->sender_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->sender_id.data);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
@@ -505,8 +494,8 @@ static void software_kill_subscription_callback(const void * msgin)
     // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
     // since it must be asserted as killed by the node to take ownership of the lock
     if (msg->switch_asserting_kill) {
-        strncpy(kill_entry->locking_frame, msg->header.frame_id.data, msg->header.frame_id.size);
-        kill_entry->locking_frame[msg->header.frame_id.size] = '\0';
+        strncpy(kill_entry->locking_frame, msg->sender_id.data, msg->sender_id.size);
+        kill_entry->locking_frame[msg->sender_id.size] = '\0';
     }
 
     safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
@@ -549,9 +538,9 @@ static void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {
 	RCCHECK(rclc_executor_add_subscription(executor, &electrical_control_subscriber, &electrical_control_msg, &electrical_control_subscription_callback, ON_NEW_DATA));
 	RCCHECK(rclc_executor_add_subscription(executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
 
-	software_kill_msg.header.frame_id.data = software_kill_frame_str;
-	software_kill_msg.header.frame_id.capacity = SOFTWARE_KILL_FRAME_STR_SIZE;
-	software_kill_msg.header.frame_id.size = 0;
+	software_kill_msg.sender_id.data = software_kill_frame_str;
+	software_kill_msg.sender_id.capacity = SOFTWARE_KILL_FRAME_STR_SIZE;
+	software_kill_msg.sender_id.size = 0;
 }
 
 static void subscriptions_fini(rcl_node_t *node){
@@ -566,33 +555,33 @@ static void subscriptions_fini(rcl_node_t *node){
 // Parameter Server
 // ========================================
 
-// static rclc_parameter_server_t param_server;
+const rclc_parameter_options_t param_server_options = {
+      .notify_changed_over_dds = true,
+      .max_params = 13 };
 
-// static void on_parameter_changed(Parameter * param)
-// {
-// 	if (strcmp(param->name.data, "claw_move_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
-// 	{
-// 		LOG_INFO("Setting claw move time to %ld ms", param->value.integer_value);
-// 	}
-// 	else if (strcmp(param->name.data, "dropper_time_ms") == 0 && param->value.type == RCLC_PARAMETER_INT)
-// 	{
-// 		LOG_INFO("Setting dropper active time to %ld ms", param->value.integer_value);
-// 		panic("Killing for the test");
-// 	}
-// }
+static rclc_parameter_server_t param_server;
 
-// static void parameter_server_init(rcl_node_t *node, rclc_executor_t *executor) {
-//   	RCCHECK(rclc_parameter_server_init_default(&param_server, node));
-// 	RCCHECK(rclc_executor_add_parameter_server(executor, &param_server, on_parameter_changed));
+static void on_parameter_changed(Parameter * param)
+{
+	if (actuator_handle_parameter_change(param)) {
+		// Nothing to be done on successful parameter change
+	} else {
+		LOG_WARN("Unexpected parameter %s with type %d changed", param->name.data, param->value.type);
+		safety_raise_fault(FAULT_ROS_SOFT_FAIL);
+	}
+}
+
+static void parameter_server_init(rcl_node_t *node, rclc_executor_t *executor) {
+  	RCCHECK(rclc_parameter_server_init_with_option(&param_server, node, &param_server_options));
+	RCCHECK(rclc_executor_add_parameter_server(executor, &param_server, on_parameter_changed));
 	
-// 	RCCHECK(rclc_add_parameter(&param_server, "claw_move_time_ms", RCLC_PARAMETER_INT));
-//     RCCHECK(rclc_add_parameter(&param_server, "dropper_time_ms", RCLC_PARAMETER_INT));
-// 	RCCHECK(rclc_add_parameter(&param_server, "torpedo_stop", RCLC_PARAMETER_INT));
-// }
+	RCCHECK(actuator_create_parameters(&param_server));
+	// TODO: Add cooling threshold as a parameter
+}
 
-// static void parameter_server_fini(rcl_node_t *node){
-// 	rclc_parameter_server_fini(&param_server, node);
-// }
+static void parameter_server_fini(rcl_node_t *node){
+	rclc_parameter_server_fini(&param_server, node);
+}
 
 // ========================================
 // Public Methods
@@ -628,11 +617,11 @@ void ros_start(const char* namespace) {
 	RCCHECK(rmw_uros_sync_session(2000));
 
 	// create executor
-	const uint num_executor_tasks = 7 /*+ RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER*/;
+	const uint num_executor_tasks = 7 + RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER;
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
-	//parameter_server_init(&node, &executor);
+	parameter_server_init(&node, &executor);
 	depth_publisher_init(&support, &node, &executor);
 	state_publish_init(&support, &node, &executor);
 	subscriptions_init(&node, &executor);
@@ -643,7 +632,7 @@ void ros_spin_ms(long ms) {
 }
 
 void ros_cleanup(void) {
-	//parameter_server_fini(&node);
+	parameter_server_fini(&node);
 	depth_publisher_cleanup(&node);
 	state_publish_cleanup(&node);
 	subscriptions_fini(&node);

@@ -37,13 +37,35 @@ enum dropper_state {
 } __attribute__ ((packed));
 static_assert(sizeof(enum dropper_state) == 1, "Dropper status enum did not pack properly");
 
+struct missing_timings_status {
+    uint8_t claw_open_timing:1;
+    uint8_t claw_close_timing:1;
+    
+    uint8_t marker_active_timing:1;
+
+    uint8_t torpedo1_coil1_on_timing:1;
+    uint8_t torpedo1_coil1_2_delay_timing:1;
+    uint8_t torpedo1_coil2_on_timing:1;
+    uint8_t torpedo1_coil2_3_delay_timing:1;
+    uint8_t torpedo1_coil3_on_timing:1;
+
+    uint8_t torpedo2_coil1_on_timing:1;
+    uint8_t torpedo2_coil1_2_delay_timing:1;
+    uint8_t torpedo2_coil2_on_timing:1;
+    uint8_t torpedo2_coil2_3_delay_timing:1;
+    uint8_t torpedo2_coil3_on_timing:1;
+
+    uint8_t _unused:3;
+};
+static_assert(sizeof(struct missing_timings_status) == 2, "Missing timings status struct did not pack properly");
 
 struct firmware_status {
     uint8_t version_major:4;
     uint8_t version_minor:4;
     uint8_t fault_list;
+    struct missing_timings_status missing_timings;
 } __attribute__ ((packed)) status;
-static_assert(sizeof(struct firmware_status) == 2, "Firmware status struct did not pack properly");
+static_assert(sizeof(struct firmware_status) == 4, "Firmware status struct did not pack properly");
 
 
 struct actuator_i2c_status {

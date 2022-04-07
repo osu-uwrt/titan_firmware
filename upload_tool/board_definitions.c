@@ -59,6 +59,10 @@ const struct rp2040_board_instance board_definitions[] = {
         .board_type_name = "rp2040_eval_board",
         .serial = "E460CCB01B3F532C"
     },
+    {   // Team raspberry pi pico (4th one in the order box)
+        .board_type_name = "pico",
+        .serial = "E660B44007924D2A"
+    },
 };
 
 const size_t num_board_definitions = sizeof(board_definitions) / sizeof(struct rp2040_board_instance);

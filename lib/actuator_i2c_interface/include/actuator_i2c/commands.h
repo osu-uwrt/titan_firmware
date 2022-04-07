@@ -49,11 +49,13 @@ struct claw_timing_cmd {
 #define ACTUATOR_CMD_CLAW_TIMING_LENGTH sizeof(struct claw_timing_cmd)
 
 enum torpedo_timing_type {
-    ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME = 1,
-    ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME = 2,
-    ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME = 3,
-    ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME = 4,
-    ACTUATOR_TORPEDO_TIMING_COIL4_ON_TIME = 5,
+    ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME = 0,
+    ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME = 1,
+    ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME = 2,
+    ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME = 3,
+    ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME = 4,
+
+    ACTUATOR_NUM_TORPEDO_TIMINGS
 }  __attribute__ ((packed));
 static_assert(sizeof(enum torpedo_timing_type) == 1, "Torpedo timing type enum did not pack properly");
 

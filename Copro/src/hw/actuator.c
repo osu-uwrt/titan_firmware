@@ -3,6 +3,9 @@
 #include <string.h>
 #include "drivers/async_i2c.h"
 
+#include <rcl/rcl.h>
+#include <rclc_parameter/rclc_parameter.h>
+
 #include "actuator_i2c/interface.h"
 #include "basic_logger/logging.h"
 
@@ -23,7 +26,8 @@
 // ========================================
 
 struct actuator_command_data;
-typedef void (*actuator_cmd_response_cb_t)(struct actuator_command_data*);
+// If response_cb returns true, then it will not free the request
+typedef bool (*actuator_cmd_response_cb_t)(struct actuator_command_data*);
 typedef struct actuator_command_data {
     actuator_i2c_cmd_t request;
     actuator_i2c_response_t response;
@@ -45,13 +49,17 @@ static void actuator_command_done(__unused const struct async_i2c_request * req)
             }
         } else {
             LOG_WARN("CRC Mismatch: 0x%02x calculated, 0x%02x received", crc_calc, cmd->response.crc8)
+            if (cmd->important_request) {
+                safety_raise_fault(FAULT_ACTUATOR_FAIL);
+            }
         }
     } else {
         if (cmd->response_cb){
-            cmd->response_cb(cmd);
+            if (!cmd->response_cb(cmd)){
+                cmd->in_use = false;
+            }
         }
     }
-    cmd->in_use = false;
 }
 
 static void actuator_command_failed(__unused const struct async_i2c_request * req, uint32_t abort_data){
@@ -136,6 +144,174 @@ static void actuator_send_command(actuator_cmd_data_t * cmd) {
 }
 
 // ========================================
+// Timing Management
+// ========================================
+struct timing_entry {
+    uint16_t timing;
+    bool set;
+};
+// The various timing_entry variables contain the cached timing values sent from ROS
+// These will be sent to the actuator board whenever it needs timings
+// In the event of a watchdog reset on the actuator board, it will request the timings and they will be sent from here
+static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS];
+static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS];
+static struct timing_entry claw_timing;
+static struct timing_entry marker_active_timing;
+
+static actuator_cmd_data_t set_timing_command = {.in_use = false, .i2c_in_progress = false};
+// The missing_timings contains timings that need to be sent to the actuator board
+// This will be set by the status message, but can also be set on parameter change
+// Values can only be set to false on successful sending of message
+static struct missing_timings_status missing_timings;
+
+
+static bool actuator_set_timing_general_cb(actuator_cmd_data_t *cmd);
+static bool actuator_update_missing_timings_common(actuator_cmd_data_t *cmd) {
+    if ((missing_timings.claw_open_timing || missing_timings.claw_close_timing) && claw_timing.set) {
+        actuator_populate_command(cmd, ACTUATOR_CMD_CLAW_TIMING, actuator_set_timing_general_cb, true);
+        cmd->request.data.claw_timing.open_time_ms = claw_timing.timing;
+        cmd->request.data.claw_timing.close_time_ms = claw_timing.timing;
+
+        missing_timings.claw_open_timing = false;
+        missing_timings.claw_close_timing = false;
+    }
+    else if (missing_timings.marker_active_timing && marker_active_timing.set) {
+        actuator_populate_command(cmd, ACTUATOR_CMD_MARKER_TIMING, actuator_set_timing_general_cb, true);
+        cmd->request.data.marker_timing.active_time_ms = marker_active_timing.timing;
+
+        missing_timings.marker_active_timing = false;
+    }
+    #define ELSE_IF_TORPEDO_TIMING_NEEDED(torp_num, coil_lower, coil_upper) \
+        else if (missing_timings.torpedo##torp_num##_##coil_lower##_timing && torpedo##torp_num##_timings[ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME].set) { \
+            actuator_populate_command(cmd, ACTUATOR_CMD_TORPEDO_TIMING, actuator_set_timing_general_cb, true); \
+            cmd->request.data.torpedo_timing.torpedo_num = torp_num; \
+            cmd->request.data.torpedo_timing.timing_type = ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME; \
+            cmd->request.data.torpedo_timing.time_us = torpedo##torp_num##_timings[ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME].timing; \
+            missing_timings.torpedo##torp_num##_##coil_lower##_timing = false; \
+        }
+    ELSE_IF_TORPEDO_TIMING_NEEDED(1, coil1_on,      COIL1_ON)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(1, coil1_2_delay, COIL1_2_DELAY)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(1, coil2_on,      COIL2_ON)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(1, coil2_3_delay, COIL2_3_DELAY)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(1, coil3_on,      COIL3_ON)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(2, coil1_on,      COIL1_ON)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(2, coil1_2_delay, COIL1_2_DELAY)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(2, coil2_on,      COIL2_ON)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(2, coil2_3_delay, COIL2_3_DELAY)
+    ELSE_IF_TORPEDO_TIMING_NEEDED(2, coil3_on,      COIL3_ON)
+    else {
+        return false;
+    }
+
+    actuator_send_command(cmd);
+    
+    return true;
+}
+
+
+static bool actuator_set_timing_general_cb(actuator_cmd_data_t *cmd) {
+    if (cmd->response.data.result != ACTUATOR_RESULT_SUCCESSFUL) {
+        LOG_ERROR("Failed to set actuator timing (cmd %d)", cmd->request.cmd_id);
+        safety_raise_fault(FAULT_ACTUATOR_FAIL);
+    }
+
+    return actuator_update_missing_timings_common(cmd);
+}
+
+static void actuator_update_missing_timings(void) {
+    if (set_timing_command.in_use) {
+        return;     // Can't send timings when existing command in progress
+    }
+    set_timing_command.in_use = true;
+
+    if (!actuator_update_missing_timings_common(&set_timing_command)) {
+        set_timing_command.in_use = false;
+    }
+}
+
+#define RC_RETURN_CHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){return temp_rc;}}
+rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "claw_timing_ms", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "marker_active_timing_ms", RCLC_PARAMETER_INT));
+
+	RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil1_on_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil1_2_delay_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil2_on_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil2_3_delay_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil3_on_timing_us", RCLC_PARAMETER_INT));
+
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil1_on_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil1_2_delay_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil2_on_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil2_3_delay_timing_us", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil3_on_timing_us", RCLC_PARAMETER_INT));
+
+    return RCL_RET_OK;
+}
+
+#define IS_VALID_TIMING(num) ((num) > 0 && (num) < (1<<16))
+bool actuator_handle_parameter_change(Parameter * param) {
+    // All parameters are int types
+    if (param->value.type != RCLC_PARAMETER_INT) {
+        return false;
+    }
+
+    if (!strcmp(param->name.data, "claw_timing_ms")) {
+        if (IS_VALID_TIMING(param->value.integer_value)) {
+            claw_timing.timing = param->value.integer_value;
+            claw_timing.set = true;
+
+            missing_timings.claw_open_timing = true;
+            missing_timings.claw_close_timing = true;
+            actuator_update_missing_timings();
+
+            return true;
+        } else {
+            return false;
+        }
+    } else if (!strcmp(param->name.data, "marker_active_timing_ms")) {
+        if (IS_VALID_TIMING(param->value.integer_value)) {
+            marker_active_timing.timing = param->value.integer_value;
+            marker_active_timing.set = true;
+            
+            missing_timings.marker_active_timing = true;
+            actuator_update_missing_timings();
+
+            return true;
+        } else {
+            return false;
+        }
+    } 
+    #define ELSE_IF_TORPEDO_PARAMETER(torp_num, coil_lower, coil_upper) \
+        else if (!strcmp(param->name.data, "torpedo" #torp_num "_" #coil_lower "_timing_us")) { \
+            if (IS_VALID_TIMING(param->value.integer_value)) { \
+                torpedo##torp_num##_timings[ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME].timing = param->value.integer_value; \
+                torpedo##torp_num##_timings[ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME].set = true; \
+                missing_timings.torpedo##torp_num##_##coil_lower##_timing = true; \
+                actuator_update_missing_timings(); \
+                return true; \
+            } else { \
+                return false; \
+            } \
+        } 
+    ELSE_IF_TORPEDO_PARAMETER(1, coil1_on,      COIL1_ON)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil1_2_delay, COIL1_2_DELAY)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil2_on,      COIL2_ON)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil2_3_delay, COIL2_3_DELAY)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil3_on,      COIL3_ON)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil1_on,      COIL1_ON)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil1_2_delay, COIL1_2_DELAY)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil2_on,      COIL2_ON)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil2_3_delay, COIL2_3_DELAY)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil3_on,      COIL3_ON)
+
+    else {
+        return false;
+    }
+}
+
+
+// ========================================
 // Actuator Board Monitoring
 // ========================================
 
@@ -146,14 +322,15 @@ static actuator_cmd_data_t kill_switch_update_command = {.in_use = false, .i2c_i
 static absolute_time_t status_valid_timeout = {0};
 static bool version_warning_printed = false;
 
-static void actuator_kill_switch_update_callback(actuator_cmd_data_t * cmd) {
+static bool actuator_kill_switch_update_callback(actuator_cmd_data_t * cmd) {
     if (cmd->response.data.result != ACTUATOR_RESULT_SUCCESSFUL) {
         LOG_ERROR("Non-successful kill switch update response %d", cmd->response.data.result);
         safety_raise_fault(FAULT_ACTUATOR_FAIL);
     }
+    return false;
 }
 
-static void actuator_status_callback(actuator_cmd_data_t * cmd) {
+static bool actuator_status_callback(actuator_cmd_data_t * cmd) {
     struct actuator_i2c_status *status = &cmd->response.data.status;
     if (status->firmware_status.version_major != ACTUATOR_EXPECTED_FIRMWARE_MAJOR && status->firmware_status.version_major != ACTUATOR_EXPECTED_FIRMWARE_MINOR) {
         if (!version_warning_printed) {
@@ -170,7 +347,17 @@ static void actuator_status_callback(actuator_cmd_data_t * cmd) {
             kill_switch_update_command.in_use = true;
             actuator_send_command(&kill_switch_update_command);
         }
+
+        static_assert(sizeof(status->firmware_status.missing_timings) == sizeof(uint16_t));
+        struct missing_timings_status status_missing_timings = status->firmware_status.missing_timings;
+        uint16_t *raw_status_missing_timings = (uint16_t*)(&status_missing_timings);
+        uint16_t *raw_cached_missing_timings = (uint16_t*)(&missing_timings);
+        if (*raw_status_missing_timings) {
+            *raw_cached_missing_timings |= *raw_status_missing_timings;
+            actuator_update_missing_timings();
+        }
     }
+    return false;
 }
 
 static bool actuator_has_been_polled = false;
@@ -207,7 +394,7 @@ static int64_t actuator_poll_alarm_callback(__unused alarm_id_t id, __unused voi
 // Public Command Requests
 // ========================================
 
-static void actuator_generic_result_cb(actuator_cmd_data_t * cmd) {
+static bool actuator_generic_result_cb(actuator_cmd_data_t * cmd) {
     if (cmd->response.data.result == ACTUATOR_RESULT_FAILED){
         if (cmd->important_request) {
             LOG_ERROR("Request %d returned failed result", cmd->response.data.result);
@@ -216,6 +403,7 @@ static void actuator_generic_result_cb(actuator_cmd_data_t * cmd) {
             LOG_WARN("Non-critical request %d returned failed result", cmd->response.data.result);
         }
     }
+    return false;
 }
 
 void actuator_open_claw(void) {
