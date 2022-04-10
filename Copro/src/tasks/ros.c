@@ -292,7 +292,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 
 		// Publishing a heartbeat with a reliable QOS to block if no connection forcing watchdog reset
 		// This must succeed. Make it crash on failure and let the watchdog handle it
-		RCCHECK(rcl_publish(&heartbeat_publisher, &heartbeat_msg, NULL));
+		RCSOFTCHECK(rcl_publish(&heartbeat_publisher, &heartbeat_msg, NULL));
 	}
 }
 
@@ -598,10 +598,10 @@ void ros_wait_for_connection(void) {
     } while (ret != RCL_RET_OK);
 }
 
-static rcl_allocator_t allocator;
-static rclc_support_t support;
-static rcl_node_t node;
-static rclc_executor_t executor;
+static rcl_allocator_t allocator = {0};
+static rclc_support_t support = {0};
+static rcl_node_t node = {0};
+static rclc_executor_t executor = {0};
 
 void ros_start(const char* namespace) {
     allocator = rcl_get_default_allocator();

@@ -77,6 +77,63 @@ hook_blocking_ros_transport_func uxr_ping_agent_session
 
 #endif
 
+
+
+#define PANIC_DATA 0x1035003
+
+.extern safety_restore_hardfault
+.extern __real_panic
+.global __wrap_panic
+.type __wrap_panic,%function
+.thumb_func
+__wrap_panic:
+    push {r0-r3}    // Note lr is lost, but that's fine since this function never returns
+    mov r2, r0      // Save message data
+
+    // Set the fault type in watchdog scratch 0
+    ldr r0, =(PANIC_DATA)
+    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH0_OFFSET)
+    str r0, [r1]
+
+    // Save the panic message
+    ldr r0, =(PANIC_DATA)
+    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH1_OFFSET)
+    str r2, [r1]
+
+    // Save the program counter of the caller for the panic
+    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH2_OFFSET)
+    mov r0, lr
+    str r0, [r1]
+
+    // Increment hard fault counter in sratch 3
+    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH3_OFFSET)
+    ldr r0, [r1]
+
+    // Don't increment if already maxed out
+    mov r2, #0xFF
+    lsl r2, r2, #0x8
+    orr r2, r2, r0
+    cmp r0, r2
+    beq 0f
+
+    // Add 0x0100 to the watchdog scratch 3 register
+    mov r2, #1
+    lsl r2, r2, #0x8
+    add r0, r0, r2
+    str r0, [r1]
+0:
+
+    // Restore the hardfault handler so when bkpt #0 is called it doesn't overwrite the values just set
+    bl safety_restore_hardfault
+
+    pop {r0-r3}
+
+    // Call the true panic
+    bl __real_panic
+    bkpt #0
+    b .
+
+
 #define HARD_FAULT_DATA 0x1035004
 
 // Custom HardFault Exception Handler
@@ -101,14 +158,14 @@ safety_hard_fault_handler:
     lsl r2, r2, #0x10
     orr r2, r2, r0
     cmp r0, r2
-    beq _skip_add
+    beq 0f
 
     // Add 0x010000 to the watchdog scratch 3 register
     mov r2, #1
     lsl r2, r2, #0x10
     add r0, r0, r2
     str r0, [r1]
-_skip_add:
+0:
 
     // Save the program counter of the hard fault
     ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH1_OFFSET)
@@ -121,3 +178,4 @@ _skip_add:
     str r0, [r1]
 
     bkpt #0
+    b .

@@ -253,36 +253,14 @@ void __wrap___assert_func(const char *file, int line, const char *func, const ch
 }
 
 /**
- * @brief Custom panic handler to save the panic in watchdog scratch registers
- * 
- * SHOULD NOT BE CALLED DIRECTLY. Use `panic` instead
- * 
- * @param fmt printf like format string for panic
- * @param ... Args for format string
+ * @brief Restores the hardfault handler to default
+ * Used in panic functions to ensure that the hardfault handler doesn't overwrite the panic data when breakpoint is called after a panic
  */
-void safety_panic(const char *fmt, ...) {
-    *reset_reason_reg = PANIC;
-    watchdog_hw->scratch[1] = (uint32_t) fmt;
-    if ((*reset_counter & 0xFF00) != 0xFF00) {
-        *reset_counter += 0x100;
-    }
-
-    puts("\n*** PANIC ***\n");
-
-    if (fmt) {
-        va_list args;
-        va_start(args, fmt);
-        vprintf(fmt, args);
-        va_end(args);
-        puts("\n");
-    }
-
+void safety_restore_hardfault(void) {
     // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
     if (original_hardfault_handler != NULL) {
         exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
     }
-
-    __breakpoint();
 }
 
 static bool had_watchdog_reboot = false;
@@ -318,7 +296,7 @@ static void safety_print_last_reset_cause(void){
         } else if (last_reset_reason == UNKNOWN_SAFETY_ACTIVE) {
             snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "UNKNOWN_SAFETY_ACTIVE");
         } else if (last_reset_reason == PANIC) {
-            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "PANIC (Message: 0x%08x)", prev_scratch1);
+            snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "PANIC (Message: 0x%08x, Call Address: 0x%08x)", prev_scratch1, prev_scratch2);
         } else if (last_reset_reason == HARD_FAULT) {
             snprintf(message+strlen(message), sizeof(message)-strlen(message)-1, "HARD_FAULT (Fault Address: 0x%08x)", prev_scratch1);
         } else if (last_reset_reason == ASSERT_FAIL) {
