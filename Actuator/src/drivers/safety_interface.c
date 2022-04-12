@@ -3,6 +3,10 @@
 #include "pico/stdlib.h"
 #include "basic_logger/logging.h"
 
+#include "actuators/claw.h"
+#include "actuators/dropper.h"
+#include "actuators/torpedo.h"
+
 // ========================================
 // Implementation dependent variable declarations
 // ========================================
@@ -18,7 +22,6 @@ static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too
 // ========================================
 
 static bool led_initialized = false;
-#define FAULT_LED_PIN BUILTIN_LED3_PIN
 void safety_set_fault_led(bool on) {
     if (!led_initialized) {
         gpio_init(FAULT_LED_PIN);
@@ -29,12 +32,13 @@ void safety_set_fault_led(bool on) {
 }
 
 void safety_kill_robot(void) {
-    // TODO: Implement kill robot
-    LOG_INFO("Disabling Robot");
+    dropper_safety_disable();
+    claw_safety_disable();
+    torpedo_safety_disable();
 }
 
 void safety_enable_robot(void) {
-    LOG_INFO("Enbling Robot");
+    
 }
 
 const char * safety_lookup_fault_id(uint32_t fault_id) {

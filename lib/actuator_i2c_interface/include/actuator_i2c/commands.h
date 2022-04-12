@@ -17,7 +17,7 @@ enum actuator_command {
     ACTUATOR_CMD_TORPEDO_TIMING = 7,
     ACTUATOR_CMD_DROP_MARKER = 8,
     ACTUATOR_CMD_CLEAR_DROPPER_STATUS = 9,
-    ACTUATOR_CMD_MARKER_TIMING = 10,
+    ACTUATOR_CMD_DROPPER_TIMING = 10,
     ACTUATOR_CMD_KILL_SWITCH = 11,
     ACTUATOR_CMD_RESET_ACTUATORS = 12,
 } __attribute__ ((packed));
@@ -32,13 +32,13 @@ static_assert(sizeof(enum actuator_command) == 1, "Actuator command enum did not
 #define ACTUATOR_CMD_RESET_ACTUATORS_LENGTH 0
 
 struct fire_torpedo_cmd {
-    uint8_t torpedo_num;
+    uint8_t torpedo_num;    // Note: Starts at 1
 } __attribute__ ((packed));
 #define ACTUATOR_CMD_FIRE_TORPEDO_LENGTH sizeof(struct fire_torpedo_cmd)
 
 
 struct drop_marker_cmd {
-    uint8_t marker_num;
+    uint8_t dropper_num;    // Note: Starts at 1
 } __attribute__ ((packed));
 #define ACTUATOR_CMD_DROP_MARKER_LENGTH sizeof(struct drop_marker_cmd)
 
@@ -59,6 +59,12 @@ enum torpedo_timing_type {
 }  __attribute__ ((packed));
 static_assert(sizeof(enum torpedo_timing_type) == 1, "Torpedo timing type enum did not pack properly");
 
+// Coil number and coil active flag to timing index
+// Note coil number starts at 0, and this will return the time this sequence will go for
+// Meaning that COIL_TO_TIMING(0, true) will yield the timing the first coil must be on for (So timing index        `0)
+#define COIL_ACTIVITY_TO_TIMING(coil, active) ((coil*2)+(active ? 0 : 1))
+
+
 struct torpedo_timing_cmd {
     uint8_t torpedo_num;
     enum torpedo_timing_type timing_type;
@@ -66,10 +72,10 @@ struct torpedo_timing_cmd {
 } __attribute__ ((packed));
 #define ACTUATOR_CMD_TORPEDO_TIMING_LENGTH sizeof(struct torpedo_timing_cmd)
 
-struct marker_timing_cmd {
+struct dropper_timing_cmd {
     uint16_t active_time_ms;
 } __attribute__ ((packed));
-#define ACTUATOR_CMD_MARKER_TIMING_LENGTH sizeof(struct marker_timing_cmd)
+#define ACTUATOR_CMD_DROPPER_TIMING_LENGTH sizeof(struct dropper_timing_cmd)
 
 struct kill_switch_cmd {
     bool asserting_kill;
@@ -84,7 +90,7 @@ typedef struct actuator_i2c_cmd {
         struct drop_marker_cmd drop_marker;
         struct claw_timing_cmd claw_timing;
         struct torpedo_timing_cmd torpedo_timing;
-        struct marker_timing_cmd marker_timing;
+        struct dropper_timing_cmd dropper_timing;
         struct kill_switch_cmd kill_switch;
     } data;
 } __attribute__ ((packed)) actuator_i2c_cmd_t;
@@ -102,7 +108,7 @@ typedef struct actuator_i2c_cmd {
     cmd_id == ACTUATOR_CMD_TORPEDO_TIMING ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_TORPEDO_TIMING_LENGTH : \
     cmd_id == ACTUATOR_CMD_DROP_MARKER ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_DROP_MARKER_LENGTH : \
     cmd_id == ACTUATOR_CMD_CLEAR_DROPPER_STATUS ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_CLEAR_DROPPER_STATUS_LENGTH : \
-    cmd_id == ACTUATOR_CMD_MARKER_TIMING ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_MARKER_TIMING_LENGTH : \
+    cmd_id == ACTUATOR_CMD_DROPPER_TIMING ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_DROPPER_TIMING_LENGTH : \
     cmd_id == ACTUATOR_CMD_KILL_SWITCH ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_KILL_SWITCH_LENGTH : \
     cmd_id == ACTUATOR_CMD_RESET_ACTUATORS ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_RESET_ACTUATORS_LENGTH : \
     0 \

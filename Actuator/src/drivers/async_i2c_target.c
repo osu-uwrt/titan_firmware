@@ -23,9 +23,9 @@ static inline bool i2c_reserved_addr(uint8_t addr) {
 }
 
 // I2C Definitions
-i2c_inst_t * const i2c_inst = BUILTIN_I2C_HW;
-const uint sda_pin = BUILTIN_SDA_PIN;
-const uint scl_pin = BUILTIN_SCL_PIN;
+i2c_inst_t * const i2c_inst = CONNECTOR_I2C_HW;
+const uint sda_pin = CONNECTOR_SDA_PIN;
+const uint scl_pin = CONNECTOR_SCL_PIN;
 
 // ========================================
 // Bus Management Functions

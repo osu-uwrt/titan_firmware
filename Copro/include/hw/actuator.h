@@ -56,9 +56,9 @@ void actuator_arm_torpedo(void);
 void actuator_disarm_torpedo(void);
 void actuator_fire_torpedo(uint8_t torpedo_id);
 void actuator_set_torpedo_timings(uint8_t torpedo_id, enum torpedo_timing_type timing_type, uint16_t time_us);
-void actuator_drop_marker(uint8_t marker_id);
+void actuator_drop_marker(uint8_t dropper_id);
 void actuator_clear_dropper_status(void);
-void actuator_set_marker_timings(uint16_t active_time_ms);
+void actuator_set_dropper_timings(uint16_t active_time_ms);
 void actuator_reset_actuators(void);
 
 #endif

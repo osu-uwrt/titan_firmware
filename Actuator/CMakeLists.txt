@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD rp2040_eval_board)
+set(PICO_BOARD actuator_mk1_hat)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -28,7 +28,7 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(actuator_firmware
 	${SOURCES}
 )
-target_compile_options(actuator_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
+target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format -Werror)
 target_include_directories(actuator_firmware PUBLIC include)
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 

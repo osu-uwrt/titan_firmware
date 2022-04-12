@@ -52,7 +52,6 @@ void safety_lower_fault(uint32_t fault_id);
 // Kill Switch Management Functions
 // ========================================
 
-#define SOFTWARE_KILL_MAX_TIME_DIFF_MS 500
 #define KILL_SWITCH_TIMEOUT_MS 500
 #define SOFTWARE_KILL_FRAME_STR_SIZE 32
 struct kill_switch_state {

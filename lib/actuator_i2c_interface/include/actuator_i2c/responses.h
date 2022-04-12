@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 enum claw_state {
-    CLAW_STATE_UNITIALIZED = 0,
+    CLAW_STATE_UNINITIALIZED = 0,
     CLAW_STATE_UNKNOWN_POSITION = 1,
     CLAW_STATE_OPENED = 2,
     CLAW_STATE_CLOSED = 3,
@@ -19,7 +19,7 @@ static_assert(sizeof(enum claw_state) == 1, "Claw status enum did not pack prope
 
 
 enum torpedo_state {
-    TORPEDO_STATE_UNITIALIZED = 0,
+    TORPEDO_STATE_UNINITIALIZED = 0,
     TORPEDO_STATE_DISARMED = 1,
     TORPEDO_STATE_CHARGING = 2,
     TORPEDO_STATE_READY = 3,
@@ -30,7 +30,7 @@ static_assert(sizeof(enum torpedo_state) == 1, "Torpedo status enum did not pack
 
 
 enum dropper_state {
-    DROPPER_STATE_UNITIALIZED = 0,
+    DROPPER_STATE_UNINITIALIZED = 0,
     DROPPER_STATE_READY = 1,
     DROPPER_STATE_DROPPING = 2,
     DROPPER_STATE_DROPPED = 3,
@@ -41,7 +41,7 @@ struct missing_timings_status {
     uint8_t claw_open_timing:1;
     uint8_t claw_close_timing:1;
     
-    uint8_t marker_active_timing:1;
+    uint8_t dropper_active_timing:1;
 
     uint8_t torpedo1_coil1_on_timing:1;
     uint8_t torpedo1_coil1_2_delay_timing:1;
@@ -109,7 +109,7 @@ typedef struct actuator_i2c_response {
     cmd_id == ACTUATOR_CMD_TORPEDO_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
     cmd_id == ACTUATOR_CMD_DROP_MARKER ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
     cmd_id == ACTUATOR_CMD_CLEAR_DROPPER_STATUS ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
-    cmd_id == ACTUATOR_CMD_MARKER_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
+    cmd_id == ACTUATOR_CMD_DROPPER_TIMING ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
     cmd_id == ACTUATOR_CMD_KILL_SWITCH ? ACTUATOR_BASE_RESPONSE_LENGTH + ACTUATOR_RESULT_LENGTH : \
     cmd_id == ACTUATOR_CMD_RESET_ACTUATORS ? 0 : \
     0 \

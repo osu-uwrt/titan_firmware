@@ -77,7 +77,7 @@ hook_blocking_ros_transport_func uxr_ping_agent_session
 
 #endif
 
-
+.text
 
 #define PANIC_DATA 0x1035003
 

@@ -153,10 +153,10 @@ struct timing_entry {
 // The various timing_entry variables contain the cached timing values sent from ROS
 // These will be sent to the actuator board whenever it needs timings
 // In the event of a watchdog reset on the actuator board, it will request the timings and they will be sent from here
-static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS];
-static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS];
-static struct timing_entry claw_timing;
-static struct timing_entry marker_active_timing;
+static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
+static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
+static struct timing_entry claw_timing = {0};
+static struct timing_entry dropper_active_timing = {0};
 
 static actuator_cmd_data_t set_timing_command = {.in_use = false, .i2c_in_progress = false};
 // The missing_timings contains timings that need to be sent to the actuator board
@@ -175,11 +175,11 @@ static bool actuator_update_missing_timings_common(actuator_cmd_data_t *cmd) {
         missing_timings.claw_open_timing = false;
         missing_timings.claw_close_timing = false;
     }
-    else if (missing_timings.marker_active_timing && marker_active_timing.set) {
-        actuator_populate_command(cmd, ACTUATOR_CMD_MARKER_TIMING, actuator_set_timing_general_cb, true);
-        cmd->request.data.marker_timing.active_time_ms = marker_active_timing.timing;
+    else if (missing_timings.dropper_active_timing && dropper_active_timing.set) {
+        actuator_populate_command(cmd, ACTUATOR_CMD_DROPPER_TIMING, actuator_set_timing_general_cb, true);
+        cmd->request.data.dropper_timing.active_time_ms = dropper_active_timing.timing;
 
-        missing_timings.marker_active_timing = false;
+        missing_timings.dropper_active_timing = false;
     }
     #define ELSE_IF_TORPEDO_TIMING_NEEDED(torp_num, coil_lower, coil_upper) \
         else if (missing_timings.torpedo##torp_num##_##coil_lower##_timing && torpedo##torp_num##_timings[ACTUATOR_TORPEDO_TIMING_##coil_upper##_TIME].set) { \
@@ -231,8 +231,12 @@ static void actuator_update_missing_timings(void) {
 
 #define RC_RETURN_CHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){return temp_rc;}}
 rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
+    if (!actuator_initialized) {
+        return RCL_RET_OK;
+    }
+
     RC_RETURN_CHECK(rclc_add_parameter(param_server, "claw_timing_ms", RCLC_PARAMETER_INT));
-    RC_RETURN_CHECK(rclc_add_parameter(param_server, "marker_active_timing_ms", RCLC_PARAMETER_INT));
+    RC_RETURN_CHECK(rclc_add_parameter(param_server, "dropper_active_timing_ms", RCLC_PARAMETER_INT));
 
 	RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil1_on_timing_us", RCLC_PARAMETER_INT));
     RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo1_coil1_2_delay_timing_us", RCLC_PARAMETER_INT));
@@ -251,6 +255,10 @@ rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
 
 #define IS_VALID_TIMING(num) ((num) > 0 && (num) < (1<<16))
 bool actuator_handle_parameter_change(Parameter * param) {
+    if (!actuator_initialized) {
+        return false;
+    }
+
     // All parameters are int types
     if (param->value.type != RCLC_PARAMETER_INT) {
         return false;
@@ -269,12 +277,12 @@ bool actuator_handle_parameter_change(Parameter * param) {
         } else {
             return false;
         }
-    } else if (!strcmp(param->name.data, "marker_active_timing_ms")) {
+    } else if (!strcmp(param->name.data, "dropper_active_timing_ms")) {
         if (IS_VALID_TIMING(param->value.integer_value)) {
-            marker_active_timing.timing = param->value.integer_value;
-            marker_active_timing.set = true;
+            dropper_active_timing.timing = param->value.integer_value;
+            dropper_active_timing.set = true;
             
-            missing_timings.marker_active_timing = true;
+            missing_timings.dropper_active_timing = true;
             actuator_update_missing_timings();
 
             return true;
@@ -482,14 +490,14 @@ void actuator_set_torpedo_timings(uint8_t torpedo_id, enum torpedo_timing_type t
     actuator_send_command(cmd);
 }
 
-void actuator_drop_marker(uint8_t marker_id) {
+void actuator_drop_marker(uint8_t dropper_id) {
     actuator_cmd_data_t* cmd = actuator_generate_command(ACTUATOR_CMD_DROP_MARKER, actuator_generic_result_cb);
     if (!cmd) {
         LOG_ERROR("Failed to create request");
         safety_raise_fault(FAULT_ACTUATOR_FAIL);
         return;
     }
-    cmd->request.data.drop_marker.marker_num = marker_id;
+    cmd->request.data.drop_marker.dropper_num = dropper_id;
     actuator_send_command(cmd);
 }
 
@@ -503,14 +511,14 @@ void actuator_clear_dropper_status(void) {
     actuator_send_command(cmd);
 }
 
-void actuator_set_marker_timings(uint16_t active_time_ms) {
-    actuator_cmd_data_t* cmd = actuator_generate_command(ACTUATOR_CMD_MARKER_TIMING, actuator_generic_result_cb);
+void actuator_set_dropper_timings(uint16_t active_time_ms) {
+    actuator_cmd_data_t* cmd = actuator_generate_command(ACTUATOR_CMD_DROPPER_TIMING, actuator_generic_result_cb);
     if (!cmd) {
         LOG_ERROR("Failed to create request");
         safety_raise_fault(FAULT_ACTUATOR_FAIL);
         return;
     }
-    cmd->request.data.marker_timing.active_time_ms = active_time_ms;
+    cmd->request.data.dropper_timing.active_time_ms = active_time_ms;
     actuator_send_command(cmd);
 }
 
