@@ -17,6 +17,9 @@ static void *custom_cb_args = NULL;
 #define COLOR_BRIGHT 9
 #define COLOR_DARK   3
 
+#define xstr(s) str(s)
+#define str(s) #s
+
 #define COLOR_TAG_DEBUG "\033[1;" xstr(COLOR_DARK) xstr(COLOR_DEBUG_NUM) "m"
 #define COLOR_TAG_INFO  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_INFO_NUM) "m"
 #define COLOR_TAG_WARN  "\033[1;" xstr(COLOR_DARK) xstr(COLOR_WARN_NUM) "m"
