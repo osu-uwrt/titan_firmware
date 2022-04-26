@@ -16,13 +16,13 @@
 // Torpedos
 #define COIL_1_PIN          23
 #define COIL_2_PIN          24
-#define COIL_3_PIN          21
+#define COIL_3_PIN          25
 #define TORP_SEL_1_PIN      20
 #define TORP_SEL_2_PIN      18
 #define TORP_ARM_PIN        16
 
 // Claw
-#define CLAW_ENABLE_PIN     25
+#define CLAW_ENABLE_PIN     21
 #define CLAW_FORWARD_PIN    29
 #define CLAW_REVERSE_PIN    22
 

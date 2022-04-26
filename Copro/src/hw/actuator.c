@@ -38,30 +38,47 @@ typedef struct actuator_command_data {
     bool in_use;
 } actuator_cmd_data_t;
 
+/**
+ * @brief Common callback for completion of actuator i2c request
+ * This checks the crc value of the response if there is one, and will call the request callback if one provided on successful completion
+ * This also handles releasing of the request
+ * 
+ * @param req 
+ */
 static void actuator_command_done(__unused const struct async_i2c_request * req) {
     actuator_cmd_data_t* cmd = (actuator_cmd_data_t*)req->user_data;
 
+    bool can_release_request = true;
+    bool request_successful = true;
     if (cmd->i2c_request.bytes_to_receive > 0) {
         uint8_t crc_calc = actuator_i2c_crc8_calc_response(&cmd->response, cmd->i2c_request.bytes_to_receive);
-        if (crc_calc == cmd->response.crc8) {
-            if (cmd->response_cb){
-                cmd->response_cb(cmd);
-            }
-        } else {
+        if (crc_calc != cmd->response.crc8) {
             LOG_WARN("CRC Mismatch: 0x%02x calculated, 0x%02x received", crc_calc, cmd->response.crc8)
             if (cmd->important_request) {
                 safety_raise_fault(FAULT_ACTUATOR_FAIL);
             }
+
+            request_successful = false;
         }
-    } else {
-        if (cmd->response_cb){
-            if (!cmd->response_cb(cmd)){
-                cmd->in_use = false;
-            }
+    }
+    
+    if (request_successful && cmd->response_cb){
+        if (cmd->response_cb(cmd)){
+            can_release_request = false;
         }
+    }
+
+    if (can_release_request) {
+        cmd->in_use = false;
     }
 }
 
+/**
+ * @brief Common failure callback for actuator i2c requests
+ * 
+ * @param req 
+ * @param abort_data 
+ */
 static void actuator_command_failed(__unused const struct async_i2c_request * req, uint32_t abort_data){
     actuator_cmd_data_t* cmd = (actuator_cmd_data_t*)req->user_data;
     if (cmd->important_request) {
@@ -137,6 +154,12 @@ static actuator_cmd_data_t* actuator_generate_command(enum actuator_command cmd_
     return cmd;
 }
 
+/**
+ * @brief Calculates the crc for the command and sends it
+ * If not using `actuator_generate_command` to allocate the request it is the responsibility of the caller to set in_use to true before sending.
+ * 
+ * @param cmd The command to send
+ */
 static void actuator_send_command(actuator_cmd_data_t * cmd) {
     cmd->request.crc8 = actuator_i2c_crc8_calc_command(&cmd->request, cmd->i2c_request.bytes_to_send);
 
@@ -250,6 +273,21 @@ rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
     RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil2_3_delay_timing_us", RCLC_PARAMETER_INT));
     RC_RETURN_CHECK(rclc_add_parameter(param_server, "torpedo2_coil3_on_timing_us", RCLC_PARAMETER_INT));
 
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "claw_timing_ms", 4500));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "dropper_active_timing_ms", 250));
+
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil1_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil1_2_delay_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil2_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil2_3_delay_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil3_on_timing_us", 250));
+
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil1_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil1_2_delay_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil2_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil2_3_delay_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil3_on_timing_us", 250));
+
     return RCL_RET_OK;
 }
 
@@ -329,11 +367,20 @@ static actuator_cmd_data_t status_command = {.in_use = false, .i2c_in_progress =
 static actuator_cmd_data_t kill_switch_update_command = {.in_use = false, .i2c_in_progress = false};
 static absolute_time_t status_valid_timeout = {0};
 static bool version_warning_printed = false;
+static bool kill_switch_needs_refresh = false;
 
 static bool actuator_kill_switch_update_callback(actuator_cmd_data_t * cmd) {
+    assert(cmd == &kill_switch_update_command);
+
     if (cmd->response.data.result != ACTUATOR_RESULT_SUCCESSFUL) {
         LOG_ERROR("Non-successful kill switch update response %d", cmd->response.data.result);
         safety_raise_fault(FAULT_ACTUATOR_FAIL);
+    } else if (kill_switch_needs_refresh) {
+        kill_switch_needs_refresh = false;
+        kill_switch_update_command.request.data.kill_switch.asserting_kill = safety_kill_get_asserting_kill();
+        kill_switch_update_command.in_use = true;
+        actuator_send_command(&kill_switch_update_command);
+        return true;
     }
     return false;
 }
@@ -351,9 +398,13 @@ static bool actuator_status_callback(actuator_cmd_data_t * cmd) {
         status_valid_timeout = make_timeout_time_ms(ACTUATOR_MAX_STATUS_AGE_MS);
 
         if (safety_initialized) {
-            kill_switch_update_command.request.data.kill_switch.asserting_kill = safety_kill_get_asserting_kill();
-            kill_switch_update_command.in_use = true;
-            actuator_send_command(&kill_switch_update_command);
+            if (!kill_switch_update_command.in_use) {
+                kill_switch_needs_refresh = false;
+                kill_switch_update_command.request.data.kill_switch.asserting_kill = safety_kill_get_asserting_kill();
+                kill_switch_update_command.in_use = true;
+                actuator_send_command(&kill_switch_update_command);
+            }
+            // Don't care about case if command not in use. If command is in use then a kill switch update just occurred, so it can skip the refresh
         }
 
         static_assert(sizeof(status->firmware_status.missing_timings) == sizeof(uint16_t));
@@ -405,10 +456,10 @@ static int64_t actuator_poll_alarm_callback(__unused alarm_id_t id, __unused voi
 static bool actuator_generic_result_cb(actuator_cmd_data_t * cmd) {
     if (cmd->response.data.result == ACTUATOR_RESULT_FAILED){
         if (cmd->important_request) {
-            LOG_ERROR("Request %d returned failed result", cmd->response.data.result);
+            LOG_ERROR("Request %d returned failed result %d", cmd->request.cmd_id, cmd->response.data.result);
             safety_raise_fault(FAULT_ACTUATOR_FAIL);
         } else {
-            LOG_WARN("Non-critical request %d returned failed result", cmd->response.data.result);
+            LOG_WARN("Non-critical request %d returned failed result %d", cmd->request.cmd_id, cmd->response.data.result);
         }
     }
     return false;
@@ -543,6 +594,17 @@ bool actuator_is_connected(void) {
         return absolute_time_diff_us(status_valid_timeout, get_absolute_time()) < 0;
     } else {
         return false;
+    }
+}
+
+void actuator_kill_report_refresh(void) {
+    if (kill_switch_update_command.in_use) {
+        kill_switch_needs_refresh = true;
+    } else {
+        kill_switch_needs_refresh = false;
+        kill_switch_update_command.request.data.kill_switch.asserting_kill = safety_kill_get_asserting_kill();
+        kill_switch_update_command.in_use = true;
+        actuator_send_command(&kill_switch_update_command);
     }
 }
 

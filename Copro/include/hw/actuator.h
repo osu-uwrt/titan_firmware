@@ -45,6 +45,11 @@ bool actuator_is_connected(void);
 void actuator_init(void);
 
 /**
+ * @brief Called to notify the actuator board of a change to the kill switch
+ */
+void actuator_kill_report_refresh(void);
+
+/**
  * @brief Actuator commands
  * 
  * NOT INTERRUPT SAFE - Can allocate memory

@@ -26,7 +26,7 @@
  * @brief A pointer to the list of all the active faults as bits
  * DO NOT WRITE TO THIS! There are methods to safely raise and lower faults
  */
-extern volatile uint32_t *fault_list;
+extern volatile uint32_t * const fault_list;
 
 /**
  * @brief Raises the specified fault id

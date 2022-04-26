@@ -191,7 +191,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         
         if (active_transfer.state == I2C_TARGET_IDLE || active_transfer.state == I2C_TARGET_RECEIVING) {
             uint8_t *raw_recv_buffer = (uint8_t*)(&active_transfer.received_command);
-            size_t max_recv_buffer_size = sizeof(active_transfer.received_command);
+            __unused size_t max_recv_buffer_size = sizeof(active_transfer.received_command);
 
             // Receive buffer needs to be read in (cleared by hw)
             int dropped_bytes = 0;

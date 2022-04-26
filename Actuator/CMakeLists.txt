@@ -28,6 +28,8 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(actuator_firmware
 	${SOURCES}
 )
+pico_generate_pio_header(actuator_firmware ${CMAKE_CURRENT_LIST_DIR}/src/actuators/torpedo.pio)
+
 target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format -Werror)
 target_include_directories(actuator_firmware PUBLIC include)
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
@@ -56,5 +58,6 @@ target_link_libraries(actuator_firmware
 
 	pico_stdlib
 	hardware_i2c
+	hardware_pio
 	hardware_watchdog
 )

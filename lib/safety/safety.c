@@ -58,7 +58,7 @@ const char * safety_lookup_fault_id(uint32_t fault_id);
 // Fault Management Functions
 // ========================================
 
-volatile uint32_t *fault_list = &watchdog_hw->scratch[6];
+volatile uint32_t * const fault_list = &watchdog_hw->scratch[6];
 
 void safety_raise_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);

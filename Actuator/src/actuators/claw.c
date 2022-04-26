@@ -148,6 +148,10 @@ enum claw_state claw_get_state(void) {
 enum actuator_command_result claw_open(void) {
     hard_assert_if(LIFETIME_CHECK, !claw_initialized);
 
+    if (safety_kill_get_asserting_kill()) {
+        return ACTUATOR_RESULT_FAILED;
+    }
+
     switch (claw_get_state()) {
         case CLAW_STATE_OPENED:
             return ACTUATOR_RESULT_SUCCESSFUL;
@@ -171,6 +175,10 @@ enum actuator_command_result claw_open(void) {
 
 enum actuator_command_result claw_close(void) {
     hard_assert_if(LIFETIME_CHECK, !claw_initialized);
+
+    if (safety_kill_get_asserting_kill()) {
+        return ACTUATOR_RESULT_FAILED;
+    }
 
     switch (claw_get_state()) {
         case CLAW_STATE_CLOSED:

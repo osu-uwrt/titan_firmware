@@ -1,0 +1,104 @@
+.program torpedo
+.side_set 3
+
+; There are 5 coil timings that must be sent
+.define PUBLIC num_timings 5
+.define PUBLIC irq_num     0
+
+; Coil 1
+    pull                    side 0
+    mov x, osr              side 0b001
+delay_coil1_on:
+    jmp x-- delay_coil1_on  side 0b001
+    
+    pull                    side 0
+    mov x, osr              side 0
+delay_coil1_off:
+    jmp x-- delay_coil1_off side 0
+
+
+; Coil 2
+    pull                    side 0
+    mov x, osr              side 0b010
+delay_coil2_on:
+    jmp x-- delay_coil2_on  side 0b010
+    
+    pull                    side 0
+    mov x, osr              side 0
+delay_coil2_off:
+    jmp x-- delay_coil2_off side 0
+
+
+; Coil 3
+    pull                    side 0
+    mov x, osr              side 0b100
+delay_coil3_on:
+    jmp x-- delay_coil3_on  side 0b100
+
+
+; Done
+    irq irq_num             side 0
+loop:
+    jmp loop                side 0
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/irq.h"
+
+static inline void torpedo_program_init(PIO pio, uint sm, uint offset, uint first_pin, irq_handler_t completion_handler) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_config c = torpedo_program_get_default_config(offset);
+
+    // Set clock rate to 1 MHz (Don't use fractional, too much jitter)
+    assert((clock_get_hz(clk_sys) % 1000000) == 0);
+    sm_config_set_clkdiv_int_frac(&c, clock_get_hz(clk_sys) / 1000000, 0);
+
+    // Initialize pins
+    sm_config_set_sideset_pins(&c, first_pin);
+    pio_gpio_init(pio, first_pin);
+    pio_gpio_init(pio, first_pin+1);
+    pio_gpio_init(pio, first_pin+2);
+    pio_sm_set_consecutive_pindirs(pio, sm, first_pin, 3, true);
+
+    // Setup fifo joining to add up to 8 pins
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    static_assert(torpedo_num_timings <= 8, "More timings than fifo depth");
+
+    // Initialize irq
+    pio_interrupt_clear(pio, torpedo_irq_num);
+    pio_set_irq0_source_enabled(pio, pis_interrupt0 + torpedo_irq_num, true);
+    irq_set_exclusive_handler(PIO0_IRQ_0, completion_handler);
+    irq_set_enabled(PIO0_IRQ_0, true);
+
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+static inline void torpedo_fire_sequence(PIO pio, uint sm, uint16_t *timings) {
+    for (int i = 0; i < torpedo_num_timings; i++) {
+        pio_sm_put_blocking(pio, sm, timings[i]);
+    }
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void torpedo_reset(PIO pio, uint sm, uint offset) {
+    // Disable state machine
+    pio_sm_set_enabled(pio, sm, false);
+
+    // Clear interface hardware
+    pio_interrupt_clear(pio, torpedo_irq_num);
+    pio_sm_clear_fifos(pio, sm);
+
+    // Clear FIFO debug flags
+    const uint32_t fdebug_sm_mask =
+            (1u << PIO_FDEBUG_TXOVER_LSB) |
+            (1u << PIO_FDEBUG_RXUNDER_LSB) |
+            (1u << PIO_FDEBUG_TXSTALL_LSB) |
+            (1u << PIO_FDEBUG_RXSTALL_LSB);
+    pio->fdebug = fdebug_sm_mask << sm;
+
+    // Finally, clear some internal SM state
+    pio_sm_restart(pio, sm);
+    pio_sm_clkdiv_restart(pio, sm);
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
+}
+%}

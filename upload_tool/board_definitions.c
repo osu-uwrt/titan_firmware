@@ -31,7 +31,13 @@ const struct rp2040_device_capabilities board_types[] = {
         .supports_general_code = false,
         .supports_i2c_upload = false,
         .supports_i2c_proxy = true,
-    }
+    },
+    {
+        .board_type_name = "actuator_mk1_hat",
+        .supports_general_code = false,
+        .supports_i2c_upload = true,
+        .supports_i2c_proxy = false,
+    },
 };
 const struct rp2040_device_capabilities *unknown_board_type = &board_types[0];
 

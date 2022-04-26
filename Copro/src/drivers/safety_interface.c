@@ -1,5 +1,6 @@
 #include "drivers/safety.h"
 
+#include "hw/actuator.h"
 #include "hw/dio.h"
 #include "hw/dshot.h"
 #include "hw/esc_pwm.h"
@@ -34,10 +35,12 @@ void safety_kill_robot(void) {
     #if HW_USE_PWM
     esc_pwm_stop_thrusters();
     #endif
+
+    actuator_kill_report_refresh();
 }
 
 void safety_enable_robot(void) {
-
+    actuator_kill_report_refresh();
 }
 
 const char * safety_lookup_fault_id(uint32_t fault_id) {

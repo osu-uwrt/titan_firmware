@@ -1,5 +1,6 @@
 #include "drivers/safety.h"
 
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "basic_logger/logging.h"
 
@@ -23,6 +24,7 @@ static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too
 
 static bool led_initialized = false;
 void safety_set_fault_led(bool on) {
+    bi_decl_if_func_used(bi_1pin_with_name(FAULT_LED_PIN, "Fault LED"));
     if (!led_initialized) {
         gpio_init(FAULT_LED_PIN);
         gpio_set_dir(FAULT_LED_PIN, GPIO_OUT);

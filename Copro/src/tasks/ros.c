@@ -280,13 +280,20 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 			RCSOFTCHECK(rcl_publish(&firmware_state_publisher, &firmware_state_msg, NULL));
 		}
 
-		if (actuator_is_connected()) {
-			actuator_status_msg.claw_state = actuator_to_ros_claw_state(actuator_last_status.claw_state);
-			actuator_status_msg.torpedo1_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo1_state);
-			actuator_status_msg.torpedo2_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo2_state);
-			actuator_status_msg.dropper1_state = actuator_to_ros_dropper_state(actuator_last_status.dropper1_state);
-			actuator_status_msg.dropper2_state = actuator_to_ros_dropper_state(actuator_last_status.dropper2_state);
-
+		{
+			if (actuator_is_connected()) {
+				actuator_status_msg.claw_state = actuator_to_ros_claw_state(actuator_last_status.claw_state);
+				actuator_status_msg.torpedo1_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo1_state);
+				actuator_status_msg.torpedo2_state = actuator_to_ros_torpedo_state(actuator_last_status.torpedo2_state);
+				actuator_status_msg.dropper1_state = actuator_to_ros_dropper_state(actuator_last_status.dropper1_state);
+				actuator_status_msg.dropper2_state = actuator_to_ros_dropper_state(actuator_last_status.dropper2_state);
+			} else {
+				actuator_status_msg.claw_state = riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
+				actuator_status_msg.torpedo1_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+				actuator_status_msg.torpedo2_state = riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+				actuator_status_msg.dropper1_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+				actuator_status_msg.dropper2_state = riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+			}
 			RCSOFTCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
 		}
 
