@@ -39,7 +39,7 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
 
-#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_FATAL("Failed status on in : %d. Aborting.",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
+#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_FATAL("Failed status on in " __FILE__ ":%d : %d. Aborting.",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_ERROR("Failed status on in " __FILE__ ":%d : %d. Continuing.",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
 
 static void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
@@ -246,7 +246,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				firmware_state_msg.actuator_faults = 0;
 			}
 
-			firmware_state_msg.copro_faults = *fault_list;
+			firmware_state_msg.copro_faults = *fault_list_reg;
 			firmware_state_msg.copro_memory_usage = memmonitor_get_total_use_percentage();
 			firmware_state_msg.depth_sensor_initialized = depth_initialized;
 			firmware_state_msg.peltier_cooling_threshold = cooling_threshold;
@@ -267,7 +267,7 @@ static void state_publish_callback(rcl_timer_t * timer, __unused int64_t last_ca
 				if (kill_switch_states[i].asserting_kill) {
 					firmware_state_msg.kill_switches_asserting_kill |= (1<<i);
 				}
-				
+
 				if (kill_switch_states[i].needs_update) {
 					firmware_state_msg.kill_switches_needs_update |= (1<<i);
 				}
@@ -350,7 +350,7 @@ static void state_publish_init(rclc_support_t *support, rcl_node_t *node, rclc_e
 	electrical_readings_msg.header.frame_id.data = copro_frame;
 	electrical_readings_msg.header.frame_id.capacity = sizeof(copro_frame);
 	electrical_readings_msg.header.frame_id.size = strlen(copro_frame);
-	
+
 	robot_state_msg.header.frame_id.data = copro_frame;
 	robot_state_msg.header.frame_id.capacity = sizeof(copro_frame);
 	robot_state_msg.header.frame_id.size = strlen(copro_frame);
@@ -385,7 +385,7 @@ static riptide_msgs2__msg__ActuatorCommand actuator_msg;
 static void actuator_subscription_callback(const void * msgin)
 {
 	__unused const riptide_msgs2__msg__ActuatorCommand * msg = (const riptide_msgs2__msg__ActuatorCommand *)msgin;
-	
+
 	if (msg->open_claw) {
 		actuator_open_claw();
 	}
@@ -432,13 +432,14 @@ static riptide_msgs2__msg__ElectricalCommand electrical_control_msg;
 static void electrical_control_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
-	
+
 	if (msg->cooling_threshold != riptide_msgs2__msg__ElectricalCommand__NO_COOLING_THRESH) {
 		cooling_threshold = msg->cooling_threshold;
 		LOG_INFO("Setting cooling threshold: %d", cooling_threshold);
 	}
 
 	if (msg->reset_copro){
+		safety_notify_software_reset();
 		watchdog_reboot(0, 0, 0);
 	}
 
@@ -463,15 +464,9 @@ static char software_kill_frame_str[SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
 static void software_kill_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
-	
-	if (!rmw_uros_epoch_synchronized()){
-        LOG_ERROR("Safety Kill Switch: No Time Synchronization for Comand Verification!");
-        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
-        return;
-    }
 
     // Make sure kill switch id is valid
-    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES || 
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
             msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
         LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
@@ -487,7 +482,7 @@ static void software_kill_subscription_callback(const void * msgin)
 
     struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
 
-    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill && 
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill &&
             strncmp(kill_entry->locking_frame, msg->sender_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
         LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->sender_id.data);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
@@ -581,7 +576,7 @@ static void on_parameter_changed(Parameter * param)
 static void parameter_server_init(rcl_node_t *node, rclc_executor_t *executor) {
   	RCCHECK(rclc_parameter_server_init_with_option(&param_server, node, &param_server_options));
 	RCCHECK(rclc_executor_add_parameter_server(executor, &param_server, on_parameter_changed));
-	
+
 	RCCHECK(actuator_create_parameters(&param_server));
 	// TODO: Add cooling threshold as a parameter
 }
@@ -596,7 +591,7 @@ static void parameter_server_fini(rcl_node_t *node){
 
 void ros_wait_for_connection(void) {
 	// Make sure this is less than the watchdog timeout
-    const int timeout_ms = 1000; 
+    const int timeout_ms = 1000;
 
     rcl_ret_t ret;
     do {
@@ -619,9 +614,6 @@ void ros_start(const char* namespace) {
 	// create node
 	node = rcl_get_zero_initialized_node();
 	RCCHECK(rclc_node_init_default(&node, "coprocessor_node", namespace, &support));
-
-	// Before starting anything else, synchronize time
-	RCCHECK(rmw_uros_sync_session(2000));
 
 	// create executor
 	const uint num_executor_tasks = 7 + RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER;

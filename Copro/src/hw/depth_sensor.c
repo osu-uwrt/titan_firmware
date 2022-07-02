@@ -5,8 +5,6 @@
 
 #include "basic_logger/logging.h"
 
-#include "hardware/watchdog.h"
-
 #include "drivers/async_i2c.h"
 #include "drivers/safety.h"
 #include "hw/depth_sensor.h"
@@ -48,7 +46,7 @@ static int depth_prom_read_index;
 
 /**
  * @brief Failure callback for any initialization requests
- * 
+ *
  * @param req The request that failed
  * @param abort_data The contents of the abort register
  */
@@ -60,7 +58,7 @@ static void depth_init_failure(__unused const struct async_i2c_request* req, uin
 /**
  * @brief Timer callback for the reset delay to allow the sensor time to reset
  * This starts the next stage of initialization
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
@@ -73,7 +71,7 @@ static int64_t depth_reset_timer_callback(__unused alarm_id_t id, __unused void 
 
 /**
  * @brief Callback on completion of the sensor reset command
- * 
+ *
  * @param req Request that caused the callback
  */
 static void depth_reset_finished(__unused const struct async_i2c_request *req) {
@@ -85,7 +83,7 @@ static void depth_reset_finished(__unused const struct async_i2c_request *req) {
  * Taken from datasheet
  * Note this function expects a prom of 8 bytes, even though the prom is 7 bytes on the sensor
  * This function clears the CRC4 value from the prom, so it must be saved before calling
- * 
+ *
  * @param n_prom The PROM to calculate the CRC4 for
  * @return unsigned char The calculated CRC for the PROM
  */
@@ -97,11 +95,11 @@ static unsigned char crc4(uint16_t n_prom[]) // n_prom defined as 8x unsigned in
     n_prom[0]=((n_prom[0]) & 0x0FFF); // CRC byte is replaced by 0
     n_prom[7]=0; // Subsidiary value, set to 0
     for (cnt = 0; cnt < 16; cnt++) // operation is performed on bytes
-    { 
+    {
         // choose LSB or MSB
         if (cnt%2==1) n_rem ^= (unsigned short) ((n_prom[cnt>>1]) & 0x00FF);
         else n_rem ^= (unsigned short) (n_prom[cnt>>1]>>8);
-        
+
         for (n_bit = 8; n_bit > 0; n_bit--)
         {
             if (n_rem & (0x8000)) n_rem = (n_rem << 1) ^ 0x3000;
@@ -114,7 +112,7 @@ static unsigned char crc4(uint16_t n_prom[]) // n_prom defined as 8x unsigned in
 
 /**
  * @brief I2C Callback after succesful reading of a byte from the PROM
- * 
+ *
  * @param req The request which caused the callback
  */
 static void depth_prom_read_finished(__unused const struct async_i2c_request *req) {
@@ -193,8 +191,8 @@ static int depth_num_bad_reads = 0;
 /**
  * @brief Does calculations with PROM and ADC readings to calculate the pressure and temperature readings
  * Taken from the datasheet (And previous python firmware)
- * 
- * @param D1 The ADC reading of the D1 Conversion 
+ *
+ * @param D1 The ADC reading of the D1 Conversion
  * @param D2 The ADC reading of the D2 Conversion
  */
 static void depth_calculate(uint32_t D1, uint32_t D2) {
@@ -236,7 +234,7 @@ static void depth_calculate(uint32_t D1, uint32_t D2) {
 
 /**
  * @brief Timer callback to give time for the depth sensor to collect the requested data
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
@@ -248,7 +246,7 @@ static int64_t depth_adc_wait_callback(__unused alarm_id_t id, __unused void *us
 
 /**
  * @brief Callback after the begin conversion request is sent
- * 
+ *
  * @param req The request which caused the callback
  */
 static void depth_convert_cmd_finished(__unused const struct async_i2c_request *req) {
@@ -257,7 +255,7 @@ static void depth_convert_cmd_finished(__unused const struct async_i2c_request *
 
 /**
  * @brief Callback after a successful read of the data in the depth sensor's ADC
- * 
+ *
  * @param req The request which caused the callback
  */
 static void depth_adc_read_finished(__unused const struct async_i2c_request *req){
@@ -286,7 +284,7 @@ static void depth_adc_read_finished(__unused const struct async_i2c_request *req
 
 /**
  * @brief Failure callback for read requests from the sensor
- * 
+ *
  * @param req The request that failed
  * @param abort_data The contents of the abort register
  */
@@ -308,14 +306,14 @@ static void depth_read_failure(__unused const struct async_i2c_request *req, uin
 /**
  * @brief Common handler function to start a sequence of sensor reads
  * Only one sensor read can occur at a time
- * 
+ *
  * @param num_reads The number of reads to perform
  * @param callback Optional callback on success of performing all of the reads
  */
 static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
     // If the depth is reading but this function should never be called
     // Since this is an internal function, this is an internal error
-    hard_assert_if(DEPTH, depth_read_running);  
+    hard_assert_if(DEPTH, depth_read_running);
 
     depth_read_running = true;
     depth_read_num_reads_remaining = num_reads;
@@ -326,7 +324,7 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
 
 /**
  * @brief Alarm callback to poll the depth sesnor during operation
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer
@@ -373,7 +371,7 @@ static void depth_zero_depth(void) {
         depth_adc_queue_reads(2, &depth_zero_depth);
     } else {
         // Save surface pressure in watchdog in case of crash while submerged
-        watchdog_hw->scratch[7] = (uint32_t)surface_pressure;
+        *depth_cal_reg = (uint32_t)surface_pressure;
 
         depth_initialized = true;
         hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
@@ -385,12 +383,12 @@ static void depth_zero_depth(void) {
  * Only call as part of the init process
  */
 static void depth_begin_zero_depth(void) {
-    if (watchdog_hw->scratch[7] == 0xFFFFFFFF) {
+    if (*depth_cal_reg == DEPTH_CALIBRATION_INVALID) {
         zero_count = 0;
         depth_adc_queue_reads(20, &depth_zero_depth);
     } else {
         LOG_INFO("Depth surface pressure found... Skipping Zeroing of Depth");
-        surface_pressure = (int32_t)watchdog_hw->scratch[7];
+        surface_pressure = (int32_t)*depth_cal_reg;
 
         // Start depth sensor read task
         depth_initialized = true;

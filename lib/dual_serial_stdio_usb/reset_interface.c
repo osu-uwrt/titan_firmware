@@ -56,6 +56,8 @@ static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_
                 gpio_mask = 1u << (request->wValue >> 9u);
             }
 #endif
+            watchdog_hw->scratch[0] = 0x1035000;
+            watchdog_hw->scratch[1] = 0x7193005;
             reset_usb_boot(gpio_mask, (request->wValue & 0x7f) | PICO_STDIO_USB_RESET_BOOTSEL_INTERFACE_DISABLE_MASK);
             // does not return, otherwise we'd return true
         }
@@ -63,6 +65,8 @@ static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_
 
 #if PICO_STDIO_USB_RESET_INTERFACE_SUPPORT_RESET_TO_FLASH_BOOT
         if (request->bRequest == RESET_REQUEST_FLASH) {
+            watchdog_hw->scratch[0] = 0x1035000;
+            watchdog_hw->scratch[1] = 0x7193005;
             watchdog_reboot(0, 0, PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS);
             return true;
         }
@@ -105,6 +109,8 @@ void tud_cdc_line_coding_cb(__unused uint8_t itf, cdc_line_coding_t const* p_lin
 #else
         const uint gpio_mask = 0u;
 #endif
+        watchdog_hw->scratch[0] = 0x1035000;
+        watchdog_hw->scratch[1] = 0x7193005;
         reset_usb_boot(gpio_mask, PICO_STDIO_USB_RESET_BOOTSEL_INTERFACE_DISABLE_MASK);
     }
 }

@@ -72,7 +72,7 @@ void esc_pwm_stop_thrusters(void) {
 
 /**
  * @brief Timeout function which fires if pwm commands have not been updated in enough time
- * 
+ *
  * @param id Active alarm ID
  * @param user_data not used
  * @return int64_t Reschedule time
@@ -90,24 +90,6 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
 
     // Don't run thrusters if kill is being asserted
     if (safety_kill_get_asserting_kill()) {
-        return;
-    }
-
-    // Make sure time is synchronized with network before attempting to compare timestamps
-    if (!rmw_uros_epoch_synchronized()){
-        LOG_ERROR("ESC PWM No Time Synchronization for Comand Verification");
-        safety_raise_fault(FAULT_ROS_SOFT_FAIL);
-        return;
-    }
-
-    // Check to make sure message isn't old
-    int64_t command_time = (((int64_t)thruster_commands->header.stamp.sec) * 1000) + 
-                            (thruster_commands->header.stamp.nanosec / 1000000);
-    int64_t command_time_diff = rmw_uros_epoch_millis() - command_time;
-
-    if (command_time_diff > ESC_PWM_COMMAND_MAX_TIME_DIFF_MS || command_time_diff < -ESC_PWM_COMMAND_MAX_TIME_DIFF_MS) {
-        LOG_WARN("Stale PWM command received: %lld ms old", command_time_diff);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
     }
 
@@ -137,7 +119,7 @@ void esc_pwm_update_thrusters(const riptide_msgs2__msg__PwmStamped *thruster_com
 
     #define set_thruster_with_check(name, val)  if(val != 1500){needs_timeout_scheduled=true;}\
                                                 set_thruster_name(name, val);
-        
+
     for (int i = 0; i < 8; i++){
         uint16_t val = thruster_commands->pwm[i];
         if (val < 1100 || val > 1900) {
@@ -186,7 +168,7 @@ void esc_pwm_init(void) {
     for (int i = 0; i < 8; i++){
         uint thruster_pin = thruster_pins[i];
         uint slice_num = pwm_gpio_to_slice_num(thruster_pin);
-        uint channel = pwm_gpio_to_channel(thruster_pin);   
+        uint channel = pwm_gpio_to_channel(thruster_pin);
 
         // Initialize slice if needed
         if (!(initialized_slices & (1<<slice_num))) {
@@ -194,7 +176,7 @@ void esc_pwm_init(void) {
 
             pwm_init(slice_num, &config, false);
         }
-        
+
         // Initialize channel and pin
         pwm_set_chan_level(slice_num, channel, ESC_NEUTRAL_PWM_US);
         gpio_set_function(thruster_pin, GPIO_FUNC_PWM);

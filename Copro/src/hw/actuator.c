@@ -598,6 +598,10 @@ bool actuator_is_connected(void) {
 }
 
 void actuator_kill_report_refresh(void) {
+    if (!actuator_initialized) {
+        return;
+    }
+
     if (kill_switch_update_command.in_use) {
         kill_switch_needs_refresh = true;
     } else {

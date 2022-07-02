@@ -6,4 +6,4 @@ repositories:
   riptide_msgs2:
     type: git
     url: https://github.com/osu-uwrt/riptide_msgs
-    version: ros2
+    version: ros2-dev

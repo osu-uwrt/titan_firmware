@@ -26,22 +26,22 @@
  * @brief A pointer to the list of all the active faults as bits
  * DO NOT WRITE TO THIS! There are methods to safely raise and lower faults
  */
-extern volatile uint32_t * const fault_list;
+extern volatile uint32_t * const fault_list_reg;
 
 /**
  * @brief Raises the specified fault id
- * 
+ *
  * INTERRUPT SAFE
- * 
+ *
  * @param fault_id The id to be raised. Faults are defined above
  */
 void safety_raise_fault(uint32_t fault_id);
 
 /**
  * @brief Lowers the specified fault id
- * 
+ *
  * INTERRUPT SAFE
- * 
+ *
  * @param fault_id The id to be lowered. Faults are defined above
  */
 void safety_lower_fault(uint32_t fault_id);
@@ -73,10 +73,10 @@ extern struct kill_switch_state kill_switch_states[];
 
 /**
  * @brief Updates a kill switch state
- * 
+ *
  * INTERRUPT SAFE
- * 
- * @param switch_num The unique number for that kill switch. MUST BE < MAX_KILL_SWITCHES 
+ *
+ * @param switch_num The unique number for that kill switch. MUST BE < MAX_KILL_SWITCHES
  * @param asserting_kill If the kill switch is asserting a kill switch and the robot should be killed
  * @param needs_update Setting to true will require the kill switch to be updated within KILL_SWITCH_TIMEOUT_MS or else will assert kill
  */
@@ -84,10 +84,10 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 
 /**
  * @brief Returns if the kill switch is asserting a safety kill
- * 
+ *
  * INTERRUPT SAFE
  * REQUIRES INITIALIZATION
- * 
+ *
  * @return true  Any action requiring a kill switch should not run
  * @return false All kill switches are reporting okay and the operation can run
  */
@@ -95,14 +95,39 @@ bool safety_kill_get_asserting_kill(void);
 
 /**
  * @brief Gets the time of the last kill switch change
- * 
+ *
  * INTERRUPT SAFE? (64-bit value internally)
  * REQUIRES INITIALIZATION
- * 
+ *
  * @return absolute_time_t The time of last kill switch change as an absolute time
  */
 absolute_time_t safety_kill_get_last_change(void);
 
+// ========================================
+// Safety Watchdog-Related Functions
+// ========================================
+
+/**
+ * @brief Pointer to depth sensor calibration data which will persist watchdog resets.
+ */
+extern volatile uint32_t * const depth_cal_reg;
+
+/**
+ * @brief Value contained in depth_cal_reg if the register contains invalid data
+ */
+#define DEPTH_CALIBRATION_INVALID 0xFFFFFFFF
+
+/**
+ * @brief Notify safety that a software reset is ocurring.
+ * This sets the required watchdog scratch registers to notify of a clean boot via a watchdog reset.
+ * If this is not called, it will instead report the source of the clean boot as whatever the vreg peripherial's RESET_CAUSE is.
+ */
+void safety_notify_software_reset(void);
+
+/**
+ * @brief Prints the full watchdog crash log to the system log
+ */
+void safety_print_crash_log(void);
 
 // ========================================
 // Safety Limetime Functions
@@ -124,7 +149,7 @@ extern bool safety_initialized;
  * @brief Performs core safety setup to be completed immediately after reset
  * This enables a watchdog timer, but with a multi-second long tick for setup
  * Will also print data on the last reset cause and any crash data from that
- * 
+ *
  * NOT INTERRUPT SAFE
  */
 void safety_setup(void);
@@ -132,7 +157,7 @@ void safety_setup(void);
 /**
  * @brief Initializes safety for normal robot operation
  * This will tighten the timing for the watchdog timer
- * 
+ *
  * NOT INTERRUPT SAFE
  * REQUIRES SETUP
  */
@@ -141,7 +166,7 @@ void safety_init(void);
 /**
  * @brief Ticks safety
  * This must be called within the period of the watchdog timer or a reset will occur
- * 
+ *
  * NOT INTERRUPT SAFE
  * REQUIRES INITIALIZATION
  */

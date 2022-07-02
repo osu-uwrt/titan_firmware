@@ -38,7 +38,7 @@ __wrap_\name:
     // Then save link register
     mov r0, lr
     str r0, [r1]
-    
+
     // Save scratch0 to prev value
     ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH0_OFFSET)
     ldr r0, [r1]
@@ -105,24 +105,6 @@ __wrap_panic:
     mov r0, lr
     str r0, [r1]
 
-    // Increment hard fault counter in sratch 3
-    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH3_OFFSET)
-    ldr r0, [r1]
-
-    // Don't increment if already maxed out
-    mov r2, #0xFF
-    lsl r2, r2, #0x8
-    orr r2, r2, r0
-    cmp r0, r2
-    beq 0f
-
-    // Add 0x0100 to the watchdog scratch 3 register
-    mov r2, #1
-    lsl r2, r2, #0x8
-    add r0, r0, r2
-    str r0, [r1]
-0:
-
     // Restore the hardfault handler so when bkpt #0 is called it doesn't overwrite the values just set
     bl safety_restore_hardfault
 
@@ -148,24 +130,6 @@ safety_hard_fault_handler:
     ldr r0, =(HARD_FAULT_DATA)
     ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH0_OFFSET)
     str r0, [r1]
-
-    // Increment hard fault counter in sratch 3
-    ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH3_OFFSET)
-    ldr r0, [r1]
-
-    // Don't increment if already maxed out
-    mov r2, #0xFF
-    lsl r2, r2, #0x10
-    orr r2, r2, r0
-    cmp r0, r2
-    beq 0f
-
-    // Add 0x010000 to the watchdog scratch 3 register
-    mov r2, #1
-    lsl r2, r2, #0x10
-    add r0, r0, r2
-    str r0, [r1]
-0:
 
     // Save the program counter of the hard fault
     ldr r1, =(WATCHDOG_BASE + WATCHDOG_SCRATCH1_OFFSET)

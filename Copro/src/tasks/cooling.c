@@ -1,7 +1,7 @@
 #include "pico/time.h"
 
 #include "drivers/safety.h"
-#include "hw/balancer_adc.h"
+#include "hw/bmp280_temp.h"
 #include "hw/dio.h"
 #include "tasks/cooling.h"
 
@@ -9,17 +9,18 @@
 #define LOGGING_UNIT_NAME "cooling"
 
 bool cooling_initialized;
-int cooling_threshold = 40;
+int cooling_threshold = 35;
 
 static bool cooling_enabled = false;
 
 void cooling_tick(void) {
     hard_assert_if(LIFETIME_CHECK, !cooling_initialized);
 
-    if (balancer_adc_initialized && !balancer_adc_readng_stale) {
+    double temp;
+    if (bmp280_temp_read(&temp)) {
         safety_lower_fault(FAULT_COOLING_STALE);
 
-        bool enabled = balancer_adc_get_temperature() >= cooling_threshold;
+        bool enabled = temp >= cooling_threshold;
         dio_set_peltier_power(enabled);
         cooling_enabled = enabled;
     } else {
