@@ -22,7 +22,7 @@ static void populate_status_msg(struct actuator_i2c_status *status){
     status->firmware_status.version_major = MAJOR_VERSION;
     status->firmware_status.version_minor = MINOR_VERSION;
 
-    uint32_t faults = *fault_list;
+    uint32_t faults = *fault_list_reg;
     assert(faults < (1<<8));
     status->firmware_status.fault_list = faults;
 
@@ -83,7 +83,7 @@ int main() {
                     response.data.result = claw_set_timings(&cmd.data.claw_timing);
                     response_size = ACTUATOR_RESULT_RESP_LENGTH;
                     break;
-                    
+
                 case ACTUATOR_CMD_ARM_TORPEDO:
                     response.data.result = torpedo_arm();
                     response_size = ACTUATOR_RESULT_RESP_LENGTH;
@@ -122,6 +122,7 @@ int main() {
 
                 case ACTUATOR_CMD_RESET_ACTUATORS:
                     LOG_INFO("Reboot command received");
+                    safety_notify_software_reset();
                     watchdog_reboot(0, 0, 0);
                     break;
 

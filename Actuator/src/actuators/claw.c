@@ -13,8 +13,8 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
 
-static const uint forward_direction_pin = CLAW_FORWARD_PIN;
-static const uint reverse_direction_pin = CLAW_REVERSE_PIN;
+static const uint direction_pin = CLAW_DIRECTION_PIN;
+static const uint mode2_pin = CLAW_MODE2_PIN;
 static const uint enable_pin = CLAW_ENABLE_PIN;
 
 #define OPEN_DIRECTION_IS_FORWARD true
@@ -31,16 +31,16 @@ void claw_initialize(void) {
     gpio_set_dir(enable_pin, true);
     bi_decl_if_func_used(bi_1pin_with_name(enable_pin, "Claw Motor Enable"));
 
-    gpio_init(forward_direction_pin);
-    gpio_put(forward_direction_pin, false);
-    gpio_set_dir(forward_direction_pin, true);
-    bi_decl_if_func_used(bi_1pin_with_name(forward_direction_pin, "Claw Motor Forward"));
+    gpio_init(direction_pin);
+    gpio_put(direction_pin, false);
+    gpio_set_dir(direction_pin, true);
+    bi_decl_if_func_used(bi_1pin_with_name(direction_pin, "Claw Direction Pin"));
 
-    gpio_init(reverse_direction_pin);
-    gpio_put(reverse_direction_pin, false);
-    gpio_set_dir(reverse_direction_pin, true);
-    bi_decl_if_func_used(bi_1pin_with_name(reverse_direction_pin, "Claw Motor Reverse"));
-    
+    gpio_init(mode2_pin);
+    gpio_put(mode2_pin, false);
+    gpio_set_dir(mode2_pin, true);
+    bi_decl_if_func_used(bi_1pin_with_name(mode2_pin, "Claw Mode 2 Pin"));
+
     // Set state
     local_claw_state = CLAW_STATE_UNKNOWN_POSITION;
 
@@ -84,12 +84,11 @@ void claw_populate_missing_timings(struct missing_timings_status* missing_timing
 
 /**
  * @brief Sets the claw driver to move in the specified direction
- * 
+ *
  * @param forward Set to true to move forward, false to move in reverse
  */
 static inline void claw_driver_move(bool forward) {
-    gpio_put(forward_direction_pin, forward);
-    gpio_put(reverse_direction_pin, !forward);
+    gpio_put(direction_pin, forward);
     gpio_put(enable_pin, true);
 }
 
@@ -97,8 +96,7 @@ static inline void claw_driver_move(bool forward) {
  * @brief Stops the motor driver
  */
 static inline void claw_driver_stop(void) {
-    gpio_put(forward_direction_pin, false);
-    gpio_put(reverse_direction_pin, false);
+    gpio_put(direction_pin, false);
     gpio_put(enable_pin, false);
 }
 
@@ -110,7 +108,7 @@ static alarm_id_t scheduled_alarm_id = 0;
 
 /**
  * @brief Internal shared function to stop the claw and clean up the state
- * 
+ *
  * @param target_state The state of the claw after stopping
  */
 void claw_stop_internal(enum claw_state target_state) {
@@ -121,7 +119,7 @@ void claw_stop_internal(enum claw_state target_state) {
 
 /**
  * @brief Alarm for when to finish moving the claw
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is the target claw state
  * @return int64_t If/How to restart the timer
@@ -129,7 +127,7 @@ void claw_stop_internal(enum claw_state target_state) {
 static int64_t claw_finish_callback(__unused alarm_id_t id, void *user_data) {
     enum claw_state target_state = ((enum claw_state) user_data);
     valid_params_if(CLAW, (target_state == CLAW_STATE_OPENED || target_state == CLAW_STATE_CLOSED));
-    
+
     claw_stop_internal(target_state);
 
     return 0;
@@ -165,7 +163,7 @@ enum actuator_command_result claw_open(void) {
     }
 
     LOG_INFO("Opening Claw");
-    
+
     local_claw_state = CLAW_STATE_OPENING;
     scheduled_alarm_id = add_alarm_in_ms(claw_open_time_ms, &claw_finish_callback, ((void*)CLAW_STATE_OPENED), true);
     claw_driver_move(OPEN_DIRECTION_IS_FORWARD);

@@ -60,7 +60,7 @@ static struct active_transfer_data {
  */
 static void async_i2c_fill_transmit_queue(void) {
     LOG_DEBUG("Filling up I2C queue");
-    
+
     uint8_t *raw_response = (uint8_t*)active_transfer.response;
     while (i2c_get_write_available(i2c_inst) && active_transfer.bytes_sent < active_transfer.response_size){
         i2c_get_hw(i2c_inst)->data_cmd = raw_response[active_transfer.bytes_sent];
@@ -78,6 +78,9 @@ static void async_i2c_restart_hardware(i2c_inst_t *i2c) {
     if (i2c->hw->status & I2C_IC_STATUS_SLV_ACTIVITY_BITS) {
         LOG_ERROR("Cannot restart hw with active read request");
         safety_raise_fault(FAULT_I2C_ERROR);
+        if (i2c->hw->txflr == 0) {
+            i2c->hw->data_cmd = 0xFF;
+        }
         return;
     }
 
@@ -97,7 +100,7 @@ static void async_i2c_target_abort(i2c_inst_t *i2c) {
 
 /**
  * @brief Common irq handler for i2c related tasks
- * 
+ *
  * @param i2c The i2c inst which caused the interrupt
  */
 static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
@@ -126,11 +129,11 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         }
 
         // Transmit abort
-        uint32_t abort_reason = i2c->hw->tx_abrt_source;
+        __unused uint32_t abort_reason = i2c->hw->tx_abrt_source;
         i2c->hw->clr_tx_abrt;
 
-        I2C_PROTOCOL_ERR("Transmit aborted: %d bytes lost, reason: 0x%x", 
-                    (abort_reason>>I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_LSB) + (active_transfer.response_size-active_transfer.bytes_sent), 
+        I2C_PROTOCOL_ERR("Transmit aborted: %d bytes lost, reason: 0x%x",
+                    (abort_reason>>I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_LSB) + (active_transfer.response_size-active_transfer.bytes_sent),
                     abort_reason&(~I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_BITS));
     }
 
@@ -139,7 +142,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         // Transmit done, clean up active transfer
         LOG_DEBUG("RX_DONE INT");
         i2c->hw->clr_rx_done;
-        
+
         if (active_transfer.state == I2C_TARGET_RESPONDING) {
             if (active_transfer.bytes_sent != active_transfer.response_size && i2c_get_hw(i2c)->txflr != 0) {
                 I2C_PROTOCOL_ERR("Response terminated early, %d/%d bytes queued, %d in buffer", active_transfer.bytes_sent, active_transfer.response_size, i2c_get_hw(i2c)->txflr);
@@ -154,14 +157,14 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
 
     if (has_irq_pending(i2c, TX_EMPTY) && (i2c_get_hw(i2c)->intr_mask & I2C_IC_INTR_MASK_M_TX_EMPTY_BITS)) {
         // Transmit buffer needs to be filled (cleared by hw)
-        
+
         if (active_transfer.state != I2C_TARGET_RESPONDING) {
             LOG_ERROR("TX Empty interrupt in invalid state %d", active_transfer.state);
             safety_raise_fault(FAULT_I2C_ERROR);
             hw_clear_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS);
         } else {
             async_i2c_fill_transmit_queue();
-        }   
+        }
     }
 
     if (has_irq_pending(i2c, RD_REQ)) {
@@ -188,7 +191,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     if (has_irq_pending(i2c, RX_FULL)) {
         // Data in receive buffer (cleared by hw)
         LOG_DEBUG("RX_FULL INT");
-        
+
         if (active_transfer.state == I2C_TARGET_IDLE || active_transfer.state == I2C_TARGET_RECEIVING) {
             uint8_t *raw_recv_buffer = (uint8_t*)(&active_transfer.received_command);
             __unused size_t max_recv_buffer_size = sizeof(active_transfer.received_command);
@@ -262,7 +265,7 @@ void async_i2c1_irq_handler(void) {
 }
 
 static void async_i2c_configure_interrupt_hw(i2c_inst_t *i2c) {
-    i2c->hw->intr_mask =  I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS | 
+    i2c->hw->intr_mask =  I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS |
                           I2C_IC_INTR_MASK_M_TX_OVER_BITS | I2C_IC_INTR_MASK_M_RX_OVER_BITS |
                           I2C_IC_INTR_MASK_M_RX_UNDER_BITS | I2C_IC_INTR_MASK_M_RD_REQ_BITS |
                           I2C_IC_INTR_MASK_M_RX_DONE_BITS;
@@ -281,8 +284,12 @@ bool async_i2c_target_get_next_command(actuator_i2c_cmd_t *cmd){
     if (active_transfer.state == I2C_TARGET_CMD_RECEIVED || active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE) {
         memcpy(cmd, &active_transfer.received_command, active_transfer.bytes_received);
 
+        // Enter critical section to avoid race condition
+        uint32_t prev_interrupt = save_and_disable_interrupts();
         if (active_transfer.state != I2C_TARGET_WAITING_FOR_RESPONSE)
             active_transfer.state = I2C_TARGET_CMD_PROCESSING;
+        restore_interrupts(prev_interrupt);
+
 
         return true;
     }
@@ -294,30 +301,36 @@ void async_i2c_target_finish_command(actuator_i2c_response_t *response, size_t s
     hard_assert_if(ASYNC_I2C_TARGET, active_transfer.state != I2C_TARGET_CMD_PROCESSING && active_transfer.state != I2C_TARGET_WAITING_FOR_RESPONSE);
     hard_assert(size <= 65535);
 
-    if (response == NULL || size == 0) {
-        if (active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE) {
+    bool has_response = (response != NULL && size > 0);
+
+    if (has_response) {
+        LOG_DEBUG("Responding with data");
+
+        response->crc8 = actuator_i2c_crc8_calc_response(response, size);
+
+        active_transfer.response = response;
+        active_transfer.response_size = size;
+        active_transfer.bytes_sent = 0;
+    }
+
+    // Enter critical section to avoid race condition
+    uint32_t prev_interrupt = save_and_disable_interrupts();
+
+    bool needs_response = (active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE);
+    active_transfer.state = (has_response ? I2C_TARGET_RESPONDING : I2C_TARGET_IDLE);
+
+    restore_interrupts(prev_interrupt);
+
+    if (needs_response) {
+        if (has_response) {
+            async_i2c_fill_transmit_queue();
+            LOG_INFO("Filling queue");
+        } else {
             I2C_PROTOCOL_ERR("I2C attempting to read response with no response to active command");
             async_i2c_target_abort(i2c_inst);
             i2c_inst->hw->data_cmd = 0xFF;  // Send a command since if waiting for a response the read req has been cleared
-        } else {
-            active_transfer.state = I2C_TARGET_IDLE;
         }
-        return;
     }
-
-    LOG_DEBUG("Responding with data");
-    
-    response->crc8 = actuator_i2c_crc8_calc_response(response, size);
-    
-    active_transfer.response = response;
-    active_transfer.response_size = size;
-    active_transfer.bytes_sent = 0;
-
-    if (active_transfer.state == I2C_TARGET_WAITING_FOR_RESPONSE) {
-        async_i2c_fill_transmit_queue();
-    }
-    
-    active_transfer.state = I2C_TARGET_RESPONDING;
 }
 
 void async_i2c_target_init(uint baudrate, uint8_t i2c_address) {

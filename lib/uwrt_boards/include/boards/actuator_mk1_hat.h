@@ -25,8 +25,8 @@
 
 // Claw
 #define CLAW_ENABLE_PIN     22
-#define CLAW_FORWARD_PIN    29
-#define CLAW_REVERSE_PIN    28
+#define CLAW_MODE2_PIN      29
+#define CLAW_DIRECTION_PIN  28
 #define CLAW_CURRENT_PIN    26
 
 // Dropper

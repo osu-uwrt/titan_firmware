@@ -62,8 +62,12 @@ const struct rp2040_board_instance board_definitions[] = {
         .serial = "E660B440075F7B26"
     },
     {
-        .board_type_name = "rp2040_eval_board",
+        .board_type_name = "actuator_mk1_hat",
         .serial = "E460CCB01B3F532C"
+    },
+    {
+        .board_type_name = "actuator_mk1_hat",
+        .serial = "E460CCB01B29352A"
     },
     {   // Team raspberry pi pico (4th one in the order box)
         .board_type_name = "pico",

@@ -37,12 +37,12 @@ int main()
     // Initialize sensor hardware
     dio_init();
     bool got_temp_sensor = bmp280_temp_init();
-    
+
     async_i2c_init(200000, 5);
     if (got_temp_sensor) bmp280_temp_start_reading();
 
     depth_init();
-    //actuator_init();
+    actuator_init();
     //balancer_adc_init();
     //esc_adc_init();
 

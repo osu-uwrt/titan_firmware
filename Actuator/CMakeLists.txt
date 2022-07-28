@@ -39,19 +39,23 @@ target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=
 generate_version_tag(actuator_firmware 1 0 PROTO)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(actuator_firmware 0)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_TX_PIN=0)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_RX_PIN=1)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_BAUD_RATE=2000000)
+#pico_enable_stdio_uart(actuator_firmware 1)
 pico_set_program_name(actuator_firmware "Actuator Firmware")
 uwrt_enable_dual_uart(actuator_firmware)
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
-target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_ERROR)
+#target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_firmware)
-target_link_libraries(actuator_firmware 
+target_link_libraries(actuator_firmware
 	actuator_i2c_interface
 	basic_logger
 	safety

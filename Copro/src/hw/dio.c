@@ -33,17 +33,17 @@ void dio_set_fault_led(bool on) {
 
 /**
  * @brief Reads the state of the kill switch
- * 
+ *
  * @return true If the kill switch is asserting kill
  * @return false If the kill switch is in enable mode
  */
 static inline bool dio_get_kill_switch(void){
-    return gpio_get(KILL_SWITCH_PIN);
+    return false; //gpio_get(KILL_SWITCH_PIN);
 }
 
 /**
  * @brief The GPIO Interrupt Handler to handle all interrupts from the GPIO block
- * 
+ *
  * @param gpio Pin that caused the interrupt
  * @param events Events contained in the interrupt
  */
@@ -67,7 +67,7 @@ bool dio_get_aux_switch(void) {
 /**
  * @brief Callback for alarm to restore power to a rail
  * This is needed if the computer is on the power rail and would not be able to re-enable itself
- * 
+ *
  * @param id The alarm id
  * @param user_data The pin to toggle (stored directly in the 4-byte value)
  * @return int64_t If to reschedule
@@ -141,7 +141,7 @@ void dio_init(void) {
     gpio_init(PELTIER_CTRL_PIN);
     gpio_put(PELTIER_CTRL_PIN, false);
     gpio_set_dir(PELTIER_CTRL_PIN, true);
-    
+
 #ifdef REG_12_CTRL_PIN
     bi_decl_if_func_used(bi_1pin_with_name(REG_12_CTRL_PIN, "12V Regulator Conrol"));
     gpio_init(REG_12_CTRL_PIN);

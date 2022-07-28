@@ -58,6 +58,7 @@ target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets
 pico_add_extra_outputs(copro_firmware)
@@ -65,7 +66,7 @@ target_link_libraries(copro_firmware
 	actuator_i2c_interface
 	basic_logger
 	safety
-	
+
 	pico_stdlib
 	hardware_pio
 	hardware_pwm

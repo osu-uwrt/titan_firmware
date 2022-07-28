@@ -593,7 +593,7 @@ void safety_print_crash_log(void) {
     LOG_INFO("%s", message_buf);
 
     int i = crash_data.header.next_entry;
-    int count = 1;
+    __unused int count = 1;
     do {
         if (i == 0) {
             if (crash_data.header.flags.log_wrapped) {
