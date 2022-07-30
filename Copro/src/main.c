@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 
-#include "pico_uart_transports.h"
+#include "pico_eth_transport.h"
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
@@ -47,7 +47,9 @@ int main()
     //esc_adc_init();
 
     // Wait for ROS
-    pico_serial_transport_init();
+    uint8_t xavier_ip[] = {192, 168, 1, 23};
+    uint16_t xavier_port = 8888;
+    pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
     ros_wait_for_connection();
     ros_start(ROBOT_NAMESPACE);
     LOG_INFO("Connected to ROS");

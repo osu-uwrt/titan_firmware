@@ -38,7 +38,7 @@ void dio_set_fault_led(bool on) {
  * @return false If the kill switch is in enable mode
  */
 static inline bool dio_get_kill_switch(void){
-    return false; //gpio_get(KILL_SWITCH_PIN);
+    return gpio_get(KILL_SWITCH_PIN);
 }
 
 /**

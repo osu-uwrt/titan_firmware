@@ -28,6 +28,38 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
+# Setup wiznet
+
+# Set ethernet chip
+set(WIZNET_CHIP W5500)
+
+if(${WIZNET_CHIP} STREQUAL W5100S)
+    add_definitions(-D_WIZCHIP_=W5100S)
+elseif(${WIZNET_CHIP} STREQUAL W5500)
+    add_definitions(-D_WIZCHIP_=W5500)
+else()
+    message(FATAL_ERROR "WIZNET_CHIP is wrong = ${WIZNET_CHIP}")
+endif()
+
+message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
+
+# Set the project root directory if it's not already defined, as may happen if
+# the tests folder is included directly by a parent project, without including
+# the top level CMakeLists.txt.
+if(NOT DEFINED WIZNET_DIR)
+    set(WIZNET_DIR ${REPO_DIR}/lib/ioLibrary_Driver)
+    message(STATUS "WIZNET_DIR = ${WIZNET_DIR}")
+endif()
+
+
+if(NOT DEFINED PORT_DIR)
+    set(PORT_DIR ${REPO_DIR}/lib/ioLibrary_Port)
+    message(STATUS "PORT_DIR = ${PORT_DIR}")
+endif()
+
+include(${REPO_DIR}/lib/ioLibrary_import.cmake)
+add_subdirectory(${PORT_DIR} ioLibrary_port)
+
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(copro_firmware
@@ -35,7 +67,7 @@ add_executable(copro_firmware
 )
 pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
-target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format -Werror)
+target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -72,4 +104,9 @@ target_link_libraries(copro_firmware
 	hardware_pwm
 	hardware_i2c
 	hardware_adc
+
+	hardware_spi
+	hardware_dma
+	ETHERNET_FILES
+	IOLIBRARY_FILES
 )
