@@ -14,10 +14,10 @@
 #define CONNECTOR_SCL_PIN       25
 
 // Torpedos
-#define COIL_1_PIN          18
-#define COIL_2_PIN          19
-#define COIL_3_PIN          20
-#define COIL_4_PIN          21
+#define COIL_1_PIN          9
+#define COIL_2_PIN          10
+#define COIL_3_PIN          11
+#define COIL_4_PIN          12
 #define TORP_SEL_1_PIN      15
 #define TORP_SEL_2_PIN      14
 #define TORP_ARM_PIN        23

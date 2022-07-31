@@ -42,8 +42,8 @@ typedef struct actuator_command_data {
  * @brief Common callback for completion of actuator i2c request
  * This checks the crc value of the response if there is one, and will call the request callback if one provided on successful completion
  * This also handles releasing of the request
- * 
- * @param req 
+ *
+ * @param req
  */
 static void actuator_command_done(__unused const struct async_i2c_request * req) {
     actuator_cmd_data_t* cmd = (actuator_cmd_data_t*)req->user_data;
@@ -61,7 +61,7 @@ static void actuator_command_done(__unused const struct async_i2c_request * req)
             request_successful = false;
         }
     }
-    
+
     if (request_successful && cmd->response_cb){
         if (cmd->response_cb(cmd)){
             can_release_request = false;
@@ -75,9 +75,9 @@ static void actuator_command_done(__unused const struct async_i2c_request * req)
 
 /**
  * @brief Common failure callback for actuator i2c requests
- * 
- * @param req 
- * @param abort_data 
+ *
+ * @param req
+ * @param abort_data
  */
 static void actuator_command_failed(__unused const struct async_i2c_request * req, uint32_t abort_data){
     actuator_cmd_data_t* cmd = (actuator_cmd_data_t*)req->user_data;
@@ -92,7 +92,7 @@ static void actuator_command_failed(__unused const struct async_i2c_request * re
 
 /**
  * @brief Populates cmd with the required elements for an actuator i2c command
- * 
+ *
  * @param cmd The command id for the request
  * @param cmd_id The callback to call on a successful response from the actuators. Can be NULL if no response is needed
  * @param response_cb The callback to call on a successful response from the actuators. Can be NULL if no response is needed
@@ -125,9 +125,9 @@ static int num_allocated_commands = 0;
  * @brief Generates a command with the specified command id and response callback.
  * CAN RETURN NULL IF UNABLE TO GET A REQUEST
  * IT IS THE CALLERS RESPONSIBILITY TO HANDLE THIS
- * 
+ *
  * NOT INTERRUPT SAFE
- * 
+ *
  * @param cmd_id The command id for the request
  * @param response_cb The callback to call on a successful response from the actuators. Can be NULL if no response is needed
  * @return actuator_cmd_data_t* The command allocated or NULL if a command could not be generated
@@ -157,7 +157,7 @@ static actuator_cmd_data_t* actuator_generate_command(enum actuator_command cmd_
 /**
  * @brief Calculates the crc for the command and sends it
  * If not using `actuator_generate_command` to allocate the request it is the responsibility of the caller to set in_use to true before sending.
- * 
+ *
  * @param cmd The command to send
  */
 static void actuator_send_command(actuator_cmd_data_t * cmd) {
@@ -176,10 +176,57 @@ struct timing_entry {
 // The various timing_entry variables contain the cached timing values sent from ROS
 // These will be sent to the actuator board whenever it needs timings
 // In the event of a watchdog reset on the actuator board, it will request the timings and they will be sent from here
-static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
-static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
-static struct timing_entry claw_timing = {0};
-static struct timing_entry dropper_active_timing = {0};
+static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {
+    {   // ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME
+        .set = true,
+        .timing = 250
+    }
+};
+static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {
+    {   // ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME
+        .set = true,
+        .timing = 250
+    },
+    {   // ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME
+        .set = true,
+        .timing = 250
+    }
+};
+static struct timing_entry claw_timing = {
+    .set = false
+};
+static struct timing_entry dropper_active_timing = {
+    .set = true,
+    .timing = 250
+};
 
 static actuator_cmd_data_t set_timing_command = {.in_use = false, .i2c_in_progress = false};
 // The missing_timings contains timings that need to be sent to the actuator board
@@ -227,7 +274,7 @@ static bool actuator_update_missing_timings_common(actuator_cmd_data_t *cmd) {
     }
 
     actuator_send_command(cmd);
-    
+
     return true;
 }
 
@@ -319,7 +366,7 @@ bool actuator_handle_parameter_change(Parameter * param) {
         if (IS_VALID_TIMING(param->value.integer_value)) {
             dropper_active_timing.timing = param->value.integer_value;
             dropper_active_timing.set = true;
-            
+
             missing_timings.dropper_active_timing = true;
             actuator_update_missing_timings();
 
@@ -327,7 +374,7 @@ bool actuator_handle_parameter_change(Parameter * param) {
         } else {
             return false;
         }
-    } 
+    }
     #define ELSE_IF_TORPEDO_PARAMETER(torp_num, coil_lower, coil_upper) \
         else if (!strcmp(param->name.data, "torpedo" #torp_num "_" #coil_lower "_timing_us")) { \
             if (IS_VALID_TIMING(param->value.integer_value)) { \
@@ -339,7 +386,7 @@ bool actuator_handle_parameter_change(Parameter * param) {
             } else { \
                 return false; \
             } \
-        } 
+        }
     ELSE_IF_TORPEDO_PARAMETER(1, coil1_on,      COIL1_ON)
     ELSE_IF_TORPEDO_PARAMETER(1, coil1_2_delay, COIL1_2_DELAY)
     ELSE_IF_TORPEDO_PARAMETER(1, coil2_on,      COIL2_ON)
@@ -422,7 +469,7 @@ static bool actuator_status_callback(actuator_cmd_data_t * cmd) {
 static bool actuator_has_been_polled = false;
 /**
  * @brief Alarm callback to poll the actuator board
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is NULL
  * @return int64_t If/How to restart the timer

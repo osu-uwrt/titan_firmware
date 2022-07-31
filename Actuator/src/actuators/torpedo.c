@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
@@ -15,8 +16,11 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "torpedo"
 
-// TODO: Find out charge time
-#define CHARGE_TIME_MS 3000
+#define TORPEDO_DISCHARGED_THRESHOLD 20.25
+#define TORPEDO_CHARGED_THRESHOLD 21.75
+#define TORPEDO_VDIV_CAL (160.5022)
+
+const uint CHARGED_LED_PIN = BUILTIN_LED3_PIN;
 
 static const uint arm_pin = TORP_ARM_PIN;
 bi_decl(bi_1pin_with_name(TORP_ARM_PIN, "Torpedo Arm"));
@@ -59,7 +63,7 @@ struct torpedo_data {
 /**
  * @brief The active torpedo num currently using the timer.
  * Should be 0 if no torpedo is actively running
- * 
+ *
  * This is the sole source of information for which torpedo is firing
  */
 uint active_torpedo_num = 0;
@@ -75,10 +79,20 @@ static uint torpedo_pio_offset;
 static uint torpedo_pio_sm;
 
 static void torpedo_fired_callback(void);
+static void torpedo_adc_cb(void);
+
+// ========================================
+// Initialization Routines
+// ========================================
 
 void torpedo_initialize(void) {
     hard_assert_if(LIFETIME_CHECK, torpedo_initialized);
 
+    // Charged led
+    gpio_init(CHARGED_LED_PIN);
+    gpio_set_dir(CHARGED_LED_PIN, GPIO_OUT);
+
+    // Torpedo pins
     gpio_init(arm_pin);
     gpio_put(arm_pin, TORP_SEL_LEVEL_OFF);
     gpio_set_dir(arm_pin, true);
@@ -89,6 +103,17 @@ void torpedo_initialize(void) {
         gpio_put(pin, TORP_SEL_LEVEL_OFF);
         gpio_set_dir(pin, true);
     }
+
+    // VDIV processing
+    adc_init();
+    adc_gpio_init(TORP_CHARGE_LVL);
+    adc_select_input(TORP_CHARGE_LVL - 26);
+    adc_set_clkdiv(48000.f);
+    adc_fifo_setup(true, true, 1, false, false);
+    adc_irq_set_enabled(true);
+    adc_run(true);
+    irq_set_exclusive_handler(ADC_IRQ_FIFO, torpedo_adc_cb);
+    irq_set_enabled(ADC_IRQ_FIFO, true);
 
     torpedo_pio_offset = pio_add_program(torpedo_pio, &torpedo_program);
     torpedo_pio_sm = pio_claim_unused_sm(torpedo_pio, true);
@@ -122,13 +147,13 @@ enum actuator_command_result torpedo_set_timings(struct torpedo_timing_cmd *timi
     }
 
     uint compensation_value;
-    
+
     if (IS_ON_TIMING_TYPE(timings->timing_type)) {
         compensation_value = ON_SUBTRACT;
     } else {
         compensation_value = OFF_SUBTRACT;
     }
-    
+
 
     if (timings->time_us < compensation_value){
         return ACTUATOR_RESULT_FAILED;
@@ -162,16 +187,30 @@ void torpedo_populate_missing_timings(struct missing_timings_status* missing_tim
     missing_timings->torpedo2_coil3_on_timing = (torpedo_data[1].timings[ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME] == 0);
 }
 
+// ========================================
+// ADC Management
+// ========================================
+
+static float torpedo_charge = 0;
+static bool torpedo_charged = false;
+
+static bool torpedo_check_charged(void) {
+    if (torpedo_charged){
+        torpedo_charged = torpedo_charge >= TORPEDO_DISCHARGED_THRESHOLD;
+    } else {
+        torpedo_charged = torpedo_charge >= TORPEDO_CHARGED_THRESHOLD;
+    }
+    return torpedo_charged;
+}
+
+static void torpedo_adc_cb(void) {
+    torpedo_charge = (float)adc_fifo_get() / TORPEDO_VDIV_CAL;
+    gpio_put(CHARGED_LED_PIN, torpedo_check_charged());
+}
 
 // ========================================
 // Movement Management
 // ========================================
-
-absolute_time_t charged_time;
-static bool torpedo_check_charged(void) {
-    return absolute_time_diff_us(charged_time, get_absolute_time()) > 0;
-}
-
 
 // ===== Public Functions =====
 
@@ -278,7 +317,6 @@ enum actuator_command_result torpedo_arm(void) {
         torpedo_data[i].fired = false;
     }
 
-    charged_time = make_timeout_time_ms(CHARGE_TIME_MS);
     gpio_put(arm_pin, ARM_LEVEL_ARMED);
 
     return ACTUATOR_RESULT_SUCCESSFUL;
@@ -326,5 +364,5 @@ void torpedo_safety_disable(void) {
     gpio_put_masked(torpedo_sel_mask, TORP_SEL_LEVEL_OFF);
 
     gpio_put(arm_pin, ARM_LEVEL_DISARMED);
-    
+
 }

@@ -17,6 +17,8 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuator_main"
 
+#define USE_POWER_LED 0
+
 static void populate_status_msg(struct actuator_i2c_status *status){
     // NOTE: The firmware version in the CMakeLists should match the expected firmware version in actuator_i2c/interface.h
     status->firmware_status.version_major = MAJOR_VERSION;
@@ -48,7 +50,7 @@ int main() {
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, true);
+    gpio_put(LED_PIN, USE_POWER_LED);
 
     async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
 
