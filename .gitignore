@@ -1,0 +1,28 @@
+#git ignore attempt
+
+######################
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+
+#######################
+# Build/Cache Files   #
+#######################
+.vscode/
+build/
+__pycache__/
+*.pyc
+._*
+
+#######################
+# libmicroros Files   #
+#######################
+/lib/micro_ros_pico/libmicroros/
+/lib/micro_ros_pico/available_ros2_types
+/lib/micro_ros_pico/built_packages
+
+#######################
+# Temporary Projects  #
+#######################
+/scratch_projects/
