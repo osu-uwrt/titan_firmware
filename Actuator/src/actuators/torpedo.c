@@ -245,7 +245,7 @@ enum torpedo_state torpedo_get_state(uint8_t torpedo_id) {
 }
 
 void torpedo_fired_callback(void) {
-    torpedo_reset(torpedo_pio, torpedo_pio_sm, torpedo_pio_offset);
+    torpedo_reset(torpedo_pio, torpedo_pio_sm, torpedo_pio_offset, FIRST_COIL_PIN);
     gpio_put(torpedo_select_pins[active_torpedo_num-1], TORP_SEL_LEVEL_OFF);
     torpedo_data[active_torpedo_num-1].fired = true;
     active_torpedo_num = 0;
@@ -354,7 +354,7 @@ void torpedo_safety_disable(void) {
     }
 
     // Clear pio state machine
-    torpedo_reset(torpedo_pio, torpedo_pio_sm, torpedo_pio_offset);
+    torpedo_reset(torpedo_pio, torpedo_pio_sm, torpedo_pio_offset, FIRST_COIL_PIN);
 
     // Clear all GPIO pins
     uint32_t torpedo_sel_mask = 0;

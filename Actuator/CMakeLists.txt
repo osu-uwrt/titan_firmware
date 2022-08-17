@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD actuator_mk1_hat)
+set(PICO_BOARD terry)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -39,9 +39,9 @@ target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=
 generate_version_tag(actuator_firmware 1 0 PROTO)
 
 # Configure pico-sdk
-target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART=0)
-target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_TX_PIN=0)
-target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_BAUD_RATE=115200)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART=0)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_TX_PIN=0)
+#target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_BAUD_RATE=115200)
 pico_enable_stdio_uart(actuator_firmware 1)
 pico_set_program_name(actuator_firmware "Actuator Firmware")
 uwrt_enable_dual_uart(actuator_firmware)
@@ -49,7 +49,7 @@ uwrt_enable_dual_uart(actuator_firmware)
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
-target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_INFO)
+target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_FATAL)  # Done because i2c will timeout with logging enabled
 #target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 

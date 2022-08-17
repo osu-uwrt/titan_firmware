@@ -557,7 +557,7 @@ static void subscriptions_fini(rcl_node_t *node){
 // Parameter Server
 // ========================================
 
-/*const rclc_parameter_options_t param_server_options = {
+const rclc_parameter_options_t param_server_options = {
       .notify_changed_over_dds = true,
       .max_params = 13 };
 
@@ -583,7 +583,7 @@ static void parameter_server_init(rcl_node_t *node, rclc_executor_t *executor) {
 
 static void parameter_server_fini(rcl_node_t *node){
 	rclc_parameter_server_fini(&param_server, node);
-}*/
+}
 
 // ========================================
 // Public Methods
@@ -620,7 +620,7 @@ void ros_start(const char* namespace) {
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
-	//parameter_server_init(&node, &executor);
+	parameter_server_init(&node, &executor);
 	depth_publisher_init(&support, &node, &executor);
 	state_publish_init(&support, &node, &executor);
 	subscriptions_init(&node, &executor);
@@ -631,7 +631,7 @@ void ros_spin_ms(long ms) {
 }
 
 void ros_cleanup(void) {
-	//parameter_server_fini(&node);
+	parameter_server_fini(&node);
 	depth_publisher_cleanup(&node);
 	state_publish_cleanup(&node);
 	subscriptions_fini(&node);

@@ -39,8 +39,6 @@ static void populate_status_msg(struct actuator_i2c_status *status){
     status->torpedo2_state = torpedo_get_state(2);
 }
 
-const uint LED_PIN = BUILTIN_LED2_PIN;
-
 int main() {
     stdio_init_all();
     dual_usb_init();
@@ -48,9 +46,12 @@ int main() {
 
     safety_setup();
 
+    #if USE_POWER_LED
+    const uint LED_PIN = BUILTIN_LED2_PIN;
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, USE_POWER_LED);
+    #endif
 
     async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
 

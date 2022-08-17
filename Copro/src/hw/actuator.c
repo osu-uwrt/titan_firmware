@@ -176,57 +176,10 @@ struct timing_entry {
 // The various timing_entry variables contain the cached timing values sent from ROS
 // These will be sent to the actuator board whenever it needs timings
 // In the event of a watchdog reset on the actuator board, it will request the timings and they will be sent from here
-static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {
-    {   // ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME
-        .set = true,
-        .timing = 250
-    }
-};
-static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {
-    {   // ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME
-        .set = true,
-        .timing = 250
-    },
-    {   // ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME
-        .set = true,
-        .timing = 250
-    }
-};
-static struct timing_entry claw_timing = {
-    .set = false
-};
-static struct timing_entry dropper_active_timing = {
-    .set = true,
-    .timing = 250
-};
+static struct timing_entry torpedo1_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
+static struct timing_entry torpedo2_timings[ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
+static struct timing_entry claw_timing = {0};
+static struct timing_entry dropper_active_timing = {0};
 
 static actuator_cmd_data_t set_timing_command = {.in_use = false, .i2c_in_progress = false};
 // The missing_timings contains timings that need to be sent to the actuator board
@@ -323,17 +276,17 @@ rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "claw_timing_ms", 4500));
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "dropper_active_timing_ms", 250));
 
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil1_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil1_on_timing_us", 23000));
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil1_2_delay_timing_us", 250));
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil2_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil2_on_timing_us", 15000));
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil2_3_delay_timing_us", 250));
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil3_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo1_coil3_on_timing_us", 13000));
 
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil1_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil1_on_timing_us", 23000));
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil1_2_delay_timing_us", 250));
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil2_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil2_on_timing_us", 15000));
     RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil2_3_delay_timing_us", 250));
-    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil3_on_timing_us", 250));
+    RC_RETURN_CHECK(rclc_parameter_set_int(param_server, "torpedo2_coil3_on_timing_us", 13000));
 
     return RCL_RET_OK;
 }
