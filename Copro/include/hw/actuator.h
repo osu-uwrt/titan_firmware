@@ -17,23 +17,23 @@ extern struct actuator_i2c_status actuator_last_status;
 
 /**
  * @brief Creates the required parameters for the actuators on the provided parameter server
- * 
+ *
  * @param param_server The server to add the parameters to
  */
 rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server);
 
 /**
  * @brief Function callback for parameter change and updates it if matches an actuator parameter.
- * 
+ *
  * @param param The parameter that was updated
  * @return true Parameter update was applied
  * @return false Parameter update was not applied
  */
-bool actuator_handle_parameter_change(Parameter * param);
+bool actuator_handle_parameter_change(const Parameter * param);
 
 /**
  * @brief Returns if the coprocessor is connected to the actuator board
- * 
+ *
  * @return true A connection is established
  * @return false No connection established or not initialized
  */
@@ -51,7 +51,7 @@ void actuator_kill_report_refresh(void);
 
 /**
  * @brief Actuator commands
- * 
+ *
  * NOT INTERRUPT SAFE - Can allocate memory
  */
 void actuator_open_claw(void);

@@ -563,13 +563,19 @@ const rclc_parameter_options_t param_server_options = {
 
 static rclc_parameter_server_t param_server;
 
-static void on_parameter_changed(Parameter * param)
+static bool on_parameter_changed(__unused const Parameter * old_param, const Parameter * new_param, __unused void * context)
 {
-	if (actuator_handle_parameter_change(param)) {
+	if (new_param == NULL) {
+		return false;
+	}
+
+	if (actuator_handle_parameter_change(new_param)) {
 		// Nothing to be done on successful parameter change
+		return true;
 	} else {
-		LOG_WARN("Unexpected parameter %s with type %d changed", param->name.data, param->value.type);
+		LOG_WARN("Unexpected parameter %s with type %d changed", new_param->name.data, new_param->value.type);
 		safety_raise_fault(FAULT_ROS_SOFT_FAIL);
+		return false;
 	}
 }
 
@@ -616,7 +622,7 @@ void ros_start(const char* namespace) {
 	RCCHECK(rclc_node_init_default(&node, "coprocessor_node", namespace, &support));
 
 	// create executor
-	const uint num_executor_tasks = 7 + RCLC_PARAMETER_EXECUTOR_HANDLES_NUMBER;
+	const uint num_executor_tasks = 7 + RCLC_EXECUTOR_PARAMETER_SERVER_HANDLES;
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 

@@ -292,7 +292,7 @@ rcl_ret_t actuator_create_parameters(rclc_parameter_server_t *param_server) {
 }
 
 #define IS_VALID_TIMING(num) ((num) > 0 && (num) < (1<<16))
-bool actuator_handle_parameter_change(Parameter * param) {
+bool actuator_handle_parameter_change(const Parameter * param) {
     if (!actuator_initialized) {
         return false;
     }
