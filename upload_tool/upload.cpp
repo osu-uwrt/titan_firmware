@@ -21,6 +21,7 @@
 #include <functional>
 #include <ctime>
 #include <unistd.h>
+#include <limits>
 
 #include "boot/uf2.h"
 #include "picoboot_connection_cxx.h"

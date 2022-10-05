@@ -64,7 +64,7 @@ struct firmware_status {
     uint8_t version_minor:4;
     uint8_t fault_list;
     struct missing_timings_status missing_timings;
-} __attribute__ ((packed)) status;
+} __attribute__ ((packed));
 static_assert(sizeof(struct firmware_status) == 4, "Firmware status struct did not pack properly");
 
 
