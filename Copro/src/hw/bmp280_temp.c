@@ -146,11 +146,15 @@ bool bmp280_temp_read(double* temp){
         int8_t rslt = bmp280_get_comp_temp_double(temp, ucomp_data.uncomp_temp, &bmp);
         if (!rslt) valid=true;
     }
-    
+
     return valid;
 }
 
 static int64_t bmp280_poll_alarm_cb(__unused alarm_id_t id, __unused void *user_data) {
+    if (in_progress) {
+        LOG_ERROR("BMP280 polling started with one still in progress");
+        safety_raise_fault(FAULT_ADC_ERROR);
+    }
     async_i2c_enqueue(&get_data_req, &in_progress);
 
     return 250 * 1000;

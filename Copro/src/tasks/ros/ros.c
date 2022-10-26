@@ -43,8 +43,8 @@ void ros_start(const char* namespace) {
 	executor = rclc_executor_get_zero_initialized_executor();
 	RCCHECK(rclc_executor_init(&executor, &support.context, num_executor_tasks, &allocator));
 
-	parameter_server_init(&node, &executor);
-	depth_publisher_init(&support, &node, &executor);
+	//parameter_server_init(&node, &executor);
+	//depth_publisher_init(&support, &node, &executor);
 	state_publish_init(&support, &node, &executor);
 	subscriptions_init(&node, &executor);
 }
@@ -54,8 +54,8 @@ void ros_spin_ms(long ms) {
 }
 
 void ros_cleanup(void) {
-	parameter_server_fini(&node);
-	depth_publisher_fini(&node);
+	//parameter_server_fini(&node);
+	//depth_publisher_fini(&node);
 	state_publish_fini(&node);
 	subscriptions_fini(&node);
 
