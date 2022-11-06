@@ -45,10 +45,10 @@ enum dropper_state dropper_get_state(uint8_t dropper_id);
 /**
  * @brief Attempts to drop the requested marker
  * 
- * @param cmd The parameter for the drop_marker command (id starts at 1)
- * @return enum actuator_command_result Result for the attempted command
+ * @param dropper_id: The dropper to drop (id starts at 1)
+ * @return bool Result for the attempted command
  */
-enum actuator_command_result dropper_drop_marker(struct drop_marker_cmd *cmd);
+bool dropper_drop_marker(uint8_t dropper_id);
 
 /**
  * @brief Attempts to clear the status for the marker dropper back to not dropped

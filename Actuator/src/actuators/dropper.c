@@ -133,27 +133,26 @@ enum dropper_state dropper_get_state(uint8_t dropper_id) {
     }
 }
 
-enum actuator_command_result dropper_drop_marker(struct drop_marker_cmd *cmd) {
+bool dropper_drop_marker(uint8_t dropper_num) {
     hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
 
-    uint8_t dropper_num = cmd->dropper_num;
     if (dropper_num <= 0 || dropper_num > NUM_DROPPERS) {
-        return ACTUATOR_RESULT_FAILED;
+        return false;
     }
 
     if (safety_kill_get_asserting_kill()) {
-        return ACTUATOR_RESULT_FAILED;
+        return false;
     }
 
     switch (dropper_get_state(dropper_num)) {
         case DROPPER_STATE_DROPPED:
-            return ACTUATOR_RESULT_SUCCESSFUL;
+            return true;
         case DROPPER_STATE_DROPPING:
-            return ACTUATOR_RESULT_RUNNING;
+            return false;
         case DROPPER_STATE_READY:
             break;
         default:
-            return ACTUATOR_RESULT_FAILED;
+            return false;
     }
 
     LOG_INFO("Dropping Marker %d", dropper_num);
@@ -165,7 +164,7 @@ enum actuator_command_result dropper_drop_marker(struct drop_marker_cmd *cmd) {
     
     gpio_put(this_dropper->pin_id, DROPPER_LEVEL_ON);
 
-    return ACTUATOR_RESULT_RUNNING;
+    return true;
 }
 
 enum actuator_command_result dropper_clear_status(void) {

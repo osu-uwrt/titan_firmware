@@ -4,6 +4,7 @@
 #include "hardware/i2c.h"
 #include "hardware/watchdog.h"
 
+#include "ros.h"
 #include "actuator_i2c/interface.h"
 #include "basic_logger/logging.h"
 #include "build_version.h"
@@ -19,7 +20,7 @@
 
 #define USE_POWER_LED 0
 
-static void populate_status_msg(struct actuator_i2c_status *status){
+__unused static void populate_status_msg(struct actuator_i2c_status *status){
     // NOTE: The firmware version in the CMakeLists should match the expected firmware version in actuator_i2c/interface.h
     status->firmware_status.version_major = MAJOR_VERSION;
     status->firmware_status.version_minor = MINOR_VERSION;
@@ -61,83 +62,12 @@ int main() {
     dropper_initialize();
     torpedo_initialize();
 
-    actuator_i2c_cmd_t cmd;
-    actuator_i2c_response_t response;
+    ros_start("tempest");
 
-    while (true) {
-        if (async_i2c_target_get_next_command(&cmd)) {
-            LOG_DEBUG("Received Command: %d", cmd.cmd_id);
-
-            size_t response_size = 0;
-            switch (cmd.cmd_id) {
-                case ACTUATOR_CMD_GET_STATUS:
-                    populate_status_msg(&response.data.status);
-                    response_size = ACTUATOR_STATUS_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_OPEN_CLAW:
-                    response.data.result = claw_open();
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_CLOSE_CLAW:
-                    response.data.result = claw_close();
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_CLAW_TIMING:
-                    response.data.result = claw_set_timings(&cmd.data.claw_timing);
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-
-                case ACTUATOR_CMD_ARM_TORPEDO:
-                    response.data.result = torpedo_arm();
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_DISARM_TORPEDO:
-                    response.data.result = torpedo_disarm();
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_FIRE_TORPEDO:
-                    response.data.result = torpedo_fire(&cmd.data.fire_torpedo);
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_TORPEDO_TIMING:
-                    response.data.result = torpedo_set_timings(&cmd.data.torpedo_timing);
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-
-                case ACTUATOR_CMD_DROP_MARKER:
-                    response.data.result = dropper_drop_marker(&cmd.data.drop_marker);
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_CLEAR_DROPPER_STATUS:
-                    response.data.result = dropper_clear_status();
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-                case ACTUATOR_CMD_DROPPER_TIMING:
-                    response.data.result = dropper_set_timings(&cmd.data.dropper_timing);
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-
-                case ACTUATOR_CMD_KILL_SWITCH:
-                    safety_kill_switch_update(KILL_SWITCH_I2C_MSG, cmd.data.kill_switch.asserting_kill, true);
-                    response.data.result = ACTUATOR_RESULT_SUCCESSFUL;
-                    response_size = ACTUATOR_RESULT_RESP_LENGTH;
-                    break;
-
-                case ACTUATOR_CMD_RESET_ACTUATORS:
-                    LOG_INFO("Reboot command received");
-                    safety_notify_software_reset();
-                    watchdog_reboot(0, 0, 0);
-                    break;
-
-                default:
-                    LOG_WARN("Unknown command 0x%02x", cmd.cmd_id);
-                    safety_raise_fault(FAULT_I2C_PROTO_ERROR);
-                    break;
-            }
-
-            async_i2c_target_finish_command(&response, response_size);
-        }
+    while(true) { 
+        ros_spin_ms(30);
         safety_tick();
     }
+
     return 0;
 }
