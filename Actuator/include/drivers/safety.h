@@ -18,6 +18,6 @@ static const char * const fault_string_list[] = {
 
 
 #define NUM_KILL_SWITCHES    1
-#define KILL_SWITCH_I2C_MSG  0
+#define KILL_SWITCH_DBG  0
 
 #endif

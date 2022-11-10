@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
+#include "pico_uart_transports.h"
 #include "hardware/i2c.h"
 #include "hardware/watchdog.h"
 
@@ -41,8 +42,7 @@ __unused static void populate_status_msg(struct actuator_i2c_status *status){
 }
 
 int main() {
-    stdio_init_all();
-    dual_usb_init();
+    serial_init_early();
     LOG_INFO("%s", FULL_BUILD_TAG);
 
     safety_setup();
@@ -54,17 +54,19 @@ int main() {
     gpio_put(LED_PIN, USE_POWER_LED);
     #endif
 
-    async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
+    //async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
+    pico_serial_transport_init();
+    ros_wait_for_connection();
+    ros_start("tempest");
 
     safety_init();
+    safety_kill_switch_update(0, false, false);
 
     claw_initialize();
     dropper_initialize();
     torpedo_initialize();
 
-    ros_start("tempest");
-
-    while(true) { 
+    while(true) {
         ros_spin_ms(30);
         safety_tick();
     }

@@ -30,7 +30,7 @@ add_executable(actuator_firmware
 )
 pico_generate_pio_header(actuator_firmware ${CMAKE_CURRENT_LIST_DIR}/src/actuators/torpedo.pio)
 
-target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format -Werror)
+target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format )#-Werror)
 target_include_directories(actuator_firmware PUBLIC include)
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
@@ -52,8 +52,8 @@ micro_ros_enable(actuator_firmware)
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
-target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_FATAL)  # Done because i2c will timeout with logging enabled
-#target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+#target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_FATAL)  # Done because i2c will timeout with logging enabled
+target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_DEBUG)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
 target_compile_definitions(actuator_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
 

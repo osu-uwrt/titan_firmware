@@ -60,18 +60,18 @@ void dropper_initialize(void) {
 // ========================================
 
 // A time value of 0 means uninitialized
-static uint16_t dropper_active_time_ms = 0;
+static uint16_t dropper_active_time_ms = 20;  // TODO: SET ME BACK TO 0
 
-enum actuator_command_result dropper_set_timings(struct dropper_timing_cmd *timings) {
+bool dropper_set_timings(uint16_t active_time_ms) {
     hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
 
-    if (timings->active_time_ms == 0){
-        return ACTUATOR_RESULT_FAILED;
+    if (active_time_ms == 0){
+        return false;
     }
 
-    LOG_INFO("Setting dropper timings to %d ms", timings->active_time_ms);
-    dropper_active_time_ms = timings->active_time_ms;
-    return ACTUATOR_RESULT_SUCCESSFUL;
+    LOG_INFO("Setting dropper timings to %d ms", active_time_ms);
+    dropper_active_time_ms = active_time_ms;
+    return true;
 }
 
 void dropper_populate_missing_timings(struct missing_timings_status* missing_timings) {
@@ -87,7 +87,7 @@ void dropper_populate_missing_timings(struct missing_timings_status* missing_tim
 
 /**
  * @brief Internal shared function to stop the marker dropper and clean up the state
- * 
+ *
  * @param this_dropper The dropper to stop
  */
 void dropper_stop_internal(struct dropper_data *this_dropper) {
@@ -100,7 +100,7 @@ void dropper_stop_internal(struct dropper_data *this_dropper) {
 
 /**
  * @brief Alarm for when to finish dropping the specific dropper
- * 
+ *
  * @param id The ID of the alarm that triggered the callback
  * @param user_data User provided data. This is a pointer to the dropper_data struct
  * @return int64_t If/How to restart the timer
@@ -137,6 +137,7 @@ bool dropper_drop_marker(uint8_t dropper_num) {
     hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
 
     if (dropper_num <= 0 || dropper_num > NUM_DROPPERS) {
+        LOG_DEBUG("can't drop because dropper number is invalid");
         return false;
     }
 
@@ -146,22 +147,28 @@ bool dropper_drop_marker(uint8_t dropper_num) {
 
     switch (dropper_get_state(dropper_num)) {
         case DROPPER_STATE_DROPPED:
+            LOG_DEBUG("Dropper already dropped");
             return true;
         case DROPPER_STATE_DROPPING:
+            LOG_DEBUG("Dropper currently dropping");
             return false;
         case DROPPER_STATE_READY:
             break;
+        case DROPPER_STATE_UNINITIALIZED:
+            LOG_DEBUG("dropper not initialized!!!");
+            return false;
         default:
+            LOG_INFO("default case");
             return false;
     }
 
-    LOG_INFO("Dropping Marker %d", dropper_num);
+    LOG_DEBUG("Dropping Marker %d", dropper_num);
 
     struct dropper_data *this_dropper = &dropper_data[dropper_num-1];
     this_dropper->dropping = true;
     this_dropper->stop_timer = add_alarm_in_ms(dropper_active_time_ms, dropper_finish_callback, this_dropper, true);
     hard_assert(this_dropper->stop_timer > 0);
-    
+
     gpio_put(this_dropper->pin_id, DROPPER_LEVEL_ON);
 
     return true;

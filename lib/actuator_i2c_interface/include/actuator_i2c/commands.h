@@ -71,12 +71,6 @@ struct torpedo_timing_cmd {
     uint16_t time_us;
 } __attribute__ ((packed));
 #define ACTUATOR_CMD_TORPEDO_TIMING_LENGTH sizeof(struct torpedo_timing_cmd)
-
-struct dropper_timing_cmd {
-    uint16_t active_time_ms;
-} __attribute__ ((packed));
-#define ACTUATOR_CMD_DROPPER_TIMING_LENGTH sizeof(struct dropper_timing_cmd)
-
 struct kill_switch_cmd {
     bool asserting_kill;
 } __attribute__ ((packed));
@@ -90,7 +84,6 @@ typedef struct actuator_i2c_cmd {
         struct drop_marker_cmd drop_marker;
         struct claw_timing_cmd claw_timing;
         struct torpedo_timing_cmd torpedo_timing;
-        struct dropper_timing_cmd dropper_timing;
         struct kill_switch_cmd kill_switch;
     } data;
 } __attribute__ ((packed)) actuator_i2c_cmd_t;
@@ -108,7 +101,6 @@ typedef struct actuator_i2c_cmd {
     cmd_id == ACTUATOR_CMD_TORPEDO_TIMING ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_TORPEDO_TIMING_LENGTH : \
     cmd_id == ACTUATOR_CMD_DROP_MARKER ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_DROP_MARKER_LENGTH : \
     cmd_id == ACTUATOR_CMD_CLEAR_DROPPER_STATUS ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_CLEAR_DROPPER_STATUS_LENGTH : \
-    cmd_id == ACTUATOR_CMD_DROPPER_TIMING ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_DROPPER_TIMING_LENGTH : \
     cmd_id == ACTUATOR_CMD_KILL_SWITCH ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_KILL_SWITCH_LENGTH : \
     cmd_id == ACTUATOR_CMD_RESET_ACTUATORS ? ACTUATOR_BASE_CMD_LENGTH + ACTUATOR_CMD_RESET_ACTUATORS_LENGTH : \
     0 \
