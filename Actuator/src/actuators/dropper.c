@@ -8,6 +8,7 @@
 #include "basic_logger/logging.h"
 
 #include "actuators/dropper.h"
+#include "actuators/arm_state.h"
 #include "drivers/safety.h"
 
 #undef LOGGING_UNIT_NAME
@@ -18,7 +19,6 @@
 #define DROPPER_LEVEL_OFF 0
 struct dropper_data {
     bool dropping;
-    bool dropped;
     uint pin_id;
     alarm_id_t stop_timer;
 };
@@ -26,17 +26,19 @@ struct dropper_data {
 struct dropper_data dropper_data[] = {
     {   // Dropper 1
         .pin_id = DROPPER_1_PIN,
-        .dropping = false, .dropped = false,
+        .dropping = false,
     },
     {   // Dropper 2
         .pin_id = DROPPER_2_PIN,
-        .dropping = false, .dropped = false,
+        .dropping = false,
     }
 };
 #define NUM_DROPPERS (sizeof(dropper_data)/sizeof(*dropper_data))
 
 
 bool dropper_initialized = false;
+
+static enum armed_state dropper_armed_state;
 
 void dropper_initialize(void) {
     hard_assert_if(LIFETIME_CHECK, dropper_initialized);
@@ -52,6 +54,7 @@ void dropper_initialize(void) {
     }
 
     dropper_initialized = true;
+    dropper_armed_state = ARMED_STATE_DISARMED;
 }
 
 
@@ -60,7 +63,7 @@ void dropper_initialize(void) {
 // ========================================
 
 // A time value of 0 means uninitialized
-static uint16_t dropper_active_time_ms = 20;  // TODO: SET ME BACK TO 0
+static uint16_t dropper_active_time_ms = 0;
 
 bool dropper_set_timings(uint16_t active_time_ms) {
     hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
@@ -69,17 +72,14 @@ bool dropper_set_timings(uint16_t active_time_ms) {
         return false;
     }
 
+    if(dropper_armed_state == ARMED_STATE_ARMED) {
+        return false;
+    }
+
     LOG_INFO("Setting dropper timings to %d ms", active_time_ms);
     dropper_active_time_ms = active_time_ms;
     return true;
 }
-
-void dropper_populate_missing_timings(struct missing_timings_status* missing_timings) {
-    hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
-
-    missing_timings->dropper_active_timing = (dropper_active_time_ms == 0);
-}
-
 
 // ========================================
 // Movement Management
@@ -91,9 +91,9 @@ void dropper_populate_missing_timings(struct missing_timings_status* missing_tim
  * @param this_dropper The dropper to stop
  */
 void dropper_stop_internal(struct dropper_data *this_dropper) {
-    this_dropper->dropped = true;
     this_dropper->dropping = false;
     this_dropper->stop_timer = 0;
+    dropper_armed_state = ARMED_STATE_DISARMED;
 
     gpio_put(this_dropper->pin_id, DROPPER_LEVEL_OFF);
 }
@@ -126,8 +126,6 @@ enum dropper_state dropper_get_state(uint8_t dropper_id) {
 
     if (this_dropper->dropping) {
         return DROPPER_STATE_DROPPING;
-    } else if (this_dropper->dropped) {
-        return DROPPER_STATE_DROPPED;
     } else {
         return DROPPER_STATE_READY;
     }
@@ -145,10 +143,11 @@ bool dropper_drop_marker(uint8_t dropper_num) {
         return false;
     }
 
+    if(dropper_armed_state != ARMED_STATE_ARMED)  {
+        return false;
+    }
+
     switch (dropper_get_state(dropper_num)) {
-        case DROPPER_STATE_DROPPED:
-            LOG_DEBUG("Dropper already dropped");
-            return true;
         case DROPPER_STATE_DROPPING:
             LOG_DEBUG("Dropper currently dropping");
             return false;
@@ -170,26 +169,9 @@ bool dropper_drop_marker(uint8_t dropper_num) {
     hard_assert(this_dropper->stop_timer > 0);
 
     gpio_put(this_dropper->pin_id, DROPPER_LEVEL_ON);
+    dropper_armed_state = ARMED_STATE_FIRING;
 
     return true;
-}
-
-enum actuator_command_result dropper_clear_status(void) {
-    hard_assert_if(LIFETIME_CHECK, !dropper_initialized);
-
-    LOG_INFO("Clearing Dropper Status");
-
-    enum actuator_command_result result = ACTUATOR_RESULT_SUCCESSFUL;
-    for (uint i = 0; i < NUM_DROPPERS; i++) {
-        struct dropper_data *this_dropper = &dropper_data[i];
-
-        if (this_dropper->dropping) {
-            result = ACTUATOR_RESULT_FAILED;
-        } else if (this_dropper->dropped){
-            this_dropper->dropped = false;
-        }
-    }
-    return result;
 }
 
 void dropper_safety_disable(void) {
@@ -204,4 +186,42 @@ void dropper_safety_disable(void) {
             dropper_stop_internal(this_dropper);
         }
     }
+}
+
+bool dropper_arm() {
+    switch (dropper_armed_state) {
+        case ARMED_STATE_ARMED:
+            LOG_DEBUG("Cannot arm dropper: already armed");
+            return false;
+        case ARMED_STATE_FIRING:
+            LOG_DEBUG("Canoot arm dropper: currently firing");
+            return false;
+        case ARMED_STATE_DISARMED:
+            dropper_armed_state = ARMED_STATE_ARMED;
+            return true;
+        default:
+            LOG_INFO("unknown armed state");
+            return false;
+    }
+}
+
+bool dropper_disarm() {
+    switch (dropper_armed_state) {
+        case ARMED_STATE_DISARMED:
+            LOG_DEBUG("Cannot disarm dropper: already disarmed");
+            return false;
+        case ARMED_STATE_FIRING:
+            LOG_DEBUG("Canoot disarm dropper: currently firing");
+            return false;
+        case ARMED_STATE_ARMED:
+            dropper_armed_state = ARMED_STATE_DISARMED;
+            return true;
+        default:
+            LOG_INFO("unknown armed state");
+            return false;
+    }
+}
+
+enum armed_state dropper_get_armed_state() {
+    return dropper_armed_state;
 }
