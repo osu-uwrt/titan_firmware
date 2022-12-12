@@ -90,6 +90,14 @@ void safety_interface_setup(void);
  */
 void safety_interface_init(void);
 
+/**
+ * @brief Called for implementation specific code during safety_tick
+ *
+ * Put any code that must be called (else the watchdog will timeout) in here
+ */
+void safety_interface_tick(void);
+
+
 // ========================================
 // Internal Functions
 // ========================================

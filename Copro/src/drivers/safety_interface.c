@@ -42,6 +42,10 @@ void safety_interface_init(void) {
 
 }
 
+void safety_interface_tick(void) {
+
+}
+
 
 // ========================================
 // Constant Calculations - Does not need to be modified

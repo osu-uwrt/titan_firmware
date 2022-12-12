@@ -1,6 +1,16 @@
 #include <assert.h>
 
+#include "can_pio/canbus.h"
 #include "safety_interface.h"
+
+
+void safety_handle_can_internal_error(void) {
+    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+}
+
+void safety_handle_can_receive_error(void) {
+    safety_raise_fault(FAULT_CAN_RECV_ERROR);
+}
 
 
 // ========================================
@@ -8,7 +18,7 @@
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    // TODO: Add code to change fault LED here
+    canbus_set_device_in_error(on);
 }
 
 void safety_handle_kill(void) {
@@ -23,7 +33,8 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-    // TODO: Modify this function to add code to be called during safety_setup
+    canbus_set_receive_error_cb(safety_handle_can_receive_error);
+    canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
 void safety_interface_init(void) {
@@ -31,7 +42,9 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-    // TODO: Modify this function to add code to be called during safety_tick
+    if (canbus_initialized && canbus_core_dead()) {
+        safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+    }
 }
 
 
@@ -39,7 +52,7 @@ void safety_interface_tick(void) {
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES] = {[0 ... NUM_KILL_SWITCHES-1] = { .enabled = false }};
+struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES];
 const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
 static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 

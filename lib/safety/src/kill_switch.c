@@ -26,8 +26,6 @@ static void safety_local_handle_kill(void) {
 
 
 void safety_internal_kill_refresh_switches(void) {
-    absolute_time_t now = get_absolute_time();
-
     // Check all kill switches for asserting kill
     bool asserting_kill = false;
     int num_switches_enabled = 0;

@@ -42,5 +42,7 @@ void safety_tick(void) {
         safety_internal_kill_refresh_switches();
     }
 
+    safety_interface_tick();
+
     watchdog_update();
 }

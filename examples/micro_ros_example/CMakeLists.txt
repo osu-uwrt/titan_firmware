@@ -9,7 +9,7 @@ set(PICO_BOARD pico)
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
 # Set to Debug if debugging with gdb
-set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Release)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -26,6 +26,7 @@ pico_sdk_init()
 # Define executable
 add_executable(micro_ros_example
 	main.c
+	safety_interface.c
 )
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -42,4 +43,4 @@ uwrt_use_upload_tool(micro_ros_example)
 
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)
-target_link_libraries(micro_ros_example pico_stdlib micro_ros_can)
+target_link_libraries(micro_ros_example pico_stdlib micro_ros_can safety)
