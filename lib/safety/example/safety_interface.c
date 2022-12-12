@@ -1,11 +1,6 @@
-#include "drivers/safety.h"
+#include <assert.h>
 
-#include "hw/actuator.h"
-#include "hw/dio.h"
-#include "hw/dshot.h"
-#include "hw/esc_pwm.h"
-
-#include <riptide_msgs2/msg/kill_switch_report.h>
+#include "safety_interface.h"
 
 
 // ========================================
@@ -13,33 +8,26 @@
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    dio_set_fault_led(on);
+    // TODO: Add code to change fault LED here
 }
 
 void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    #if HW_USE_DSHOT
-    dshot_stop_thrusters();
-    #endif
-    #if HW_USE_PWM
-    esc_pwm_stop_thrusters();
-    #endif
-
-    actuator_kill_report_refresh();
+    // TODO: Modify this function to add callbacks when system is killed
 }
 
 void safety_handle_enable(void) {
-    actuator_kill_report_refresh();
+    // TODO: Modify this function to add callbacks for when system is enabled
 }
 
 void safety_interface_setup(void) {
-
+    // TODO: Modify this function to add code to be called during safety_setup
 }
 
 void safety_interface_init(void) {
-
+    // TODO: Modify this function to add code to be called during safety_init
 }
 
 
@@ -47,9 +35,7 @@ void safety_interface_init(void) {
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] =
-    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
-
+struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES] = {[0 ... NUM_KILL_SWITCHES-1] = { .enabled = false }};
 const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
 static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 

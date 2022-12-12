@@ -1,10 +1,10 @@
-#include <stdarg.h>
+#include <assert.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "pico/stdlib.h"
 #include "hardware/exception.h"
 #include "hardware/structs/systick.h"
 #include "hardware/structs/vreg_and_chip_reset.h"
@@ -12,185 +12,8 @@
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 
-#include "basic_logger/logging.h"
+#include "safety_internal.h"
 
-#include "safety/safety.h"
-
-#undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "safety"
-
-#define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
-
-// ========================================
-// External Interface Functions
-// ========================================
-// NOTE: These functions need to be defined in the code using the safety library
-
-extern const int num_kill_switches;
-extern struct kill_switch_state kill_switch_states[];
-
-/**
- * @brief Called to set the fault led light
- *
- * @param on Logic level of the light
- */
-void safety_set_fault_led(bool on);
-
-/**
- * @brief Callback for when the robot is killed. This should stop any actions that must stop when disabled
- */
-void safety_kill_robot(void);
-
-/**
- * @brief Callback for when the robot is enabled
- */
-void safety_enable_robot(void);
-
-/**
- * @brief Looks up fault id name for a given fault id
- *
- * @param fault_id The fault id to lookup
- * @return const char* The fault name
- */
-const char * safety_lookup_fault_id(uint32_t fault_id);
-
-
-// ========================================
-// Fault Management Functions
-// ========================================
-
-void safety_raise_fault(uint32_t fault_id) {
-    valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
-
-    if ((*fault_list_reg & (1u<<fault_id)) == 0) {
-        LOG_FAULT("Fault %s (%d) Raised", safety_lookup_fault_id(fault_id), fault_id);
-
-        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-        // the setting of the fault state and the fault LED
-
-        uint32_t prev_interrupt_state = save_and_disable_interrupts();
-
-        *fault_list_reg |= (1<<fault_id);
-        safety_set_fault_led(true);
-
-        restore_interrupts(prev_interrupt_state);
-    }
-}
-
-void safety_lower_fault(uint32_t fault_id) {
-    valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
-
-    if ((*fault_list_reg & (1u<<fault_id)) != 0) {
-        LOG_FAULT("Fault %s (%d) Lowered", safety_lookup_fault_id(fault_id), fault_id);
-
-        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-        // the setting of the fault state and the fault LED
-
-        uint32_t prev_interrupt_state = save_and_disable_interrupts();
-
-        *fault_list_reg &= ~(1u<<fault_id);
-        safety_set_fault_led((*fault_list_reg) != 0);
-
-        restore_interrupts(prev_interrupt_state);
-    }
-}
-
-
-// ========================================
-// Kill Switch Management Functions
-// ========================================
-
-static absolute_time_t last_kill_switch_change;
-static bool last_state_asserting_kill = true; // Start asserting kill
-
-/**
- * @brief Local utility function to do common tasks for when the robot is killed
- * Called from any function that will kill the robot
- *
- * This function should only be called when safety is initialized
- */
-static void safety_local_kill_robot(void) {
-    last_state_asserting_kill = true;
-    last_kill_switch_change = get_absolute_time();
-
-    safety_kill_robot();
-
-    LOG_DEBUG("Disabling Robot");
-}
-
-/**
- * @brief Refreshes kill switches to check for any timeouts
- * It is responsible for re-enabling the robot after all of the kill switches have been released.
- *
- * This function should only be called when safety is initialized
- */
-static void safety_refresh_kill_switches(void) {
-    absolute_time_t now = get_absolute_time();
-
-    // Check all kill switches for asserting kill
-    bool asserting_kill = false;
-    int num_switches_enabled = 0;
-    for (int i = 0; i < num_kill_switches; i++) {
-        if (kill_switch_states[i].enabled) {
-            num_switches_enabled++;
-
-            // Kill if asserting kill or if timeout expired when requiring update
-            if (kill_switch_states[i].asserting_kill ||
-                    (kill_switch_states[i].needs_update && absolute_time_diff_us(now, kill_switch_states[i].update_timeout) < 0)) {
-                asserting_kill = true;
-                break;
-            }
-        }
-    }
-
-    // If no kill switches are enabled, force into kill as a precaution
-    if (num_switches_enabled == 0) {
-        asserting_kill = true;
-    }
-
-    // Update last state, and notify of kill if needed
-    if (last_state_asserting_kill != asserting_kill) {
-        last_state_asserting_kill = asserting_kill;
-
-        if (asserting_kill) {
-            safety_local_kill_robot();
-        } else {
-            LOG_DEBUG("Enabling Robot");
-            last_kill_switch_change = get_absolute_time();
-            safety_enable_robot();
-        }
-    }
-}
-
-void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update){
-    valid_params_if(SAFETY, switch_num < num_kill_switches);
-
-    kill_switch_states[switch_num].asserting_kill = asserting_kill;
-    kill_switch_states[switch_num].update_timeout = make_timeout_time_ms(KILL_SWITCH_TIMEOUT_MS);
-    kill_switch_states[switch_num].needs_update = needs_update;
-    kill_switch_states[switch_num].enabled = true;
-
-    if (safety_initialized && asserting_kill) {
-        safety_local_kill_robot();
-    }
-}
-
-bool safety_kill_get_asserting_kill(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_initialized);
-    return last_state_asserting_kill;
-}
-
-absolute_time_t safety_kill_get_last_change(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_initialized);
-    return last_kill_switch_change;
-}
-
-
-
-// ========================================
-// Watchdog Crash Reporting Functions
-// ========================================
 
 // Use of Watchdog Scratch Registers
 // Can really only be considered valid if
@@ -233,10 +56,10 @@ absolute_time_t safety_kill_get_last_change(void) {
 #define CLEAN_RESET_TYPE_SOFTWARE  0x7193004
 #define CLEAN_RESET_TYPE_USB       0x7193005
 
-// Very useful for debugging, prevents cpu from resetting while execution is halted for debugging
-// However, this should be ideally be disabled when not debugging in the event something goes horribly wrong
-#define PAUSE_WATCHDOG_ON_DEBUG 1
-#define NUM_CRASH_LOG_ENTRIES 24
+
+// ========================================
+// Crash Log Definitions
+// ========================================
 
 struct crash_data {
 
@@ -273,7 +96,7 @@ struct crash_data {
         uint32_t uptime;
 
         uint32_t faults;
-    } crash_log[NUM_CRASH_LOG_ENTRIES];
+    } crash_log[SAFETY_NUM_CRASH_LOG_ENTRIES];
 } crash_data __attribute__((section(".uninitialized_data.crash_data")));
 
 // Ensure struct packed properly
@@ -321,7 +144,9 @@ static uint16_t calc_crash_data_crc(void) {
 }
 
 
-// Watchdog Crash Recorder Functions
+// ========================================
+// Watchdog Current-Session Crash Reporting
+// ========================================
 
 #define uptime_ticks_per_sec 100
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
@@ -367,6 +192,11 @@ void safety_systick_handler(void) {
     // Note: Does not have any overflow handling
     *uptime_reg += 1;
 }
+
+
+// ========================================
+// Crash Log Parsing
+// ========================================
 
 /**
  * @brief Formats the requested crash_log_entry into the char array passed into the function.
@@ -441,7 +271,7 @@ static void safety_print_last_reset_cause(void){
         char message_buf[256];
         message_buf[0] = '\0';
 
-        int last_index = (crash_data.header.next_entry == 0 ? NUM_CRASH_LOG_ENTRIES - 1 : crash_data.header.next_entry - 1);
+        int last_index = (crash_data.header.next_entry == 0 ? SAFETY_NUM_CRASH_LOG_ENTRIES - 1 : crash_data.header.next_entry - 1);
         struct crash_log_entry *last_reset = &crash_data.crash_log[last_index];
 
         char *msg = message_buf;
@@ -471,7 +301,7 @@ static void safety_print_last_reset_cause(void){
 
 /**
  * @brief Does processing of the last reset cause and prints it to serial.
- * Also does the initialization of the crash_log if it is has not been initialized.
+ * Also performs the initialization of the crash_log if it is has not been initialized.
  *
  * Should only be called once and before any watchdog registers are overwritten.
  */
@@ -557,7 +387,7 @@ static void safety_process_last_reset_cause(void) {
     *fault_list_reg = 0;
 
     // Apply changes to next_entry and checksum
-    if (crash_data.header.next_entry == (NUM_CRASH_LOG_ENTRIES - 1)) {
+    if (crash_data.header.next_entry == (SAFETY_NUM_CRASH_LOG_ENTRIES - 1)) {
         crash_data.header.next_entry = 0;
         crash_data.header.flags.log_wrapped = 1;
     } else {
@@ -572,7 +402,40 @@ static void safety_process_last_reset_cause(void) {
     }
 }
 
+
+// ========================================
+// Public Functions
+// ========================================
+
+void safety_internal_crash_reporting_handle_reset(void) {
+    safety_process_last_reset_cause();
+
+    // Set hardfault handler
+    original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
+
+    // Enable systick for uptime counting
+    exception_set_exclusive_handler(SYSTICK_EXCEPTION, &safety_systick_handler);
+    // Configuring systick reload value. Reference clock is a 1 us pulse
+    systick_hw->rvr = (1000000 / uptime_ticks_per_sec) - 1;
+    static_assert(1000000 % uptime_ticks_per_sec == 0, "Uptime ticks per second must be evenly divide into microseconds");
+    // Set systick to start at reload value
+    systick_hw->cvr = systick_hw->rvr;
+    // Clear COUNTFLAG by reading CSR
+    systick_hw->csr;
+    // Enable systick with SysTick exception enabled using external reference clock
+    systick_hw->csr = M0PLUS_SYST_CSR_TICKINT_BITS | M0PLUS_SYST_CSR_ENABLE_BITS;
+
+    // Set reset reason
+    *reset_reason_reg = UNKNOWN_SAFETY_PREINIT;
+}
+
+void safety_internal_crash_reporting_handle_init(void) {
+    *reset_reason_reg = UNKNOWN_SAFETY_ACTIVE;
+}
+
 void safety_print_crash_log(void) {
+    hard_assert_if(SAFETY, !safety_is_setup);
+
     char message_buf[256];
     message_buf[0] = '\0';
 
@@ -597,7 +460,7 @@ void safety_print_crash_log(void) {
     do {
         if (i == 0) {
             if (crash_data.header.flags.log_wrapped) {
-                i = NUM_CRASH_LOG_ENTRIES;
+                i = SAFETY_NUM_CRASH_LOG_ENTRIES;
             } else {
                 break;
             }
@@ -614,63 +477,4 @@ void safety_print_crash_log(void) {
 void safety_notify_software_reset(void) {
     *reset_reason_reg = CLEAN_BOOT;
     watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
-}
-
-// ========================================
-// Safety Limetime Functions
-// ========================================
-
-bool safety_initialized = false;
-bool safety_is_setup = false;
-
-void safety_setup(void) {
-    hard_assert_if(LIFETIME_CHECK, safety_is_setup || safety_initialized);
-
-    safety_process_last_reset_cause();
-
-    // Set hardfault handler
-    original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
-
-    // Enable systick for uptime counting
-    exception_set_exclusive_handler(SYSTICK_EXCEPTION, &safety_systick_handler);
-    // Configuring systick reload value. Reference clock is a 1 us pulse
-    systick_hw->rvr = (1000000 / uptime_ticks_per_sec) - 1;
-    static_assert(1000000 % uptime_ticks_per_sec == 0, "Uptime ticks per second must be evenly divide into microseconds");
-    // Set systick to start at reload value
-    systick_hw->cvr = systick_hw->rvr;
-    // Clear COUNTFLAG by reading CSR
-    systick_hw->csr;
-    // Enable systick with SysTick exception enabled using external reference clock
-    systick_hw->csr = M0PLUS_SYST_CSR_TICKINT_BITS | M0PLUS_SYST_CSR_ENABLE_BITS;
-
-    // Set reset reason
-    *reset_reason_reg = UNKNOWN_SAFETY_PREINIT;
-    safety_is_setup = true;
-
-    // Enable slow watchdog while connecting
-    watchdog_enable(SAFETY_WATCHDOG_SETUP_TIMER_MS, PAUSE_WATCHDOG_ON_DEBUG);
-}
-
-void safety_init(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_is_setup || safety_initialized);
-
-    safety_initialized = true;
-    *reset_reason_reg = UNKNOWN_SAFETY_ACTIVE;
-
-    // Populate the last kill switch change time to when safety is set up
-    last_kill_switch_change = get_absolute_time();
-
-    // Set tight watchdog timer for normal operation
-    watchdog_enable(SAFETY_WATCHDOG_ACTIVE_TIMER_MS, PAUSE_WATCHDOG_ON_DEBUG);
-}
-
-void safety_tick(void) {
-    hard_assert_if(LIFETIME_CHECK, !safety_is_setup);
-
-    // Check for any kill switch timeouts
-    if (safety_initialized) {
-        safety_refresh_kill_switches();
-    }
-
-    watchdog_update();
 }

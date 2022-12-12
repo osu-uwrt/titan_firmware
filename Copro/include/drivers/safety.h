@@ -40,4 +40,9 @@ static const char * const fault_string_list[] = {
     "FAULT_NO_ACTUATOR",
 };
 
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK, Enable/disable assertions for lifetime checking code, type=bool, default=0, group=Copro
+#ifndef PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK
+#define PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK 0
+#endif
+
 #endif

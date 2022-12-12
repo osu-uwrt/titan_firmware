@@ -60,7 +60,6 @@ target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
-target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
 target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets

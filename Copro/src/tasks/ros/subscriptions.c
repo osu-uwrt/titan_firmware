@@ -112,7 +112,7 @@ static void electrical_control_subscription_callback(const void * msgin)
 
 static rcl_subscription_t software_kill_subscriber;
 static riptide_msgs2__msg__KillSwitchReport software_kill_msg;
-static char software_kill_frame_str[SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
+static char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE] = {0};
 static void software_kill_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
@@ -126,7 +126,7 @@ static void software_kill_subscription_callback(const void * msgin)
     }
 
     // Make sure frame id isn't too large
-    if (msg->sender_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
+    if (msg->sender_id.size >= SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE) {
         LOG_WARN("Software Kill Frame ID too large");
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
@@ -135,7 +135,7 @@ static void software_kill_subscription_callback(const void * msgin)
     struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
 
     if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill &&
-            strncmp(kill_entry->locking_frame, msg->sender_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
+            strncmp(kill_entry->locking_frame, msg->sender_id.data, SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE)) {
         LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->sender_id.data);
         safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         return;
@@ -193,7 +193,7 @@ void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {
 	RCCHECK(rclc_executor_add_subscription(executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
 
 	software_kill_msg.sender_id.data = software_kill_frame_str;
-	software_kill_msg.sender_id.capacity = SOFTWARE_KILL_FRAME_STR_SIZE;
+	software_kill_msg.sender_id.capacity = SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE;
 	software_kill_msg.sender_id.size = 0;
 }
 
