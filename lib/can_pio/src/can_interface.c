@@ -16,15 +16,105 @@
 const size_t canbus_msg_max_length = CANMORE_MAX_MSG_LENGTH;
 const size_t canbus_utility_frame_max_length = CANMORE_FRAME_SIZE;
 
-static void core0_sio_irq() {
-    // Just record the latest entry
-    //while (multicore_fifo_rvalid())
-    //    core0_rx_val = multicore_fifo_pop_blocking();
+// ========================================
+// SIO IRQ Handling Functions
+// ========================================
 
-    //multicore_fifo_clear_irq();
+// Callback handling
+static canbus_cb_t canbus_receive_error_cb = NULL;
+static canbus_cb_t canbus_internal_error_cb = NULL;
+static canbus_cb_t canbus_utility_frame_recv_cb = NULL;
+static canbus_cb_t canbus_message_recv_cb = NULL;
+
+void canbus_set_receive_error_cb(canbus_cb_t callback) {
+    canbus_receive_error_cb = callback;
 }
 
-// Ensures that functions aren't called without startup up the CAN bus
+void canbus_set_internal_error_cb(canbus_cb_t callback) {
+    canbus_internal_error_cb = callback;
+}
+
+void canbus_set_utility_frame_recv_cb(canbus_cb_t callback) {
+    canbus_utility_frame_recv_cb = callback;
+}
+
+void canbus_set_message_recv_cb(canbus_cb_t callback) {
+    canbus_message_recv_cb = callback;
+}
+
+static void canbus_call_receive_error_cb(void) {
+    if (canbus_receive_error_cb) {
+        canbus_receive_error_cb();
+    }
+}
+
+static void canbus_call_internal_error_cb(void) {
+    if (canbus_internal_error_cb) {
+        canbus_internal_error_cb();
+    }
+}
+
+static void canbus_call_utility_frame_recv_cb(void) {
+    if (canbus_utility_frame_recv_cb) {
+        canbus_utility_frame_recv_cb();
+    }
+}
+
+static void canbus_call_message_recv_cb(void) {
+    if (canbus_message_recv_cb) {
+        canbus_message_recv_cb();
+    }
+}
+
+
+/**
+ * @brief Time when the last alive flag received is considered stale, and the core is considered dead.
+ * Only valid when canbus_initialized is true
+ */
+static absolute_time_t canbus_core_alive_timeout;
+
+
+static void core0_sio_irq() {
+    // Process all flags to be received
+    while (multicore_fifo_rvalid()) {
+        uint32_t recv_flag = multicore_fifo_pop_blocking();
+
+        if (recv_flag == SIO_ERROR_INTERNAL_FLAG) {
+            canbus_call_internal_error_cb();
+        } else if (recv_flag == SIO_ERROR_RECEIVE_FLAG) {
+            canbus_call_receive_error_cb();
+        } else if (recv_flag == SIO_RECV_UTILITY_FRAME_FLAG) {
+            canbus_call_utility_frame_recv_cb();
+        } else if (recv_flag == SIO_RECV_MESSAGE_FLAG) {
+            canbus_call_message_recv_cb();
+        } else if (recv_flag == SIO_CORE_ALIVE_FLAG) {
+            canbus_core_alive_timeout = make_timeout_time_ms(CAN_CORE_ALIVE_TIMEOUT_MS);
+        } else {
+            // Unexpected flag from second core
+            canbus_call_internal_error_cb();
+        }
+    }
+
+    // Check for overflow/underflow
+    if (multicore_fifo_get_status() & (SIO_FIFO_ST_WOF_BITS | SIO_FIFO_ST_ROE_BITS)) {
+        canbus_call_internal_error_cb();
+        multicore_fifo_clear_irq();
+    }
+}
+
+bool canbus_core_dead(void) {
+    return canbus_initialized && time_reached(canbus_core_alive_timeout);
+}
+
+void canbus_set_device_in_error(bool device_in_error_state) {
+    canbus_device_in_error_state = device_in_error_state;
+}
+
+
+// ========================================
+// Initialization Functions
+// ========================================
+
 bool canbus_initialized = false;
 
 void canbus_init(unsigned pio_num, unsigned bitrate, unsigned client_id, unsigned gpio_rx, unsigned gpio_tx, int gpio_term) {
@@ -43,14 +133,18 @@ void canbus_init(unsigned pio_num, unsigned bitrate, unsigned client_id, unsigne
     multicore_launch_core1(core1_entry);
     multicore_fifo_push_blocking((uint32_t) &init_cfg);
 
+
     // Wait for startup confirmation
     uint32_t response = multicore_fifo_pop_blocking();
-    if (response != CORE1_STARTUP_DONE_FLAG)
+    if (response != SIO_STARTUP_DONE_FLAG)
         panic("Unexpected response from core1 startup: %d", response);
 
-    // TODO: Fixup IRQs
-    //irq_set_exclusive_handler(SIO_IRQ_PROC0, core0_sio_irq);
-    //irq_set_enabled(SIO_IRQ_PROC0, true);
+    canbus_core_alive_timeout = make_timeout_time_ms(CAN_CORE_ALIVE_TIMEOUT_MS);
+
+
+    // Enable IRQ for core 1 heartbeat and fault reporting
+    irq_set_exclusive_handler(SIO_IRQ_PROC0, core0_sio_irq);
+    irq_set_enabled(SIO_IRQ_PROC0, true);
 
     canbus_initialized = true;
 }
@@ -60,6 +154,11 @@ bool canbus_check_online(void) {
 
     return !time_reached(canbus_heartbeat_timeout);
 }
+
+
+// ========================================
+// Msg Queue Functions
+// ========================================
 
 bool canbus_msg_read_available(void) {
     assert(canbus_initialized);
@@ -115,6 +214,11 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len) {
 
     return len;
 }
+
+
+// ========================================
+// Utility Queue Functions
+// ========================================
 
 bool canbus_utility_frame_read_available(void) {
     assert(canbus_initialized);

@@ -10,16 +10,20 @@
 
 #include "can2040.h"
 #include "can_bridge.h"
-#include "canmore_msg_encoding.h"
-#include "canmore_protocol.h"
+#include "protocol/canmore_msg_encoding.h"
+#include "protocol/canmore_protocol.h"
+
+// ========================================
+// Global Definitions
+// ========================================
 
 // Variables shared between cores
+volatile bool canbus_device_in_error_state = false;
 volatile absolute_time_t canbus_heartbeat_timeout = {0};  // evaluates to nil_time
 struct utility_receive_queue utility_receive_queue = {0};
 struct utility_transmit_queue utility_transmit_queue = {0};
 struct msg_receive_queue msg_receive_queue = {0};
 struct msg_transmit_queue msg_transmit_queue = {0};
-
 
 // Prebuilt heartbeat message
 static struct can2040_msg heartbeat_msg = {
@@ -31,14 +35,41 @@ static struct can2040_msg heartbeat_msg = {
 // The client id for this can node/device
 static uint8_t assigned_client_id;
 
-static struct QUEUE_DEFINE(struct can2040_msg, 16) can_recv_queue = {0};
+static struct QUEUE_DEFINE(struct can2040_msg, CAN_FRAME_RX_QUEUE_SIZE) can_recv_queue = {0};
 
+static struct can2040 cbus;
 static canmore_msg_encoder_t msg_encoder;
 static canmore_msg_decoder_t msg_decoder;
 
 
-static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg)
-{
+// ========================================
+// Error Reporting
+// ========================================
+/**
+ * @brief Write to SIO FIFO without checking if full.
+ * Important for error routines where it could be in an interrupt and shouldn't block if the first core is slow
+ *
+ * @param data Data to write to fifo
+ */
+static __force_inline void write_fifo_noblock(uint32_t data) {
+    sio_hw->fifo_wr = data;
+    __sev();
+}
+
+static void can_report_receive_error(void){
+    write_fifo_noblock(SIO_ERROR_RECEIVE_FLAG);
+}
+
+static void can_report_internal_error(void){
+    write_fifo_noblock(SIO_ERROR_INTERNAL_FLAG);
+}
+
+
+// ========================================
+// CAN2040 IRQ Handler
+// ========================================
+
+static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg) {
     // Handle incoming packets
     if (notify == CAN2040_NOTIFY_RX) {
         canmore_id_t id = {.identifier = msg->id};
@@ -51,7 +82,8 @@ static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *
                 memcpy(QUEUE_CUR_WRITE_ENTRY(&can_recv_queue), msg, sizeof(struct can2040_msg));
                 QUEUE_MARK_WRITE_DONE(&can_recv_queue);
             } else {
-                // TODO: Note that a received message has been lost
+                // Internal process queue overflow
+                can_report_internal_error();
             }
         }
     }
@@ -64,19 +96,30 @@ static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *
     }
 
     if (notify == CAN2040_NOTIFY_ERROR) {
-        // TODO raise warning
+        // This notify is only called when the PIO rx reports overflow
+        can_report_internal_error();
     }
 }
 
-void process_can_frame(struct can2040_msg *msg) {
+static void can_pio_irq_handler(void) {
+    can2040_pio_irq_handler(&cbus);
+}
+
+
+// ========================================
+// Frame Decoding
+// ========================================
+
+void can_decode_error_callback(__unused void* arg, __unused unsigned int error_code) {
+    // If the decoder doesn't like it, it's a receive error
+    can_report_receive_error();
+}
+
+void can_process_frame(struct can2040_msg *msg) {
     canmore_id_t id = {.identifier = msg->id};
 
     // Decode incoming packet
     bool is_extended = ((msg->id & CAN2040_ID_EFF) != 0);
-
-    if (msg->dlc > 8) {
-        return;  // DLC greater than 8 isn't valid on canmore protocol
-    }
 
     uint32_t client_id;
     uint32_t type;
@@ -103,9 +146,21 @@ void process_can_frame(struct can2040_msg *msg) {
         return;
     }
 
+    if (msg->dlc > CANMORE_FRAME_SIZE) {
+        // DLC greater than 8 isn't valid on canmore protocol
+        can_report_receive_error();
+        return;
+    }
+
+    if (msg->id & CAN2040_ID_RTR) {
+        // CANmore does not support RTR frames
+        can_report_receive_error();
+        return;
+    }
+
     if (direction != CANMORE_DIRECTION_AGENT_TO_CLIENT) {
         // Received a frame that only this node is allowed to send?
-        // TODO: Raise protocol warning
+        can_report_receive_error();
         return;
     }
 
@@ -122,17 +177,25 @@ void process_can_frame(struct can2040_msg *msg) {
                 if (msg_size > 0) {
                     entry->length = msg_size;
                     QUEUE_MARK_WRITE_DONE(&msg_receive_queue);
+                    write_fifo_noblock(SIO_RECV_MESSAGE_FLAG);
                 }
             } else {
-                canmore_msg_decode_reset_state(&msg_decoder); // Reset decoder state if not enough space for new message
-                // TODO: Raise warning of message loss
+                // Message queue overflow (primary core isn't reading fast enough)
+                canmore_msg_decode_reset_state(&msg_decoder);
+                can_report_internal_error();
             }
         }
     }
     else {  // type == CANMORE_TYPE_UTIL
         if (is_extended) {
             // Only standard frames allowed for utility messages
-            // TODO: Raise protocol warning
+            can_report_receive_error();
+            return;
+        }
+
+        if (noc == CANMORE_CHAN_HEARTBEAT) {
+            // CANmore does not permit agent-to-client communication over the heartbeat channel
+            can_report_receive_error();
             return;
         }
 
@@ -143,21 +206,21 @@ void process_can_frame(struct can2040_msg *msg) {
             frame->data32[0] = msg->data32[0];
             frame->data32[1] = msg->data32[1];
             QUEUE_MARK_WRITE_DONE(&utility_receive_queue);
+            write_fifo_noblock(SIO_RECV_UTILITY_FRAME_FLAG);
         } else {
-            // TODO: Raise warning of message loss
+            // Utility frame queue overflow (primary core isn't reading fast enough)
+            can_report_internal_error();
         }
     }
 }
 
-static struct can2040 cbus;
 
-static void pio_irq_handler(void)
-{
-    can2040_pio_irq_handler(&cbus);
-}
+// ========================================
+// Main Run Loop
+// ========================================
 
 void core1_entry() {
-    printf("Core 1 Startup\n");
+    int gpio_term_pin = -1;
 
     // Initialization
     {
@@ -165,15 +228,26 @@ void core1_entry() {
         const can_init_cfg_t *init_cfg = (const can_init_cfg_t*) multicore_fifo_pop_blocking();
         assigned_client_id = init_cfg->client_id;
 
-        // TODO: Use gpio_term pin
+        // Calculate heartbeat ID with new client id
+        heartbeat_msg.id = CANMORE_CALC_UTIL_ID_C2A(assigned_client_id, CANMORE_CHAN_HEARTBEAT);
+
+        gpio_term_pin = init_cfg->gpio_term;
+        if (gpio_term_pin >= 0) {
+            gpio_init(gpio_term_pin);
+            gpio_pull_up(gpio_term_pin);
+            gpio_set_dir(gpio_term_pin, false);
+        }
+
+        // Initialize CANmore Message Encoder/Decoder objects
+        canmore_msg_encode_init(&msg_encoder, assigned_client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
+        canmore_msg_decode_init(&msg_decoder, can_decode_error_callback, NULL);
 
         // Setup canbus
         can2040_setup(&cbus, init_cfg->pio_num);
         can2040_callback_config(&cbus, can2040_cb);
 
-        // Setup irq
         uint irq_num = (init_cfg->pio_num == 0 ? PIO0_IRQ_0 : PIO1_IRQ_0);
-        irq_set_exclusive_handler(irq_num, pio_irq_handler);
+        irq_set_exclusive_handler(irq_num, can_pio_irq_handler);
         irq_set_priority(irq_num, 0);
 
         // Start PIO machines
@@ -182,24 +256,18 @@ void core1_entry() {
         // Start CAN bus for real (don't set this until fully set up or else nasty race conditions will occur)
         irq_set_enabled(irq_num, true);
 
-        // TODO: Hook into safety before sending successful startup signal
-
+        // Mark Startup Complete
         // init_cfg is no longer valid after sending startup response
-        multicore_fifo_push_blocking(CORE1_STARTUP_DONE_FLAG);
+        multicore_fifo_push_blocking(SIO_STARTUP_DONE_FLAG);
     }
 
-    // Configure heartbeat/CAN status detection
-    heartbeat_msg.id = CANMORE_CALC_UTIL_ID_C2A(assigned_client_id, CANMORE_CHAN_HEARTBEAT);
     absolute_time_t next_heartbeat = make_timeout_time_ms(10);
-
-    // Initialize CANmore Message Encoding objects
-    canmore_msg_encode_init(&msg_encoder, assigned_client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
-    canmore_msg_decode_init(&msg_decoder);
+    absolute_time_t next_alive_flag = get_absolute_time();
 
     while (1) {
         // Process received CAN frames
         if (!QUEUE_EMPTY(&can_recv_queue)) {
-            process_can_frame(QUEUE_CUR_READ_ENTRY(&can_recv_queue));
+            can_process_frame(QUEUE_CUR_READ_ENTRY(&can_recv_queue));
             QUEUE_MARK_READ_DONE(&can_recv_queue);
         }
 
@@ -236,14 +304,28 @@ void core1_entry() {
             can2040_transmit(&cbus, &tx_msg);
         }
 
-        // Send heartbeat
+        // Send heartbeat frame
         if (time_reached(next_heartbeat) && can2040_check_transmit(&cbus)) {
-            printf("Sent heartbeat\n");
+            canmore_heartbeat_t last_heartbeat = {.data = heartbeat_msg.data[0]};
+
+            // Extra data in heartbeat contains termination pin info
+            // Bit 0 of extra is if termination data exists
+            // Bit 1 of extra is state of termination (0 not terminated, 1 is terminated)
+            uint term_data = 0;
+            if (gpio_term_pin >= 0) {
+                term_data = (gpio_get(gpio_term_pin) ? 3 : 1);
+            }
+
+            heartbeat_msg.data[0] = CANMORE_CALC_HEARTBEAT_DATA(last_heartbeat.pkt.cnt + 1, canbus_device_in_error_state, term_data);
             can2040_transmit(&cbus, &heartbeat_msg);
-            // TODO: Fix heartbeat data
-            heartbeat_msg.data[0]++;
-            next_heartbeat = make_timeout_time_ms(1000);
+
+            next_heartbeat = make_timeout_time_ms(CAN_HEARTBEAT_INTERVAL_MS);
         }
 
+        // Send core alive flag
+        if (time_reached(next_alive_flag)) {
+            write_fifo_noblock(SIO_CORE_ALIVE_FLAG);
+            next_alive_flag = make_timeout_time_ms(CAN_CORE_ALIVE_INTERVAL_MS);
+        }
     }
 }

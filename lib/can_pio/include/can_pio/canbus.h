@@ -25,8 +25,10 @@
 // CAN Bus Control Functions
 // ========================================
 
+typedef void (*canbus_cb_t)(void);
+
 /**
- * @brief Initializes a CAN bus on the given PIO block on the second core
+ * @brief Initializes a CAN bus on the given PIO block on the second core.
  * This code will initialize the device as a CANmore client with the given `client_id`
  *
  * @note This code will use the entire PIO block. The PIO block cannot be used for any other purpose
@@ -42,31 +44,84 @@
 void canbus_init(unsigned pio_num, unsigned bitrate, unsigned client_id, unsigned gpio_rx, unsigned gpio_tx, int gpio_term);
 
 /**
- * @brief Return if a valid CAN bus is detected (Heartbeat messages are receiving ACKs)
+ * @brief Return if a valid CAN bus is detected (Heartbeat messages are receiving ACKs).
 */
 bool canbus_check_online(void);
 
 /**
- * @brief Boolean if `canbus_init` has been called
+ * @brief Check if the second core running the canbus has died.
+ *
+ * @return true if the core was previously started and the last received heartbeat is stale
+ */
+bool canbus_core_dead(void);
+
+/**
+ * @brief Sets the error field sent with the heartbeat message over CAN bus
+ *
+ * @param device_in_error_state True if device is in error state
+ */
+void canbus_set_device_in_error(bool device_in_error_state);
+
+/**
+ * @brief Boolean if `canbus_init` has been called.
 */
 extern bool canbus_initialized;
+
+
+// ========================================
+// Callback Setup
+// ========================================
+
+/**
+ * @brief Set callback for receive errors on can bus.
+ * This error can occur if invalid data is received on the CAN bus.
+ *
+ * @param callback Pointer to callback function or NULL to disable callback
+ */
+void canbus_set_receive_error_cb(canbus_cb_t callback);
+
+/**
+ * @brief Set callback for internal errors on can bus.
+ * This error should not occur during normal operation, but can occur if a fault occurs on the second core, or if the
+ * first core is not processing data fast enough.
+ *
+ * @param callback Pointer to callback function or NULL to disable callback
+ */
+void canbus_set_internal_error_cb(canbus_cb_t callback);
+
+/**
+ * @brief Set callback to notify that a utility frame has been received
+ *
+ * @param callback Pointer to callback function or NULL to disable callback
+ */
+void canbus_set_utility_frame_recv_cb(canbus_cb_t callback);
+
+/**
+ * @brief Set callback when a complete CANmore message has been received
+ *
+ * @param callback Pointer to callback function or NULL to disable callback
+ */
+void canbus_set_message_recv_cb(canbus_cb_t callback);
+
 
 // ========================================
 // CANmore Message Functions
 // ========================================
 
 /**
- * @brief The maximum length of a transmitted or received msg
+ * @brief The maximum length of a transmitted or received msg.
 */
 extern const size_t canbus_msg_max_length;
 
 /**
- * @brief Returns if a CANmore message is availble to be read
+ * @brief Returns if a CANmore message is availble to be read.
+ * @attention Requires `canbus_init` to be called
 */
 bool canbus_msg_read_available(void);
 
 /**
- * @brief Reads the next available CANmore message in the buffer
+ * @brief Reads the next available CANmore message in the buffer.
+ * @attention Requires `canbus_init` to be called
  *
  * @param buf The buffer for the received message data
  * @param len The buffer size, if the received message is longer than this value it will be truncated
@@ -75,12 +130,14 @@ bool canbus_msg_read_available(void);
 size_t canbus_msg_read(uint8_t *buf, size_t len);
 
 /**
- * @brief Returns if space is available to write another CANmore message in the transmit buffer
+ * @brief Returns if space is available to write another CANmore message in the transmit buffer.
+ * @attention Requires `canbus_init` to be called
 */
 bool canbus_msg_write_available(void);
 
 /**
- * @brief Queues the given buffer to sent with the CANmore message type over CAN
+ * @brief Queues the given buffer to sent with the CANmore message type over CAN.
+ * @attention Requires `canbus_init` to be called
  *
  * @param buf The buffer containing data to transmit
  * @param len The length of data to transmit. If greater than `canbus_msg_max_length` this will be truncated
@@ -94,17 +151,18 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len);
 // ========================================
 
 /**
- * @brief The maximum length of a transmitted or received utility frame
+ * @brief The maximum length of a transmitted or received utility frame.
 */
 extern const size_t canbus_utility_frame_max_length;
 
 /**
- * @brief Returns if a CANmore utility frame is availble to be read
+ * @brief Returns if a CANmore utility frame is availble to be read.
+ * @attention Requires `canbus_init` to be called
 */
 bool canbus_utility_frame_read_available(void);
 
 /**
- * @brief Reads the next available CANmore utility frame in the buffer
+ * @brief Reads the next available CANmore utility frame in the buffer.
  * @attention Requires `canbus_init` to be called
  *
  * @param channel_out A pointer to write the channel this frame was received on
@@ -115,12 +173,14 @@ bool canbus_utility_frame_read_available(void);
 size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len);
 
 /**
- * @brief Returns if space is available to write another CANmore utility frame in the transmit buffer
+ * @brief Returns if space is available to write another CANmore utility frame in the transmit buffer.
+ * @attention Requires `canbus_init` to be called
 */
 bool canbus_utility_frame_write_available(void);
 
 /**
- * @brief Queues the given buffer to sent with the CANmore frame type over CAN
+ * @brief Queues the given buffer to sent with the CANmore frame type over CAN.
+ * @attention Requires `canbus_init` to be called
  *
  * @param channel The channel this utility frame is to be transmitted on
  * @param buf The buffer containing data to transmit

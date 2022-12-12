@@ -12,6 +12,8 @@ target_include_directories(micro_ros_usb INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/libmicroros/include
 )
 
+target_compile_definitions(micro_ros_usb INTERFACE SAFETY_ROS_SUPPORT=1)
+
 # Configure sdk parameters
 uwrt_enable_dual_uart(micro_ros_usb INTERFACE)
 target_compile_definitions(micro_ros_usb INTERFACE PICO_STDIO_USB_ENABLE_UNSENT_BUFFER=1)

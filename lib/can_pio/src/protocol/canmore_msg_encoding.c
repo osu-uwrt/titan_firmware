@@ -132,19 +132,25 @@ void canmore_msg_decode_reset_state(canmore_msg_decoder_t *state) {
  *
  * @param state The decoder state to reset
 */
-static void decoder_error_and_reset_state(canmore_msg_decoder_t *state) {
-    // TODO: Report error, but only if the last received frame also wasn't an error (need a successful read before printing again)
+static void decoder_error_and_reset_state(canmore_msg_decoder_t *state, unsigned int error_code) {
+    if (state->decode_error_handler) {
+        state->decode_error_handler(state->decode_error_arg, error_code);
+    }
+
     canmore_msg_decode_reset_state(state);
 }
 
-void canmore_msg_decode_init(canmore_msg_decoder_t *state) {
+void canmore_msg_decode_init(canmore_msg_decoder_t *state, canmore_msg_decoder_error_handler_t decode_error_handler, void* decode_error_arg) {
+    state->decode_error_arg = decode_error_arg;
+    state->decode_error_handler = decode_error_handler;
+
     canmore_msg_decode_reset_state(state);
 }
 
 bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len) {
     // Ensure next frame sequence matches expected order
     if (seq_num != state->next_seq_num) {
-        decoder_error_and_reset_state(state);
+        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BAD_SEQ_NUM);
 
         if (seq_num != 0) {
             return false;
@@ -154,13 +160,13 @@ bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uin
 
     // Cannot decode zero length packet
     if (data_len == 0) {
-        decoder_error_and_reset_state(state);
+        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_ZERO_LENGTH_PACKET);
         return false;
     }
 
     // Ensure that buffer overflow will not occur (it shouldn't, but just in case)
     if (data_len + state->decode_len > CANMORE_MAX_MSG_LENGTH) {
-        decoder_error_and_reset_state(state);
+        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BUFFER_OVERFLOW);
         return false;
     }
 
@@ -183,7 +189,7 @@ size_t canmore_msg_decode_last_frame(canmore_msg_decoder_t *state, uint8_t seq_n
     uint32_t crc_calc = state->crc18 & CRC18_MASK;
     if (crc_calc != crc) {
         // Invalid CRC
-        decoder_error_and_reset_state(state);
+        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_CRC_FAIL);
         return 0;
     }
 

@@ -16,3 +16,5 @@ target_include_directories(micro_ros_can INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}
     ${MICRO_ROS_DIR}/libmicroros/include
 )
+
+target_compile_definitions(micro_ros_can INTERFACE SAFETY_ROS_SUPPORT=1)

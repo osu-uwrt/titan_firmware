@@ -66,7 +66,7 @@ extern "C" {
  *
  *
  * Frame Types
- * ================
+ * ===========
  * Two frame types are supported on the CAN bus: message and utility frames.
  *
  * Message frames carry a fragmented message, such as an DDS-XRCE message. The packet is split up into individual
@@ -78,11 +78,13 @@ extern "C" {
  *
  *
  * Frame Format
- * =============
+ * ============
  * All of the protocol and framing information is packed inside the identifier field of the CAN frame, allowing for all
  * data fields of the frame to be used by higher-level protocols, minimizing overhead. CANmore will use the standard CAN
  * frame for all utility type frames. For a message type, every frame is standard except the last, which is an extended
  * frame, where the additional 18 bits are allocated for a CRC.
+ *
+ * RTR frames are not supported, nor are frames with the DLC field set to a value greater than 8.
  *
  *
  * Standard CAN Frame Identifier Format:
@@ -107,16 +109,30 @@ extern "C" {
  *
  * Message Frame Protocol
  * ======================
- * All communication on
+ * Frames with the type set to
  *
  * TODO:
  * No zero length packets
- * CRC 18 definition
- * DLC cannot be greater than 8
+ * CRC 18 definition: Polynomial: 0x23979, Initial Value: 0x3FFFF
  *
+ *
+ * Utility Frame Protocol
+ * ======================
  *
  * Heartbeat Channel
- * =================
+ * -----------------
+ * Channel 15 (all 1s) is reserved for heartbeat transmission from the client. This channel does not have any agent-to-
+ * client requests. The interval for this heartbeat is up to the implementer.
+ *
+ * Heartbeat frames have a DLC of 1, with the following format:
+ *   +-*-*-*-*-+-*-+-*-*-*-+
+ *   |  EXTRA  | E |  CNT  |
+ *   +-*-*-*-*-+-*-+-*-*-*-+
+ *     7     4   3   2   0
+ *
+ * CNT: An increasing mod-8 counter incremented for each packet sent. This can be use to detect dropped packets
+ * E (ERROR): A single bit representing the status of the client (0 for normal, 1 for error-state)
+ * EXTRA: 4 bits of extra data available to the implementer
 */
 
 
@@ -155,15 +171,23 @@ extern "C" {
 #define CANMORE_TYPE_MSG  0
 #define CANMORE_TYPE_UTIL 1
 
-// Utility Channel Assignments
-#define CANMORE_CHAN_HEARTBEAT 15
 
+// Heartbeat field lengths
+#define CANMORE_CHAN_HEARTBEAT          15
+#define CANMORE_HEARTBEAT_CNT_LENGTH    3
+#define CANMORE_HEARTBEAT_ERROR_LENGTH  1
+#define CANMORE_HEARTBEAT_EXTRA_LENGTH  4
+
+// Heartbeat offsets
+#define CANMORE_HEARTBEAT_CNT_OFFSET    0
+#define CANMORE_HEARTBEAT_ERROR_OFFSET  (CANMORE_HEARTBEAT_CNT_OFFSET + CANMORE_HEARTBEAT_CNT_LENGTH)
+#define CANMORE_HEARTBEAT_EXTRA_OFFSET  (CANMORE_HEARTBEAT_ERROR_OFFSET + CANMORE_HEARTBEAT_ERROR_LENGTH)
 
 // ========================================
-// Identifier Decoding Union
+// Decoding Unions
 // ========================================
 
-typedef union canmore_id {
+typedef union __attribute__((__packed__)) canmore_id {
     uint32_t identifier;
     struct canmore_id_std {
         uint32_t noc:CANMORE_NOC_LENGTH;
@@ -180,26 +204,35 @@ typedef union canmore_id {
     } pkt_ext;
 } canmore_id_t;
 
+typedef union __attribute__((__packed__)) canmore_heartbeat {
+    uint8_t data;
+    struct canmore_heartbeat_packet {
+        uint8_t cnt:CANMORE_HEARTBEAT_CNT_LENGTH;
+        uint8_t error:CANMORE_HEARTBEAT_ERROR_LENGTH;
+        uint8_t extra:CANMORE_HEARTBEAT_EXTRA_LENGTH;
+    } pkt;
+} canmore_heartbeat_t;
+
 
 // ========================================
-// Identifier Calculation Macros
+// Calculation Macros
 // ========================================
 
 #define CANMORE_CALC_STD_ID(client_id, type, direction, noc) \
     ( \
-        ((client_id & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_STD_CLIENT_ID_OFFSET) | \
-        ((type & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_STD_TYPE_OFFSET) | \
-        ((direction & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_STD_DIRECTION_OFFSET) | \
-        ((noc & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_STD_NOC_OFFSET) \
+        (((client_id) & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_STD_CLIENT_ID_OFFSET) | \
+        (((type) & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_STD_TYPE_OFFSET) | \
+        (((direction) & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_STD_DIRECTION_OFFSET) | \
+        (((noc) & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_STD_NOC_OFFSET) \
     )
 
 #define CANMORE_CALC_EXT_ID(client_id, type, direction, noc, crc) \
     ( \
-        ((client_id & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
-        ((type & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_CRC_TYPE_OFFSET) | \
-        ((direction & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_CRC_DIRECTION_OFFSET) | \
-        ((noc & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_CRC_NOC_OFFSET) | \
-        ((crc & ((1<<CANMORE_CRC_LENGTH) - 1)) << CANMORE_CRC_CRC_OFFSET) \
+        (((client_id) & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
+        (((type) & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_CRC_TYPE_OFFSET) | \
+        (((direction) & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_CRC_DIRECTION_OFFSET) | \
+        (((noc) & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_CRC_NOC_OFFSET) | \
+        (((crc) & ((1<<CANMORE_CRC_LENGTH) - 1)) << CANMORE_CRC_CRC_OFFSET) \
     )
 
 // Message standard ID
@@ -212,10 +245,18 @@ typedef union canmore_id {
 #define CANMORE_CALC_MSG_EXT_ID_A2C(client_id, seq_num, crc) CANMORE_CALC_MSG_EXT_ID(client_id, CANMORE_DIRECTION_AGENT_TO_CLIENT, seq_num, crc)
 #define CANMORE_CALC_MSG_EXT_ID_C2A(client_id, seq_num, crc) CANMORE_CALC_MSG_EXT_ID(client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, seq_num, crc)
 
-// Util
+// Util Frame ID
 #define CANMORE_CALC_UTIL_ID(client_id, direction, channel) CANMORE_CALC_STD_ID(client_id, CANMORE_TYPE_UTIL, direction, channel)
 #define CANMORE_CALC_UTIL_ID_A2C(client_id, channel) CANMORE_CALC_UTIL_ID(client_id, CANMORE_DIRECTION_AGENT_TO_CLIENT, channel)
 #define CANMORE_CALC_UTIL_ID_C2A(client_id, channel) CANMORE_CALC_UTIL_ID(client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, channel)
+
+// Heartbeat Message
+#define CANMORE_CALC_HEARTBEAT_DATA(cnt, error, extra) \
+    ( \
+        (((cnt) & ((1<<CANMORE_HEARTBEAT_CNT_LENGTH) - 1)) << CANMORE_HEARTBEAT_CNT_OFFSET) | \
+        (((error) & ((1<<CANMORE_HEARTBEAT_ERROR_LENGTH) - 1)) << CANMORE_HEARTBEAT_ERROR_OFFSET) | \
+        (((extra) & ((1<<CANMORE_HEARTBEAT_EXTRA_LENGTH) - 1)) << CANMORE_HEARTBEAT_EXTRA_OFFSET) \
+    )
 
 #ifdef __cplusplus
 }

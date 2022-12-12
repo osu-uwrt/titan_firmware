@@ -101,6 +101,19 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
 // ========================================
 
 /**
+ * @brief Decoder error constant definitions
+ */
+#define CANMORE_MSG_DECODER_ERROR_BAD_SEQ_NUM 0
+#define CANMORE_MSG_DECODER_ERROR_ZERO_LENGTH_PACKET 1
+#define CANMORE_MSG_DECODER_ERROR_BUFFER_OVERFLOW 2
+#define CANMORE_MSG_DECODER_ERROR_CRC_FAIL 3
+
+/**
+ * @brief Callback for reporting a decoder error
+ */
+typedef void (*canmore_msg_decoder_error_handler_t)(void* arg, unsigned int error_code);
+
+/**
  * @brief Struct containing decoder state
  *
  * Do not modify this struct directly! Use the `canmore_msg_decode_` set of functions instead
@@ -114,14 +127,20 @@ typedef struct canmore_msg_decoder_state {
     size_t decode_len;
     // Buffer containing partially decode canmore message
     uint8_t decode_buffer[CANMORE_MAX_MSG_LENGTH];
+    // Decoder error handler, can be NULL if no handler assigned
+    canmore_msg_decoder_error_handler_t decode_error_handler;
+    // Decoder error handler optional argument
+    void* decode_error_arg;
 } canmore_msg_decoder_t;
 
 /**
  * @brief Initializes a new CANmore message decoder
  *
  * @param state Pointer to decoder state struct to store internal state
+ * @param decode_error_handler Callback for reporting a decoder error, can be NULL if no handler assigned
+ * @param decode_error_arg Argument to provide to decode error handler
 */
-void canmore_msg_decode_init(canmore_msg_decoder_t *state);
+void canmore_msg_decode_init(canmore_msg_decoder_t *state, canmore_msg_decoder_error_handler_t decode_error_handler, void* decode_error_arg);
 
 /**
  * @brief Resets the message decoder state to receive a new sequence of message frames
