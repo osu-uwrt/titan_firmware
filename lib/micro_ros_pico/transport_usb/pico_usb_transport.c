@@ -57,6 +57,7 @@ size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport
     while (bytes_remaining > 0 && elapsed_time_us > 0) {
         int received = secondary_usb_in_chars(buf, bytes_remaining);
         if (received > 0) {
+            *buf += received;
             bytes_remaining -= received;
         } else {
             busy_wait_us(1);
@@ -70,7 +71,7 @@ size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport
     return (len - bytes_remaining);
 }
 
-bi_decl(bi_program_feature("Micro-ROS"))
+bi_decl(bi_program_feature("Micro-ROS over USB"))
 
 void pico_serial_transport_init(void){
     rmw_uros_set_custom_transport(

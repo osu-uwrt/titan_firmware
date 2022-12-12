@@ -34,14 +34,12 @@ generate_version_tag(micro_ros_example 1 0 PROTO)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(micro_ros_example 0)
+pico_enable_stdio_usb(micro_ros_example 1)
 pico_set_program_name(micro_ros_example "Micro-ROS Example")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(micro_ros_example)
 
-# Enable microROS
-micro_ros_enable(micro_ros_example)
-
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)
-target_link_libraries(micro_ros_example pico_stdlib)
+target_link_libraries(micro_ros_example pico_stdlib micro_ros_can)

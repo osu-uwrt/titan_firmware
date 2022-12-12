@@ -10,13 +10,7 @@ include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 # Add versioning commands
 include(${REPO_DIR}/lib/version_tag/version_tag.cmake)
 
-# Define all custom libraries
-add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
-add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
-add_subdirectory(${REPO_DIR}/lib/safety/ safety)
-
 # Define custom functions for assorted features
-
 function(uwrt_use_upload_tool target)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/upload_tool)
     find_package(UploadTool)
@@ -40,20 +34,12 @@ function(uwrt_enable_dual_uart target)
     add_subdirectory(${REPO_DIR}/lib/dual_serial_stdio_usb/ dual_serial_stdio_usb_build)
     # ARGV1 allows for specifying optional public for when needed for target_link_libraries
     target_link_libraries(${target} ${ARGV1} dual_serial_stdio_usb)
-
-    get_target_property(type ${target} TYPE)
-    if (NOT ${type} STREQUAL "INTERFACE_LIBRARY")
-        pico_enable_stdio_usb(${target} 0)
-    endif()
 endfunction()
 
-function (micro_ros_enable target)
-    add_subdirectory(${REPO_DIR}/lib/micro_ros_pico/ micro_ros_pico)
-    # ARGV1 allows for specifying optional public for when needed for target_link_libraries
-    target_link_libraries(${target} ${ARGV1} micro_ros_pico)
-
-    get_target_property(type ${target} TYPE)
-    if (NOT ${type} STREQUAL "INTERFACE_LIBRARY")
-        pico_enable_stdio_usb(${target} 0)
-    endif()
-endfunction()
+# Define all custom libraries
+add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
+add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
+add_subdirectory(${REPO_DIR}/lib/basic_queue/ basic_queue)
+add_subdirectory(${REPO_DIR}/lib/can_pio/ can_pio)
+add_subdirectory(${REPO_DIR}/lib/micro_ros_pico/ micro_ros_pico)
+add_subdirectory(${REPO_DIR}/lib/safety/ safety)

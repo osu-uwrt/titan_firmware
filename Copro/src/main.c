@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "pico/stdio_usb.h"
 
 #include "pico_eth_transport.h"
 #include "basic_logger/logging.h"
@@ -27,7 +28,9 @@
 int main()
 {
     // Immediate start code
-    serial_init_early();
+    stdio_init_all();
+    dual_usb_init();
+
     LOG_INFO(FULL_BUILD_TAG);
     sleep_ms(1000);
 

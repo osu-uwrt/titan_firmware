@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#if LIB_PICO_STDIO_USB
+#error pico_stdio_usb cannot be enabled when using the dual_serial_stdio_usb library
+#endif
+
 #if !defined(LIB_TINYUSB_HOST) && !defined(LIB_TINYUSB_DEVICE)
 #include "tusb.h"
 
@@ -100,7 +104,7 @@ void _write_unsent_buffer(const char* buf, int length) {
         }
         mutex_enter_blocking(&unsent_buffer_mutex);
     }
-    
+
     // If the data is too big for buffer, truncate to end
     if (length >= unsent_buffer_size) {
         buf = &buf[length - (unsent_buffer_size - 1)];
@@ -152,7 +156,7 @@ static int64_t timer_task(__unused alarm_id_t id, __unused void *user_data) {
 static void stdio_usb_out_chars(const char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
-        if (owner == get_core_num()) { 
+        if (owner == get_core_num()) {
             // As a last ditch attempt try to send to unsent buffer
             // If this is also locked it will fail, but should allow writing when usb is locked
             // This becomes useful if usb is commonly locked due to communication on the secondary port
@@ -163,7 +167,7 @@ static void stdio_usb_out_chars(const char *buf, int length) {
     }
     if (tud_cdc_n_connected(USBD_ITF_STDIO_CDC) && _try_handle_unsent_buffer()) {
         int sent = _stdio_usb_out_data(buf, length);
-        
+
         // If not all data was sent, put remaining in the buffer to be handled later
         if (sent < length) {
             _write_unsent_buffer(buf + sent, length - sent);

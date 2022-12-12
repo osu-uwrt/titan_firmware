@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
-#include "pico/stdio_usb.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
@@ -57,16 +56,6 @@ int clock_gettime(__unused clockid_t unused, struct timespec *tp)
     tp->tv_sec = m / 1000000;
     tp->tv_nsec = (m % 1000000) * 1000;
     return 0;
-}
-
-static bool serial_initialized = false;
-void serial_init_early(void)
-{
-    if (!serial_initialized) {
-        stdio_init_all();
-        dual_usb_init();
-        serial_initialized = true;
-    }
 }
 
 static bool transport_initialized = false;
@@ -178,7 +167,7 @@ size_t pico_eth_transport_read(__unused struct uxrCustomTransport * transport, u
     }
 }
 
-bi_decl(bi_program_feature("Micro-ROS"))
+bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
 void pico_eth_transport_init(int sock_num, uint32_t target_ip, uint16_t target_port){
     sock = sock_num;

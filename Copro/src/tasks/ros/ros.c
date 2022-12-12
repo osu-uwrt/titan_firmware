@@ -7,7 +7,7 @@
 #include <rmw_microros/rmw_microros.h>
 
 #include "basic_logger/logging.h"
-#include "pico_uart_transports.h"
+#include "pico_eth_transport.h"
 
 #include "ros_private.h"
 

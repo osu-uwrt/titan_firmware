@@ -28,37 +28,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
-# Setup wiznet
-
 # Set ethernet chip
 set(WIZNET_CHIP W5500)
-
-if(${WIZNET_CHIP} STREQUAL W5100S)
-    add_definitions(-D_WIZCHIP_=W5100S)
-elseif(${WIZNET_CHIP} STREQUAL W5500)
-    add_definitions(-D_WIZCHIP_=W5500)
-else()
-    message(FATAL_ERROR "WIZNET_CHIP is wrong = ${WIZNET_CHIP}")
-endif()
-
-message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
-
-# Set the project root directory if it's not already defined, as may happen if
-# the tests folder is included directly by a parent project, without including
-# the top level CMakeLists.txt.
-if(NOT DEFINED WIZNET_DIR)
-    set(WIZNET_DIR ${REPO_DIR}/lib/ioLibrary_Driver)
-    message(STATUS "WIZNET_DIR = ${WIZNET_DIR}")
-endif()
-
-
-if(NOT DEFINED PORT_DIR)
-    set(PORT_DIR ${REPO_DIR}/lib/ioLibrary_Port)
-    message(STATUS "PORT_DIR = ${PORT_DIR}")
-endif()
-
-include(${REPO_DIR}/lib/ioLibrary_import.cmake)
-add_subdirectory(${PORT_DIR} ioLibrary_port)
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
@@ -82,7 +53,7 @@ target_compile_definitions(copro_firmware PUBLIC USB_PRODUCT_STR="Coprocessor")
 uwrt_use_upload_tool(copro_firmware)
 
 # Enable micro-ROS
-micro_ros_enable(copro_firmware)
+uwrt_enable_dual_uart(copro_firmware)
 
 # Compile Definitions
 target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
@@ -98,15 +69,13 @@ target_link_libraries(copro_firmware
 	actuator_i2c_interface
 	basic_logger
 	safety
+	micro_ros_eth
 
 	pico_stdlib
 	hardware_pio
 	hardware_pwm
 	hardware_i2c
 	hardware_adc
-
 	hardware_spi
 	hardware_dma
-	ETHERNET_FILES
-	IOLIBRARY_FILES
 )

@@ -1,18 +1,18 @@
 # ioLibrary_Driver
-add_library(IOLIBRARY_FILES STATIC)
+add_library(IOLIBRARY_FILES INTERFACE)
 
-target_sources(IOLIBRARY_FILES PUBLIC
+target_sources(IOLIBRARY_FILES INTERFACE
         ${PORT_DIR}/ioLibrary_Driver/src/w5x00_spi.c
         ${PORT_DIR}/ioLibrary_Driver/src/w5x00_gpio_irq.c
         )
 
-target_include_directories(IOLIBRARY_FILES PUBLIC
+target_include_directories(IOLIBRARY_FILES INTERFACE
         ${WIZNET_DIR}/Ethernet
         ${PORT_DIR}/ioLibrary_Driver/inc
         ${PORT_DIR}
         )
 
-target_link_libraries(IOLIBRARY_FILES PRIVATE
+target_link_libraries(IOLIBRARY_FILES INTERFACE
         pico_stdlib
         hardware_spi
         hardware_dma
@@ -20,16 +20,16 @@ target_link_libraries(IOLIBRARY_FILES PRIVATE
         )
 
 # timer
-add_library(TIMER_FILES STATIC)
+add_library(TIMER_FILES INTERFACE)
 
 target_sources(TIMER_FILES PUBLIC
         ${PORT_DIR}/timer/timer.c
         )
 
-target_include_directories(TIMER_FILES PUBLIC
+target_include_directories(TIMER_FILES INTERFACE
         ${PORT_DIR}/timer
         )
 
-target_link_libraries(TIMER_FILES PRIVATE
-        pico_stdlib      
+target_link_libraries(TIMER_FILES INTERFACE
+        pico_stdlib
         )
