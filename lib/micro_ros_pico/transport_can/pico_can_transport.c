@@ -43,7 +43,6 @@ size_t pico_can_transport_write(__unused struct uxrCustomTransport* transport, c
 
 size_t pico_can_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
 {
-    // TODO: Figure what units timeout uses
     absolute_time_t timeout_time = make_timeout_time_ms(timeout);
     while (!canbus_msg_read_available()) {
         if (time_reached(timeout_time)) {

@@ -95,20 +95,24 @@ extern void core1_entry();
  * @brief Flag sent from second core after successful initialization
  * After this is received from the SIO FIFO the second core is considered operational and ready to process data
 */
-#define SIO_STARTUP_DONE_FLAG 0xFEEDBAC1
+#define SIO_STARTUP_DONE_FLAG 0x0FEEDBAC
 
 /**
  * @brief Flag sent from second core when an internal error occurs.
  * This error should not occur during normal operation, but can occur if a fault occurs on the second core, or if the
  * first core is not processing data fast enough.
  */
-#define SIO_ERROR_INTERNAL_FLAG 0xE0000001
+#define SIO_ERROR_INTERNAL_FLAG 0xF0000000
+
+#define HAS_ERROR_INTERNAL_FLAG(value) ((value & 0xF0000000) == SIO_ERROR_INTERNAL_FLAG)
 
 /**
  * @brief Flag sent from second core when a receive error occurs.
  * This error can occur if invalid data is received on the CAN bus.
  */
-#define SIO_ERROR_RECEIVE_FLAG 0xE0000002
+#define SIO_ERROR_RECEIVE_FLAG 0xE0000000
+
+#define HAS_ERROR_RECEIVE_FLAG(value) ((value & 0xF0000000) == SIO_ERROR_RECEIVE_FLAG)
 
 /**
  * @brief Flag sent from second core when a utility frame has been put into the receive buffer

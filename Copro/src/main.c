@@ -2,7 +2,7 @@
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 
-#include "pico_eth_transport.h"
+#include "pico_can_transport.h"
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
@@ -50,18 +50,26 @@ int main()
     //esc_adc_init();
 
     // Wait for ROS
-    uint8_t xavier_ip[] = {192, 168, 1, 23};
-    uint16_t xavier_port = 8888;
-    pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
+    //uint8_t xavier_ip[] = {192, 168, 1, 23};
+    //uint16_t xavier_port = 8888;
+    //pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
+
+    pico_can_transport_init(0,              // Take PIO 0
+                            1000000,        // Set can bitrate to 1 Mbit
+                            1,              // Set Client ID (no network defined, just taking 1)
+                            ETH_MOSI_PIN,   // CAN RX Pin
+                            ETH_MISO_PIN,   // CAN TX Pin
+                            -1);            // No termination detection pin
+
     ros_wait_for_connection();
     ros_start(ROBOT_NAMESPACE);
     LOG_INFO("Connected to ROS");
 
     // Initialize safety-sensitive hardware
     safety_init();
-#if HW_USE_DSHOT
-    dshot_init();
-#endif
+// #if HW_USE_DSHOT
+//     dshot_init();
+// #endif
 #if HW_USE_PWM
     esc_pwm_init();
 #endif

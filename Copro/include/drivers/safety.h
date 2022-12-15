@@ -21,6 +21,8 @@
 #define FAULT_LOW_BATTERY     13
 #define FAULT_ACTUATOR_FAIL   14
 #define FAULT_NO_ACTUATOR     15
+#define FAULT_CAN_INTERNAL_ERROR  16
+#define FAULT_CAN_RECV_ERROR      17
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
     "FAULT_ROS_SOFT_FAIL",
@@ -38,6 +40,8 @@ static const char * const fault_string_list[] = {
     "FAULT_LOW_BATTERY",
     "FAULT_ACTUATOR_FAIL",
     "FAULT_NO_ACTUATOR",
+    "FAULT_CAN_INTERNAL_ERROR",
+    "FAULT_CAN_RECV_ERROR"
 };
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK, Enable/disable assertions for lifetime checking code, type=bool, default=0, group=Copro

@@ -19,5 +19,3 @@ target_link_libraries(can_pio INTERFACE
 
     basic_queue
 )
-
-target_compile_definitions(can_pio INTERFACE SAFETY_CAN_PIO_SUPPORT=1)

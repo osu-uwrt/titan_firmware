@@ -3,6 +3,9 @@
 
 #include <stdint.h> // uint32_t
 
+#define __can2040_irq_func(func_name) __not_in_flash(__STRING(func_name)) func_name
+#define __can2040_irq_data(data_name) data_name
+
 struct can2040_msg {
     uint32_t id;
     uint32_t dlc;

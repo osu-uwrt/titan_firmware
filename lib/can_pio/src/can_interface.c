@@ -21,16 +21,16 @@ const size_t canbus_utility_frame_max_length = CANMORE_FRAME_SIZE;
 // ========================================
 
 // Callback handling
-static canbus_cb_t canbus_receive_error_cb = NULL;
-static canbus_cb_t canbus_internal_error_cb = NULL;
+static canbus_error_cb_t canbus_receive_error_cb = NULL;
+static canbus_error_cb_t canbus_internal_error_cb = NULL;
 static canbus_cb_t canbus_utility_frame_recv_cb = NULL;
 static canbus_cb_t canbus_message_recv_cb = NULL;
 
-void canbus_set_receive_error_cb(canbus_cb_t callback) {
+void canbus_set_receive_error_cb(canbus_error_cb_t callback) {
     canbus_receive_error_cb = callback;
 }
 
-void canbus_set_internal_error_cb(canbus_cb_t callback) {
+void canbus_set_internal_error_cb(canbus_error_cb_t callback) {
     canbus_internal_error_cb = callback;
 }
 
@@ -42,15 +42,15 @@ void canbus_set_message_recv_cb(canbus_cb_t callback) {
     canbus_message_recv_cb = callback;
 }
 
-static void canbus_call_receive_error_cb(void) {
+static void canbus_call_receive_error_cb(int data) {
     if (canbus_receive_error_cb) {
-        canbus_receive_error_cb();
+        canbus_receive_error_cb(data);
     }
 }
 
-static void canbus_call_internal_error_cb(void) {
+static void canbus_call_internal_error_cb(int data) {
     if (canbus_internal_error_cb) {
-        canbus_internal_error_cb();
+        canbus_internal_error_cb(data);
     }
 }
 
@@ -79,10 +79,10 @@ static void core0_sio_irq() {
     while (multicore_fifo_rvalid()) {
         uint32_t recv_flag = multicore_fifo_pop_blocking();
 
-        if (recv_flag == SIO_ERROR_INTERNAL_FLAG) {
-            canbus_call_internal_error_cb();
-        } else if (recv_flag == SIO_ERROR_RECEIVE_FLAG) {
-            canbus_call_receive_error_cb();
+        if (HAS_ERROR_INTERNAL_FLAG(recv_flag)) {
+            canbus_call_internal_error_cb(recv_flag & 0x0FFFFFFF);
+        } else if (HAS_ERROR_RECEIVE_FLAG(recv_flag)) {
+            canbus_call_receive_error_cb(recv_flag & 0x0FFFFFFF);
         } else if (recv_flag == SIO_RECV_UTILITY_FRAME_FLAG) {
             canbus_call_utility_frame_recv_cb();
         } else if (recv_flag == SIO_RECV_MESSAGE_FLAG) {
@@ -91,13 +91,13 @@ static void core0_sio_irq() {
             canbus_core_alive_timeout = make_timeout_time_ms(CAN_CORE_ALIVE_TIMEOUT_MS);
         } else {
             // Unexpected flag from second core
-            canbus_call_internal_error_cb();
+            canbus_call_internal_error_cb(-1);
         }
     }
 
     // Check for overflow/underflow
     if (multicore_fifo_get_status() & (SIO_FIFO_ST_WOF_BITS | SIO_FIFO_ST_ROE_BITS)) {
-        canbus_call_internal_error_cb();
+        canbus_call_internal_error_cb(-2);
         multicore_fifo_clear_irq();
     }
 }

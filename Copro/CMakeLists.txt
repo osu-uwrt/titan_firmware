@@ -28,9 +28,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
-# Set ethernet chip
-set(WIZNET_CHIP W5500)
-
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(copro_firmware
@@ -42,7 +39,7 @@ target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
-generate_version_tag(copro_firmware 1 0 DEV)  # Release Types: PROTO, DEV, STABLE
+generate_version_tag(copro_firmware 1 1 DEV)  # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
 pico_enable_stdio_uart(copro_firmware 0)
@@ -68,7 +65,7 @@ target_link_libraries(copro_firmware
 	actuator_i2c_interface
 	basic_logger
 	safety
-	micro_ros_eth
+	micro_ros_can
 
 	pico_stdlib
 	hardware_pio

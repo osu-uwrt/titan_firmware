@@ -157,6 +157,12 @@ static void software_kill_subscription_callback(const void * msgin)
 
 void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {
 	RCCHECK(rclc_subscription_init_best_effort(
+		&software_kill_subscriber,
+		node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+		"control/software_kill"));
+
+	RCCHECK(rclc_subscription_init_best_effort(
 		&pwm_subscriber,
 		node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, PwmStamped),
@@ -180,11 +186,6 @@ void subscriptions_init(rcl_node_t *node, rclc_executor_t *executor) {
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
 		"control/electrical"));
 
-	RCCHECK(rclc_subscription_init_best_effort(
-		&software_kill_subscriber,
-		node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
-		"control/software_kill"));
 
 	RCCHECK(rclc_executor_add_subscription(executor, &pwm_subscriber, &pwm_msg, &pwm_subscription_callback, ON_NEW_DATA));
 	RCCHECK(rclc_executor_add_subscription(executor, &actuator_subscriber, &actuator_msg, &actuator_subscription_callback, ON_NEW_DATA));

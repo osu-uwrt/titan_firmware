@@ -56,20 +56,22 @@ static __force_inline void write_fifo_noblock(uint32_t data) {
     __sev();
 }
 
-static void can_report_receive_error(void){
-    write_fifo_noblock(SIO_ERROR_RECEIVE_FLAG);
-}
+// static void can_report_receive_error(void){
+//     write_fifo_noblock(SIO_ERROR_RECEIVE_FLAG);
+// }
+#define can_report_receive_error() do {write_fifo_noblock(SIO_ERROR_RECEIVE_FLAG + __LINE__);} while(0)
+#define can_report_internal_error() do {write_fifo_noblock(SIO_ERROR_INTERNAL_FLAG + __LINE__);} while(0)
 
-static void can_report_internal_error(void){
-    write_fifo_noblock(SIO_ERROR_INTERNAL_FLAG);
-}
+// static void can_report_internal_error(void){
+//     write_fifo_noblock(SIO_ERROR_INTERNAL_FLAG);
+// }
 
 
 // ========================================
 // CAN2040 IRQ Handler
 // ========================================
 
-static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg) {
+static void __can2040_irq_func(can2040_cb)(__unused struct can2040 *cd, uint32_t notify, struct can2040_msg *msg) {
     // Handle incoming packets
     if (notify == CAN2040_NOTIFY_RX) {
         canmore_id_t id = {.identifier = msg->id};
@@ -101,7 +103,7 @@ static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *
     }
 }
 
-static void can_pio_irq_handler(void) {
+static void __can2040_irq_func(can_pio_irq_handler)(void) {
     can2040_pio_irq_handler(&cbus);
 }
 
@@ -112,7 +114,8 @@ static void can_pio_irq_handler(void) {
 
 void can_decode_error_callback(__unused void* arg, __unused unsigned int error_code) {
     // If the decoder doesn't like it, it's a receive error
-    can_report_receive_error();
+    //can_report_receive_error();
+    write_fifo_noblock(SIO_ERROR_RECEIVE_FLAG + 70000 + error_code);
 }
 
 void can_process_frame(struct can2040_msg *msg) {
@@ -253,12 +256,12 @@ void core1_entry() {
         // Start PIO machines
         can2040_start(&cbus, clock_get_hz(clk_sys), init_cfg->bitrate, init_cfg->gpio_rx, init_cfg->gpio_tx);
 
-        // Start CAN bus for real (don't set this until fully set up or else nasty race conditions will occur)
-        irq_set_enabled(irq_num, true);
-
         // Mark Startup Complete
         // init_cfg is no longer valid after sending startup response
         multicore_fifo_push_blocking(SIO_STARTUP_DONE_FLAG);
+
+        // Start CAN bus for real (don't set this until fully set up or else nasty race conditions will occur)
+        irq_set_enabled(irq_num, true);
     }
 
     absolute_time_t next_heartbeat = make_timeout_time_ms(10);

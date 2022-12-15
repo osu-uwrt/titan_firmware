@@ -26,6 +26,7 @@
 // ========================================
 
 typedef void (*canbus_cb_t)(void);
+typedef void (*canbus_error_cb_t)(int);
 
 /**
  * @brief Initializes a CAN bus on the given PIO block on the second core.
@@ -78,7 +79,7 @@ extern bool canbus_initialized;
  *
  * @param callback Pointer to callback function or NULL to disable callback
  */
-void canbus_set_receive_error_cb(canbus_cb_t callback);
+void canbus_set_receive_error_cb(canbus_error_cb_t callback);
 
 /**
  * @brief Set callback for internal errors on can bus.
@@ -87,7 +88,7 @@ void canbus_set_receive_error_cb(canbus_cb_t callback);
  *
  * @param callback Pointer to callback function or NULL to disable callback
  */
-void canbus_set_internal_error_cb(canbus_cb_t callback);
+void canbus_set_internal_error_cb(canbus_error_cb_t callback);
 
 /**
  * @brief Set callback to notify that a utility frame has been received
