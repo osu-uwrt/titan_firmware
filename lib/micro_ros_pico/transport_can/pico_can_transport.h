@@ -4,6 +4,16 @@
 #include <stdio.h>
 #include <stdint.h>
 
-void pico_can_transport_init(unsigned pio_num, unsigned bitrate, unsigned client_id, unsigned gpio_rx, unsigned gpio_tx, int gpio_term);
+#include "hardware/spi.h"
+
+void pico_can_transport_init(uint bitrate,
+                             uint client_id,
+                             spi_inst_t* spi_channel,
+                             uint8_t cs_pin,
+                             uint8_t mosi_pin,
+                             uint8_t miso_pin,
+                             uint8_t sck_pin,
+                             uint32_t spi_clock,
+                             uint8_t int_pin);
 
 #endif //MICRO_ROS_PICOSDK

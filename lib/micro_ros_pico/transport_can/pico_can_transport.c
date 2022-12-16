@@ -56,8 +56,16 @@ size_t pico_can_transport_read(__unused struct uxrCustomTransport * transport, u
 
 bi_decl(bi_program_feature("Micro-ROS over CAN"))
 
-void pico_can_transport_init(unsigned pio_num, unsigned bitrate, unsigned client_id, unsigned gpio_rx, unsigned gpio_tx, int gpio_term){
-    canbus_init(pio_num, bitrate, client_id, gpio_rx, gpio_tx, gpio_term);
+void pico_can_transport_init(uint bitrate,
+                             uint client_id,
+                             spi_inst_t* spi_channel,
+                             uint8_t cs_pin,
+                             uint8_t mosi_pin,
+                             uint8_t miso_pin,
+                             uint8_t sck_pin,
+                             uint32_t spi_clock,
+                             uint8_t int_pin){
+    canbus_init(bitrate, client_id, spi_channel, cs_pin, mosi_pin, miso_pin, sck_pin, spi_clock, int_pin);
 
     rmw_uros_set_custom_transport(
 		false,

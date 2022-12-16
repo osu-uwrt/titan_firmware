@@ -4,11 +4,11 @@
 #include "safety_interface.h"
 
 
-void safety_handle_can_internal_error(void) {
+void safety_handle_can_internal_error(__unused int data) {
     safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
 }
 
-void safety_handle_can_receive_error(void) {
+void safety_handle_can_receive_error(__unused int data) {
     safety_raise_fault(FAULT_CAN_RECV_ERROR);
 }
 

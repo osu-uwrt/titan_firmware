@@ -28,7 +28,7 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=250, group=safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  500
 #endif
 
 // PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=safety

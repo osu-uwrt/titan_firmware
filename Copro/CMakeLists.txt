@@ -42,7 +42,7 @@ target_include_directories(copro_firmware PUBLIC include)
 generate_version_tag(copro_firmware 1 1 DEV)  # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
-pico_enable_stdio_uart(copro_firmware 0)
+pico_enable_stdio_uart(copro_firmware 1)
 pico_set_program_name(copro_firmware "Copro Firmware")
 target_compile_definitions(copro_firmware PUBLIC USB_PRODUCT_STR="Coprocessor")
 
@@ -50,7 +50,7 @@ target_compile_definitions(copro_firmware PUBLIC USB_PRODUCT_STR="Coprocessor")
 uwrt_use_upload_tool(copro_firmware)
 
 # Enable micro-ROS
-uwrt_enable_dual_uart(copro_firmware)
+#uwrt_enable_dual_uart(copro_firmware)
 
 # Compile Definitions
 target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)

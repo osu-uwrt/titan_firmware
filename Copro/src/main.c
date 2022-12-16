@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "pico/stdio_usb.h"
+//#include "pico/stdio_usb.h"
 
 #include "pico_can_transport.h"
 #include "basic_logger/logging.h"
@@ -29,7 +29,7 @@ int main()
 {
     // Immediate start code
     stdio_init_all();
-    dual_usb_init();
+    //dual_usb_init();
 
     LOG_INFO(FULL_BUILD_TAG);
     sleep_ms(1000);
@@ -54,12 +54,15 @@ int main()
     //uint16_t xavier_port = 8888;
     //pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
 
-    pico_can_transport_init(0,              // Take PIO 0
-                            1000000,        // Set can bitrate to 1 Mbit
-                            1,              // Set Client ID (no network defined, just taking 1)
-                            ETH_MOSI_PIN,   // CAN RX Pin
-                            ETH_MISO_PIN,   // CAN TX Pin
-                            -1);            // No termination detection pin
+    pico_can_transport_init(1000000,
+                            1,
+                            ETH_SPI_HW,
+                            ETH_CS_PIN,
+                            ETH_MOSI_PIN,
+                            ETH_MISO_PIN,
+                            ETH_CLK_PIN,
+                            10000000,
+                            ETH_RST_PIN);
 
     ros_wait_for_connection();
     ros_start(ROBOT_NAMESPACE);
