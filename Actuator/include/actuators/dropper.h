@@ -33,13 +33,6 @@ void dropper_initialize(void);
 bool dropper_set_timings(uint16_t active_time_ms);
 
 /**
- * @brief Populates the passed missing timing struct with the marker dropper data
- *
- * @param missing_timings The struct to populate
- */
-void dropper_populate_missing_timings(struct missing_timings_status* missing_timings);
-
-/**
  * @brief Returns the current state of the marker dropper
  *
  * @param dropper_id: The dropper to get the state of (id starts at 1)

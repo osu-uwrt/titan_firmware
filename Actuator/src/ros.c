@@ -101,6 +101,26 @@ bool handle_parameter_change(const Parameter * param) {
             return false;
         }
     }
+	#define ELSE_IF_TORPEDO_PARAMETER(torp_num, param_name, timing_type) \
+        else if (!strcmp(param->name.data, "torpedo" #torp_num "_" #param_name "_timing_us")) { \
+            if (IS_VALID_TIMING(param->value.integer_value)) { \
+                torpedo_set_timings(torp_num, timing_type, param->value.integer_value); \
+                return true; \
+            } else { \
+                return false; \
+            } \
+        }
+
+	ELSE_IF_TORPEDO_PARAMETER(1, coil1_on,      ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil1_2_delay, ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil2_on,      ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil2_3_delay, ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(1, coil3_on,      ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil1_on,      ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil1_2_delay, ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil2_on,      ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil2_3_delay, ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME)
+    ELSE_IF_TORPEDO_PARAMETER(2, coil3_on,      ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME)
 
 	return false;
 }
