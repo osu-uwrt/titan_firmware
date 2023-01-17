@@ -4,7 +4,9 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_actuator)
+set(PICO_BOARD mk2_actuator_board)
+
+set(UWRT_ROBOT tempest)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -65,7 +67,6 @@ target_link_libraries(actuator_firmware
 
 	pico_stdlib
 	hardware_adc
-	hardware_i2c
 	hardware_pio
 	hardware_watchdog
 )

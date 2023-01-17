@@ -7,9 +7,9 @@
 
 ; Coil 1
     pull                    side 0b111
-    mov x, osr              side 0b110
+    mov x, osr              side 0b011   ; Note side set pin 3 is coil 1
 delay_coil1_on:
-    jmp x-- delay_coil1_on  side 0b110
+    jmp x-- delay_coil1_on  side 0b011
 
     pull                    side 0b111
     mov x, osr              side 0b111
@@ -31,9 +31,9 @@ delay_coil2_off:
 
 ; Coil 3
     pull                    side 0b111
-    mov x, osr              side 0b011 ; 0b011
+    mov x, osr              side 0b110
 delay_coil3_on:
-    jmp x-- delay_coil3_on  side 0b011 ; 0b011
+    jmp x-- delay_coil3_on  side 0b110
 
 
 ; Done
@@ -46,11 +46,12 @@ loop:
 #include "hardware/irq.h"
 
 static inline void torpedo_program_init(PIO pio, uint sm, uint offset, uint first_pin, irq_handler_t completion_handler) {
-    gpio_put(first_pin, false);
+    // Note that first_pin is the last coil due to actuator board mk2 reversing the order of the coils
+    gpio_put(first_pin, false);     // Coil 3
     gpio_set_dir(first_pin, true);
-    gpio_put(first_pin+1, false);
+    gpio_put(first_pin+1, false);   // Coil 2
     gpio_set_dir(first_pin+1, true);
-    gpio_put(first_pin+2, false);
+    gpio_put(first_pin+2, false);   // Coil 1
     gpio_set_dir(first_pin+2, true);
 
     pio_sm_set_enabled(pio, sm, false);

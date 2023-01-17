@@ -19,6 +19,7 @@
 
 #define SDA_PIN 28
 #define SCL_PIN 29
+#define I2C_INSTANCE i2c0
 
 #ifndef PICO_DEFAULT_I2C
 #define PICO_DEFAULT_I2C 0

@@ -455,10 +455,10 @@ void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progres
     }
 }
 
-static const uint irq_num = (DEPTH_I2C_INST == i2c0 ? I2C0_IRQ : I2C1_IRQ);
+static const uint irq_num = (I2C_INSTANCE == i2c0 ? I2C0_IRQ : I2C1_IRQ);
 
 void async_i2c_irq_handler(void) {
-    async_i2c_common_irq_handler(DEPTH_I2C_INST);
+    async_i2c_common_irq_handler(I2C_INSTANCE);
 }
 
 static void async_i2c_configure_interrupt_hw(i2c_inst_t *i2c) {
@@ -474,18 +474,18 @@ void async_i2c_init(uint baudrate, uint bus_timeout_ms) {
     LOG_DEBUG("Initializing Async I2C");
     i2c_bus_timeout = bus_timeout_ms;
 
-    i2c_init(DEPTH_I2C_INST, baudrate);
-    gpio_set_function(DEPTH_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(DEPTH_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(DEPTH_I2C_SDA_PIN);
-    gpio_pull_up(DEPTH_I2C_SCL_PIN);
+    i2c_init(I2C_INSTANCE, baudrate);
+    gpio_set_function(SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(SDA_PIN);
+    gpio_pull_up(SCL_PIN);
     irq_set_exclusive_handler(irq_num, &async_i2c_irq_handler);
-    async_i2c_configure_interrupt_hw(DEPTH_I2C_INST);
+    async_i2c_configure_interrupt_hw(I2C_INSTANCE);
 
     irq_set_enabled(irq_num, true);
 
     // Make the I2C pins available to picotool
-    bi_decl_if_func_used(bi_2pins_with_func(DEPTH_I2C_SDA_PIN, DEPTH_I2C_SCL_PIN, GPIO_FUNC_I2C));
+    bi_decl_if_func_used(bi_2pins_with_func(SDA_PIN, SCL_PIN, GPIO_FUNC_I2C));
 
     async_i2c_initialized = true;
 }

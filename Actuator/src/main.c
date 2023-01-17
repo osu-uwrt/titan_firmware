@@ -2,7 +2,6 @@
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico_uart_transports.h"
-#include "hardware/i2c.h"
 #include "hardware/watchdog.h"
 
 #include "ros.h"
@@ -32,7 +31,6 @@ int main() {
     gpio_put(LED_PIN, USE_POWER_LED);
     #endif
 
-    //async_i2c_target_init(200000, ACTUATOR_I2C_ADDR);
     pico_serial_transport_init();
     ros_wait_for_connection();
 

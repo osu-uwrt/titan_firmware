@@ -17,7 +17,7 @@ static void depth_prom_read_finished(const struct async_i2c_request *req);
 static void depth_convert_cmd_finished(const struct async_i2c_request *req);
 static void depth_adc_read_finished(const struct async_i2c_request *req);
 
-#define DEPTH_I2C_BUS DEPTH_I2C_INST
+#define DEPTH_I2C_BUS I2C_INSTANCE
 #define DEPTH_I2C_ADDR 0x76
 
 #define DEPTH_CMD_RESET 0x1E

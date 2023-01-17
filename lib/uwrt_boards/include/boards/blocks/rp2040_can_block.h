@@ -1,7 +1,7 @@
 #ifndef RP_2040_CAN_BLOCK_H
 #define RP_2040_CAN_BLOCK_H
 
-#include "boards/rp2040_uwrt_block.h"
+#include "boards/blocks/rp2040_uwrt_block.h"
 
 #define STATUS_LEDR_PIN         13
 #define STATUS_LEDG_PIN         14

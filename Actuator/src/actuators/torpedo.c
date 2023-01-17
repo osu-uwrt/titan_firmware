@@ -28,10 +28,11 @@ static const uint arm_pin = TORP_ARM_PIN;
 bi_decl(bi_1pin_with_name(TORP_ARM_PIN, "Torpedo Arm"));
 
 #define NUM_COILS 3
-// PIO requires that coil pins be consecutive for side-set
+// PIO requires that coil pins be reverse consecutive for side-set
+// See actuator mk2 pin configuration and torpedo pio file for more details
 #define FIRST_COIL_PIN COIL_1_PIN
-static_assert(COIL_1_PIN+1 == COIL_2_PIN, "Coil pins must be consecutive");
-static_assert(COIL_2_PIN+1 == COIL_3_PIN, "Coil pins must be consecutive");
+static_assert(COIL_3_PIN+1 == COIL_2_PIN, "Coil pins must be consecutive");
+static_assert(COIL_2_PIN+1 == COIL_1_PIN, "Coil pins must be consecutive");
 bi_decl(bi_1pin_with_name(COIL_1_PIN, "Torpedo Coil 1"));
 bi_decl(bi_1pin_with_name(COIL_2_PIN, "Torpedo Coil 2"));
 bi_decl(bi_1pin_with_name(COIL_3_PIN, "Torpedo Coil 3"));
