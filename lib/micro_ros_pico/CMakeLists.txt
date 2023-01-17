@@ -5,6 +5,7 @@ target_sources(micro_ros_pico INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/pico_uart_transport.c
 )
 
+
 target_link_libraries(micro_ros_pico INTERFACE pico_stdlib ${CMAKE_CURRENT_LIST_DIR}/libmicroros/libmicroros.a)
 
 target_include_directories(micro_ros_pico INTERFACE
