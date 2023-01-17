@@ -23,6 +23,7 @@
 
 const uint CHARGED_LED_PIN = BUILTIN_LED3_PIN;
 
+static const uint discharge_pin = TORP_DRAIN_PIN;
 static const uint arm_pin = TORP_ARM_PIN;
 bi_decl(bi_1pin_with_name(TORP_ARM_PIN, "Torpedo Arm"));
 
@@ -43,6 +44,9 @@ bi_decl(bi_1pin_with_name(TORP_SEL_2_PIN, "Torpedo Select 2"));
 
 #define ARM_LEVEL_ARMED    1
 #define ARM_LEVEL_DISARMED 0
+#define DISCHARGE_LEVEL_CHARGED 0
+#define DISCHARGE_LEVEL_DISCHARGED 1
+
 #define COIL_LEVEL_ON  1
 #define COIL_LEVEL_OFF 0
 #define TORP_SEL_LEVEL_ON  1
@@ -319,7 +323,11 @@ void torpedo_safety_disable(void) {
 
     gpio_put(arm_pin, ARM_LEVEL_DISARMED);
 
-    // TODO: set discharge pin
+    torpedo_discharge();
+}
+
+void torpedo_discharge() { 
+    gpio_put(discharge_pin, DISCHARGE_LEVEL_DISCHARGED);
 }
 
 enum armed_state torpedo_get_armed_state(void) {

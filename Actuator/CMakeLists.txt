@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD terry)
+set(PICO_BOARD mk2_actuator)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging

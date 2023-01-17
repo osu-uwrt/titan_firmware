@@ -86,4 +86,9 @@ bool torpedo_fire(uint8_t torpedo_num);
  */
 void torpedo_safety_disable(void);
 
+/**
+ * Sets the discharged pin for the torpedo
+*/
+void torpedo_discharge(void);
+
 #endif
