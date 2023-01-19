@@ -41,7 +41,7 @@ int main() {
     ros_start("tempest");
 
     safety_init();
-    safety_kill_switch_update(0, false, false);
+    safety_kill_switch_update(KILL_SWITCH_DBG, false, true);
 
     while(true) {
         ros_spin_ms(30);

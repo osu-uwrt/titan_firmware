@@ -20,6 +20,7 @@
 #include <riptide_msgs2/action/actuate_torpedos.h>
 #include <riptide_msgs2/action/arm_torpedo_dropper.h>
 #include <riptide_msgs2/msg/actuator_status.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_FATAL("Failed status on in " __FILE__ ":%d : %d. Aborting.",__LINE__,(int)temp_rc); panic("Unrecoverable ROS Error");}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_ERROR("Failed status on in " __FILE__ ":%d : %d. Continuing.",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_SOFT_FAIL);}}
@@ -31,6 +32,53 @@ static rclc_executor_t executor = {0};
 static rcl_timer_t goal_timer = {0};
 static rcl_timer_t publisher_timer = {0};
 
+
+// Kill Switch subscriber
+
+static rcl_subscription_t kill_switch_subscriber = {0};
+static riptide_msgs2__msg__KillSwitchReport kill_switch_msg;
+
+static void kill_swtich_subscriber_callback(const void * msgin)
+{
+	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
+	
+	// Make sure kill switch id is valid
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
+            msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
+        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+	// Make sure frame id isn't too large
+    if (msg->sender_id.size >= SOFTWARE_KILL_FRAME_STR_SIZE) {
+        LOG_WARN("Software Kill Frame ID too large");
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+	struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
+
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill &&
+            strncmp(kill_entry->locking_frame, msg->sender_id.data, SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->sender_id.data);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+	
+	// Set frame id of the switch requesting disable
+    // This can technically override previous kills and allow one node to kill when another is stopping
+    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
+    // If multiple points are needed to be separate, separate kill switch IDs should be used
+    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
+    // since it must be asserted as killed by the node to take ownership of the lock
+    if (msg->switch_asserting_kill) {
+        strncpy(kill_entry->locking_frame, msg->sender_id.data, msg->sender_id.size);
+        kill_entry->locking_frame[msg->sender_id.size] = '\0';
+    }
+
+    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
+}
 
 //
 // Parameter server
@@ -669,6 +717,16 @@ void ros_start(const char* namespace) {
 		"state/actuator",
 		&rmw_qos_profile_sensor_data));
 
+	// create software kill switch subscriber
+	RCCHECK(rclc_subscription_init_best_effort(
+		&kill_switch_subscriber,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+		"control/software_kill"));
+
+	RCCHECK(rclc_executor_add_subscription(&executor, &kill_switch_subscriber, &kill_switch_msg, &kill_swtich_subscriber_callback, ON_NEW_DATA));
+
+	// create timers
 	RCCHECK(rclc_timer_init_default(
         &goal_timer,
         &support,
