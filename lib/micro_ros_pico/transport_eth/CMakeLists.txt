@@ -1,17 +1,19 @@
 cmake_minimum_required(VERSION 3.12)
 
 # Setup Wiznet
-set(WIZNET_CHIP W5500)
+set(WIZNET_CHIP W5200)
 
-if(NOT DEFINED WIZNET_CHIP)
-    message(FATAL_ERROR "WIZNET_CHIP not defined")
-elseif(${WIZNET_CHIP} STREQUAL W5100S)
+if(${WIZNET_CHIP} STREQUAL W5100S)
     add_definitions(-D_WIZCHIP_=W5100S)
 elseif(${WIZNET_CHIP} STREQUAL W5500)
     add_definitions(-D_WIZCHIP_=W5500)
+elseif(${WIZNET_CHIP} STREQUAL W5200)
+    add_definitions(-D_WIZCHIP_=W5200)
 else()
     message(FATAL_ERROR "WIZNET_CHIP is wrong = ${WIZNET_CHIP}")
 endif()
+
+message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
 
 set(WIZNET_DIR ${REPO_DIR}/lib/ioLibrary_Driver)
 set(PORT_DIR ${REPO_DIR}/lib/ioLibrary_Port)

@@ -18,7 +18,7 @@
 #define LED_RGB_G_PIN   28
 #define LED_RGB_B_PIN   27
 
-// On-Board Ethernet Header
+// On-Board Ethernet phy
 #define ETH_SPI_HW      1
 #define ETH_RST_PIN     5
 #define ETH_INT_PIN     4
@@ -27,7 +27,15 @@
 #define ETH_CS_PIN      1
 #define ETH_MISO_PIN    0
 
-// Swith sense pins -- active low
+// I2C comm lines
+#define SENSOR_I2C_HW   i2c0
+#define SENSOR_SCL_PIN  9
+#define SENSOR_SDA_PIN  8
+#define BOARD_I2C_HW    i2c1
+#define BOARD_SCL_PIN   7
+#define BOARD_SDA_PIN   6
+
+// Switch sense pins -- active low
 #define KILL_SW_SENSE   12
 #define AUX_SW_SENSE    11
 
@@ -36,14 +44,14 @@
 #define PWR_CTL_ACC     10
 
 // ESC Comm pins -- PWM or DSHOT
-#define ESC_COMM_1      25
-#define ESC_COMM_2      24
-#define ESC_COMM_3      23
-#define ESC_COMM_4      22
-#define ESC_COMM_5      21
-#define ESC_COMM_6      20
-#define ESC_COMM_7      19
-#define ESC_COMM_8      18
+#define THRUSTER_1_PIN      25
+#define THRUSTER_2_PIN      24
+#define THRUSTER_3_PIN      23
+#define THRUSTER_4_PIN      22
+#define THRUSTER_5_PIN      21
+#define THRUSTER_6_PIN      20
+#define THRUSTER_7_PIN      19
+#define THRUSTER_8_PIN      18
 
 // ==============================
 // Pico Default Defines

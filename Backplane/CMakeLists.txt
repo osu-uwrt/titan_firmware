@@ -31,73 +31,42 @@ pico_sdk_init()
 # Setup wiznet
 
 # Set ethernet chip
-set(WIZNET_CHIP W5200)
-
-if(${WIZNET_CHIP} STREQUAL W5100S)
-    add_definitions(-D_WIZCHIP_=W5100S)
-elseif(${WIZNET_CHIP} STREQUAL W5500)
-    add_definitions(-D_WIZCHIP_=W5500)
-elseif(${WIZNET_CHIP} STREQUAL W5200)
-    add_definitions(-D_WIZCHIP_=W5200)
-else()
-    message(FATAL_ERROR "WIZNET_CHIP is wrong = ${WIZNET_CHIP}")
-endif()
-
-message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
-
-# Set the project root directory if it's not already defined, as may happen if
-# the tests folder is included directly by a parent project, without including
-# the top level CMakeLists.txt.
-if(NOT DEFINED WIZNET_DIR)
-    set(WIZNET_DIR ${REPO_DIR}/lib/ioLibrary_Driver)
-    message(STATUS "WIZNET_DIR = ${WIZNET_DIR}")
-endif()
-
-
-if(NOT DEFINED PORT_DIR)
-    set(PORT_DIR ${REPO_DIR}/lib/ioLibrary_Port)
-    message(STATUS "PORT_DIR = ${PORT_DIR}")
-endif()
-
-# include(${REPO_DIR}/lib/ioLibrary_import.cmake)
-# add_subdirectory(${PORT_DIR} ioLibrary_port)
+# set(WIZNET_CHIP W5200)
 
 # Define executable
-add_executable(pico_sdk_example
-	main.c
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
+add_executable(backplane_firmware
+	${SOURCES}
 )
-# pico_generate_pio_header(pico_sdk_example ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+# pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
-target_compile_options(pico_sdk_example PRIVATE -Wall -Wextra -Wno-format)
-target_include_directories(pico_sdk_example PUBLIC include)
+target_compile_options(backplane_firmware PRIVATE -Wall -Wextra -Wno-format)
+target_include_directories(backplane_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
-generate_version_tag(pico_sdk_example 1 0 DEV) # Release Types: PROTO, DEV, STABLE
+generate_version_tag(backplane_firmware 1 0 DEV) # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
-pico_enable_stdio_usb(pico_sdk_example 1)
-pico_set_program_name(pico_sdk_example "Backplane Test")
+pico_enable_stdio_usb(backplane_firmware 1)
+pico_set_program_name(backplane_firmware "Backplane Test")
 
 # Wait for 2 seconds for serial to connect
-target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
+target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(pico_sdk_example)
-
-# Enable micro-ROS
-micro_ros_enable(copro_firmware)
+uwrt_use_upload_tool(backplane_firmware)
 
 # Compile Definitions
-target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
-target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
-target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
-target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
-target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
-target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
+target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
+target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
+target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
+target_compile_definitions(backplane_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
+target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets
-pico_add_extra_outputs(pico_sdk_example)
-target_link_libraries(pico_sdk_example 
+pico_add_extra_outputs(backplane_firmware)
+target_link_libraries(backplane_firmware 
 	pico_stdlib
 	hardware_pio
 	hardware_pwm
@@ -105,6 +74,9 @@ target_link_libraries(pico_sdk_example
 	hardware_adc
 	hardware_spi
 	hardware_dma
+
+	micro_ros_eth
+	safety
 
 	ETHERNET_FILES
 	IOLIBRARY_FILES
