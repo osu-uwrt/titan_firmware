@@ -26,7 +26,13 @@
 #define ETH_MISO_PIN    0
 #define ETH_CS_PIN      1
 
-#define 
+// Swith sense pins -- active low
+#define KILL_SWITCH_SENSE   12
+#define AUX_SWITCH_SENSE    11
+
+// Power control pins -- active high
+#define PWR_CTL_CPU     26
+#define PWR_CTL_ACC     10
 
 // ==============================
 // Pico Default Defines
