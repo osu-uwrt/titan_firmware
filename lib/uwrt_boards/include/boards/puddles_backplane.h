@@ -34,6 +34,16 @@
 #define PWR_CTL_CPU     26
 #define PWR_CTL_ACC     10
 
+// ESC Comm pins -- PWM or DSHOT
+#define ESC_COMM_1      25
+#define ESC_COMM_2      24
+#define ESC_COMM_3      23
+#define ESC_COMM_4      22
+#define ESC_COMM_5      21
+#define ESC_COMM_6      20
+#define ESC_COMM_7      19
+#define ESC_COMM_8      18
+
 // ==============================
 // Pico Default Defines
 // ==============================
