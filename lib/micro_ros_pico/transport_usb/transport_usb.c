@@ -1,10 +1,13 @@
 #include <stdio.h>
+#include <stdint.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
+
+#include "micro_ros_pico/transport_usb.h"
 
 void usleep(uint64_t us)
 {
@@ -20,7 +23,7 @@ int clock_gettime(__unused clockid_t unused, struct timespec *tp)
 }
 
 static bool transport_initialized = false;
-void serial_init_early(void)
+void transport_usb_serial_init_early(void)
 {
     if (!transport_initialized) {
         stdio_init_all();
@@ -29,18 +32,18 @@ void serial_init_early(void)
     }
 }
 
-bool pico_serial_transport_open(__unused struct uxrCustomTransport * transport)
+bool transport_usb_open(__unused struct uxrCustomTransport * transport)
 {
-    serial_init_early();
+    transport_usb_serial_init_early();
     return true;
 }
 
-bool pico_serial_transport_close(__unused struct uxrCustomTransport * transport)
+bool transport_usb_close(__unused struct uxrCustomTransport * transport)
 {
     return true;
 }
 
-size_t pico_serial_transport_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
+size_t transport_usb_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
     size_t sent = secondary_usb_out_chars(buf, len);
     if (sent != len){
@@ -49,7 +52,7 @@ size_t pico_serial_transport_write(__unused struct uxrCustomTransport* transport
     return sent;
 }
 
-size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t transport_usb_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
 {
     int64_t start_time_us = time_us_64();
     int64_t elapsed_time_us = timeout * 1000 - (time_us_64() - start_time_us);
@@ -57,8 +60,8 @@ size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport
     while (bytes_remaining > 0 && elapsed_time_us > 0) {
         int received = secondary_usb_in_chars(buf, bytes_remaining);
         if (received > 0) {
-            *buf += received;
             bytes_remaining -= received;
+            // TODO: Figure out why incrementing buf by # received chars breaks stuff
         } else {
             busy_wait_us(1);
         }
@@ -73,13 +76,13 @@ size_t pico_serial_transport_read(__unused struct uxrCustomTransport * transport
 
 bi_decl(bi_program_feature("Micro-ROS over USB"))
 
-void pico_serial_transport_init(void){
+void transport_usb_init(void){
     rmw_uros_set_custom_transport(
 		true,
 		NULL,
-		pico_serial_transport_open,
-		pico_serial_transport_close,
-		pico_serial_transport_write,
-		pico_serial_transport_read
+		transport_usb_open,
+		transport_usb_close,
+		transport_usb_write,
+		transport_usb_read
 	);
 }

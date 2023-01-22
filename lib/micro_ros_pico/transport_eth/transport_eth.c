@@ -12,7 +12,7 @@
 
 #include "safety/safety.h"
 
-#include "pico_eth_transport.h"
+#include "micro_ros_pico/transport_eth.h"
 
 #define UROS_PORT 24321
 
@@ -62,7 +62,7 @@ static bool transport_initialized = false;
 static uint32_t ip;
 static uint16_t port;
 static int sock;
-bool pico_eth_transport_open(__unused struct uxrCustomTransport * transport)
+bool transport_eth_open(__unused struct uxrCustomTransport * transport)
 {
     if (!transport_initialized) {
         transport_initialized = true;
@@ -82,12 +82,12 @@ bool pico_eth_transport_open(__unused struct uxrCustomTransport * transport)
     return true;
 }
 
-bool pico_eth_transport_close(__unused struct uxrCustomTransport * transport)
+bool transport_eth_close(__unused struct uxrCustomTransport * transport)
 {
     return true;
 }
 
-size_t pico_eth_transport_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
+size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
     int snd_len;
 
@@ -102,7 +102,7 @@ size_t pico_eth_transport_write(__unused struct uxrCustomTransport* transport, c
 	return snd_len;
 }
 
-size_t pico_eth_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
 {
     int ret;
     int actual_recv_len;
@@ -169,7 +169,7 @@ size_t pico_eth_transport_read(__unused struct uxrCustomTransport * transport, u
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-void pico_eth_transport_init(int sock_num, uint32_t target_ip, uint16_t target_port){
+void transport_eth_init(int sock_num, uint32_t target_ip, uint16_t target_port){
     sock = sock_num;
     ip = target_ip;
     port = target_port;
@@ -201,9 +201,9 @@ void pico_eth_transport_init(int sock_num, uint32_t target_ip, uint16_t target_p
     rmw_uros_set_custom_transport(
 		false,
 		NULL,
-		pico_eth_transport_open,
-		pico_eth_transport_close,
-		pico_eth_transport_write,
-		pico_eth_transport_read
+		transport_eth_open,
+		transport_eth_close,
+		transport_eth_write,
+		transport_eth_read
 	);
 }
