@@ -1,12 +1,11 @@
-#ifndef MICRO_ROS_PICOSDK
-#define MICRO_ROS_PICOSDK
+#ifndef MICRO_ROS_PICO__TRANSPORT_CAN_H
+#define MICRO_ROS_PICO__TRANSPORT_CAN_H
 
-#include <stdio.h>
 #include <stdint.h>
 
 #include "hardware/spi.h"
 
-void pico_can_transport_init(uint bitrate,
+void transport_can_init(uint bitrate,
                              uint client_id,
                              spi_inst_t* spi_channel,
                              uint8_t cs_pin,
@@ -16,4 +15,4 @@ void pico_can_transport_init(uint bitrate,
                              uint32_t spi_clock,
                              uint8_t int_pin);
 
-#endif //MICRO_ROS_PICOSDK
+#endif //MICRO_ROS_PICO__TRANSPORT_CAN_H

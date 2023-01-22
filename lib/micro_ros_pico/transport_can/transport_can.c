@@ -9,6 +9,8 @@
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
 
+#include "micro_ros_pico/transport_can.h"
+
 void usleep(uint64_t us)
 {
     sleep_us(us);
@@ -22,17 +24,17 @@ int clock_gettime(__unused clockid_t unused, struct timespec *tp)
     return 0;
 }
 
-bool pico_can_transport_open(__unused struct uxrCustomTransport * transport)
+bool transport_can_open(__unused struct uxrCustomTransport * transport)
 {
     return canbus_initialized;
 }
 
-bool pico_can_transport_close(__unused struct uxrCustomTransport * transport)
+bool transport_can_close(__unused struct uxrCustomTransport * transport)
 {
     return true;
 }
 
-size_t pico_can_transport_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
+size_t transport_can_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
     while (!canbus_msg_write_available()) {
         tight_loop_contents();
@@ -41,7 +43,7 @@ size_t pico_can_transport_write(__unused struct uxrCustomTransport* transport, c
     return canbus_msg_write(buf, len);
 }
 
-size_t pico_can_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
 {
     absolute_time_t timeout_time = make_timeout_time_ms(timeout);
     while (!canbus_msg_read_available()) {
@@ -56,7 +58,7 @@ size_t pico_can_transport_read(__unused struct uxrCustomTransport * transport, u
 
 bi_decl(bi_program_feature("Micro-ROS over CAN"))
 
-void pico_can_transport_init(uint bitrate,
+void transport_can_init(uint bitrate,
                              uint client_id,
                              spi_inst_t* spi_channel,
                              uint8_t cs_pin,
@@ -70,9 +72,9 @@ void pico_can_transport_init(uint bitrate,
     rmw_uros_set_custom_transport(
 		false,
 		NULL,
-		pico_can_transport_open,
-		pico_can_transport_close,
-		pico_can_transport_write,
-		pico_can_transport_read
+		transport_can_open,
+		transport_can_close,
+		transport_can_write,
+		transport_can_read
 	);
 }

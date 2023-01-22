@@ -30,18 +30,13 @@ function(uwrt_use_upload_tool target)
     endif()
 endfunction()
 
-function(uwrt_enable_dual_uart target)
-    add_subdirectory(${REPO_DIR}/lib/dual_serial_stdio_usb/ dual_serial_stdio_usb_build)
-    # ARGV1 allows for specifying optional public for when needed for target_link_libraries
-    target_link_libraries(${target} ${ARGV1} dual_serial_stdio_usb)
-endfunction()
-
 # Define all custom libraries
 add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
 add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 add_subdirectory(${REPO_DIR}/lib/basic_queue/ basic_queue)
 add_subdirectory(${REPO_DIR}/lib/can_mcp2515/ can_mcp2515)
 add_subdirectory(${REPO_DIR}/lib/can_pio/ can_pio)
+add_subdirectory(${REPO_DIR}/lib/dual_serial_stdio_usb/ dual_serial_stdio_usb_build)
 add_subdirectory(${REPO_DIR}/lib/micro_ros_pico/ micro_ros_pico)
 add_subdirectory(${REPO_DIR}/lib/safety/ safety)
 add_subdirectory(${REPO_DIR}/lib/wiznet_ethernet/ wiznet_ethernet)

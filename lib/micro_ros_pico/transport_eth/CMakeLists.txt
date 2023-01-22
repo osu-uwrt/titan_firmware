@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 # Setup ethernet
 add_library(micro_ros_eth INTERFACE)
 target_sources(micro_ros_eth INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/pico_eth_transport.c
+    ${CMAKE_CURRENT_LIST_DIR}/transport_eth.c
 )
 
 target_link_libraries(micro_ros_eth INTERFACE
@@ -14,7 +14,7 @@ target_link_libraries(micro_ros_eth INTERFACE
 )
 
 target_include_directories(micro_ros_eth INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/include
     ${MICRO_ROS_DIR}/libmicroros/include
 )
 

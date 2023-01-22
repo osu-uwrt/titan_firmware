@@ -12,7 +12,7 @@
 #include <std_msgs/msg/int32.h>
 #include <riptide_msgs2/msg/pwm_stamped.h>
 #include <rmw_microros/rmw_microros.h>
-#include "pico_eth_transport.h"
+#include "micro_ros_pico/transport_eth.h"
 
 #include "safety_interface.h"
 
@@ -55,7 +55,7 @@ int main() {
     // Eth init
     uint8_t xavier_ip[] = {192, 168, 1, 23};
     uint16_t xavier_port = 8888;
-    pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
+    transport_eth_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
 
     // ROS init
     rcl_timer_t timer;
