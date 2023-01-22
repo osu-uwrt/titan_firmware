@@ -59,8 +59,8 @@ if(NOT DEFINED PORT_DIR)
     message(STATUS "PORT_DIR = ${PORT_DIR}")
 endif()
 
-include(${REPO_DIR}/lib/ioLibrary_import.cmake)
-add_subdirectory(${PORT_DIR} ioLibrary_port)
+# include(${REPO_DIR}/lib/ioLibrary_import.cmake)
+# add_subdirectory(${PORT_DIR} ioLibrary_port)
 
 # Define executable
 add_executable(pico_sdk_example
@@ -83,6 +83,17 @@ target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_T
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(pico_sdk_example)
+
+# Enable micro-ROS
+micro_ros_enable(copro_firmware)
+
+# Compile Definitions
+target_compile_definitions(copro_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
+target_compile_definitions(copro_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
+target_compile_definitions(copro_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets
 pico_add_extra_outputs(pico_sdk_example)
