@@ -14,7 +14,7 @@ set(UWRT_ROBOT puddles)
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
 # Set to Debug if debugging with gdb
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -66,14 +66,16 @@ add_subdirectory(${PORT_DIR} ioLibrary_port)
 add_executable(pico_sdk_example
 	main.c
 )
+# pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+
+target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format)
+target_include_directories(copro_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(pico_sdk_example 1 0 PROTO)
+generate_version_tag(pico_sdk_example 1 0 DEV) # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
 pico_enable_stdio_usb(pico_sdk_example 1)
-pico_enable_stdio_uart(pico_sdk_example 0)
 pico_set_program_name(pico_sdk_example "Backplane Test")
 
 # Wait for 2 seconds for serial to connect
@@ -90,9 +92,9 @@ target_link_libraries(pico_sdk_example
 	hardware_pwm
 	hardware_i2c
 	hardware_adc
-
 	hardware_spi
 	hardware_dma
+	
 	ETHERNET_FILES
 	IOLIBRARY_FILES
 )
