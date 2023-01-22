@@ -14,21 +14,22 @@
 #define BUILTIN_SCL_PIN     1
 
 // On-Board LED Pins
-#define PIN_RGB_R   29
-#define PIN_RGB_G   28
-#define PIN_RGB_B   27
+#define LED_RGB_R_PIN   29
+#define LED_RGB_G_PIN   28
+#define LED_RGB_B_PIN   27
 
 // On-Board Ethernet Header
 #define ETH_SPI_HW      1
 #define ETH_RST_PIN     5
-#define ETH_CLK_PIN     3
-#define ETH_MOSI_PIN    4
-#define ETH_MISO_PIN    0
+#define ETH_INT_PIN     4
+#define ETH_MOSI_PIN    3
+#define ETH_CLK_PIN     2
 #define ETH_CS_PIN      1
+#define ETH_MISO_PIN    0
 
 // Swith sense pins -- active low
-#define KILL_SWITCH_SENSE   12
-#define AUX_SWITCH_SENSE    11
+#define KILL_SW_SENSE   12
+#define AUX_SW_SENSE    11
 
 // Power control pins -- active high
 #define PWR_CTL_CPU     26

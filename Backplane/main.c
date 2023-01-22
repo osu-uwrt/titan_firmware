@@ -3,20 +3,16 @@
 
 #include "build_version.h"
 
-#define PIN_RGB_R 29
-#define PIN_RGB_G 28
-#define PIN_RGB_B 27
-
 int main() {
     stdio_init_all();
 
     // GPIO init
-    gpio_init(PIN_RGB_R);
-    gpio_set_dir(PIN_RGB_R, GPIO_OUT);
-    gpio_init(PIN_RGB_G);
-    gpio_set_dir(PIN_RGB_G, GPIO_OUT);
-    gpio_init(PIN_RGB_B);
-    gpio_set_dir(PIN_RGB_B, GPIO_OUT);
+    gpio_init(LED_RGB_R_PIN);
+    gpio_set_dir(LED_RGB_R_PIN, GPIO_OUT);
+    gpio_init(LED_RGB_G_PIN);
+    gpio_set_dir(LED_RGB_G_PIN, GPIO_OUT);
+    gpio_init(LED_RGB_B_PIN);
+    gpio_set_dir(LED_RGB_B_PIN, GPIO_OUT);
 
 
     printf("%s\n", FULL_BUILD_TAG);
@@ -26,9 +22,9 @@ int main() {
     while (true) {
         printf("Hello World!\n");
 
-        gpio_put(PIN_RGB_R, count & 0x01);
-        gpio_put(PIN_RGB_G, count & 0x02);
-        gpio_put(PIN_RGB_B, count & 0x04);
+        gpio_put(LED_RGB_R_PIN, count & 0x01);
+        gpio_put(LED_RGB_G_PIN, count & 0x02);
+        gpio_put(LED_RGB_B_PIN, count & 0x04);
 
         count = count >= 8 ? 0 : count + 1;
         
