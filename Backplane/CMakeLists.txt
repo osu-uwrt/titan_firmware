@@ -66,7 +66,7 @@ target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODE
 
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)
-target_link_libraries(backplane_firmware 
+target_link_libraries(backplane_firmware
 	pico_stdlib
 	hardware_pio
 	hardware_pwm
@@ -77,7 +77,4 @@ target_link_libraries(backplane_firmware
 
 	micro_ros_eth
 	safety
-
-	ETHERNET_FILES
-	IOLIBRARY_FILES
 )

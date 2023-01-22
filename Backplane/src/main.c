@@ -4,7 +4,7 @@
 
 #include "build_version.h"
 
-// micro-ros stuff 
+// micro-ros stuff
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
@@ -14,13 +14,15 @@
 #include <rmw_microros/rmw_microros.h>
 #include "pico_eth_transport.h"
 
+#include "safety_interface.h"
+
 rcl_publisher_t publisher;
 riptide_msgs2__msg__PwmStamped msg_out;
 
 static rcl_subscription_t pwm_subscriber;
 static riptide_msgs2__msg__PwmStamped pwm_msg;
 
-static void pwm_subscription_callback(const void * msgin)
+static void pwm_subscription_callback(__unused const void * msgin)
 {
 	const riptide_msgs2__msg__PwmStamped * msg = (const riptide_msgs2__msg__PwmStamped *)msgin;
     rcl_publish(&publisher, &msg_out, NULL);
@@ -29,7 +31,7 @@ static void pwm_subscription_callback(const void * msgin)
 
 extern int timer_task_count;
 
-void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
+void timer_callback(__unused rcl_timer_t *timer, __unused int64_t last_call_time)
 {
     rcl_ret_t ret = rcl_publish(&publisher, &msg_out, NULL);
     //msg.data++;
@@ -39,6 +41,8 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 
 int main() {
     stdio_init_all();
+
+    safety_setup();
 
     // GPIO init
     gpio_init(LED_RGB_R_PIN);
@@ -53,7 +57,7 @@ int main() {
     uint16_t xavier_port = 8888;
     pico_eth_transport_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
 
-    // ROS init 
+    // ROS init
     rcl_timer_t timer;
     rcl_node_t node;
     rcl_allocator_t allocator;
@@ -61,8 +65,6 @@ int main() {
     rclc_executor_t executor;
 
     allocator = rcl_get_default_allocator();
-
-    safety_setup();
 
     // wait for micro-ros connect
     const int timeout_ms = 1000;
@@ -114,7 +116,7 @@ int main() {
 
         rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
         safety_tick();
-        
+
         sleep_ms(1000);
     }
     return 0;

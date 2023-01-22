@@ -1,27 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
 
-# Setup Wiznet
-set(WIZNET_CHIP W5200)
-
-if(${WIZNET_CHIP} STREQUAL W5100S)
-    add_definitions(-D_WIZCHIP_=W5100S)
-elseif(${WIZNET_CHIP} STREQUAL W5500)
-    add_definitions(-D_WIZCHIP_=W5500)
-elseif(${WIZNET_CHIP} STREQUAL W5200)
-    add_definitions(-D_WIZCHIP_=W5200)
-else()
-    message(FATAL_ERROR "WIZNET_CHIP is wrong = ${WIZNET_CHIP}")
-endif()
-
-message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
-
-set(WIZNET_DIR ${REPO_DIR}/lib/ioLibrary_Driver)
-set(PORT_DIR ${REPO_DIR}/lib/ioLibrary_Port)
-
-#message(FATAL_ERROR ${REPO_DIR})
-include(${REPO_DIR}/lib/ioLibrary_import.cmake)
-add_subdirectory(${PORT_DIR} ioLibrary_port)
-
 # Setup ethernet
 add_library(micro_ros_eth INTERFACE)
 target_sources(micro_ros_eth INTERFACE
@@ -30,9 +8,7 @@ target_sources(micro_ros_eth INTERFACE
 
 target_link_libraries(micro_ros_eth INTERFACE
     pico_stdlib
-
-	ETHERNET_FILES
-	IOLIBRARY_FILES
+    wiznet_ethernet
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

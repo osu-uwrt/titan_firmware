@@ -102,12 +102,12 @@ size_t pico_eth_transport_write(__unused struct uxrCustomTransport* transport, c
 	return snd_len;
 }
 
-size_t pico_eth_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t pico_eth_transport_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, __unused int timeout, uint8_t *errcode)
 {
     int ret;
     int actual_recv_len;
 	uint8_t sck_state;
-	uint16_t recv_len, recv_max;
+	uint16_t recv_len;
 
     /*ret = ctlsocket(sock, CS_GET_MAXRXBUF, &recv_max);
     if (ret != SOCK_OK) {
@@ -183,8 +183,8 @@ void pico_eth_transport_init(int sock_num, uint32_t target_ip, uint16_t target_p
 
     network_initialize(g_net_info);
 
-    uint8_t temp;
-    printf("Waiting for Ethernet...\n");
+    uint8_t temp = PHY_LINK_OFF;
+    printf("Waiting for Ethernet... (Chip ID: 0x%x)\n", getVERSIONR());
     do
     {
         if (ctlwizchip(CW_GET_PHYLINK, (void *)&temp) == -1)

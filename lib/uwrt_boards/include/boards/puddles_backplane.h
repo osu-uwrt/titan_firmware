@@ -19,7 +19,7 @@
 #define LED_RGB_B_PIN   27
 
 // On-Board Ethernet phy
-#define ETH_SPI_HW      1
+#define ETH_SPI_HW      0
 #define ETH_RST_PIN     5
 #define ETH_INT_PIN     4
 #define ETH_MOSI_PIN    3

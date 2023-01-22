@@ -2,5 +2,5 @@
 	path = lib/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk
 [submodule "lib/ioLibrary_Driver"]
-	path = lib/ioLibrary_Driver
+	path = lib/wiznet_ethernet/ioLibrary_Driver
 	url = https://github.com/Wiznet/ioLibrary_Driver.git

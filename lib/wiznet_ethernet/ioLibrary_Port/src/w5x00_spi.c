@@ -193,8 +193,9 @@ void wizchip_initialize(void)
 #endif
 
     /* W5x00 initialize */
-    uint8_t temp;
 #if (_WIZCHIP_ == W5100S)
+    uint8_t memsize[2][4] = {{2, 2, 2, 2}, {2, 2, 2, 2}};
+#elif (_WIZCHIP_ == W5200)
     uint8_t memsize[2][4] = {{2, 2, 2, 2}, {2, 2, 2, 2}};
 #elif (_WIZCHIP_ == W5500)
     uint8_t memsize[2][8] = {{2, 2, 2, 2, 2, 2, 2, 2}, {2, 2, 2, 2, 2, 2, 2, 2}};
@@ -215,6 +216,15 @@ void wizchip_check(void)
     if (getVER() != 0x51)
     {
         printf(" ACCESS ERR : VERSION != 0x51, read value = 0x%02x\n", getVER());
+
+        while (1)
+            ;
+    }
+#elif (_WIZCHIP_ == W5200)
+    /* Read version register */
+    if (getVERSIONR() != 0x03)
+    {
+        printf(" ACCESS ERR : VERSION != 0x03, read value = 0x%02x\n", getVERSIONR());
 
         while (1)
             ;

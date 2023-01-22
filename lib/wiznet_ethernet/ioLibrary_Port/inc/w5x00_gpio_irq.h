@@ -12,8 +12,9 @@
  * Macros
  * ----------------------------------------------------------------------------------------------------
  */
+#ifdef ETH_INT_PIN
 /* GPIO */
-#define PIN_INT 21
+#define PIN_INT ETH_INT_PIN
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -40,5 +41,7 @@ void wizchip_gpio_interrupt_initialize(uint8_t socket, void (*callback)(void));
  *  \param events Which events caused this interrupt. See \ref gpio_set_irq_enabled for details.
  */
 static void wizchip_gpio_interrupt_callback(uint gpio, uint32_t events);
+
+#endif
 
 #endif /* _W5X00_GPIO_IRQ_H_ */
