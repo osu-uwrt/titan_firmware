@@ -38,6 +38,12 @@ const struct rp2040_device_capabilities board_types[] = {
         .supports_i2c_upload = true,
         .supports_i2c_proxy = false,
     },
+    {
+        .board_type_name = "puddles_backplane",
+        .supports_general_code = true,
+        .supports_i2c_upload = false,
+        .supports_i2c_proxy = false,
+    },
 };
 const struct rp2040_device_capabilities *unknown_board_type = &board_types[0];
 
@@ -72,6 +78,10 @@ const struct rp2040_board_instance board_definitions[] = {
     {   // Team raspberry pi pico (4th one in the order box)
         .board_type_name = "pico",
         .serial = "E660B44007924D2A"
+    },
+    {
+        .board_type_name = "puddles_backplane",
+        .serial = "E462288893572D28"
     },
 };
 
