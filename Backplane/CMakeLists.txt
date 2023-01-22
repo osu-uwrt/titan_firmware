@@ -66,10 +66,10 @@ add_subdirectory(${PORT_DIR} ioLibrary_port)
 add_executable(pico_sdk_example
 	main.c
 )
-# pico_generate_pio_header(copro_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+# pico_generate_pio_header(pico_sdk_example ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
 
-target_compile_options(copro_firmware PRIVATE -Wall -Wextra -Wno-format)
-target_include_directories(copro_firmware PUBLIC include)
+target_compile_options(pico_sdk_example PRIVATE -Wall -Wextra -Wno-format)
+target_include_directories(pico_sdk_example PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
 generate_version_tag(pico_sdk_example 1 0 DEV) # Release Types: PROTO, DEV, STABLE
@@ -94,7 +94,7 @@ target_link_libraries(pico_sdk_example
 	hardware_adc
 	hardware_spi
 	hardware_dma
-	
+
 	ETHERNET_FILES
 	IOLIBRARY_FILES
 )
