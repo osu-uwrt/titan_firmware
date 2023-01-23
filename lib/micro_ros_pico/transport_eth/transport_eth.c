@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
+#include "hardware/flash.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
@@ -13,8 +14,6 @@
 #include "safety/safety.h"
 
 #include "micro_ros_pico/transport_eth.h"
-
-#define UROS_PORT 24321
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -33,13 +32,23 @@
  * Variables
  * ----------------------------------------------------------------------------------------------------
  */
+/* Communication Definitions */
+// The ROBOT_ variables are defined in the robot header file defined by UWRT_ROBOT
+// If these are giving not defined errors, ensure that UWRT_ROBOT is defined in the CMakeLists file for the project
+static uint8_t ip[] = ROBOT_COMPUTER_IP;
+static uint16_t port = ROBOT_COMPUTER_UROS_PORT;
+static const int sock = MICRO_ROS_PICO_ETH_SOCK_NUM;
+
 /* Network */
 static wiz_NetInfo g_net_info =
     {
-        .mac = {0x00, 0x08, 0xDC, 0x12, 0x34, 0x56}, // MAC address
-        .ip = {192, 168, 1, 43},                     // IP address
-        .sn = {255, 255, 255, 0},                    // Subnet Mask
-        .gw = {192, 168, 1, 1},                      // Gateway
+        // Using raspberry pi prefix, but changed to locally administered MAC address
+        .mac = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56}, // MAC address
+
+        // Pulling from board definition header files (pulled in with whatever PICO_BOARD is set to)
+        .ip = ETHERNET_IP,                           // IP address
+        .sn = ETHERNET_MASK,                         // Subnet Mask
+        .gw = ETHERNET_GATEWAY,                      // Gateway
         .dns = {1, 1, 1, 1},                         // DNS server
         .dhcp = NETINFO_STATIC                       // DHCP enable/disable
 };
@@ -59,9 +68,6 @@ int clock_gettime(__unused clockid_t unused, struct timespec *tp)
 }
 
 static bool transport_initialized = false;
-static uint32_t ip;
-static uint16_t port;
-static int sock;
 bool transport_eth_open(__unused struct uxrCustomTransport * transport)
 {
     if (!transport_initialized) {
@@ -69,7 +75,7 @@ bool transport_eth_open(__unused struct uxrCustomTransport * transport)
 
         uint8_t sd, sck_state;
 
-        sd = socket(sock, Sn_MR_UDP, UROS_PORT, SF_IO_NONBLOCK);
+        sd = socket(sock, Sn_MR_UDP, MICRO_ROS_PICO_ETH_PORT, SF_IO_NONBLOCK);
         if(sd != sock) {
             //DBG_PRINT(ERROR_DBG, "[%s] sock error\r\n", __func__);
             return false;
@@ -169,10 +175,14 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-void transport_eth_init(int sock_num, uint32_t target_ip, uint16_t target_port){
-    sock = sock_num;
-    ip = target_ip;
-    port = target_port;
+void transport_eth_init(void){
+    // Target IP that the transport connects to is defined in the robot header file
+    // This is defined by UWRT_ROBOT, and set at the top of this file
+
+    // Set MAC address from flash unqiue ID
+    uint8_t flash_id[FLASH_UNIQUE_ID_SIZE_BYTES];
+    flash_get_unique_id(flash_id);
+    memcpy(&g_net_info.mac[2], &flash_id[FLASH_UNIQUE_ID_SIZE_BYTES-4], 4);
 
     wizchip_spi_initialize();
     wizchip_cris_initialize();

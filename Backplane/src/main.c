@@ -53,9 +53,7 @@ int main() {
     gpio_set_dir(LED_RGB_B_PIN, GPIO_OUT);
 
     // Eth init
-    uint8_t xavier_ip[] = {192, 168, 1, 23};
-    uint16_t xavier_port = 8888;
-    transport_eth_init(0, *((uint32_t*)(&xavier_ip)), xavier_port);
+    transport_eth_init();
 
     // ROS init
     rcl_timer_t timer;

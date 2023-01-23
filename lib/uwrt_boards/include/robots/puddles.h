@@ -6,11 +6,15 @@
 #endif
 #define UWRT_ROBOT_DEFINED
 
-
+// ROS Namespace
 #define ROBOT_NAMESPACE "puddles"
 
+// Address Definitions
+#define ROBOT_COMPUTER_IP   {192, 168, 1, 22}
+#define ROBOT_COMPUTER_UROS_PORT 8888
+
+// Configuration Options
 #define HW_USE_DSHOT 0
 #define HW_USE_PWM   1
-
 
 #endif
