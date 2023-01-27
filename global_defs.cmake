@@ -31,6 +31,11 @@ function(uwrt_use_upload_tool target)
                     # By passing filename in it will auto-select the board for that given firmware
                     COMMAND ${UPLOADTOOL_EXECUTABLE} -m -w 5000 -f $<IF:$<BOOL:$<TARGET_PROPERTY:${target},OUTPUT_NAME>>,$<TARGET_PROPERTY:${target},OUTPUT_NAME>,$<TARGET_PROPERTY:${target},NAME>>.uf2
                     DEPENDS ${UPLOADTOOL_TARGET})
+
+        add_custom_target(swd_flash
+                    # By passing filename in it will auto-select the board for that given firmware
+                    COMMAND ${REPO_DIR}/tools/swd_flash.sh $<IF:$<BOOL:$<TARGET_PROPERTY:${target},OUTPUT_NAME>>,$<TARGET_PROPERTY:${target},OUTPUT_NAME>,$<TARGET_PROPERTY:${target},NAME>>.elf
+                    DEPENDS ${target})
     else()
         message( WARNING "Could not find upload tool. Custom make targets will not be available" )
     endif()

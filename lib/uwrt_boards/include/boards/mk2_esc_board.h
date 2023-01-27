@@ -1,7 +1,12 @@
 #ifndef BOARDS_MK2_ESC_BOARD_H
 #define BOARDS_MK2_ESC_BOARD_H
 
-#include "boards/block/rp2040_can_block.h"
+#include "boards/blocks/rp2040_can_block.h"
+
+// This defines which CAN bus this board is connected into
+// The CAN busses defined in the corresponding robot definition files (rate, enable FD, etc.)
+#define CAN_BUS_NAME INTERNAL_CAN
+#define CAN_BUS_CLIENT_ID 4
 
 #ifdef UWRT_BOARD_DEFINED
 #error Multiple board types defined
