@@ -13,7 +13,7 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
 
-static const uint direction_pin = CLAW_DIRECTION_PIN;
+static const uint direction_pin = 0; // TODO rewrite
 static const uint mode2_pin = CLAW_MODE2_PIN;
 static const uint enable_pin = CLAW_ENABLE_PIN;
 
@@ -55,26 +55,19 @@ void claw_initialize(void) {
 static uint16_t claw_open_time_ms = 0;
 static uint16_t claw_close_time_ms = 0;
 
-enum actuator_command_result claw_set_timings(struct claw_timing_cmd *timings) {
+bool claw_set_timings(uint16_t open_time_ms, uint16_t close_time_ms) {
     hard_assert_if(LIFETIME_CHECK, !claw_initialized);
 
-    if (timings->open_time_ms == 0 || timings->close_time_ms == 0) {
-        return ACTUATOR_RESULT_FAILED;
+    if (open_time_ms == 0 || close_time_ms == 0) {
+        return false;
     }
 
-    LOG_INFO("Setting claw timing (Open %d ms, Close %d ms)", timings->open_time_ms, timings->close_time_ms);
+    LOG_INFO("Setting claw timing (Open %d ms, Close %d ms)", open_time_ms, close_time_ms);
 
-    claw_open_time_ms = timings->open_time_ms;
-    claw_close_time_ms = timings->close_time_ms;
+    claw_open_time_ms = open_time_ms;
+    claw_close_time_ms = close_time_ms;
 
-    return ACTUATOR_RESULT_SUCCESSFUL;
-}
-
-void claw_populate_missing_timings(struct missing_timings_status* missing_timings) {
-    hard_assert_if(LIFETIME_CHECK, !claw_initialized);
-
-    missing_timings->claw_open_timing = (claw_open_time_ms == 0);
-    missing_timings->claw_close_timing = (claw_close_time_ms == 0);
+    return false;
 }
 
 
@@ -143,23 +136,22 @@ enum claw_state claw_get_state(void) {
     return local_claw_state;
 }
 
-enum actuator_command_result claw_open(void) {
+bool claw_open(void) {
     hard_assert_if(LIFETIME_CHECK, !claw_initialized);
 
     if (safety_kill_get_asserting_kill()) {
-        return ACTUATOR_RESULT_FAILED;
+        return false;
     }
 
     switch (claw_get_state()) {
         case CLAW_STATE_OPENED:
-            return ACTUATOR_RESULT_SUCCESSFUL;
         case CLAW_STATE_OPENING:
-            return ACTUATOR_RESULT_RUNNING;
+            return true;
         case CLAW_STATE_UNKNOWN_POSITION:
         case CLAW_STATE_CLOSED:
             break;
         default:
-            return ACTUATOR_RESULT_FAILED;
+            return false;
     }
 
     LOG_INFO("Opening Claw");
@@ -168,26 +160,27 @@ enum actuator_command_result claw_open(void) {
     scheduled_alarm_id = add_alarm_in_ms(claw_open_time_ms, &claw_finish_callback, ((void*)CLAW_STATE_OPENED), true);
     claw_driver_move(OPEN_DIRECTION_IS_FORWARD);
 
-    return ACTUATOR_RESULT_RUNNING;
+    return true;
 }
 
-enum actuator_command_result claw_close(void) {
+bool claw_close(void) {
     hard_assert_if(LIFETIME_CHECK, !claw_initialized);
 
     if (safety_kill_get_asserting_kill()) {
-        return ACTUATOR_RESULT_FAILED;
+        LOG_DEBUG("Not closing claw cuz safety");
+        return false;
     }
 
     switch (claw_get_state()) {
         case CLAW_STATE_CLOSED:
-            return ACTUATOR_RESULT_SUCCESSFUL;
         case CLAW_STATE_CLOSING:
-            return ACTUATOR_RESULT_RUNNING;
+            return true;
         case CLAW_STATE_UNKNOWN_POSITION:
         case CLAW_STATE_OPENED:
             break;
         default:
-            return ACTUATOR_RESULT_FAILED;
+            LOG_DEBUG("defualt case");
+            return false;
     }
 
     LOG_INFO("Closing Claw");
@@ -196,7 +189,7 @@ enum actuator_command_result claw_close(void) {
     scheduled_alarm_id = add_alarm_in_ms(claw_close_time_ms, &claw_finish_callback, ((void*)CLAW_STATE_CLOSED), true);
     claw_driver_move(!OPEN_DIRECTION_IS_FORWARD);
 
-    return ACTUATOR_RESULT_RUNNING;
+    return true;
 }
 
 void claw_safety_disable(void) {

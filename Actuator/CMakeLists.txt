@@ -4,7 +4,9 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD terry)
+set(PICO_BOARD mk2_actuator_board)
+
+set(UWRT_ROBOT tempest)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -30,7 +32,7 @@ add_executable(actuator_firmware
 )
 pico_generate_pio_header(actuator_firmware ${CMAKE_CURRENT_LIST_DIR}/src/actuators/torpedo.pio)
 
-target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format -Werror)
+target_compile_options(actuator_firmware PRIVATE -O3 -Wall -Wextra -Wno-format )#-Werror)
 target_include_directories(actuator_firmware PUBLIC include)
 target_compile_definitions(actuator_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 
@@ -44,25 +46,27 @@ generate_version_tag(actuator_firmware 1 0 PROTO)
 #target_compile_definitions(actuator_firmware PUBLIC PICO_DEFAULT_UART_BAUD_RATE=115200)
 pico_enable_stdio_uart(actuator_firmware 1)
 pico_set_program_name(actuator_firmware "Actuator Firmware")
-uwrt_enable_dual_uart(actuator_firmware)
+# uwrt_enable_dual_uart(actuator_firmware)
+
+# Enable micro-ROS
+micro_ros_enable(actuator_firmware)
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(actuator_firmware)
 
-target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_FATAL)  # Done because i2c will timeout with logging enabled
-#target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+#target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_FATAL)  # Done because i2c will timeout with logging enabled
+target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_DEBUG)
 target_compile_definitions(actuator_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
+target_compile_definitions(actuator_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_firmware)
 target_link_libraries(actuator_firmware
-	actuator_i2c_interface
 	basic_logger
 	safety
 
 	pico_stdlib
 	hardware_adc
-	hardware_i2c
 	hardware_pio
 	hardware_watchdog
 )

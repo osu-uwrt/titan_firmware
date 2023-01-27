@@ -44,6 +44,18 @@ const struct rp2040_device_capabilities board_types[] = {
         .supports_i2c_upload = false,
         .supports_i2c_proxy = false,
     },
+    {
+        .board_type_name = "jerry",
+        .supports_general_code = false,
+        .supports_i2c_proxy = false,
+        .supports_i2c_upload = false
+    },
+    {
+        .board_type_name = "mk2_esc_board",
+        .supports_general_code = false,
+        .supports_i2c_proxy = false,
+        .supports_i2c_upload = false
+    }
 };
 const struct rp2040_device_capabilities *unknown_board_type = &board_types[0];
 
@@ -79,10 +91,22 @@ const struct rp2040_board_instance board_definitions[] = {
         .board_type_name = "pico",
         .serial = "E660B44007924D2A"
     },
-    {
+    {   // First puddles backplane assembled
         .board_type_name = "puddles_backplane",
         .serial = "E462288893572D28"
     },
+    {   // One of the first picos the team bought, taken during competition for use in the abomination of the 2022 Competition Actuator Board
+        .board_type_name = "terry",
+        .serial = "E660583883754F2C"
+    },
+    {   // Team raspberry pi pico (5th one in the order box)
+        .board_type_name = "jerry",
+        .serial = "E660B440076B4B2A"
+    },
+    {   // Mark 2 ESC Board Thrusters 1-4
+        .board_type_name = "mk2_esc_board",
+        .serial = "E6621455075D8323"
+    }
 };
 
 const size_t num_board_definitions = sizeof(board_definitions) / sizeof(struct rp2040_board_instance);
