@@ -9,7 +9,7 @@
 #define UWRT_BOARD_DEFINED
 
 // I2C Bus
-#define CONNECTOR_I2C_HW        i2c0
+#define CONNECTOR_I2C           0
 #define CONNECTOR_SDA_PIN       24
 #define CONNECTOR_SCL_PIN       25
 

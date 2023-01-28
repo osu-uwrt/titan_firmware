@@ -26,7 +26,7 @@ static bool last_reading_valid = false;
 bool bmp280_initialized = false;
 
 bool bmp280_temp_init(void) {
-    i2c_init(SENSOR_I2C_HW, 200 * 1000);
+    i2c_init((SENSOR_I2C == 1 ? i2c1 : i2c0), 200 * 1000);
     gpio_set_function(SENSOR_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(SENSOR_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(SENSOR_SDA_PIN);
@@ -95,7 +95,7 @@ cleanup:
     if (!bmp280_initialized) {
         safety_raise_fault(FAULT_ADC_ERROR);
     }
-    i2c_deinit(SENSOR_I2C_HW);
+    i2c_deinit((SENSOR_I2C == 1 ? i2c1 : i2c0));
     return bmp280_initialized;
 }
 
@@ -129,7 +129,7 @@ void get_uncomp_data_fail(__unused const struct async_i2c_request * req, long un
 
 bool in_progress = false;
 const struct async_i2c_request get_data_req = {
-    .i2c = SENSOR_I2C_HW,
+    .i2c_num = SENSOR_I2C,
     .address = BMP280_I2C_ADDR_SEC,
     .nostop = false,
     .tx_buffer = tx_cmd,
@@ -204,7 +204,7 @@ int8_t i2c_reg_write(uint8_t i2c_addr, uint8_t reg_addr, uint8_t *reg_data, uint
     uint8_t *data = malloc(length+1);
     data[0] = reg_addr;
     memcpy(&data[1], reg_data, length);
-    int ret = (i2c_write_blocking_until(SENSOR_I2C_HW, i2c_addr, data, length+1, false, make_timeout_time_ms(50)) == length+1 ? 0 : 1);
+    int ret = (i2c_write_blocking_until((SENSOR_I2C == 1 ? i2c1 : i2c0), i2c_addr, data, length+1, false, make_timeout_time_ms(50)) == length+1 ? 0 : 1);
     free(data);
     return ret;
 }
@@ -225,8 +225,8 @@ int8_t i2c_reg_write(uint8_t i2c_addr, uint8_t reg_addr, uint8_t *reg_data, uint
 int8_t i2c_reg_read(uint8_t i2c_addr, uint8_t reg_addr, uint8_t *reg_data, uint16_t length)
 {
     /* Implement the I2C read routine according to the target machine. */
-    i2c_write_blocking_until(SENSOR_I2C_HW, i2c_addr, &reg_addr, 1, false, make_timeout_time_ms(50));
-    return (i2c_read_blocking_until(SENSOR_I2C_HW, i2c_addr, reg_data, length, false, make_timeout_time_ms(50)) == length ? 0 : 1);
+    i2c_write_blocking_until((SENSOR_I2C == 1 ? i2c1 : i2c0), i2c_addr, &reg_addr, 1, false, make_timeout_time_ms(50));
+    return (i2c_read_blocking_until((SENSOR_I2C == 1 ? i2c1 : i2c0), i2c_addr, reg_data, length, false, make_timeout_time_ms(50)) == length ? 0 : 1);
 }
 
 /*!

@@ -20,17 +20,17 @@ struct async_i2c_request;
 typedef void (*async_i2c_cb_t)(const struct async_i2c_request *);
 typedef void (*async_i2c_abort_cb_t)(const struct async_i2c_request *, uint32_t);
 struct async_i2c_request {
-    i2c_inst_t *i2c;
-    uint8_t address;
-    bool nostop;
-    const uint8_t *tx_buffer;
-    uint8_t *rx_buffer;
-    uint16_t bytes_to_send;
-    uint16_t bytes_to_receive;
-    async_i2c_cb_t completed_callback;
-    async_i2c_abort_cb_t failed_callback;
-    const struct async_i2c_request *next_req_on_success;
-    void* user_data;
+    int i2c_num;                                            // I2C hardware number
+    uint8_t address;                                        // I2C Address
+    bool nostop;                                            // Sets nostop field in pico i2c requests
+    const uint8_t *tx_buffer;                               // Buffer to transmit (must be at least bytes_to_send size)
+    uint8_t *rx_buffer;                                     // Buffer to receive (must be at least bytes_to_receive size)
+    uint16_t bytes_to_send;                                 // Number of bytes to transmit
+    uint16_t bytes_to_receive;                              // Number of bytes to receive (receive phase occurs after transmit)
+    async_i2c_cb_t completed_callback;                      // Callback upon successful completion of request (can be NULL)
+    async_i2c_abort_cb_t failed_callback;                   // Callback upon failure of request (can be NULL)
+    const struct async_i2c_request *next_req_on_success;    // Next request to send upon succesful completion of request (can be NULL if no chaining required)
+    void* user_data;                                        // User data to access in callback
 };
 
 /**
@@ -99,10 +99,10 @@ extern bool async_i2c_initialized;
 
 /**
  * @brief Queues an async i2c request
- * 
+ *
  * INITIALIZATION REQUIRED
  * INTERRUPT SAFE
- * 
+ *
  * @param request Struct if request is true
  * @param in_progress Pointer to be true while request is in progress (and buffers should not be modified)
  * Note that in_progress will be true while next_req_on_success is being processed as well
@@ -111,7 +111,7 @@ void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progres
 
 /**
  * @brief Initialize async i2c and the corresponding i2c hardware
- * 
+ *
  * @param baudrate The data rate of the i2c bus in Hz
  * @param bus_timeout_ms The timeout from start of a transaction in ms
  */

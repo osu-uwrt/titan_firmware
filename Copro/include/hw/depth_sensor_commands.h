@@ -17,7 +17,7 @@ static void depth_convert_cmd_finished(const struct async_i2c_request *req);
 static void depth_adc_read_finished(const struct async_i2c_request *req);
 
 
-#define DEPTH_I2C_BUS SENSOR_I2C_HW
+#define DEPTH_I2C_NUM SENSOR_I2C
 #define DEPTH_I2C_ADDR 0x76
 
 #define DEPTH_CMD_RESET 0x1E
@@ -33,7 +33,7 @@ static void depth_adc_read_finished(const struct async_i2c_request *req);
 
 static const uint8_t reset_cmd[] = {DEPTH_CMD_RESET};
 static const struct async_i2c_request reset_req = {
-    .i2c = DEPTH_I2C_BUS,
+    .i2c = DEPTH_I2C_NUM,
     .address = DEPTH_I2C_ADDR,
     .nostop = false,
     .tx_buffer = reset_cmd,
@@ -50,7 +50,7 @@ static const struct async_i2c_request reset_req = {
 static uint8_t prom_read_cmd[] = {DEPTH_CMD_PROM_READ(0)};
 static uint8_t prom_read_data[2];
 static const struct async_i2c_request prom_read_req = {
-    .i2c = DEPTH_I2C_BUS,
+    .i2c = DEPTH_I2C_NUM,
     .address = DEPTH_I2C_ADDR,
     .nostop = false,
     .tx_buffer = prom_read_cmd,
@@ -65,7 +65,7 @@ static const struct async_i2c_request prom_read_req = {
 
 static const uint8_t d1_convert_cmd[] = {DEPTH_CMD_CONVERT_D1(DEPTH_OVERSAMPLING)};
 static const struct async_i2c_request d1_convert_req = {
-    .i2c = DEPTH_I2C_BUS,
+    .i2c = DEPTH_I2C_NUM,
     .address = DEPTH_I2C_ADDR,
     .nostop = false,
     .tx_buffer = d1_convert_cmd,
@@ -79,7 +79,7 @@ static const struct async_i2c_request d1_convert_req = {
 
 static const uint8_t d2_convert_cmd[] = {DEPTH_CMD_CONVERT_D2(DEPTH_OVERSAMPLING)};
 static const struct async_i2c_request d2_convert_req = {
-    .i2c = DEPTH_I2C_BUS,
+    .i2c = DEPTH_I2C_NUM,
     .address = DEPTH_I2C_ADDR,
     .nostop = false,
     .tx_buffer = d2_convert_cmd,
@@ -94,7 +94,7 @@ static const struct async_i2c_request d2_convert_req = {
 static const uint8_t adc_read_cmd[] = {DEPTH_CMD_ADC_READ};
 static uint8_t adc_read_data[3];
 static const struct async_i2c_request adc_read_req = {
-    .i2c = DEPTH_I2C_BUS,
+    .i2c = DEPTH_I2C_NUM,
     .address = DEPTH_I2C_ADDR,
     .nostop = false,
     .tx_buffer = adc_read_cmd,

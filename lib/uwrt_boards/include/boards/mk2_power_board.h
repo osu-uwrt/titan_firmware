@@ -20,17 +20,18 @@
 #define FAN_SWITCH_PIN          28
 #define FAN_TACH_PIN            29
 
-#define SDA_PIN 4
-#define SCL_PIN 5
+#define BOARD_I2C               0
+#define BOARD_SDA_PIN           4
+#define BOARD_SCL_PIN           5
 
 #ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C 0
+#define PICO_DEFAULT_I2C BOARD_I2C
 #endif
 #ifndef PICO_DEFAULT_I2C_SDA_PIN
-#define PICO_DEFAULT_I2C_SDA_PIN SDA_PIN
+#define PICO_DEFAULT_I2C_SDA_PIN BOARD_SDA_PIN
 #endif
 #ifndef PICO_DEFAULT_I2C_SCL_PIN
-#define PICO_DEFAULT_I2C_SCL_PIN SCL_PIN
+#define PICO_DEFAULT_I2C_SCL_PIN BOARD_SCL_PIN
 #endif
 
 #endif

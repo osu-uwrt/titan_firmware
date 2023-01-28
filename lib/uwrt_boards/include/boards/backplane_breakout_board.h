@@ -9,10 +9,10 @@
 #define UWRT_BOARD_DEFINED
 
 // I2C Busses
-#define SENSOR_I2C_HW  i2c0
+#define SENSOR_I2C        0
 #define SENSOR_SDA_PIN    0
 #define SENSOR_SCL_PIN    1
-#define BOARD_I2C_HW   i2c1
+#define BOARD_I2C         1
 #define BOARD_SDA_PIN    26
 #define BOARD_SCL_PIN    27
 
@@ -42,7 +42,7 @@
 #define FAULT_LED_PIN     4
 
 // On-Board Ethernet Pins
-#define ETH_SPI_HW     spi1
+#define ETH_SPI           1
 #define ETH_RST_PIN       9
 #define ETH_CLK_PIN      10
 #define ETH_MOSI_PIN     11

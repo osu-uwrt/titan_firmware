@@ -7,10 +7,10 @@
 #define STATUS_LEDG_PIN         14
 #define STATUS_LEDB_PIN         15
 
-#define FAULT_LED_PIN STATUS_LEDR_PIN
+#define FAULT_LED_PIN           STATUS_LEDR_PIN
 #define FAULT_LED_INVERTED      1
 
-#define MCP2517FD_SPI_INST    spi0
+#define MCP2517FD_SPI            0
 #define MCP2517FD_NCS_PIN       17
 #define MCP2517FD_SCK_PIN       18
 #define MCP2517FD_MOSI_PIN      19

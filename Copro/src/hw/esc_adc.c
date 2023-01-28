@@ -19,7 +19,7 @@ static void esc_adc_failure(__unused const struct async_i2c_request * req, uint3
 }
 
 const struct adc_configuration esc_adc_config = {
-    .i2c = BOARD_I2C_HW,
+    .i2c_num = BOARD_I2C,
     .address = 0x2F,
     .poll_rate_ms = 250,
     .enable_temperature = false,

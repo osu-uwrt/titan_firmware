@@ -9,7 +9,7 @@
 // ==============================
 
 // Dedicated I2C Header
-#define BUILTIN_I2C_HW   i2c0
+#define BUILTIN_I2C         0
 #define BUILTIN_SDA_PIN     0
 #define BUILTIN_SCL_PIN     1
 
@@ -24,7 +24,7 @@
 #define BUILTIN_LED4_PIN    7
 
 // On-Board Ethernet Header
-#define ETH_SPI_HW        1
+#define ETH_SPI           1
 #define ETH_RST_PIN       9
 #define ETH_CLK_PIN      10
 #define ETH_MOSI_PIN     11
@@ -55,7 +55,7 @@
 
 // --- I2C ---
 #ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C BUILTIN_I2C_HW
+#define PICO_DEFAULT_I2C BUILTIN_I2C
 #endif
 #ifndef PICO_DEFAULT_I2C_SDA_PIN
 #define PICO_DEFAULT_I2C_SDA_PIN BUILTIN_SDA_PIN
@@ -67,7 +67,7 @@
 // --- SPI ---
 // This is reserved for the ethernet slot
 #ifndef PICO_DEFAULT_SPI
-#define PICO_DEFAULT_SPI ETH_SPI_HW
+#define PICO_DEFAULT_SPI ETH_SPI
 #endif
 #ifndef PICO_DEFAULT_SPI_SCK_PIN
 #define PICO_DEFAULT_SPI_SCK_PIN ETH_CLK_PIN

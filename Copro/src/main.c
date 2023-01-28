@@ -56,7 +56,7 @@ int main()
 
     pico_can_transport_init(1000000,
                             1,
-                            ETH_SPI_HW,
+                            ETH_SPI,
                             ETH_CS_PIN,
                             ETH_MOSI_PIN,
                             ETH_MISO_PIN,

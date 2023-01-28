@@ -12,7 +12,7 @@
 // GND                               ROUTE ME
 
 // I2C Bus
-#define CONNECTOR_I2C_HW        i2c0
+#define CONNECTOR_I2C           0
 #define CONNECTOR_SDA_PIN       0  // ROUTE ME
 #define CONNECTOR_SCL_PIN       1  // ROUTE ME
 

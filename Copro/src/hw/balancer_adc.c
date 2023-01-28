@@ -19,7 +19,7 @@ static void balancer_adc_failure(__unused const struct async_i2c_request * req, 
 }
 
 const struct adc_configuration balancer_adc_config = {
-    .i2c = SENSOR_I2C_HW,
+    .i2c_num = SENSOR_I2C,
     .address = 0x1F,
     .poll_rate_ms = 250,
     .enable_temperature = true,

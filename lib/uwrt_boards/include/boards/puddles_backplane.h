@@ -16,18 +16,13 @@
 // Board Pin Definitions
 // ==============================
 
-// Dedicated I2C Header
-#define BUILTIN_I2C_HW   i2c0
-#define BUILTIN_SDA_PIN     0
-#define BUILTIN_SCL_PIN     1
-
 // On-Board LED Pins
 #define LED_RGB_R_PIN   29
 #define LED_RGB_G_PIN   28
 #define LED_RGB_B_PIN   27
 
 // On-Board Ethernet phy
-#define ETH_SPI_HW      0
+#define ETH_SPI         0
 #define ETH_RST_PIN     5
 #define ETH_INT_PIN     4
 #define ETH_MOSI_PIN    3
@@ -36,10 +31,10 @@
 #define ETH_MISO_PIN    0
 
 // I2C comm lines
-#define SENSOR_I2C_HW   i2c0
+#define SENSOR_I2C      0
 #define SENSOR_SCL_PIN  9
 #define SENSOR_SDA_PIN  8
-#define BOARD_I2C_HW    i2c1
+#define BOARD_I2C       1
 #define BOARD_SCL_PIN   7
 #define BOARD_SDA_PIN   6
 
@@ -85,19 +80,19 @@
 
 // --- I2C ---
 #ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C BUILTIN_I2C_HW
+#define PICO_DEFAULT_I2C         BOARD_I2C
 #endif
 #ifndef PICO_DEFAULT_I2C_SDA_PIN
-#define PICO_DEFAULT_I2C_SDA_PIN BUILTIN_SDA_PIN
+#define PICO_DEFAULT_I2C_SDA_PIN BOARD_SDA_PIN
 #endif
 #ifndef PICO_DEFAULT_I2C_SCL_PIN
-#define PICO_DEFAULT_I2C_SCL_PIN BUILTIN_SCL_PIN
+#define PICO_DEFAULT_I2C_SCL_PIN BOARD_SCL_PIN
 #endif
 
 // --- SPI ---
 // This is reserved for the ethernet slot
 #ifndef PICO_DEFAULT_SPI
-#define PICO_DEFAULT_SPI ETH_SPI_HW
+#define PICO_DEFAULT_SPI ETH_SPI
 #endif
 #ifndef PICO_DEFAULT_SPI_SCK_PIN
 #define PICO_DEFAULT_SPI_SCK_PIN ETH_CLK_PIN

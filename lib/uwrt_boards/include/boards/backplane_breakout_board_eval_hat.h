@@ -9,10 +9,10 @@
 #define UWRT_BOARD_DEFINED
 
 // I2C Busses
-#define SENSOR_I2C_HW       BUILTIN_I2C_HW
+#define SENSOR_I2C          BUILTIN_I2C
 #define SENSOR_SDA_PIN      BUILTIN_SDA_PIN
 #define SENSOR_SCL_PIN      BUILTIN_SCL_PIN
-#define BOARD_I2C_HW        i2c1
+#define BOARD_I2C           1
 #define BOARD_SDA_PIN       26
 #define BOARD_SCL_PIN       27
 

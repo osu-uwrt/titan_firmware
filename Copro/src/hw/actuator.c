@@ -16,7 +16,7 @@
 #define LOGGING_UNIT_NAME "actuator_interface"
 
 #define ACTUATOR_MAX_COMMANDS 8
-#define ACTUATOR_I2C_BUS SENSOR_I2C_HW
+#define ACTUATOR_I2C_NUM SENSOR_I2C
 
 #define ACTUATOR_POLLING_RATE_MS 300
 #define ACTUATOR_MAX_STATUS_AGE_MS 1000
@@ -99,7 +99,7 @@ static void actuator_command_failed(__unused const struct async_i2c_request * re
  * @param important If a failure of this command should be made immediately known
  */
 static void actuator_populate_command(actuator_cmd_data_t* cmd, enum actuator_command cmd_id, actuator_cmd_response_cb_t response_cb, bool important) {
-    cmd->i2c_request.i2c = ACTUATOR_I2C_BUS;
+    cmd->i2c_request.i2c_num = ACTUATOR_I2C_NUM;
     cmd->i2c_request.address = ACTUATOR_I2C_ADDR;
     cmd->i2c_request.nostop = false;
     cmd->i2c_request.tx_buffer = (uint8_t*)(&cmd->request);

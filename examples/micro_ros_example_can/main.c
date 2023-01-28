@@ -44,7 +44,7 @@ int main()
     stdio_init_all();
     printf("%s\n", FULL_BUILD_TAG);
 
-    pico_can_transport_init(1000000, 5, ETH_SPI_HW, ETH_CS_PIN, ETH_MOSI_PIN, ETH_MISO_PIN, ETH_CLK_PIN, 10000000, ETH_RST_PIN);
+    pico_can_transport_init(1000000, 5, ETH_SPI, ETH_CS_PIN, ETH_MOSI_PIN, ETH_MISO_PIN, ETH_CLK_PIN, 10000000, ETH_RST_PIN);
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);

@@ -32,6 +32,8 @@ struct pending_i2c_request {
 static int request_queue_next_entry = 0;
 static int request_queue_next_space = 0;
 
+#define i2c_num_to_inst(i2c_num) (i2c_num == 1 ? i2c1 : i2c0)
+
 // ========================================
 // Bus Management Functions
 // ========================================
@@ -62,9 +64,9 @@ static struct active_transfer_data {
 #define has_irq_pending(i2c_inst, irq_name) (i2c_inst->hw->raw_intr_stat & I2C_IC_RAW_INTR_STAT_##irq_name##_BITS)
 
 static void async_i2c_start_transmit_stage(void) {
-    i2c_inst_t *i2c = active_transfer.request->i2c;
+    i2c_inst_t *i2c = i2c_num_to_inst(active_transfer.request->i2c_num);
     active_transfer.request_state = I2C_TRANSMITTING;
-        
+
     // Set address
     i2c->hw->enable = 0;
     while (i2c->hw->enable_status & I2C_IC_ENABLE_STATUS_IC_EN_BITS) {
@@ -90,13 +92,13 @@ static void async_i2c_start_transmit_stage(void) {
     }
 
     if (active_transfer.bytes_sent < active_transfer.request->bytes_to_send) {
-        // Enable the tx_empty interrupt if not all of the data is written 
+        // Enable the tx_empty interrupt if not all of the data is written
         hw_set_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS);
     }
 }
 
 static void async_i2c_start_receive_stage(void) {
-    i2c_inst_t *i2c = active_transfer.request->i2c;
+    i2c_inst_t *i2c = i2c_num_to_inst(active_transfer.request->i2c_num);
     active_transfer.request_state = I2C_RECEIVING;
 
     i2c->hw->enable = 0;
@@ -108,7 +110,7 @@ static void async_i2c_start_receive_stage(void) {
 
     hard_assert_if(ASYNC_I2C, i2c->hw->rxflr != 0);
     hard_assert_if(ASYNC_I2C, i2c->hw->txflr != 0);
-    
+
     while (i2c_get_write_available(i2c) && active_transfer.receive_commands_queued < active_transfer.request->bytes_to_receive) {
         bool first = active_transfer.receive_commands_queued == 0;
         bool last = active_transfer.receive_commands_queued + 1 == active_transfer.request->bytes_to_receive;
@@ -122,14 +124,14 @@ static void async_i2c_start_receive_stage(void) {
     }
 
     if (active_transfer.receive_commands_queued < active_transfer.request->bytes_to_receive) {
-        // Enable the tx_empty interrupt if not all of the data is written 
+        // Enable the tx_empty interrupt if not all of the data is written
         hw_set_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_RX_FULL_BITS);
     }
 }
 
 static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void *user_data) {
     active_transfer.alarm_active = false;
-    i2c_inst_t *i2c = active_transfer.request->i2c;
+    i2c_inst_t *i2c = i2c_num_to_inst(active_transfer.request->i2c_num);
 
     LOG_DEBUG("Timeout Called (0x%p)", active_transfer.request);
     hw_set_bits(&i2c->hw->enable, I2C_IC_ENABLE_ABORT_BITS);
@@ -140,9 +142,9 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
  * @brief Starts performing request on the bus
  * The caller must ensure that it is the ONLY code in control of the bus
  * This can be done in critical sections of code if the bus is in IDLE
- * 
+ *
  * INTERRUPT SAFE* (If the code owns the bus)
- * 
+ *
  * @param request Request to start
  * @param in_progress The pointer to the in_progress boolean
  */
@@ -174,7 +176,7 @@ static void async_i2c_start_request_internal(const struct async_i2c_request *req
 
 /**
  * @brief Common irq handler for i2c related tasks
- * 
+ *
  * @param i2c The i2c inst which caused the interrupt
  */
 static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
@@ -184,7 +186,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
     }
     LOG_DEBUG("Interrupt callback on %s for 0x%p, active interrupts 0x%x", (i2c == i2c0 ? "i2c0" : (i2c == i2c1 ? "i2c1" : "Unknown")), active_transfer.request, i2c->hw->raw_intr_stat & i2c->hw->intr_mask);
 
-    hard_assert_if(ASYNC_I2C, i2c != active_transfer.request->i2c);
+    hard_assert_if(ASYNC_I2C, i2c_hw_index(i2c) != active_transfer.request->i2c_num);
 
     // Handle software issues first
     if (has_irq_pending(i2c, TX_OVER)) {
@@ -220,18 +222,18 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         active_transfer.request_state = I2C_DONE;
 
         // These are the tx aborts that are possible failures from the bus rather than internal
-        const uint32_t valid_bus_faults = I2C_IC_TX_ABRT_SOURCE_ABRT_USER_ABRT_BITS | 
-                                          I2C_IC_TX_ABRT_SOURCE_ABRT_SBYTE_ACKDET_BITS | 
-                                          I2C_IC_TX_ABRT_SOURCE_ABRT_HS_ACKDET_BITS | 
-                                          I2C_IC_TX_ABRT_SOURCE_ABRT_GCALL_NOACK_BITS | 
-                                          I2C_IC_TX_ABRT_SOURCE_ABRT_TXDATA_NOACK_BITS | 
+        const uint32_t valid_bus_faults = I2C_IC_TX_ABRT_SOURCE_ABRT_USER_ABRT_BITS |
+                                          I2C_IC_TX_ABRT_SOURCE_ABRT_SBYTE_ACKDET_BITS |
+                                          I2C_IC_TX_ABRT_SOURCE_ABRT_HS_ACKDET_BITS |
+                                          I2C_IC_TX_ABRT_SOURCE_ABRT_GCALL_NOACK_BITS |
+                                          I2C_IC_TX_ABRT_SOURCE_ABRT_TXDATA_NOACK_BITS |
                                           I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS;
 
         if (abort_reason & ~(I2C_IC_TX_ABRT_SOURCE_TX_FLUSH_CNT_BITS | valid_bus_faults)) {
             LOG_ERROR("Unexpected TX Abort: %lu", abort_reason);
             safety_raise_fault(FAULT_ASYNC_I2C_ERROR);
         }
-        
+
         *active_transfer.in_progress = false;
         if (active_transfer.request->failed_callback) {
             active_transfer.request->failed_callback(active_transfer.request, abort_reason);
@@ -257,7 +259,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         if (active_transfer.bytes_sent == active_transfer.request->bytes_to_send) {
             hw_clear_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_TX_EMPTY_BITS);
         }
-        
+
     }
     if (!transfer_aborted && has_irq_pending(i2c, RX_FULL)) {
         // Receive buffer needs to be read in (cleared by hw)
@@ -281,7 +283,7 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
         }
 
         if (active_transfer.receive_commands_queued < active_transfer.request->bytes_to_receive) {
-            // Enable the tx_empty interrupt if not all of the data is written 
+            // Enable the tx_empty interrupt if not all of the data is written
             hw_set_bits(&i2c->hw->intr_mask, I2C_IC_INTR_MASK_M_RX_FULL_BITS);
         }
 
@@ -358,12 +360,17 @@ static void async_i2c_common_irq_handler(i2c_inst_t *i2c) {
 
 /**
  * @brief Validates an async_i2c_request. Validates all chained requests recusrively
- * 
+ *
  * @param request The request to validate recursively
  * @return true  Request is okay to send
  * @return false Part of the request has an invalid value
  */
 __unused static bool async_i2c_validate_request(const struct async_i2c_request *request) {
+    // Ensure i2c_num is valid
+    if (request->i2c_num != 1 && request->i2c_num != 0) {
+        return false;
+    }
+
     // Check for reserved i2c addresses
     if (request->address >= 0x80 || i2c_reserved_addr(request->address)) {
         return false;
@@ -403,10 +410,10 @@ __unused static bool async_i2c_validate_request(const struct async_i2c_request *
 
 /**
  * @brief Returns if there is space in the async i2c queue
- * 
+ *
  * INITIALIZATION REQUIRED
  * INTERRUPT SAFE* (This might return true but if another command queues after queue still might not be safe to call)
- * 
+ *
  * @return true  Space is available in the queue
  * @return false No space is available in the queue for new requests
  */
@@ -418,7 +425,7 @@ void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progres
     if (!async_i2c_initialized) {
         panic("Aync I2C not initialized");
     }
-    
+
     valid_params_if(ASYNC_I2C, async_i2c_validate_request(request));
     invalid_params_if(ASYNC_I2C, *in_progress);
 
@@ -431,7 +438,7 @@ void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progres
         safety_raise_fault(FAULT_ASYNC_I2C_ERROR);
         return;
     }
-    
+
     *in_progress = true;
 
     bool can_transfer_immediately = active_transfer.request_state == I2C_IDLE;
@@ -464,7 +471,7 @@ void async_i2c1_irq_handler(void) {
 }
 
 static void async_i2c_configure_interrupt_hw(i2c_inst_t *i2c) {
-    i2c->hw->intr_mask = I2C_IC_INTR_MASK_M_STOP_DET_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS | 
+    i2c->hw->intr_mask = I2C_IC_INTR_MASK_M_STOP_DET_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS |
                           I2C_IC_INTR_MASK_M_TX_OVER_BITS | I2C_IC_INTR_MASK_M_RX_OVER_BITS |
                           I2C_IC_INTR_MASK_M_RX_UNDER_BITS;
 
@@ -476,21 +483,22 @@ void async_i2c_init(uint baudrate, uint bus_timeout_ms) {
     LOG_DEBUG("Initializing Async I2C");
     i2c_bus_timeout = bus_timeout_ms;
 
-    i2c_init(SENSOR_I2C_HW, baudrate);
+    // TODO: Make more flexible
+    i2c_init(i2c_num_to_inst(SENSOR_I2C), baudrate);
     gpio_set_function(SENSOR_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(SENSOR_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(SENSOR_SDA_PIN);
     gpio_pull_up(SENSOR_SCL_PIN);
     irq_set_exclusive_handler(I2C0_IRQ, &async_i2c0_irq_handler);
-    async_i2c_configure_interrupt_hw(SENSOR_I2C_HW);
+    async_i2c_configure_interrupt_hw(i2c_num_to_inst(SENSOR_I2C));
 
-    i2c_init(BOARD_I2C_HW, baudrate);
+    i2c_init(i2c_num_to_inst(BOARD_I2C), baudrate);
     gpio_set_function(BOARD_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(BOARD_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(BOARD_SDA_PIN);
     gpio_pull_up(BOARD_SCL_PIN);
     irq_set_exclusive_handler(I2C1_IRQ, &async_i2c1_irq_handler);
-    async_i2c_configure_interrupt_hw(BOARD_I2C_HW);
+    async_i2c_configure_interrupt_hw(i2c_num_to_inst(BOARD_I2C));
 
     irq_set_enabled(I2C0_IRQ, true);
     irq_set_enabled(I2C1_IRQ, true);
