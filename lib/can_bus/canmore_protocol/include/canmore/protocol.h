@@ -1,5 +1,5 @@
-#ifndef CANMORE_PROTOCOL_H
-#define CANMORE_PROTOCOL_H
+#ifndef CANMORE__PROTOCOL_H
+#define CANMORE__PROTOCOL_H
 
 #include <stdint.h>
 
@@ -164,7 +164,7 @@ extern "C" {
 #define CANMORE_CRC_CLIENT_ID_OFFSET  (CANMORE_CRC_TYPE_OFFSET + CANMORE_TYPE_LENGTH)
 
 // Direction types
-#define CANMORE_DIRECTION_CLIENT_TO_AGENT  1
+#define CANMORE_DIRECTION_CLIENT_TO_AGENT  0
 #define CANMORE_DIRECTION_AGENT_TO_CLIENT  1
 
 // Frame Types
@@ -256,6 +256,29 @@ typedef union __attribute__((__packed__)) canmore_heartbeat {
         (((cnt) & ((1<<CANMORE_HEARTBEAT_CNT_LENGTH) - 1)) << CANMORE_HEARTBEAT_CNT_OFFSET) | \
         (((error) & ((1<<CANMORE_HEARTBEAT_ERROR_LENGTH) - 1)) << CANMORE_HEARTBEAT_ERROR_OFFSET) | \
         (((extra) & ((1<<CANMORE_HEARTBEAT_EXTRA_LENGTH) - 1)) << CANMORE_HEARTBEAT_EXTRA_OFFSET) \
+    )
+
+
+// ========================================
+// Filter Macros
+// ========================================
+// Filter mask for standard ID frames
+#define CANMORE_CALC_FILTER_MASK(match_client_id, match_type, match_direction, match_noc) \
+    ( \
+        ((match_client_id ? (1<<CANMORE_CLIENT_ID_LENGTH) - 1 : 0) << CANMORE_STD_CLIENT_ID_OFFSET) | \
+        ((match_type ? (1<<CANMORE_TYPE_LENGTH) - 1 : 0) << CANMORE_STD_TYPE_OFFSET) | \
+        ((match_direction ? (1<<CANMORE_DIRECTION_LENGTH) - 1 : 0) << CANMORE_STD_DIRECTION_OFFSET) | \
+        ((match_noc ? (1<<CANMORE_NOC_LENGTH) - 1 : 0) << CANMORE_STD_NOC_OFFSET) \
+    )
+
+// Filter mask for extended ID message type frames
+#define CANMORE_CALC_EXT_FILTER_MASK(match_client_id, match_type, match_direction, match_noc, match_crc) \
+    ( \
+        ((match_client_id ? (1<<CANMORE_CLIENT_ID_LENGTH) - 1 : 0) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
+        ((match_type ? (1<<CANMORE_TYPE_LENGTH) - 1 : 0) << CANMORE_CRC_TYPE_OFFSET) | \
+        ((match_direction ? (1<<CANMORE_DIRECTION_LENGTH) - 1 : 0) << CANMORE_CRC_DIRECTION_OFFSET) | \
+        ((match_noc ? (1<<CANMORE_NOC_LENGTH) - 1 : 0) << CANMORE_CRC_NOC_OFFSET) | \
+        ((match_crc ? (1<<CANMORE_CRC_LENGTH) - 1 : 0) << CANMORE_CRC_CRC_OFFSET) \
     )
 
 #ifdef __cplusplus

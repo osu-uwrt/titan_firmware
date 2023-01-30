@@ -13,7 +13,7 @@
  * ----------------------------------------------------------------------------------------------------
  */
 /* SPI */
-#define SPI_PORT (ETH_SPI == 0 ? spi0 : spi1)
+#define SPI_INSTANCE __CONCAT(spi, ETH_SPI)
 
 #define PIN_SCK ETH_CLK_PIN
 #define PIN_MOSI ETH_MOSI_PIN

@@ -1,11 +1,11 @@
-#ifndef CANMORE_MSG_ENCODING_H
-#define CANMORE_MSG_ENCODING_H
+#ifndef CANMORE__MSG_ENCODING_H
+#define CANMORE__MSG_ENCODING_H
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "canmore_protocol.h"
+#include "canmore/protocol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +61,7 @@ typedef struct canmore_msg_encoder_state {
  *
  * @param state Pointer to decoder state struct to store internal state
  * @param client_id The client id to be used when encoding frame IDs
- * @param direction The direction to be used when encoding frame IDs
+ * @param direction The direction to be used when encoding frame IDs (CANMORE_DIRECTION_CLIENT_TO_AGENT / CANMORE_DIRECTION_AGENT_TO_CLIENT)
 */
 void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, uint32_t direction);
 
@@ -73,7 +73,7 @@ void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, u
  * @param buffer Buffer containing message data to encode
  * @param len Length of message data to encode
 */
-void canmore_msg_encode_load(canmore_msg_encoder_t *state, uint8_t *buffer, size_t len);
+void canmore_msg_encode_load(canmore_msg_encoder_t *state, const uint8_t *buffer, size_t len);
 
 /**
  * @brief Checks if any remaining frames exist in the encoder to be sent

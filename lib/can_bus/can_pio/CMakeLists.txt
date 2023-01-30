@@ -6,7 +6,6 @@ target_sources(can_pio INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/can_core1.c
     ${CMAKE_CURRENT_LIST_DIR}/src/can_interface.c
     ${CMAKE_CURRENT_LIST_DIR}/src/can2040.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/protocol/canmore_msg_encoding.c
 )
 
 target_include_directories(can_pio INTERFACE
@@ -18,4 +17,5 @@ target_link_libraries(can_pio INTERFACE
     pico_multicore
 
     basic_queue
+    canmore_protocol
 )

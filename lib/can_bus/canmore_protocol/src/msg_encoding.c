@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "canmore_msg_encoding.h"
+#include "canmore/msg_encoding.h"
 
 // ========================================
 // CRC-18 Calculations
@@ -75,7 +75,7 @@ bool canmore_msg_encode_done(canmore_msg_encoder_t *state) {
     return state->length == state->position;
 }
 
-void canmore_msg_encode_load(canmore_msg_encoder_t *state, uint8_t *buffer, size_t len) {
+void canmore_msg_encode_load(canmore_msg_encoder_t *state, const uint8_t *buffer, size_t len) {
     if (len > CANMORE_MAX_MSG_LENGTH) {
         len = CANMORE_MAX_MSG_LENGTH;
     }

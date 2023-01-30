@@ -5,15 +5,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "hardware/spi.h"
-
 #include "basic_queue/queue.h"
 
-#include "protocol/canmore_msg_encoding.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "canmore/msg_encoding.h"
 
 /**
  * @file can_bridge.h
@@ -79,15 +73,11 @@ extern "C" {
  * @brief Storage for initial configuration on second core, send at startup
 */
 typedef struct can_init_cfg {
+    uint pio_num;
     uint bitrate;
     uint client_id;
-    spi_inst_t* spi_channel;
-    uint8_t cs_pin;
-    uint8_t mosi_pin;
-    uint8_t miso_pin;
-    uint8_t sck_pin;
-    uint32_t spi_clock;
-    uint8_t int_pin;
+    uint gpio_rx;
+    uint gpio_tx;
     int gpio_term;  // -1 if not used
 } can_init_cfg_t;
 
@@ -143,7 +133,7 @@ extern void core1_entry();
 /**
  * @brief The time at which the can bus heartbeat is considered timed out, an the CAN bus is considered lost
  */
-extern absolute_time_t canbus_heartbeat_timeout;
+extern volatile absolute_time_t canbus_heartbeat_timeout;
 
 /**
  * @brief Boolean which controls error field of heartbeat messages
@@ -186,9 +176,5 @@ extern struct msg_receive_queue QUEUE_DEFINE(struct canmore_msg, CAN_MESSAGE_RX_
 extern struct msg_transmit_queue QUEUE_DEFINE(struct canmore_msg, CAN_MESSAGE_TX_QUEUE_SIZE) msg_transmit_queue;
 extern struct utility_receive_queue QUEUE_DEFINE(struct canmore_utility_frame, CAN_UTILITY_RX_QUEUE_SIZE) utility_receive_queue;
 extern struct utility_transmit_queue QUEUE_DEFINE(struct canmore_utility_frame, CAN_UTILITY_TX_QUEUE_SIZE) utility_transmit_queue;
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
