@@ -7,7 +7,7 @@ target_sources(micro_ros_can INTERFACE
 
 target_link_libraries(micro_ros_can INTERFACE
     pico_stdlib
-    can_mcp2515
+    can_mcp251Xfd
     micro_ros_custom_allocator
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
@@ -19,3 +19,4 @@ target_include_directories(micro_ros_can INTERFACE
 )
 
 target_compile_definitions(micro_ros_can INTERFACE SAFETY_ROS_SUPPORT=1)
+target_compile_definitions(micro_ros_can INTERFACE MICRO_ROS_TRANSPORT_CAN=1)

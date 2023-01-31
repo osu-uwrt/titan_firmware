@@ -91,6 +91,11 @@ void safety_interface_setup(void);
 void safety_interface_init(void);
 
 /**
+ * @brief Called for implementation specific code during safety_deinit
+*/
+void safety_interface_deinit(void);
+
+/**
  * @brief Called for implementation specific code during safety_tick
  *
  * Put any code that must be called (else the watchdog will timeout) in here
@@ -116,6 +121,16 @@ void safety_internal_crash_reporting_handle_init(void);
  * @brief Notifies kill switch management that safety has been initialized
  */
 void safety_internal_kill_handle_init(void);
+
+/**
+ * @brief Notifies crash reporting that safety has been deinitialized
+ */
+void safety_internal_crash_reporting_handle_deinit(void);
+
+/**
+ * @brief Notifies kill switch management that safety has been deinitialized
+ */
+void safety_internal_kill_handle_deinit(void);
 
 /**
  * @brief Refreshes kill switches to check for any timeouts

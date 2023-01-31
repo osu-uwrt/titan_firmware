@@ -5,7 +5,7 @@
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include "can_pio/canbus.h"
+#include "can_mcp251Xfd/canbus.h"
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
 
@@ -58,16 +58,8 @@ size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over CAN"))
 
-void transport_can_init(uint bitrate,
-                             uint client_id,
-                             spi_inst_t* spi_channel,
-                             uint8_t cs_pin,
-                             uint8_t mosi_pin,
-                             uint8_t miso_pin,
-                             uint8_t sck_pin,
-                             uint32_t spi_clock,
-                             uint8_t int_pin){
-    canbus_init(bitrate, client_id, spi_channel, cs_pin, mosi_pin, miso_pin, sck_pin, spi_clock, int_pin);
+void transport_can_init(uint client_id){
+    canbus_init(client_id);
 
     rmw_uros_set_custom_transport(
 		false,
