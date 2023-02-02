@@ -17,23 +17,36 @@ void can_mcp251xfd_report_msg_rx_fifo_ready(void);
 void can_mcp251xfd_report_utility_tx_fifo_ready(void);
 void can_mcp251xfd_report_utility_rx_fifo_ready(void);
 
+/**
+ * @brief Disables the GPIO interrupt for the MCP251XFD and saves the previous state for restoring
+ *
+ * @return uint32_t The previous interrupt state
+ */
+uint32_t save_and_disable_mcp251Xfd_irq(void);
+
+/**
+ * @brief Retores the previous MCP251XFD interrupt state after being diabled
+ *
+ * @param prev_interrupt_state The previous interrupt state
+ */
+void restore_mcp251Xfd_irq(uint32_t prev_interrupt_state);
+
 // ========================================
 // Interface Exports
 // ========================================
 
-/**
- * @brief Storage for queuing CANmore received message data
-*/
-struct canmore_received_msg {
-    // Message data buffer
-    uint8_t data[CANMORE_MAX_MSG_LENGTH];
-    // Length of data in buffer
+bool canbus_msg_driver_space_in_rx(void);
+void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t data_len, uint8_t *data);
+
+struct utility_message_buffer {
+    uint8_t channel;
     size_t length;
-    // If the message is waiting to be read
     bool waiting;
+    uint8_t data[CANMORE_FRAME_SIZE];
 };
 
-extern struct canmore_received_msg canmore_received_msg;
+extern struct utility_message_buffer utility_tx_buf;
+extern struct utility_message_buffer utility_rx_buf;
 
 /**
  * @brief Holds data waiting to be transmitted

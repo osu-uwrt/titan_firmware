@@ -66,37 +66,12 @@ void canbus_call_internal_error_cb(int line, uint16_t error_code, bool error_cod
     }
 }
 
+static void report_canmore_msg_decode_error(__unused void* arg, unsigned int error_code) {
+    canbus_call_receive_error_cb(CANBUS_RECVERR_DECODE_ERROR_BASE + error_code);
+}
+
 void canbus_set_device_in_error(bool device_in_error_state) {
     canbus_device_in_error_state = device_in_error_state;
-}
-
-
-// ========================================
-// Initialization Functions
-// ========================================
-
-bool canbus_initialized = false;
-
-bool canbus_init(unsigned int client_id) {
-    assert(!canbus_initialized);
-
-    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
-
-    if (!can_mcp251xfd_configure(client_id)) {
-        return false;
-    }
-
-    canbus_initialized = true;
-    return true;
-}
-
-
-bool canbus_check_online(void) {
-    assert(canbus_initialized);
-
-    // TODO: Update to new algorithm
-
-    return false; //return !time_reached(canbus_heartbeat_timeout);
 }
 
 
@@ -104,8 +79,18 @@ bool canbus_check_online(void) {
 // Msg Queue Functions
 // ========================================
 
+canmore_msg_decoder_t msg_decoder = {0};
 canmore_msg_encoder_t encoding_buffer = {0};
-struct canmore_received_msg canmore_received_msg = {0};
+struct canmore_received_msg {
+    // Message data buffer
+    uint8_t data[CANMORE_MAX_MSG_LENGTH];
+    // Length of data in buffer
+    size_t length;
+    // If the message is waiting to be read
+    bool waiting;
+} canmore_received_msg = {0};
+
+// Exports to Application Code
 
 bool canbus_msg_read_available(void) {
     assert(canbus_initialized);
@@ -142,51 +127,81 @@ bool canbus_msg_write_available(void) {
 size_t canbus_msg_write(const uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
-    // Ensure that write is not interrupted
-    uint32_t prev_interrupt = save_and_disable_interrupts();
+    // Ensure that writing to the encode object isn't interrupted by IRQ
+    // This is different from all the other values since it's not just a single bool which controls state, but instead
+    // the position of two pointers in the object
+    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
 
     if (!canmore_msg_encode_done(&encoding_buffer)) {
+        restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
     canmore_msg_encode_load(&encoding_buffer, buf, len);
-
-    restore_interrupts(prev_interrupt);
-
-    // TODO: Figure out interrupt and race condition stuff
     can_mcp251xfd_report_msg_tx_fifo_ready();
+
+    restore_mcp251Xfd_irq(prev_interrupt);
 
     return len;
 }
 
+// Exports to Driver Code
+
+bool canbus_msg_driver_space_in_rx(void) {
+    return !canmore_received_msg.waiting;
+}
+
+void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t data_len, uint8_t *data) {
+    if (!canbus_msg_driver_space_in_rx()) {
+        return;
+    }
+
+    canmore_id_t client_id = {.identifier = identifier};
+
+    if (!is_extended) {
+        canmore_msg_decode_frame(&msg_decoder, client_id.pkt_std.noc, data, data_len);
+    } else {
+        size_t msg_size = canmore_msg_decode_last_frame(&msg_decoder, client_id.pkt_ext.noc,
+                                                        data, data_len, client_id.pkt_ext.crc,
+                                                        canmore_received_msg.data);
+
+        // Only queue the data if the decode was successful
+        if (msg_size > 0) {
+            canmore_received_msg.length = msg_size;
+            canmore_received_msg.waiting = true;
+        }
+    }
+}
 
 // ========================================
 // Utility Queue Functions
 // ========================================
-/*
+
+struct utility_message_buffer utility_tx_buf = {0};
+struct utility_message_buffer utility_rx_buf = {0};
+
 bool canbus_utility_frame_read_available(void) {
     assert(canbus_initialized);
 
-    return !QUEUE_EMPTY(&utility_receive_queue);
+    return utility_rx_buf.waiting;
 }
 
 size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
-    if (QUEUE_EMPTY(&utility_receive_queue)) {
+    if (!utility_rx_buf.waiting) {
         return 0;
     }
 
-    // Copy out data from buffer from second core
-    struct canmore_utility_frame *frame = QUEUE_CUR_READ_ENTRY(&utility_receive_queue);
-
-    size_t copy_len = frame->dlc;
+    size_t copy_len = utility_rx_buf.length;
     if (copy_len > len)
         copy_len = len;
 
-    memcpy(buf, frame->data, copy_len);
-    *channel_out = frame->channel;
-    QUEUE_MARK_READ_DONE(&utility_receive_queue);
+    memcpy(buf, utility_rx_buf.data, copy_len);
+    *channel_out = utility_rx_buf.channel;
+    utility_rx_buf.waiting = false;
+
+    can_mcp251xfd_report_utility_rx_fifo_ready();
 
     return copy_len;
 }
@@ -194,13 +209,13 @@ size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len
 bool canbus_utility_frame_write_available(void) {
     assert(canbus_initialized);
 
-    return !QUEUE_FULL(&utility_transmit_queue);
+    return !utility_tx_buf.waiting;
 }
 
 size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
-    if (QUEUE_FULL(&utility_transmit_queue)) {
+    if (utility_tx_buf.waiting) {
         return 0;
     }
 
@@ -217,13 +232,43 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
         return 0;
     }
 
-    // Copy in frame to buffer for second core to fetch
-    struct canmore_utility_frame *frame = QUEUE_CUR_WRITE_ENTRY(&utility_transmit_queue);
-    memcpy(frame->data, buf, len);
-    frame->dlc = len;
-    frame->channel = channel;
-    QUEUE_MARK_WRITE_DONE(&utility_transmit_queue);
+    // Copy in frame to buffer
+    memcpy(utility_tx_buf.data, buf, len);
+    utility_tx_buf.length = len;
+    utility_tx_buf.channel = channel;
+    utility_tx_buf.waiting = true;
+
+    can_mcp251xfd_report_utility_tx_fifo_ready();
 
     return len;
 }
-*/
+
+
+// ========================================
+// Initialization Functions
+// ========================================
+
+bool canbus_initialized = false;
+
+bool canbus_init(unsigned int client_id) {
+    assert(!canbus_initialized);
+
+    canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL);
+    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
+
+    if (!can_mcp251xfd_configure(client_id)) {
+        return false;
+    }
+
+    canbus_initialized = true;
+    return true;
+}
+
+
+bool canbus_check_online(void) {
+    assert(canbus_initialized);
+
+    // TODO: Update to new algorithm
+
+    return false; //return !time_reached(canbus_heartbeat_timeout);
+}

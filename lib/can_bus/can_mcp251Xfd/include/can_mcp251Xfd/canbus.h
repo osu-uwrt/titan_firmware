@@ -33,7 +33,7 @@ enum canbus_library_error_codes {
 };
 
 enum canbus_receive_error_codes {
-    CANBUS_RECVERR_CORRUPT_MESSAGE = 1,
+    CANBUS_RECVERR_BUS_ERROR = 1,
     CANBUS_RECVERR_MSG_TX_FAILURE = 2,
 
     CANBUS_RECVERR_DECODE_ERROR_BASE = 100,
@@ -113,12 +113,14 @@ extern const size_t canbus_msg_max_length;
 /**
  * @brief Returns if a CANmore message is availble to be read.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
 */
 bool canbus_msg_read_available(void);
 
 /**
  * @brief Reads the next available CANmore message in the buffer.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
  *
  * @param buf The buffer for the received message data
  * @param len The buffer size, if the received message is longer than this value it will be truncated
@@ -129,12 +131,14 @@ size_t canbus_msg_read(uint8_t *buf, size_t len);
 /**
  * @brief Returns if space is available to write another CANmore message in the transmit buffer.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
 */
 bool canbus_msg_write_available(void);
 
 /**
  * @brief Queues the given buffer to sent with the CANmore message type over CAN.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
  *
  * @param buf The buffer containing data to transmit
  * @param len The length of data to transmit. If greater than `canbus_msg_max_length` this will be truncated
@@ -155,12 +159,14 @@ extern const size_t canbus_utility_frame_max_length;
 /**
  * @brief Returns if a CANmore utility frame is availble to be read.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
 */
 bool canbus_utility_frame_read_available(void);
 
 /**
  * @brief Reads the next available CANmore utility frame in the buffer.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
  *
  * @param channel_out A pointer to write the channel this frame was received on
  * @param buf The buffer for the received frame data
@@ -172,12 +178,14 @@ size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len
 /**
  * @brief Returns if space is available to write another CANmore utility frame in the transmit buffer.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
 */
 bool canbus_utility_frame_write_available(void);
 
 /**
  * @brief Queues the given buffer to sent with the CANmore frame type over CAN.
  * @attention Requires `canbus_init` to be called
+ * @attention Can not be used in interrupts
  *
  * @param channel The channel this utility frame is to be transmitted on
  * @param buf The buffer containing data to transmit
