@@ -31,7 +31,7 @@ target_link_libraries(wiznet_ethernet INTERFACE
 # timer
 add_library(wiznet_timer INTERFACE)
 
-target_sources(wiznet_timer PUBLIC
+target_sources(wiznet_timer INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/timer/timer.c
         )
 

@@ -185,10 +185,17 @@ void safety_setup(void);
  * @brief Initializes safety for normal operation
  * This will tighten the timing for the watchdog timer, and is required to use the kill switch features
  *
- * Can only be called once
  * safety_setup must be called before this function can be used
  */
 void safety_init(void);
+
+/**
+ * @brief Deinitializes safety for setup
+ * This will loosen the timing for the watchdog timer.
+ *
+ * safety_init must be called before this function can be used
+ */
+void safety_deinit(void);
 
 /**
  * @brief Ticks safety

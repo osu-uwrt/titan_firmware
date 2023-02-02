@@ -22,3 +22,4 @@ target_compile_definitions(micro_ros_usb INTERFACE SAFETY_ROS_SUPPORT=1)
 # Configure sdk parameters
 target_compile_definitions(micro_ros_usb INTERFACE PICO_STDIO_USB_ENABLE_UNSENT_BUFFER=1)
 target_compile_definitions(micro_ros_usb INTERFACE PICO_STDIO_USB_STDOUT_TIMEOUT_US=10000)
+target_compile_definitions(micro_ros_usb INTERFACE MICRO_ROS_TRANSPORT_USB=1)

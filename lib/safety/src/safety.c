@@ -34,6 +34,18 @@ void safety_init(void) {
     watchdog_enable(SAFETY_WATCHDOG_ACTIVE_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
 }
 
+void safety_deinit(void) { 
+    hard_assert_if(SAFETY, !safety_is_setup || !safety_initialized);
+
+    // TODO: Robert implement these
+    // safety_internal_crash_reporting_handle_deinit();
+    // safety_internal_kill_handle_deinit();
+    // safety_interface_deinit();
+
+    safety_initialized = false;
+    watchdog_enable(SAFETY_WATCHDOG_SETUP_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
+}
+
 void safety_tick(void) {
     hard_assert_if(SAFETY, !safety_is_setup);
 
