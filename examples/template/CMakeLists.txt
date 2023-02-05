@@ -4,13 +4,13 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_actuator_board)
+set(PICO_BOARD mk2_esc_board)
 set(UWRT_ROBOT tempest)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
 # Set to Debug if debugging with gdb
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -38,6 +38,7 @@ generate_version_tag(template_project 1 0 PROTO)
 
 # Configure pico-sdk
 pico_set_program_name(template_project "Template Project")
+pico_enable_stdio_uart(template_project 1)
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(template_project)
@@ -46,6 +47,6 @@ uwrt_use_upload_tool(template_project)
 pico_add_extra_outputs(template_project)
 
 target_link_libraries(template_project pico_stdlib safety basic_logger)
-# target_link_libraries(template_project micro_ros_can)
-target_link_libraries(template_project micro_ros_usb)
+target_link_libraries(template_project micro_ros_can)
+# target_link_libraries(template_project micro_ros_usb)
 

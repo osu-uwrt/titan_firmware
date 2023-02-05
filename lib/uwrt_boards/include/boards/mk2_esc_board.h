@@ -24,4 +24,6 @@
 #define VCC_MEAS_PIN        28
 #define BOARD_DET_PIN       29
 
+#define BOARD_NAMESPACE "esc_board"
+
 #endif

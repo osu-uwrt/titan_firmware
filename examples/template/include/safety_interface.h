@@ -18,7 +18,10 @@ static const char * const fault_string_list[] = {
 
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {
-    NUM_KILL_SWITCHES = 0
+    ROS_KILL_SWITCH = 0,
+    // Used to automatically calculate number of kill switches
+    // This must be the last enum
+    NUM_KILL_SWITCHES
 };
 
 #endif
