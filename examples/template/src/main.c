@@ -16,9 +16,12 @@
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME ROBOT_NAMESPACE "_main"
+
 #define HEARTBEAT_TIME_MS 100
+#define FIRMWARE_STATUS_TIME_MS 1000
 
 absolute_time_t next_heartbeat;
+absolute_time_t next_status_update;
 
 #define PROCESS_TIMER(next_time, timer_interval, callback) do { \
         if (time_reached(next_time)) { \
@@ -39,6 +42,7 @@ absolute_time_t next_heartbeat;
 
 void tick_ros_timers() {
     PROCESS_TIMER(next_heartbeat, HEARTBEAT_TIME_MS, ros_heartbeat_pulse);
+    PROCESS_TIMER(next_status_update, FIRMWARE_STATUS_TIME_MS, ros_update_firmware_status);
 }
 
 void tick_background_timers() {

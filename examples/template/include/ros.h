@@ -9,6 +9,8 @@
 
 rcl_ret_t ros_heartbeat_pulse();
 
+rcl_ret_t ros_update_firmware_status();
+
 void ros_rmw_init(void);
 
 bool ros_init();
