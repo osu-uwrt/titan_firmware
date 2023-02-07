@@ -1,17 +1,23 @@
-#include "ros.h"
-#include "safety_interface.h"
-#include "basic_logger/logging.h"
 #include "pico/stdlib.h"
+
 #include <rmw_microros/rmw_microros.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+#include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
-#include "safety/safety.h"
-#include <riptide_msgs2/msg/firmware_status.h>
+
 #include "build_version.h"
+#include "basic_logger/logging.h"
+#include "safety/safety.h"
+
+#include "ros.h"
+#include "safety_interface.h"
+
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "main"
 
 const char * const entity_lookup_table[] = {
     "RMW_UROS_ERROR_ON_UNKNOWN",
@@ -36,10 +42,9 @@ const char * const source_lookup_table[] = {
 #define lookup_entity_enum(value) lookup_string_enum(value, entity_lookup_table)
 #define lookup_source_enum(value) lookup_string_enum(value, source_lookup_table)
 
-#define EXECUTOR_HANDLES 10
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
-#define FIRMWARE_STATUS_PUBLISHER_NAME "firmware_status"
+#define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 
 bool ros_connected = false;
@@ -62,7 +67,7 @@ void rmw_error_cb(
   const rmw_uros_error_context_t context,
   const char * file,
   const int line) {
-    printf("RMW UROS Error:\n\tEntity: %s\n\tSource: %s\n\tDesc: %s\n\tLocation: %s:%d\n", lookup_entity_enum(entity), lookup_source_enum(source), context.description, file, line);
+    LOG_DEBUG("RMW UROS Error:\n\tEntity: %s\n\tSource: %s\n\tDesc: %s\n\tLocation: %s:%d", lookup_entity_enum(entity), lookup_source_enum(source), context.description, file, line);
 }
 
 void ros_rmw_init(void)  {
@@ -76,17 +81,17 @@ static void killswitch_subscription_callback(const void * msgin)
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-rcl_ret_t ros_update_firmware_status() { 
+rcl_ret_t ros_update_firmware_status() {
     riptide_msgs2__msg__FirmwareStatus status_msg;
-    status_msg.board_name.data = BOARD_NAMESPACE;
-    status_msg.board_name.size = strlen(BOARD_NAMESPACE);
+    status_msg.board_name.data = PICO_BOARD;
+    status_msg.board_name.size = strlen(PICO_BOARD);
     status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
     status_msg.client_id = CAN_BUS_CLIENT_ID;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
     status_msg.version_major = MAJOR_VERSION;
     status_msg.version_minor = MINOR_VERSION;
-    status_msg.faults = *fault_list_reg; 
-    status_msg.kill_switches_enabled = 0; 
+    status_msg.faults = *fault_list_reg;
+    status_msg.kill_switches_enabled = 0;
     status_msg.kill_switches_asserting_kill = 0;
     status_msg.kill_switches_needs_update = 0;
     status_msg.kill_switches_timed_out = 0;
@@ -110,7 +115,7 @@ rcl_ret_t ros_update_firmware_status() {
         }
     }
 
-    RCRETCHECK(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
+    RCRETCHECK_QUIET(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
     return true;
 }
 
@@ -128,7 +133,7 @@ rcl_ret_t ros_heartbeat_pulse() {
         failed_heartbeats = 0;
     }
 
-    RCRETCHECK(ret);
+    RCRETCHECK_QUIET(ret);
 
     return true;
 }
@@ -137,7 +142,7 @@ bool ros_init(const char *node_name, const char *namespace) {
         allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
-    RCRETCHECK(rclc_node_init_default(&node, BOARD_NAMESPACE, ROBOT_NAMESPACE, &support));
+    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
 
     RCRETCHECK(rclc_publisher_init_default(
         &heartbeat_publisher,
@@ -157,7 +162,8 @@ bool ros_init(const char *node_name, const char *namespace) {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_executor_init(&executor, &support.context, EXECUTOR_HANDLES, &allocator));
+    const int executor_num_handles = 1;
+    RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 

@@ -8,8 +8,7 @@
 #endif
 #define UWRT_BOARD_DEFINED
 
-#define BOARD_NAMESPACE "mk2_actuator"
-#define CAN_BUS_NAME INTERNAL_CAN 
+#define CAN_BUS_NAME INTERNAL_CAN
 
 // Claw
 #define CLAW_ENABLE_PIN     0

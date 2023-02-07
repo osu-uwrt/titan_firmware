@@ -5,7 +5,11 @@ cmake_minimum_required(VERSION 3.13)
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD mk2_esc_board)
-set(UWRT_ROBOT tempest)
+
+# The Target Robot
+# These can be found in lib/uwrt_boards/include/robots
+# Store any robot dependent configuration values in these files
+set(UWRT_ROBOT talos)
 
 # Target build type
 # Setting to Debug increases size but gives more useful information during debugging
@@ -30,6 +34,7 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(template_project
 	${SOURCES}
 )
+target_compile_options(template_project PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(template_project PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -37,16 +42,20 @@ target_include_directories(template_project PUBLIC include)
 generate_version_tag(template_project 1 0 PROTO)
 
 # Configure pico-sdk
-pico_set_program_name(template_project "Template Project")
 pico_enable_stdio_uart(template_project 1)
+pico_set_program_name(template_project "Template Project")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(template_project)
 
 # Define linking and targets
 pico_add_extra_outputs(template_project)
+target_link_libraries(template_project
+	basic_logger	# A nice little logging library
+	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
-target_link_libraries(template_project pico_stdlib safety basic_logger)
-target_link_libraries(template_project micro_ros_can)
-# target_link_libraries(template_project micro_ros_usb)
+	pico_stdlib		# Pico SDK Standard Library
+	# Add any additional hardware here (ex. hardware_i2c)
+)
 

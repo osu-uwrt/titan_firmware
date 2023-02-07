@@ -1,5 +1,11 @@
 #include "pico/stdlib.h"
 
+#include "basic_logger/logging.h"
+#include "build_version.h"
+
+#include "ros.h"
+#include "safety_interface.h"
+
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
 #endif
@@ -8,14 +14,8 @@
 #include "micro_ros_pico/transport_can.h"
 #endif
 
-#include "basic_logger/logging.h"
-#include "build_version.h"
-
-#include "ros.h"
-#include "safety_interface.h"
-
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME ROBOT_NAMESPACE "_main"
+#define LOGGING_UNIT_NAME "main"
 
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
@@ -39,6 +39,11 @@ absolute_time_t next_status_update;
             } \
         } \
     } while(0)
+
+void start_ros_timers() {
+    next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
+    next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+}
 
 void tick_ros_timers() {
     PROCESS_TIMER(next_heartbeat, HEARTBEAT_TIME_MS, ros_heartbeat_pulse);
@@ -76,12 +81,12 @@ int main() {
     while(true) {
         if(is_ros_connected()) {
             if(!ros_initialized) {
-                LOG_DEBUG("ROS connected");
+                LOG_INFO("ROS connected");
                 ros_initialized = ros_init();
 
                 if(ros_initialized) {
                     safety_init();
-                    next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
+                    start_ros_timers();
                 } else {
                     LOG_ERROR("ROS failed to initialize.");
                     ros_fini();
@@ -91,7 +96,7 @@ int main() {
                 tick_ros_timers();
             }
         } else if(ros_initialized){
-            LOG_DEBUG("Lost connection to ROS")
+            LOG_INFO("Lost connection to ROS")
             safety_deinit();
             ros_fini();
             ros_initialized = false;
