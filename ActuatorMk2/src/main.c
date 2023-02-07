@@ -3,7 +3,7 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
-#include "ros.h"
+#include "ros/ros.h"
 #include "safety_interface.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
