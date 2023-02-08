@@ -116,7 +116,8 @@ rcl_ret_t ros_update_firmware_status() {
     }
 
     RCRETCHECK_QUIET(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
-    return true;
+
+    return RCL_RET_OK;
 }
 
 rcl_ret_t ros_heartbeat_pulse() {
@@ -135,10 +136,10 @@ rcl_ret_t ros_heartbeat_pulse() {
 
     RCRETCHECK_QUIET(ret);
 
-    return true;
+    return RCL_RET_OK;
 }
 
-bool ros_init(const char *node_name, const char *namespace) {
+rcl_ret_t ros_init() {
         allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
@@ -168,7 +169,7 @@ bool ros_init(const char *node_name, const char *namespace) {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
     // BOARD SPECIFIC CODE HERE
-    return true;
+    return RCL_RET_OK;
 }
 
 void ros_update(void) {

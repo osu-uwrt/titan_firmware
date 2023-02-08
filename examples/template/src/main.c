@@ -82,9 +82,9 @@ int main() {
         if(is_ros_connected()) {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
-                ros_initialized = ros_init();
 
-                if(ros_initialized) {
+                if(ros_init() == RCL_RET_OK) {
+                    ros_initialized = true;
                     safety_init();
                     start_ros_timers();
                 } else {
