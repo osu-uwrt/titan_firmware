@@ -8,6 +8,9 @@
 #endif
 #define UWRT_BOARD_DEFINED
 
+#define CAN_BUS_NAME INTERNAL_CAN
+#define CAN_BUS_CLIENT_ID 7
+
 #define FAN_SW_PIN          0
 #define TACH4_PIN           1
 #define TACH3_PIN           2
