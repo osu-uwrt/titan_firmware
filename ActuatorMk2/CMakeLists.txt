@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD actuator_mk2)
+set(PICO_BOARD mk2_actuator_board)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -34,7 +34,11 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(actuator_mk2
 	${SOURCES}
 )
+pico_generate_pio_header(actuator_mk2 ${CMAKE_CURRENT_LIST_DIR}/src/actuators/torpedo.pio)
+target_compile_definitions(actuator_mk2 PUBLIC PARAM_ASSERTIONS_ENABLED_LIFETIME_CHECK=1)
+
 target_compile_options(actuator_mk2 PRIVATE -Wall -Wextra -Wno-format)
+target_compile_definitions(actuator_mk2 PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 target_include_directories(actuator_mk2 PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -56,6 +60,9 @@ target_link_libraries(actuator_mk2
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
+	hardware_adc
+	hardware_pio
+	# TODO: do we need watchdog here? 
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

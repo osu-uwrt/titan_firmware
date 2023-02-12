@@ -1,6 +1,10 @@
 #include <assert.h>
 #include "safety_interface.h"
 
+#ifdef MICRO_ROS_TRANSPORT_CAN
+// #include "can_pio/canbus.h" TODO - include this header
+#endif
+
 // ========================================
 // Implementations for External Interface Functions
 // ========================================

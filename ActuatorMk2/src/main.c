@@ -3,6 +3,10 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
+#include "actuators/claw.h"
+#include "actuators/dropper.h"
+#include "actuators/torpedo.h"
+
 #include "ros/ros.h"
 #include "safety_interface.h"
 
@@ -75,6 +79,10 @@ int main() {
     #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
     #endif
+
+    claw_initialize();
+    dropper_initialize();
+    torpedo_initialize();
 
     bool ros_initialized = false;
 
