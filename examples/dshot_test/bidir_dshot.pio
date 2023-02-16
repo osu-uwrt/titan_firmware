@@ -1,0 +1,168 @@
+.program bidir_dshot
+
+; Bidirectional DShot ESC Protocol
+; Accepts dshot commands (inverted) from the FIFO
+; Sends encoded telemetry response back over FIFO
+; PIO Clock should be 40x the DShot Data Rate
+; Set pin base, out pin base, jmp pin, and in pin base should all be set to the DShot Pin
+; Configure the status pin to report when any data is in the TX FIFO
+
+; Delayed start
+; Setting PC to here will block transmission until X+1 times, where X is the value pushed into the TX FIFO
+; This is used when abruptly aborting the transfer to ensure the frames aren't sent too close together
+; (This could cause issues where PIO tries to transmit while the ESC is responding with telemetry data from the prev. command)
+public delayed_start:
+PULL BLOCK
+MOV X, OSR
+delay_loop:
+NOP     [31]
+JMP X-- delay_loop [7]
+
+; Normal program start
+public start:
+
+;   =========================
+;   === TRANSMIT SECTION ====
+;   =========================
+
+; Configure IO for output
+SET PINS 1
+SET PINDIRS 1
+
+; Block until there is data from the FIFO to send
+; This avoids the issue of autopull where the line will be asserted while waiting
+PULL BLOCK
+
+; == Transmit Loop ==
+; In bidirectional mode, asserted corresponds to being driven low, non-asserted corresponds to pulled high by internal pull-up
+; Timing should be 40 cycles total
+; 15 cycles high (37.5% duty cycle high)
+; 15 cycles high/low on bit value (meaning high will have 75% duty cycle)
+; 10 cycles low
+; Note the [delay] value does not include the time for the instruction itself
+tx_loop:
+SET PINS 0 [14]         ; Set pin to asserted (15 cycles)
+OUT PINS 1 [14]         ; Set pin to bit state (15 cycles)
+SET PINS 1 [8]          ; Set pin to non-asserted state (9 cycles)
+JMP !OSRE tx_loop       ; Jump if more data to send (1 cycle)
+
+;   ========================
+;   === RECEIVE SECTION ====
+;   ========================
+
+SET PINDIRS 0           ; Configure I/O for Input
+SET X, 20               ; Set counter to receive 21 bits of data (see DShot Telemetry Encoding Format), this is done before timing sensitive code
+
+; == Wait Loop ==
+; Wait for either the telemetry pin to go low (marking start of packet) or a new transfer to be queued (via status)
+wait_rx:
+MOV Y, STATUS           ; Read in FIFO status
+JMP !Y start            ; If another command is waiting in the FIFO, then we can assume the ESC won't send a response and just restart
+JMP PIN wait_rx         ; (T+(0-2)) The transition could have occurred between 0-2 clock cycles before this point
+
+; == Receive Code ==
+; DShot Telemetry is sent back at 5/4 the data rate
+rx_from_edge:           ; Begin rx from edge of signal (-2 for time to jump and time for other delays to occur)
+nop [13]                ; (T+2) Delay for 14 cycles, to get to the sample point (T+16)
+rx_immediate:
+IN PINS 1               ; (T+16) Now that we are centered in the middle of the frame, receive 1 bit
+JMP X-- clock_recovery  ; (T+17) First check if we have received all data, if we have, push and reset, if not, try to recover the clock
+
+; == End of Packet ==
+PUSH NOBLOCK            ; Push data, if fifo full discard data, something is taking too long on the CPU
+JMP start               ; Go back to start and receive new packet
+
+; == Clock recovery ==
+; Due to the fact that the ESC MCUs use their internal oscillator, there is a non-insignificant amount of clock drift
+; This results in data loss of we assume that the data will be perfectly sent at 5/4 the data rate
+; Instead after receiving every bit, this will check for a bit transition
+; If a transition occurs, it will resynchronize with the ESCs data rate based on this transition
+; If one does not occur, it will instead keep timing from the previous clock transition
+clock_recovery:
+JMP PIN clkrec_pin_high     ; (T+18) First go to the correct routine, correct while high or low
+
+; Pin Low Clock Recovery
+SET Y, 11                   ; (T+19) Set counter for (# clock cycles)/2 to delay before sampling again (if we receive two 0s in a row)
+clkrec_low_loop:            ; Y:  11  10   9   8   7   6  5  4  3  2  1  0
+JMP PIN pin_low_edge_delay  ; T+: 20, 22, 24, 26, 28, 30, 0, 2, 4, 6, 8, 10
+JMP Y-- clkrec_low_loop     ; T+: 21, 23, 25, 27, 29, 31, 1, 3, 5, 7, 9, 11
+JMP rx_immediate [3]        ; (T+12) Jump to sample point (plus a little bit of delay to align with sample point)
+
+; Successfully saw pin transition
+pin_low_edge_delay:
+JMP rx_from_edge            ; (T+1) Add in an additional delay during jump
+
+; Pin High Clock Recovery
+clkrec_pin_high:
+SET Y, 11                   ; (T+19) Set counter for (# clock cycles)/2 to delay before sampling again (if we receive two 1s in a row)
+clkrec_high_loop:           ; Y:  11  10   9   8   7   6  5  4  3  2  1  0
+JMP PIN clkrec_y_cmp        ; T+: 20, 22, 24, 26, 28, 30, 0, 2, 4, 6, 8, 10 - Note that this is a little weird since the JMP PIN must be inverted
+JMP rx_from_edge            ; (T+1) Successfully saw pin transition, jump to rx_from_edge
+clkrec_y_cmp:
+JMP Y-- clkrec_high_loop    ; T+: 21, 23, 25, 27, 29, 31, 1, 3, 5, 7, 9, 11
+JMP rx_immediate [3]        ; (T+12) Jump to sample point (plus a little bit of delay to align with sample point)
+
+
+
+% c-sdk {
+
+#include <stdbool.h>
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+#include "pico/time.h"
+
+// Frame Time - Add the amount of time for both TX and RX, as well as the 30 us turnaround time for changing direction
+#define bidir_dshot_min_frame_period_us(rate_khz) ((1000*(16+21))/(rate_khz))+(30*2)
+
+static inline void bidir_dshot_program_init(PIO pio, uint sm, uint offset, uint dshot_rate_khz, uint pin) {
+    // Stop machine if it is running
+    pio_sm_set_enabled(pio, sm, false);
+
+    // Set initial GPIO state
+    // This is so that when the PIO machine runs, when direction is output it will drive the line low
+    // but when the direction is input the IO bank will pull the line high
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);     // Set the dshot pin to input, so it is pulled high
+    pio_gpio_init(pio, pin);            // Assign GPIO to PIO
+    gpio_pull_up(pin);                  // Configure pin to pull up
+
+    // Calculate clock division, each dshot bit is 40 cycles in PIO
+    float div = clock_get_hz(clk_sys) / ((float)(dshot_rate_khz * 1000 * 40));
+
+    // Configure PIO machine
+    pio_sm_config c = bidir_dshot_program_get_default_config(offset);
+    // Configure IO Assignment
+    sm_config_set_out_pins(&c, pin, 1);
+    sm_config_set_set_pins(&c, pin, 1);
+    sm_config_set_in_pins(&c, pin);
+    sm_config_set_jmp_pin(&c, pin);
+    // Configure Clock
+    sm_config_set_clkdiv(&c, div);
+    // Configure shift registers
+    sm_config_set_out_shift(&c, false, false, 16);          // TX 16-bit, manual pull, left shift previous data
+    sm_config_set_in_shift(&c, false, false, 21);           // RX 21-bit, manual push, left shift previous data
+    sm_config_set_mov_status(&c, STATUS_TX_LESSTHAN, 1);    // Configure status for notifying on no telemetry recv error
+
+    pio_sm_init(pio, sm, offset + bidir_dshot_offset_start, &c);
+
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void bidir_dshot_reset(PIO pio, uint sm, uint offset, uint dshot_rate_khz, absolute_time_t next_allowed_tx) {
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_restart(pio, sm);
+    pio_sm_clkdiv_restart(pio, sm);
+
+    // Check if a delay needs to occur, if so perform a elayed start
+    int64_t tx_delay_us = absolute_time_diff_us(get_absolute_time(), next_allowed_tx);
+    if (tx_delay_us > 0) {
+        uint delay_value = (tx_delay_us * dshot_rate_khz) / 1000;
+        pio_sm_exec(pio, sm, pio_encode_jmp(offset + bidir_dshot_offset_delayed_start));
+        pio_sm_put_blocking(pio, sm, delay_value);
+    }
+    else {
+        pio_sm_exec(pio, sm, pio_encode_jmp(offset + bidir_dshot_offset_start));
+    }
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}
