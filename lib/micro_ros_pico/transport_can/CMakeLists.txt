@@ -8,7 +8,6 @@ target_sources(micro_ros_can INTERFACE
 target_link_libraries(micro_ros_can INTERFACE
     pico_stdlib
     can_mcp251Xfd
-    micro_ros_custom_allocator
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

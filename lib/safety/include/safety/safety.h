@@ -46,6 +46,7 @@
 // MAX_FAULT_ID is determined by the fault_list_reg size (32-bit)
 #define MAX_FAULT_ID          31
 #define FAULT_WATCHDOG_RESET   0
+#define FAULT_WATCHDOG_WARNING 1
 // All other fault ids are implentation specific
 
 /**

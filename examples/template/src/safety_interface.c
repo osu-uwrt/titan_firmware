@@ -30,7 +30,11 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-    
+
+}
+
+void safety_interface_deinit(void) {
+    // TODO: Modify this function to add code to be called during safety_deinit
 }
 
 

@@ -26,14 +26,24 @@
 #define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
 #endif
 
-// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=250, group=safety
+// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=50, group=safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  500
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  50
 #endif
 
 // PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=safety
 #ifndef SAFETY_PAUSE_WATCHDOG_ON_DEBUG
 #define SAFETY_PAUSE_WATCHDOG_ON_DEBUG 1
+#endif
+
+// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=200, group=safety
+#ifndef SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS
+#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS  200
+#endif
+
+// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=5, group=safety
+#ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  5
 #endif
 
 // PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=safety
@@ -121,6 +131,11 @@ void safety_internal_crash_reporting_handle_init(void);
  * @brief Notifies kill switch management that safety has been initialized
  */
 void safety_internal_kill_handle_init(void);
+
+/**
+ * @brief Ticks fault reporting
+ */
+void safety_internal_fault_tick(void);
 
 /**
  * @brief Notifies crash reporting that safety has been deinitialized

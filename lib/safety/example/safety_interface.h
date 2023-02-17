@@ -6,11 +6,13 @@
 // NOTE: If adding fault IDs make sure to update the fault_string_list as well
 
 //      FAULT_WATCHDOG_RESET   0
-#define FAULT_INVALID_SETUP    1
-#define FAULT_HARDWARE_ERROR   2  // TODO: Replace these with implementation fault IDs
+//      FAULT_WATCHDOG_WARNING 1
+#define FAULT_INVALID_SETUP    2
+#define FAULT_HARDWARE_ERROR   3  // TODO: Replace these with implementation fault IDs
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
+    "FAULT_WATCHDOG_WARNING",
     "FAULT_INVALID_SETUP",
     "FAULT_HARDWARE_ERROR"
 };

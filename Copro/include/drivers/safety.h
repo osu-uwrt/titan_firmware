@@ -6,25 +6,27 @@
 // NOTE: If adding fault IDs make sure to update the fault_string_list as well
 
 //      FAULT_WATCHDOG_RESET   0
-#define FAULT_ROS_SOFT_FAIL    1
-#define FAULT_ROS_BAD_COMMAND  2
-#define FAULT_DSHOT_ERROR      3
-#define FAULT_THRUSTER_TIMEOUT 4
-#define FAULT_ASYNC_I2C_ERROR  5
-#define FAULT_DEPTH_INIT_ERROR 6
-#define FAULT_DEPTH_ERROR      7
-#define FAULT_ADC_ERROR        8
-#define FAULT_BB_ADC_ERROR     9
-#define FAULT_ESC_ADC_ERROR   10
-#define FAULT_COOLING_STALE   11
-#define FAULT_LOWBATT_STALE   12
-#define FAULT_LOW_BATTERY     13
-#define FAULT_ACTUATOR_FAIL   14
-#define FAULT_NO_ACTUATOR     15
-#define FAULT_CAN_INTERNAL_ERROR  16
-#define FAULT_CAN_RECV_ERROR      17
+//      FAULT_WATCHDOG_WARNING 1
+#define FAULT_ROS_SOFT_FAIL    2
+#define FAULT_ROS_BAD_COMMAND  3
+#define FAULT_DSHOT_ERROR      4
+#define FAULT_THRUSTER_TIMEOUT 5
+#define FAULT_ASYNC_I2C_ERROR  6
+#define FAULT_DEPTH_INIT_ERROR 7
+#define FAULT_DEPTH_ERROR      8
+#define FAULT_ADC_ERROR        9
+#define FAULT_BB_ADC_ERROR    10
+#define FAULT_ESC_ADC_ERROR   11
+#define FAULT_COOLING_STALE   12
+#define FAULT_LOWBATT_STALE   13
+#define FAULT_LOW_BATTERY     14
+#define FAULT_ACTUATOR_FAIL   15
+#define FAULT_NO_ACTUATOR     16
+#define FAULT_CAN_INTERNAL_ERROR  17
+#define FAULT_CAN_RECV_ERROR      18
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
+    "FAULT_WATCHDOG_WARNING",
     "FAULT_ROS_SOFT_FAIL",
     "FAULT_ROS_BAD_COMMAND",
     "FAULT_DSHOT_ERROR",

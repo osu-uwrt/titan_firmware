@@ -55,7 +55,7 @@ pico_add_extra_outputs(esc_board)
 target_link_libraries(esc_board
 	basic_logger	# A nice little logging library
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
+	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_adc	# ADC Pin for VCC Measurement

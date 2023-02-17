@@ -81,11 +81,13 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 }
 
 bool safety_kill_get_asserting_kill(void) {
-    hard_assert_if(SAFETY, !safety_initialized);
     return last_state_asserting_kill;
 }
 
 absolute_time_t safety_kill_get_last_change(void) {
-    hard_assert_if(SAFETY, !safety_initialized);
     return last_kill_switch_change;
+}
+
+void safety_internal_kill_handle_deinit(void) {
+    safety_local_handle_kill();
 }

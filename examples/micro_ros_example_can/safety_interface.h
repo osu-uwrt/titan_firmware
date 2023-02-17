@@ -6,11 +6,13 @@
 // NOTE: If adding fault IDs make sure to update the fault_string_list as well
 
 //      FAULT_WATCHDOG_RESET      0
-#define FAULT_CAN_INTERNAL_ERROR  1
-#define FAULT_CAN_RECV_ERROR      2
+//      FAULT_WATCHDOG_WARNING    1
+#define FAULT_CAN_INTERNAL_ERROR  2
+#define FAULT_CAN_RECV_ERROR      3
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
+    "FAULT_WATCHDOG_WARNING",
     "FAULT_CAN_INTERNAL_ERROR",
     "FAULT_CAN_RECV_ERROR"
 };

@@ -254,7 +254,7 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         } else if (entry->reset_reason == ASSERT_FAIL) {
             inc_safety_print(snprintf(msg, size, "ASSERT_FAIL (File: 0x%08X Line: %d)", entry->scratch_1, entry->scratch_2));
         } else if (entry->reset_reason == IN_ROS_TRANSPORT_LOOP) {
-            inc_safety_print(snprintf(msg, size, "ROS Agent Lost"));
+            inc_safety_print(snprintf(msg, size, "IN_ROS_TRANSPORT_LOOP"));
         } else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));
         }
@@ -337,16 +337,14 @@ static void safety_process_last_reset_cause(void) {
         next_entry->scratch_1 = watchdog_hw->scratch[1];
         next_entry->scratch_2 = watchdog_hw->scratch[2];
 
-        if (next_entry->reset_reason != IN_ROS_TRANSPORT_LOOP) {
-            if (crash_data.crash_counter.total_crashes != 0xFF)
-                crash_data.crash_counter.total_crashes++;
-            if (next_entry->reset_reason == PANIC && crash_data.crash_counter.panic_count != 0xFF)
-                crash_data.crash_counter.panic_count++;
-            if (next_entry->reset_reason == HARD_FAULT && crash_data.crash_counter.hard_fault_count != 0xFF)
-                crash_data.crash_counter.hard_fault_count++;
-            if (next_entry->reset_reason == ASSERT_FAIL && crash_data.crash_counter.assert_fail_count != 0xFF)
-                crash_data.crash_counter.assert_fail_count++;
-        }
+        if (crash_data.crash_counter.total_crashes != 0xFF)
+            crash_data.crash_counter.total_crashes++;
+        if (next_entry->reset_reason == PANIC && crash_data.crash_counter.panic_count != 0xFF)
+            crash_data.crash_counter.panic_count++;
+        if (next_entry->reset_reason == HARD_FAULT && crash_data.crash_counter.hard_fault_count != 0xFF)
+            crash_data.crash_counter.hard_fault_count++;
+        if (next_entry->reset_reason == ASSERT_FAIL && crash_data.crash_counter.assert_fail_count != 0xFF)
+            crash_data.crash_counter.assert_fail_count++;
 
         if (next_entry->reset_reason == CLEAN_BOOT) {
             LOG_ERROR("Clean boot specified in reset_reason register, but the watchdoog has reported a reset");
@@ -431,6 +429,10 @@ void safety_internal_crash_reporting_handle_reset(void) {
 
 void safety_internal_crash_reporting_handle_init(void) {
     *reset_reason_reg = UNKNOWN_SAFETY_ACTIVE;
+}
+
+void safety_internal_crash_reporting_handle_deinit(void) {
+    *reset_reason_reg = UNKNOWN_SAFETY_PREINIT;
 }
 
 void safety_print_crash_log(void) {

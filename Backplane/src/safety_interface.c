@@ -8,7 +8,7 @@
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    
+
 }
 
 void safety_handle_kill(void) {
@@ -23,7 +23,7 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-    
+
 }
 
 void safety_interface_init(void) {
@@ -31,7 +31,11 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-    
+
+}
+
+void safety_interface_deinit(void) {
+    // TODO: Modify this function to add code to be called during safety_deinit
 }
 
 
