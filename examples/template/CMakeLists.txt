@@ -56,6 +56,7 @@ target_link_libraries(template_project
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
+	hardware_pwm
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

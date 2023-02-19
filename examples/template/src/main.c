@@ -5,6 +5,7 @@
 
 #include "ros.h"
 #include "safety_interface.h"
+#include "led.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -19,9 +20,11 @@
 
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
+#define CAN_STATUS_CHECK_TIME_MS 250
 
 absolute_time_t next_heartbeat;
 absolute_time_t next_status_update;
+absolute_time_t next_can_status_check;
 
 #define PROCESS_TIMER(next_time, timer_interval, callback) do { \
         if (time_reached(next_time)) { \
@@ -51,7 +54,7 @@ void tick_ros_timers() {
 }
 
 void tick_background_timers() {
-
+    PROCESS_TIMER(next_can_status_check, CAN_STATUS_CHECK_TIME_MS, led_update_can);
 }
 
 
@@ -69,6 +72,7 @@ int main() {
 
     LOG_INFO("%s", FULL_BUILD_TAG);
 
+    led_init();
     safety_setup();
     ros_rmw_init();
 
@@ -78,7 +82,7 @@ int main() {
 
     bool ros_initialized = false;
 
-    while(true) {
+    while(true) {        
         if(is_ros_connected()) {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
