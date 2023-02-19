@@ -3,7 +3,9 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
-#include "ros.h"
+#include "drivers/async_i2c.h"
+#include "hw/depth_sensor.h"
+#include "ros/ros.h"
 #include "safety_interface.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
@@ -19,9 +21,11 @@
 
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
+#define DEPTH_PUBLISHER_TIME_MS 50
 
 absolute_time_t next_heartbeat;
 absolute_time_t next_status_update;
+absolute_time_t next_depth_publisher_update;
 
 #define PROCESS_TIMER(next_time, timer_interval, callback) do { \
         if (time_reached(next_time)) { \
@@ -43,11 +47,13 @@ absolute_time_t next_status_update;
 void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_depth_publisher_update = make_timeout_time_ms(DEPTH_PUBLISHER_TIME_MS);
 }
 
 void tick_ros_timers() {
     PROCESS_TIMER(next_heartbeat, HEARTBEAT_TIME_MS, ros_heartbeat_pulse);
     PROCESS_TIMER(next_status_update, FIRMWARE_STATUS_TIME_MS, ros_update_firmware_status);
+    PROCESS_TIMER(next_depth_publisher_update, DEPTH_PUBLISHER_TIME_MS, ros_update_depth_publisher);
 }
 
 void tick_background_timers() {
@@ -75,6 +81,9 @@ int main() {
     #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
     #endif
+
+    async_i2c_init(200000, 5);
+    depth_init();
 
     bool ros_initialized = false;
 

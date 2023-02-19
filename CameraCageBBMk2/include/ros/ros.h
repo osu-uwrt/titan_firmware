@@ -27,4 +27,10 @@ bool is_ros_connected(void);
 
 bool ros_ping(void);
 
+rcl_ret_t ros_update_depth_publisher();
+
+rcl_ret_t ros_depth_publisher_init(rcl_node_t *node);
+
+void ros_depth_publisher_fini(rcl_node_t *node);
+
 #endif

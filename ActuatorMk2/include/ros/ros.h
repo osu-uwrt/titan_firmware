@@ -27,4 +27,12 @@ bool is_ros_connected(void);
 
 bool ros_ping(void);
 
+rcl_ret_t ros_claw_init(rclc_executor_t *executor, rcl_node_t *node, rclc_support_t *support);
+
+void ros_claw_fini(rcl_node_t *node);
+
+rcl_ret_t ros_torpedo_dropper_init(rclc_executor_t *executor, rcl_node_t *node, rclc_support_t *support);
+
+void ros_torpedo_dropper_fini(rcl_node_t *node);
+
 #endif

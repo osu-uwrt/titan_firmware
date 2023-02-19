@@ -3,7 +3,11 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
-#include "ros.h"
+#include "actuators/claw.h"
+#include "actuators/dropper.h"
+#include "actuators/torpedo.h"
+
+#include "ros/ros.h"
 #include "safety_interface.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
@@ -76,15 +80,19 @@ int main() {
     transport_usb_init();
     #endif
 
+    claw_initialize();
+    dropper_initialize();
+    torpedo_initialize();
+
     bool ros_initialized = false;
 
     while(true) {
         if(is_ros_connected()) {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
+                ros_initialized = ros_init();
 
-                if(ros_init() == RCL_RET_OK) {
-                    ros_initialized = true;
+                if(ros_initialized) {
                     safety_init();
                     start_ros_timers();
                 } else {

@@ -13,7 +13,7 @@
 #include "basic_logger/logging.h"
 #include "safety/safety.h"
 
-#include "ros.h"
+#include "ros/ros.h"
 #include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
@@ -168,7 +168,8 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
-    // BOARD SPECIFIC CODE HERE
+    RCRETCHECK(ros_depth_publisher_init(&node));
+
     return RCL_RET_OK;
 }
 
@@ -177,7 +178,7 @@ void ros_update(void) {
 }
 
 void ros_fini(void) {
-    // BOARD SPECIFIC CODE HERE
+    ros_depth_publisher_fini(&node);
 
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
