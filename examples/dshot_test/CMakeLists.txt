@@ -6,10 +6,10 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD puddles_backplane)
 
-# Target build type
-# Setting to Debug increases size but gives more useful information during debugging
-# Set to Debug if debugging with gdb
-set(CMAKE_BUILD_TYPE Debug)
+# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
+# Defaults to RelWithDebInfo when building normally
+# Overriding Debug increases size and slows down code, but gives more useful information during debugging
+set(default_build_type RelWithDebInfo)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
