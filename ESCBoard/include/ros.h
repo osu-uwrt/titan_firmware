@@ -1,3 +1,6 @@
+#ifndef ROS_H
+#define ROS_H
+
 #include <rmw_microros/rmw_microros.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -14,7 +17,7 @@ rcl_ret_t ros_update_firmware_status();
 
 void ros_rmw_init(void);
 
-bool ros_init();
+rcl_ret_t ros_init();
 
 void ros_fini(void);
 
@@ -23,3 +26,5 @@ void ros_update(void);
 bool is_ros_connected(void);
 
 bool ros_ping(void);
+
+#endif
