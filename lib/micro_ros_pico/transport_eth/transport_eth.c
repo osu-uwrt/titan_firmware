@@ -36,8 +36,8 @@ typedef uint8_t IPAddress[4];
 // If these are giving not defined errors, ensure that UWRT_ROBOT is defined in the CMakeLists file for the project
 static uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
 static uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
-static uint8_t source_ip[] = MICRO_IP;
-static uint16_t source_port = MICRO_PORT;
+static uint8_t source_ip[] = ETHERNET_IP;
+static uint16_t source_port = ETHERNET_PORT;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static const int sock = MICRO_ROS_PICO_ETH_SOCK_NUM;
 static udp_socket_t ros_socket;
@@ -130,7 +130,7 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-void transport_eth_init(void){
+bool transport_eth_init(void){
     puts("Initializing W5500");
 
     // SPI initialisation. This example will use SPI at 1MHz.
@@ -171,4 +171,6 @@ void transport_eth_init(void){
 		transport_eth_write,
 		transport_eth_read
 	);
+	
+	return true;
 }

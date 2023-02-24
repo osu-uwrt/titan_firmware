@@ -19,3 +19,4 @@ target_include_directories(micro_ros_eth INTERFACE
 )
 
 target_compile_definitions(micro_ros_eth INTERFACE SAFETY_ROS_SUPPORT=1)
+target_compile_definitions(micro_ros_eth INTERFACE MICRO_ROS_TRANSPORT_ETH=1)

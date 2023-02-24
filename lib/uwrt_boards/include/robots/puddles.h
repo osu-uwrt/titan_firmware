@@ -10,8 +10,6 @@
 #define ROBOT_NAMESPACE "puddles"
 
 // Address Definitions
-#define MICRO_IP {192, 168, 1, 13}
-#define MICRO_PORT 1337
 #define ROBOT_COMPUTER_IP   {192, 168, 1, 22}
 #define ROBOT_COMPUTER_UROS_PORT 8888
 

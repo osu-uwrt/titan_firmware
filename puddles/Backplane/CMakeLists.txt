@@ -28,11 +28,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
-# Setup wiznet
-
-# Set ethernet chip
-# set(WIZNET_CHIP W5200)
-
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(backplane_firmware
@@ -58,23 +53,23 @@ uwrt_use_upload_tool(backplane_firmware)
 
 # Compile Definitions
 target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
-target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
-target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
-target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
-target_compile_definitions(backplane_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
-target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
+# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
+# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
+# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
+# target_compile_definitions(backplane_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
+# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)
 target_link_libraries(backplane_firmware
+	basic_logger
 	pico_stdlib
-	hardware_pio
-	hardware_pwm
-	hardware_i2c
-	hardware_adc
-	hardware_spi
-	hardware_dma
 	wiznet_ethernet
 	micro_ros_eth
 	safety
+
+	hardware_pio
+	hardware_pwm
+	hardware_i2c
+	hardware_spi
 )

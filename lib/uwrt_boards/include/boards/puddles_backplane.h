@@ -4,6 +4,8 @@
 // For board detection
 #define PUDDLES_BACKPLANE
 
+#define CLIENT_ID 55
+
 // ==============================
 // Board Address Definitions
 // ==============================
@@ -11,15 +13,16 @@
 #define ETHERNET_IP       {192, 168,   1,  42}
 #define ETHERNET_MASK     {255, 255, 255,   0}
 #define ETHERNET_GATEWAY  {192, 168,   1,   1}
+#define ETHERNET_PORT 1337
 
 // ==============================
 // Board Pin Definitions
 // ==============================
 
 // On-Board LED Pins
-#define LED_RGB_R_PIN   29
-#define LED_RGB_G_PIN   28
-#define LED_RGB_B_PIN   27
+#define STATUS_LEDR_PIN   29
+#define STATUS_LEDG_PIN   28
+#define STATUS_LEDB_PIN   27
 
 // On-Board Ethernet phy
 #define ETH_SPI         0

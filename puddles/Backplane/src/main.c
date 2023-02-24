@@ -1,163 +1,217 @@
-#include <stdio.h>
 #include "pico/stdlib.h"
-#include <stdlib.h>
 
+#include "basic_logger/logging.h"
 #include "build_version.h"
-// adc test
-#include "mcp3426.h"
 
-// micro-ros stuff
-#include <rcl/rcl.h>
-#include <rcl/error_handling.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
-#include <std_msgs/msg/int32.h>
-#include <riptide_msgs2/msg/pwm_stamped.h>
-#include <rmw_microros/rmw_microros.h>
+#include "ros.h"
+#include "safety_interface.h"
+#include "led.h"
+
+#ifdef MICRO_ROS_TRANSPORT_USB
+#include "micro_ros_pico/transport_usb.h"
+#endif
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+#include "can_mcp251Xfd/canbus.h"
+#include "micro_ros_pico/transport_can.h"
+#endif
+
+#ifdef MICRO_ROS_TRANSPORT_ETH
 #include "micro_ros_pico/transport_eth.h"
 #include "eth_networking.h"
+#endif
 
-#include "safety_interface.h"
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "main"
 
-rcl_publisher_t publisher;
-riptide_msgs2__msg__PwmStamped msg_out;
+#define UROS_CONNECT_PING_TIME_MS 1000
+#define HEARTBEAT_TIME_MS 100
+#define FIRMWARE_STATUS_TIME_MS 1000
+#define LED_UPTIME_INTERVAL_MS 250
 
-static rcl_subscription_t pwm_subscriber;
-static riptide_msgs2__msg__PwmStamped pwm_msg;
+// Initialize all to nil time
+// For background timers, they will fire immediately
+// For ros timers, they will be reset before being ticked by start_ros_timers
+absolute_time_t next_heartbeat = {0};
+absolute_time_t next_status_update = {0};
+absolute_time_t next_led_update = {0};
+absolute_time_t next_connect_ping = {0};
 
-static void pwm_subscription_callback(__unused const void * msgin)
-{
-	const riptide_msgs2__msg__PwmStamped * msg = (const riptide_msgs2__msg__PwmStamped *)msgin;
-    rcl_publish(&publisher, &msg_out, NULL);
-    msg_out.pwm[0]++;
+/**
+ * @brief Check if a timer is ready. If so advance it to the next interval.
+ *
+ * This will also raise a fault if timers are missed
+ *
+ * @param next_fire_ptr A pointer to the absolute_time_t holding the time the timer should next fire
+ * @param interval_ms The interval the timer fires at
+ * @return true The timer has fired, any action which was waiting for this timer should occur
+ * @return false The timer has not fired
+ */
+static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
+    absolute_time_t time_tmp = *next_fire_ptr;
+    if (time_reached(time_tmp)) {
+        time_tmp = delayed_by_ms(time_tmp, interval_ms);
+        if (time_reached(time_tmp)) {
+            unsigned int i = 0; \
+            while(time_reached(time_tmp)) {
+                time_tmp = delayed_by_ms(time_tmp, interval_ms);
+                i++;
+            }
+            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+            if (error_on_miss)
+                safety_raise_fault(FAULT_TIMER_MISSED);
+        }
+        *next_fire_ptr = time_tmp;
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
-extern int timer_task_count;
+/**
+ * @brief Starts all ROS timers after ROS starts up
+ *
+ * Ensures that ROS timers will be staggered from ROS bringup and won't flood the queue all at once
+ * This also prevents the timer code from warning about missing runs (as ROS hasn't been running)
+ */
+static void start_ros_timers() {
+    next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
+    next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+}
 
-void timer_callback(__unused rcl_timer_t *timer, __unused int64_t last_call_time)
-{
-    rcl_ret_t ret = rcl_publish(&publisher, &msg_out, NULL);
-    //msg.data++;
-    msg_out.pwm[0]++;
+/**
+ * @brief Ticks all ROS related code
+ */
+static void tick_ros_tasks() {
+    // Note that this is the *ONLY* function that any ros functions should be in, other than the executor
+    // And in the executor, it should be the minimal amount of code to store the data received and get out
+
+    // This is due to ROS timeouts/latency. In the event any reliable packet fails, it will block for the
+    // whole 30 ms timeout. In order to ensure the 50ms minimum watchdog latency is met, there can only
+    // be one timeout per loop. So, if any code errors for any reason, it should immediately return with an error
+    // As this function should be  the only place with ROS code, it will exit before trying again, thus ensuring
+    // that only 1 timeout occurs per safety tick.
+
+    // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
+
+    if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
+        // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
+        RCSOFTRETVCHECK(ros_heartbeat_pulse());
+    }
+
+    if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_update_firmware_status());
+    }
+
+    // TODO: Put any additional ROS tasks added here
+}
+
+static void tick_background_tasks() {
+    #if MICRO_ROS_TRANSPORT_CAN
+    canbus_tick();
+
+    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+        led_network_online_set(canbus_check_online());
+    }
+    #else
+    // Update the LED (so it can alternate between colors if a fault is present)
+    // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
+    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+        led_update_pins();
+    }
+    #endif
+
+    // TODO: Put any code that should periodically occur here
 }
 
 
 int main() {
+    // Initialize stdio
+    #ifdef MICRO_ROS_TRANSPORT_USB
+    // The USB transport is special since it initializes stdio for you already
+    transport_usb_serial_init_early();
+    #else
     stdio_init_all();
+    #endif
+    LOG_INFO("%s", FULL_BUILD_TAG);
 
+
+    // Perform all initializations
+    // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
-    // safety_init();
-
-    //safety_setup();
-    unsigned char count = 7;
-    uint8_t gpio_base_status_reg = 0;
-    
-    // Computer power on
-    gpio_init(PWR_CTL_CPU);
-    gpio_init(LED_RGB_R_PIN);
-    gpio_init(LED_RGB_G_PIN);
-    gpio_init(LED_RGB_B_PIN);
-    gpio_init(ETH_CS_PIN);
-    gpio_init(ETH_RST_PIN);
-
-    gpio_set_dir(ETH_RST_PIN, GPIO_OUT);
-    gpio_set_dir(ETH_CS_PIN, GPIO_OUT);
-    gpio_set_dir(LED_RGB_R_PIN, GPIO_OUT);
-    gpio_set_dir(LED_RGB_G_PIN, GPIO_OUT);
-    gpio_set_dir(LED_RGB_B_PIN, GPIO_OUT);
-    gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
+    led_init();
+    ros_rmw_init_error_handling();
+    // TODO: Put any additional hardware initialization code here
 
 
-    // GPIO init
-    // Chip select is active-low, so we'll initialise it to a driven-high state
-    gpio_put(PWR_CTL_CPU, 1);
-    gpio_put(LED_RGB_R_PIN, 0);
-    gpio_put(LED_RGB_G_PIN, 1);
-    gpio_put(LED_RGB_B_PIN, 1);
-    gpio_put(ETH_CS_PIN, 1);
-
-	//reset routine
-    gpio_put(ETH_RST_PIN, 0);
-    busy_wait_ms(50);
-    gpio_put(ETH_RST_PIN, 1);
-    busy_wait_ms(1000);
-
-
-    sleep_ms(1000);
-
-    // Eth init
-
-    transport_eth_init();
-
-    // ROS init
-    rcl_timer_t timer;
-    rcl_node_t node;
-    rcl_allocator_t allocator;
-    rclc_support_t support;
-    rclc_executor_t executor;
-
-    allocator = rcl_get_default_allocator();
-
-    // wait for micro-ros connect
-    const int timeout_ms = 1000;
-
-    rcl_ret_t ret;
-    do {
-        ret = rmw_uros_ping_agent(timeout_ms, 1);
-		safety_tick();
-    } while (ret != RCL_RET_OK);
-
-    printf("%s\n", FULL_BUILD_TAG);
-    printf("Connected to ROS\n");
-
-    rclc_support_init(&support, 0, NULL, &allocator);
-
-    rclc_node_init_default(&node, "pico_node", "", &support);
-    rclc_publisher_init_best_effort(
-        &publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, PwmStamped),
-        "pico_publisher");
-
-    rclc_subscription_init_best_effort(
-		&pwm_subscriber,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, PwmStamped),
-		"command/pwm");
-
-    rclc_timer_init_default(
-        &timer,
-        &support,
-        RCL_MS_TO_NS(1000),
-        timer_callback);
-
-    rclc_executor_init(&executor, &support.context, 2, &allocator);
-    rclc_executor_add_timer(&executor, &timer);
-    rclc_executor_add_subscription(&executor, &pwm_subscriber, &pwm_msg, &pwm_subscription_callback, ON_NEW_DATA);
-
-    mcp3426_init();
-
-    while (true) {
-        count = 7;
-        
-        // Basic GPIO management
-        // Kill switches and inputs
-        if(!gpio_get(KILL_SW_SENSE)) {
-            printf("Kill Switch Fired!\n");
-            count ^= 0x1;
-            gpio_base_status_reg |= 0x2;
-        }
-        if(!gpio_get(AUX_SW_SENSE)) {
-            printf("AUX Switch Fired!\n");
-            count ^= 0x4;
-            gpio_base_status_reg |= 0x4;
-        }
-
-        mcp3426_read();
-        sleep_us(1000);
-
-        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-        //safety_tick();
+    // Initialize ROS Transports
+    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
+    #ifdef MICRO_ROS_TRANSPORT_CAN
+    uint can_id = CAN_BUS_CLIENT_ID;
+    if (!transport_can_init(can_id)) {
+        // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
+        panic("Failed to initialize CAN bus hardware!");
     }
+    #endif
+
+    #ifdef MICRO_ROS_TRANSPORT_ETH
+    if (!transport_eth_init()) {
+        // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
+        panic("Failed to initialize Ethernet hardware!");
+    }
+    #endif
+
+    #ifdef MICRO_ROS_TRANSPORT_USB
+    transport_usb_init();
+    #endif
+
+
+    // Enter main loop
+    // This is split into two sections of timers
+    // Those running with ROS, and those in the background
+    // Note that both types of timers will need to conform to the minimal delay time, as there is around
+    //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
+    // Meaning, don't block, either poll it in the background task or send it to an interrupt
+    bool ros_initialized = false;
+    while(true) {
+        // Do background tasks
+        tick_background_tasks();
+
+        // Handle ROS state logic
+        if(is_ros_connected()) {
+            if(!ros_initialized) {
+                LOG_INFO("ROS connected");
+
+                if(ros_init() == RCL_RET_OK) {
+                    ros_initialized = true;
+                    led_ros_connected_set(true);
+                    safety_init();
+                    start_ros_timers();
+                } else {
+                    LOG_ERROR("ROS failed to initialize.");
+                    ros_fini();
+                }
+            } else {
+                ros_spin_executor();
+                tick_ros_tasks();
+            }
+        } else if(ros_initialized){
+            LOG_INFO("Lost connection to ROS")
+            ros_fini();
+            safety_deinit();
+            led_ros_connected_set(false);
+            ros_initialized = false;
+        } else {
+            if (time_reached(next_connect_ping)) {
+                ros_ping();
+                next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
+            }
+        }
+
+        // Tick safety
+        safety_tick();
+    }
+
     return 0;
 }

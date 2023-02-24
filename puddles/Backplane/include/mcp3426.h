@@ -25,9 +25,6 @@ void mcp3426_read() {
         i2c_write_blocking(i2c1, MCP3426_ADDR, data, 1, 0);
         sleep_us(5000);
         i2c_read_blocking(i2c1, MCP3426_ADDR, data, 4, false);
-        gpio_put(LED_RGB_R_PIN, chan & 0x01);
-        gpio_put(LED_RGB_G_PIN, chan & 0x02);
-        gpio_put(LED_RGB_B_PIN, chan & 0x04);
         sleep_us(500);
     }
 }
