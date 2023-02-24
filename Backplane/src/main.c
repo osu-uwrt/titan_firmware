@@ -3,6 +3,8 @@
 #include <stdlib.h>
 
 #include "build_version.h"
+// adc test
+#include "mcp3426.h"
 
 // micro-ros stuff
 #include <rcl/rcl.h>
@@ -13,6 +15,7 @@
 #include <riptide_msgs2/msg/pwm_stamped.h>
 #include <rmw_microros/rmw_microros.h>
 #include "micro_ros_pico/transport_eth.h"
+#include "eth_networking.h"
 
 #include "safety_interface.h"
 
@@ -43,16 +46,47 @@ int main() {
     stdio_init_all();
 
     safety_setup();
+    // safety_init();
+
+    //safety_setup();
+    unsigned char count = 7;
+    uint8_t gpio_base_status_reg = 0;
+    
+    // Computer power on
+    gpio_init(PWR_CTL_CPU);
+    gpio_init(LED_RGB_R_PIN);
+    gpio_init(LED_RGB_G_PIN);
+    gpio_init(LED_RGB_B_PIN);
+    gpio_init(ETH_CS_PIN);
+    gpio_init(ETH_RST_PIN);
+
+    gpio_set_dir(ETH_RST_PIN, GPIO_OUT);
+    gpio_set_dir(ETH_CS_PIN, GPIO_OUT);
+    gpio_set_dir(LED_RGB_R_PIN, GPIO_OUT);
+    gpio_set_dir(LED_RGB_G_PIN, GPIO_OUT);
+    gpio_set_dir(LED_RGB_B_PIN, GPIO_OUT);
+    gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
+
 
     // GPIO init
-    gpio_init(LED_RGB_R_PIN);
-    gpio_set_dir(LED_RGB_R_PIN, GPIO_OUT);
-    gpio_init(LED_RGB_G_PIN);
-    gpio_set_dir(LED_RGB_G_PIN, GPIO_OUT);
-    gpio_init(LED_RGB_B_PIN);
-    gpio_set_dir(LED_RGB_B_PIN, GPIO_OUT);
+    // Chip select is active-low, so we'll initialise it to a driven-high state
+    gpio_put(PWR_CTL_CPU, 1);
+    gpio_put(LED_RGB_R_PIN, 0);
+    gpio_put(LED_RGB_G_PIN, 1);
+    gpio_put(LED_RGB_B_PIN, 1);
+    gpio_put(ETH_CS_PIN, 1);
+
+	//reset routine
+    gpio_put(ETH_RST_PIN, 0);
+    busy_wait_ms(50);
+    gpio_put(ETH_RST_PIN, 1);
+    busy_wait_ms(1000);
+
+
+    sleep_ms(1000);
 
     // Eth init
+
     transport_eth_init();
 
     // ROS init
@@ -98,24 +132,32 @@ int main() {
         timer_callback);
 
     rclc_executor_init(&executor, &support.context, 2, &allocator);
-    //rclc_executor_add_timer(&executor, &timer);
+    rclc_executor_add_timer(&executor, &timer);
     rclc_executor_add_subscription(&executor, &pwm_subscriber, &pwm_msg, &pwm_subscription_callback, ON_NEW_DATA);
 
-    unsigned char count = 7;
+    mcp3426_init();
 
     while (true) {
-        printf("Hello World!\n");
+        count = 7;
+        
+        // Basic GPIO management
+        // Kill switches and inputs
+        if(!gpio_get(KILL_SW_SENSE)) {
+            printf("Kill Switch Fired!\n");
+            count ^= 0x1;
+            gpio_base_status_reg |= 0x2;
+        }
+        if(!gpio_get(AUX_SW_SENSE)) {
+            printf("AUX Switch Fired!\n");
+            count ^= 0x4;
+            gpio_base_status_reg |= 0x4;
+        }
 
-        gpio_put(LED_RGB_R_PIN, count & 0x01);
-        gpio_put(LED_RGB_G_PIN, count & 0x02);
-        gpio_put(LED_RGB_B_PIN, count & 0x04);
-
-        count = count > 0 ? 7 : count - 1;
+        mcp3426_read();
+        sleep_us(1000);
 
         rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-        safety_tick();
-
-        sleep_ms(1000);
+        //safety_tick();
     }
     return 0;
 }

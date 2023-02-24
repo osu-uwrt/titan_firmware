@@ -46,6 +46,7 @@ static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_
 
 #if PICO_STDIO_USB_RESET_INTERFACE_SUPPORT_RESET_TO_BOOTSEL
         if (request->bRequest == RESET_REQUEST_BOOTSEL) {
+            watchdog_enable(3000, false);
 #ifdef PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED
             uint gpio_mask = 1u << PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED;
 #else
