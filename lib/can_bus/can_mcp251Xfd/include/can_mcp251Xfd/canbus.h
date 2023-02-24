@@ -74,6 +74,11 @@ bool canbus_check_online(void);
 void canbus_set_device_in_error(bool device_in_error_state);
 
 /**
+ * @brief Tick any events which need to occur within can bus
+ */
+void canbus_tick(void);
+
+/**
  * @brief Boolean if `canbus_init` has been called.
 */
 extern bool canbus_initialized;

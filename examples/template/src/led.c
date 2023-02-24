@@ -1,42 +1,52 @@
 #include <stdbool.h>
 #include <rcl/rcl.h>
-#include "can_mcp251Xfd/canbus.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
 
-#define LED_BLINK_CYCLE_MS 2000
+/**
+ * @brief Rate at which the normal LED value and fault value alternates between
+ */
+#define LED_TOGGLE_RATE_MS 500
+
+#define LED_BRIGHTNESS_STEPS 32
+#define LED_FREQUENCY_HZ 1000
+#define LED_LVL_ON LED_BRIGHTNESS_STEPS
+#define LED_LVL_OFF 0
+#define LED_LVL_YELLOW 7
 #define set_led_pin(pin, val)  pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
 
-struct led_status { 
+static struct led_status {
+    bool initialized;   // If this is false, the PWM hardware hasn't been setup yet
     bool fault;
-    bool can;
-    bool enabled;
+    bool network_online;
+    bool ros_connected;
     bool killswitch;
-};
+} status = {.initialized = false};
 
-static struct led_status status = {0};
-
-void led_init() { 
+void led_init() {
     pwm_config config = pwm_get_default_config();
 
-    assert((clock_get_hz(clk_sys) % 1000) == 0);
-    pwm_config_set_clkdiv_int(&config, clock_get_hz(clk_sys) / 1000);
-    pwm_config_set_wrap(&config, LED_BLINK_CYCLE_MS);
+    // Set clkdiv to tick once per millisecond (assert clock is disible cleanly into ms)
+    // and for the cycle to rollover after blink cycle ms
+    pwm_config_set_clkdiv(&config, ((float)clock_get_hz(clk_sys)) / (LED_FREQUENCY_HZ * LED_BRIGHTNESS_STEPS));
+    pwm_config_set_wrap(&config, LED_BRIGHTNESS_STEPS-1);
 
-    uint32_t initialized_slices = 0;
+    // Invert the output polarity as this is an RGB led so it will have inverted logic levels
+    pwm_config_set_output_polarity(&config, true, true);
+
+    // Configure PWM hardware
     uint led_pins[] = {STATUS_LEDR_PIN, STATUS_LEDG_PIN, STATUS_LEDB_PIN};
+    uint32_t initialized_slices = 0;
 
-    static_assert(NUM_PWM_SLICES <= 32, "Too many slices to fit into counter");
-    for (unsigned int i = 0; i < sizeof(led_pins) / sizeof(led_pins[0]); i++){
+    for (unsigned int i = 0; i < sizeof(led_pins) / sizeof(*led_pins); i++){
         uint pin = led_pins[i];
         uint slice_num = pwm_gpio_to_slice_num(pin);
-        uint channel =  pwm_gpio_to_channel(pin);
 
         // Initialize slice if needed
         if (!(initialized_slices & (1<<slice_num))) {
             initialized_slices |= (1<<slice_num);
-            
+
             pwm_init(slice_num, &config, false);
         }
 
@@ -45,6 +55,10 @@ void led_init() {
         gpio_set_function(pin, GPIO_FUNC_PWM);
     }
 
+    // Set the PWM to the LED state
+    led_update_pins();
+
+    // Finally enable all the configured slices
     int slice_num = 0;
     while (initialized_slices != 0){
         if (initialized_slices & 1){
@@ -54,70 +68,78 @@ void led_init() {
         initialized_slices >>= 1;
     }
 
-    bool ledr_channel_a = pwm_gpio_to_channel(STATUS_LEDR_PIN) == PWM_CHAN_A;
-    pwm_set_output_polarity(pwm_gpio_to_slice_num(STATUS_LEDR_PIN), ledr_channel_a, !ledr_channel_a);
+    status.initialized = true;
 }
 
-void led_update_pins() { 
-    // Color Calculation: 
+void led_update_pins() {
+    // Color Calculation:
     // 1. Kill switch inserted: Blue
     // 2. Safety Initialized: Green
     // 3. CAN Online: Yellow
     // 4. CAN Offline: Red
     // If a fault occurs, it will alternate between the color above and red
 
-    bool r = false;
-    bool g = false;
-    bool b = false;
+    // If an interrupt fires and this is called recursively, this ensures the value is recomputed
+    static volatile bool modified = true;
+    do {
+        modified = false;
 
-    if(status.killswitch) {
-        b = true; 
-    } else if(status.enabled) {
-        g = true;
-    } else if(status.can) { 
-        r = true;
-        g = true;
-    } else { 
-        r = true;
-    }
+        // Compute blinking if a fault is present
+        uint32_t value = (to_ms_since_boot(get_absolute_time()) % (LED_TOGGLE_RATE_MS*2));
 
-    if(status.fault) { 
-        set_led_pin(STATUS_LEDR_PIN, status.fault ? 0 : LED_BLINK_CYCLE_MS / 2);
-        set_led_pin(STATUS_LEDG_PIN, g ? LED_BLINK_CYCLE_MS / 2 : 0);
-        set_led_pin(STATUS_LEDB_PIN, b ? LED_BLINK_CYCLE_MS / 2 : 0);
-    } else { 
-        set_led_pin(STATUS_LEDR_PIN, r ? 0 : LED_BLINK_CYCLE_MS);
-        set_led_pin(STATUS_LEDG_PIN, g ? LED_BLINK_CYCLE_MS : 0);
-        set_led_pin(STATUS_LEDB_PIN, b ? LED_BLINK_CYCLE_MS : 0);
-    }
+        if (status.fault && value >= LED_TOGGLE_RATE_MS) {
+            set_led_pin(STATUS_LEDR_PIN, LED_LVL_ON);
+            set_led_pin(STATUS_LEDG_PIN, LED_LVL_OFF);
+            set_led_pin(STATUS_LEDB_PIN, LED_LVL_OFF);
+        }
+        else {
+            uint16_t r = LED_LVL_OFF;
+            uint16_t g = LED_LVL_OFF;
+            uint16_t b = LED_LVL_OFF;
+
+            if(status.killswitch) {
+                b = LED_LVL_ON;
+            } else if(status.ros_connected) {
+                g = LED_LVL_ON;
+            } else if(status.network_online) {
+                r = LED_LVL_ON;
+                g = LED_LVL_YELLOW;
+            } else {
+                r = LED_LVL_ON;
+            }
+
+            set_led_pin(STATUS_LEDR_PIN, r);
+            set_led_pin(STATUS_LEDG_PIN, g);
+            set_led_pin(STATUS_LEDB_PIN, b);
+        }
+    } while (modified);
+    modified = true;
 }
 
 void led_fault_set(bool value) {
     status.fault = value;
 
-    led_update_pins();
-}  
-
-void led_can_set(bool value) {
-    status.can = value;
-
-    led_update_pins();
+    if (status.initialized)
+        led_update_pins();
 }
 
-void led_enabled_set(bool value) {
-    status.enabled = value;
+void led_network_online_set(bool value) {
+    status.network_online = value;
 
-    led_update_pins();
+    if (status.initialized)
+        led_update_pins();
+}
+
+void led_ros_connected_set(bool value) {
+    status.ros_connected = value;
+
+    if (status.initialized)
+        led_update_pins();
 }
 
 void led_killswitch_set(bool value) {
     status.killswitch = value;
 
-    led_update_pins();
-}
-
-rcl_ret_t led_update_can() { 
-    led_can_set(canbus_check_online());
-
-    return RCL_RET_OK;
+    if (status.initialized)
+        led_update_pins();
 }

@@ -33,7 +33,6 @@ void safety_interface_setup(void) {
 }
 
 void safety_interface_init(void) {
-    led_enabled_set(true);  
     // TODO: Modify this function to add code to be called during safety_init
 }
 
@@ -42,7 +41,6 @@ void safety_interface_tick(void) {
 }
 
 void safety_interface_deinit(void) {
-    led_enabled_set(false);  
     // TODO: Modify this function to add code to be called during safety_deinit
 }
 

@@ -62,11 +62,13 @@ void safety_tick(void) {
     safety_internal_fault_tick();
     safety_interface_tick();
 
-    if (absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time) >
+    if (absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time) <
             1000 * (safety_initialized ? SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS :
                     SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS)) {
         safety_raise_fault(FAULT_WATCHDOG_WARNING);
     }
 
+    watchdog_timeout_time = make_timeout_time_ms(safety_initialized ? SAFETY_WATCHDOG_ACTIVE_TIMER_MS :
+                                                 SAFETY_WATCHDOG_SETUP_TIMER_MS);
     watchdog_update();
 }

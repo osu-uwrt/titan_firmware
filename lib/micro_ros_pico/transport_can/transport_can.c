@@ -34,7 +34,7 @@ bool transport_can_close(__unused struct uxrCustomTransport * transport)
     return true;
 }
 
-size_t transport_can_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
+size_t transport_can_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, __unused uint8_t *errcode)
 {
     while (!canbus_msg_write_available()) {
         tight_loop_contents();
@@ -43,7 +43,7 @@ size_t transport_can_write(__unused struct uxrCustomTransport* transport, const 
     return canbus_msg_write(buf, len);
 }
 
-size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, uint8_t *errcode)
+size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, int timeout, __unused uint8_t *errcode)
 {
     absolute_time_t timeout_time = make_timeout_time_ms(timeout);
     while (!canbus_msg_read_available()) {
@@ -58,15 +58,22 @@ size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over CAN"))
 
-void transport_can_init(uint client_id){
-    canbus_init(client_id);
+bool transport_can_init(uint client_id){
+    if (!canbus_init(client_id)) {
+        return false;
+    }
 
-    rmw_uros_set_custom_transport(
-		false,
-		NULL,
-		transport_can_open,
-		transport_can_close,
-		transport_can_write,
-		transport_can_read
-	);
+    if (rmw_uros_set_custom_transport(
+            false,
+            NULL,
+            transport_can_open,
+            transport_can_close,
+            transport_can_write,
+            transport_can_read
+        ) != RMW_RET_OK)
+    {
+        return false;
+    }
+
+    return true;
 }

@@ -270,5 +270,11 @@ bool canbus_check_online(void) {
 
     // TODO: Update to new algorithm
 
-    return false; //return !time_reached(canbus_heartbeat_timeout);
+    return true; //return !time_reached(canbus_heartbeat_timeout);
+}
+
+void canbus_tick(void) {
+    assert(canbus_initialized);
+
+    // TODO: Fill out stuff here
 }

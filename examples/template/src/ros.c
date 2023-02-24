@@ -11,13 +11,15 @@
 
 #include "build_version.h"
 #include "basic_logger/logging.h"
-#include "safety/safety.h"
 
 #include "ros.h"
-#include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
+
+// ========================================
+// RMW Error Handling Code
+// ========================================
 
 const char * const entity_lookup_table[] = {
     "RMW_UROS_ERROR_ON_UNKNOWN",
@@ -42,6 +44,23 @@ const char * const source_lookup_table[] = {
 #define lookup_entity_enum(value) lookup_string_enum(value, entity_lookup_table)
 #define lookup_source_enum(value) lookup_string_enum(value, source_lookup_table)
 
+void rmw_error_cb(
+  __unused const rmw_uros_error_entity_type_t entity,
+  __unused const rmw_uros_error_source_t source,
+  __unused const rmw_uros_error_context_t context,
+  __unused const char * file,
+  __unused const int line) {
+    LOG_DEBUG("RMW UROS Error:\n\tEntity: %s\n\tSource: %s\n\tDesc: %s\n\tLocation: %s:%d", lookup_entity_enum(entity), lookup_source_enum(source), context.description, file, line);
+}
+
+void ros_rmw_init_error_handling(void)  {
+    rmw_uros_set_error_handling_callback(rmw_error_cb);
+}
+
+// ========================================
+// Global Definitions
+// ========================================
+
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
@@ -49,35 +68,27 @@ const char * const source_lookup_table[] = {
 
 bool ros_connected = false;
 
+// Core Variables
 rcl_node_t node;
 rcl_allocator_t allocator;
 rclc_support_t support;
 rclc_executor_t executor;
 rcl_publisher_t heartbeat_publisher;
-rcl_publisher_t firmware_status_publisher;
-rcl_subscription_t killswtich_subscriber;
-
-std_msgs__msg__Bool killswitch_msg;
-
 int failed_heartbeats = 0;
 
-void rmw_error_cb(
-  const rmw_uros_error_entity_type_t entity,
-  const rmw_uros_error_source_t source,
-  const rmw_uros_error_context_t context,
-  const char * file,
-  const int line) {
-    LOG_DEBUG("RMW UROS Error:\n\tEntity: %s\n\tSource: %s\n\tDesc: %s\n\tLocation: %s:%d", lookup_entity_enum(entity), lookup_source_enum(source), context.description, file, line);
-}
+// Node specific Variables
+rcl_publisher_t firmware_status_publisher;
+rcl_subscription_t killswtich_subscriber;
+std_msgs__msg__Bool killswitch_msg;
+// TODO: Add node specific items here
 
-void ros_rmw_init(void)  {
-    rmw_uros_set_error_handling_callback(rmw_error_cb);
-}
+// ========================================
+// ROS Callbacks
+// ========================================
 
 static void killswitch_subscription_callback(const void * msgin)
 {
 	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
-    LOG_INFO("New killswitch status: %d", msg->data);
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
@@ -115,7 +126,7 @@ rcl_ret_t ros_update_firmware_status() {
         }
     }
 
-    RCRETCHECK_QUIET(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -134,10 +145,16 @@ rcl_ret_t ros_heartbeat_pulse() {
         failed_heartbeats = 0;
     }
 
-    RCRETCHECK_QUIET(ret);
+    RCSOFTRETCHECK(ret);
 
     return RCL_RET_OK;
 }
+
+// TODO: Add in node specific tasks here
+
+// ========================================
+// ROS Core
+// ========================================
 
 rcl_ret_t ros_init() {
     allocator = rcl_get_default_allocator();
@@ -165,19 +182,25 @@ rcl_ret_t ros_init() {
 
     const int executor_num_handles = 1;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
-    // BOARD SPECIFIC CODE HERE
+    // TODO: BOARD SPECIFIC CODE HERE
+
+    // Note: Code in executor callbacks should be kept to a minimum
+    // It should set whatever flags are necessary and get out
+    // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
+    // in the event that specific request times out
+
     return RCL_RET_OK;
 }
 
-void ros_update(void) {
+void ros_spin_executor(void) {
     rclc_executor_spin_some(&executor, 0);
 }
 
 void ros_fini(void) {
-    // BOARD SPECIFIC CODE HERE
+    // TODO: BOARD SPECIFIC CODE HERE
+    // Make sure to clean up anything you have opened here to avoid memory leaks
 
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
