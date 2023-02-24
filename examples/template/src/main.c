@@ -90,13 +90,19 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
+    #ifdef MICRO_ROS_TRANSPORT_CAN
+    uint8_t client_id = CAN_BUS_CLIENT_ID;
+    #else
+    uint8_t client_id = 1;
+    #endif
+
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
-        RCSOFTRETVCHECK(ros_heartbeat_pulse());
+        RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
     }
 
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_firmware_status());
+        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
     // TODO: Put any additional ROS tasks added here

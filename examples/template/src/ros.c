@@ -98,12 +98,12 @@ static void killswitch_subscription_callback(const void * msgin)
 // Public Task Methods (called in main tick)
 // ========================================
 
-rcl_ret_t ros_update_firmware_status() {
+rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
     status_msg.board_name.data = PICO_BOARD;
     status_msg.board_name.size = strlen(PICO_BOARD);
     status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
-    status_msg.client_id = CAN_BUS_CLIENT_ID;
+    status_msg.client_id = client_id;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
     status_msg.version_major = MAJOR_VERSION;
     status_msg.version_minor = MINOR_VERSION;
@@ -137,9 +137,9 @@ rcl_ret_t ros_update_firmware_status() {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_heartbeat_pulse() {
+rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     std_msgs__msg__Int8 heartbeat_msg;
-    heartbeat_msg.data = CAN_BUS_CLIENT_ID;
+    heartbeat_msg.data = client_id;
     rcl_ret_t ret = rcl_publish(&heartbeat_publisher, &heartbeat_msg, NULL);
     if (ret != RCL_RET_OK) {
         failed_heartbeats++;
