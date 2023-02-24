@@ -26,3 +26,6 @@ __pycache__/
 # Temporary Projects  #
 #######################
 /scratch_projects/
+
+COLCON_IGNORE
+

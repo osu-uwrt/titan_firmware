@@ -45,6 +45,9 @@ void timer_callback(__unused rcl_timer_t *timer, __unused int64_t last_call_time
 int main() {
     stdio_init_all();
 
+    safety_setup();
+    // safety_init();
+
     //safety_setup();
     unsigned char count = 7;
     uint8_t gpio_base_status_reg = 0;
@@ -72,6 +75,7 @@ int main() {
     gpio_put(LED_RGB_G_PIN, 1);
     gpio_put(LED_RGB_B_PIN, 1);
     gpio_put(ETH_CS_PIN, 1);
+
 	//reset routine
     gpio_put(ETH_RST_PIN, 0);
     busy_wait_ms(50);
@@ -100,7 +104,7 @@ int main() {
     rcl_ret_t ret;
     do {
         ret = rmw_uros_ping_agent(timeout_ms, 1);
-		//safety_tick();
+		safety_tick();
     } while (ret != RCL_RET_OK);
 
     printf("%s\n", FULL_BUILD_TAG);

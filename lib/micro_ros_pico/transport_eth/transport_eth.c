@@ -42,6 +42,7 @@ static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static const int sock = MICRO_ROS_PICO_ETH_SOCK_NUM;
 static udp_socket_t ros_socket;
 static w5k_data_t eth_device;
+static bool showed_closed = false;
 
 
 void usleep(uint64_t us)
@@ -95,6 +96,25 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
 
 size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_t *buf, size_t len, __unused int timeout, uint8_t *errcode)
 {
+    // make sure the socket is still open
+    if (!eth_udp_isopen(ros_socket)){
+		if (!showed_closed){
+			puts("UDP Server Closed");
+			showed_closed = true;
+		}
+		
+        *errcode = 2; // TODO: figure out the right error code
+		return 0;
+	}
+
+    // need to parse the packet first and see if we have data
+    int packetSize = eth_udp_parsePacket(ros_socket);
+	if (!packetSize){
+        *errcode = 2; // TODO: figure out the right error code
+		return 0;
+	}
+
+    // now we can attempt the socket read
     if (len > 0 && eth_udp_read(ros_socket, buf, len) != len) {
         *errcode = 2;
 		return 0;
