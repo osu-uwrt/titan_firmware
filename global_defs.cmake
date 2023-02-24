@@ -36,7 +36,6 @@ function(uwrt_use_upload_tool target)
 endfunction()
 
 # Define all custom libraries
-add_subdirectory(${REPO_DIR}/lib/actuator_i2c_interface/ actuator_i2c_interface)
 add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
 add_subdirectory(${REPO_DIR}/lib/basic_queue/ basic_queue)
 add_subdirectory(${REPO_DIR}/lib/can_bus/ can_bus)
