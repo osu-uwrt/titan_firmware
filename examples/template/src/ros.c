@@ -83,7 +83,7 @@ std_msgs__msg__Bool killswitch_msg;
 // TODO: Add node specific items here
 
 // ========================================
-// ROS Callbacks
+// Executor Callbacks
 // ========================================
 
 static void killswitch_subscription_callback(const void * msgin)
@@ -91,6 +91,12 @@ static void killswitch_subscription_callback(const void * msgin)
 	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
+
+// TODO: Add in node specific tasks here
+
+// ========================================
+// Public Task Methods (called in main tick)
+// ========================================
 
 rcl_ret_t ros_update_firmware_status() {
     riptide_msgs2__msg__FirmwareStatus status_msg;
@@ -157,11 +163,12 @@ rcl_ret_t ros_heartbeat_pulse() {
 // ========================================
 
 rcl_ret_t ros_init() {
+    // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-
     RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
 
+    // Node Initialization
     RCRETCHECK(rclc_publisher_init_default(
         &heartbeat_publisher,
         &node,
@@ -180,11 +187,12 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_SUBCRIBER_NAME));
 
+    // Executor Initialization
     const int executor_num_handles = 1;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
-    // TODO: BOARD SPECIFIC CODE HERE
+    // TODO: Modify this method with node specific objects
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -199,8 +207,7 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    // TODO: BOARD SPECIFIC CODE HERE
-    // Make sure to clean up anything you have opened here to avoid memory leaks
+    // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))

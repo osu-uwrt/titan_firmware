@@ -145,7 +145,7 @@ int main() {
     #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
     if (!transport_can_init(can_id)) {
-        // No point in continuing onwards from here, if we don't have CAN bus might as well panic and retry
+        // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
     #endif

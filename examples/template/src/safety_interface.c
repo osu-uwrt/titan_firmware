@@ -1,7 +1,10 @@
 #include <assert.h>
-#include "can_mcp251Xfd/canbus.h"
 #include "safety_interface.h"
 #include "led.h"
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+#include "can_mcp251Xfd/canbus.h"
+#endif
 
 // ========================================
 // Implementations for External Interface Functions
@@ -30,6 +33,7 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
+
 }
 
 void safety_interface_init(void) {
