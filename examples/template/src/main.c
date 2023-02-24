@@ -19,16 +19,18 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
 
+#define UROS_CONNECT_PING_TIME_MS 1000
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
-#define CAN_STATUS_CHECK_TIME_MS 250
+#define LED_UPTIME_INTERVAL_MS 250
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
 absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
-absolute_time_t next_can_status_check = {0};
+absolute_time_t next_led_update = {0};
+absolute_time_t next_connect_ping = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -104,13 +106,16 @@ static void tick_background_tasks() {
     #if MICRO_ROS_TRANSPORT_CAN
     canbus_tick();
 
-    if (timer_ready(&next_can_status_check, CAN_STATUS_CHECK_TIME_MS, false)) {
+    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
-    #endif
-
+    #else
     // Update the LED (so it can alternate between colors if a fault is present)
-    led_update_pins();
+    // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
+    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+        led_update_pins();
+    }
+    #endif
 
     // TODO: Put any code that should periodically occur here
 }
@@ -186,7 +191,10 @@ int main() {
             led_ros_connected_set(false);
             ros_initialized = false;
         } else {
-            ros_ping();
+            if (time_reached(next_connect_ping)) {
+                ros_ping();
+                next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
+            }
         }
 
         // Tick safety

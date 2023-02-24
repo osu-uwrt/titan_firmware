@@ -74,6 +74,9 @@ void led_init() {
 }
 
 void led_update_pins() {
+    if (!status.initialized)
+        return;
+
     // Color Calculation:
     // 1. Kill switch inserted: Blue
     // 2. Safety Initialized: Green
