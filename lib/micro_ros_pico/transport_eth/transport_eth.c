@@ -114,12 +114,18 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 		return 0;
 	}
 
-    // now we can attempt the socket read
-    if (len > 0 && eth_udp_read(ros_socket, buf, len) != len) {
-        *errcode = 2;
+    // make sure the packet isnt too big
+	if (len < packetSize){
+		*errcode = 2; // TODO: figure out the right error code
+		return -1;
+	}
+
+    // now we can attempt the socket reads
+	if (packetSize > 0 && eth_udp_read(ros_socket, buf, packetSize) != packetSize) {
+		*errcode = 2;
 		return 0;
 	}
-    return len;
+    return packetSize;
 }
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
