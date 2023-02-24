@@ -37,6 +37,9 @@ absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 
+// need the wiznet device config for link test
+static w5k_data_t eth_device;
+
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
  *
@@ -94,12 +97,7 @@ static void tick_ros_tasks() {
     // that only 1 timeout occurs per safety tick.
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
-
-    #ifdef MICRO_ROS_TRANSPORT_CAN
-    uint8_t client_id = CAN_BUS_CLIENT_ID;
-    #else
     uint8_t client_id = 1;
-    #endif
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -114,63 +112,46 @@ static void tick_ros_tasks() {
 }
 
 static void tick_background_tasks() {
-    #if MICRO_ROS_TRANSPORT_CAN
-    canbus_tick();
-
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_network_online_set(canbus_check_online());
-    }
-    #else
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_update_pins();
+        led_network_online_set(ethernet_check_online(& eth_device));
     }
-    #endif
+    
+
 
     // TODO: Put any code that should periodically occur here
 }
 
 
 int main() {
-    // Initialize stdio
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    // The USB transport is special since it initializes stdio for you already
-    transport_usb_serial_init_early();
-    #else
     stdio_init_all();
-    #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
-
 
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
     ros_rmw_init_error_handling();
-    // TODO: Put any additional hardware initialization code here
 
+    // init the CPU pwr ctrl system
+    gpio_init(PWR_CTL_CPU);
+    gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
+    gpio_put(PWR_CTL_CPU, 1);
+
+    // init the kill and aux switches as inputs
+    gpio_init(AUX_SW_SENSE);
+    gpio_set_dir(AUX_SW_SENSE, GPIO_IN);
+    gpio_init(KILL_SW_SENSE);
+    gpio_set_dir(KILL_SW_SENSE, GPIO_IN);
+    
 
     // Initialize ROS Transports
-    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
-    #ifdef MICRO_ROS_TRANSPORT_CAN
-    uint can_id = CAN_BUS_CLIENT_ID;
-    if (!transport_can_init(can_id)) {
-        // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
-        panic("Failed to initialize CAN bus hardware!");
-    }
-    #endif
-
-    #ifdef MICRO_ROS_TRANSPORT_ETH
-    if (!transport_eth_init()) {
+    if (!transport_eth_init(& eth_device)) {
         // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
         panic("Failed to initialize Ethernet hardware!");
     }
-    #endif
-
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    transport_usb_init();
-    #endif
 
 
     // Enter main loop

@@ -9,7 +9,6 @@
 #include "safety/safety.h"
 
 #include "micro_ros_pico/transport_eth.h"
-#include "eth_networking.h"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -130,8 +129,8 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-bool transport_eth_init(void){
-    puts("Initializing W5500");
+bool transport_eth_init(w5k_data_t * eth_device){
+    puts("Initializing W5200");
 
     // SPI initialisation. This example will use SPI at 1MHz.
     spi_init(ETH_SPI ? spi1 : spi0, 14*1000*1000);
@@ -144,20 +143,35 @@ bool transport_eth_init(void){
     gpio_set_function(ETH_CLK_PIN,  GPIO_FUNC_SPI);
     gpio_set_function(ETH_MOSI_PIN, GPIO_FUNC_SPI);
 
-    eth_device = eth_init(ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac);
+	// set the gpio functions for cs and rst
+	gpio_init(ETH_CS_PIN);
+    gpio_init(ETH_RST_PIN);
+	gpio_set_dir(ETH_RST_PIN, GPIO_OUT);
+    gpio_set_dir(ETH_CS_PIN, GPIO_OUT);
 
-	if (!eth_device){
+	// set cs to de-assert
+	gpio_put(ETH_CS_PIN, 1);
+
+	//reset routine TODO dont annoy watchdog
+    gpio_put(ETH_RST_PIN, 0);
+    busy_wait_ms(50);
+    gpio_put(ETH_RST_PIN, 1);
+    busy_wait_ms(1000);
+
+    *eth_device = eth_init(ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac);
+
+	if (! *eth_device){
 		puts("Failed to initialize networking!");
 		return 0;
 	}
 
 	// start the Ethernet
-	IPAddress gateway = {192, 168, 1, 1};
-	IPAddress subnet = {255, 255, 255, 0};
+	IPAddress gateway = ETHERNET_GATEWAY;
+	IPAddress subnet = ETHERNET_MASK;
 
-  	eth_ifconfig(eth_device, source_ip, gateway, subnet);
+  	eth_ifconfig(*eth_device, source_ip, gateway, subnet);
 
-	ros_socket = eth_udp_begin(eth_device, source_port);
+	ros_socket = eth_udp_begin(*eth_device, source_port);
 	if (!ros_socket) {
 		puts("Failed to initialize UDP Server");
 		return 0;
@@ -173,4 +187,8 @@ bool transport_eth_init(void){
 	);
 	
 	return true;
+}
+
+bool ethernet_check_online(w5k_data_t * eth_device){
+	return w5100_getLinkStatus(* eth_device) == LINK_ON;
 }
