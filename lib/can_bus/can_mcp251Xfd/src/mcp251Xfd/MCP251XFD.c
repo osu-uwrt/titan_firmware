@@ -2354,6 +2354,10 @@ eERRORRESULT MCP251XFD_GetTransmitReceiveErrorCountAndStatus(MCP251XFD *pComp, u
 //=============================================================================
 // Get Bus diagnostic of the MCP251XFD device
 //=============================================================================
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+// Fine to ignore this error, since its the first item in the packed object
+
 eERRORRESULT MCP251XFD_GetBusDiagnostic(MCP251XFD *pComp, MCP251XFD_CiBDIAG0_Register* busDiagnostic0, MCP251XFD_CiBDIAG1_Register* busDiagnostic1)
 {
   eERRORRESULT Error;
@@ -2370,6 +2374,7 @@ eERRORRESULT MCP251XFD_GetBusDiagnostic(MCP251XFD *pComp, MCP251XFD_CiBDIAG0_Reg
   return ERR_OK;
 }
 
+#pragma GCC diagnostic pop
 
 
 //=============================================================================

@@ -158,7 +158,7 @@ static bool check_and_clear_fifo_event(MCP251XFD *pComp, eMCP251XFD_FIFO name, e
 
 auto_init_mutex(mcp251Xfd_spi_mutex);
 
-eERRORRESULT can_mcp251x_spi_config(void *pIntDev, uint8_t chipSelect, const uint32_t sckFreq){
+eERRORRESULT can_mcp251x_spi_config(void *pIntDev, __unused uint8_t chipSelect, const uint32_t sckFreq){
     // SPI is already configured before MCP251XFD driver is called, to avoid re-initializing hardware just set the appropriate frequency
     spi_set_baudrate((spi_inst_t*) pIntDev, sckFreq);
 
@@ -516,7 +516,7 @@ static void can_mcp251xfd_interrupt_cb(__unused uint gpio, __unused uint32_t eve
                     if (!is_extended) {
                         canmore_id_t id = {.identifier = msg.MessageID};
                         bool is_canfd = (msg.ControlFlags & MCP251XFD_CANFD_FRAME) != 0;
-                        int length = MCP251XFD_DLCToByte(msg.DLC, is_canfd);
+                        unsigned int length = MCP251XFD_DLCToByte(msg.DLC, is_canfd);
                         if (length > sizeof(utility_rx_buf.data)) {
                             length = sizeof(utility_rx_buf.data);
                         }
