@@ -210,7 +210,7 @@ enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t c)
 {
 	uint8_t phystatus;
 
-	if (!w5100_init(c, c->spi_port, c->ss_pin, c->reset_line)) return LINK_UNKNOWN;
+	// if (!w5100_init(c, c->spi_port, c->ss_pin, c->reset_line)) return LINK_UNKNOWN;
 	switch (c->chip) {
 	  case 52:
 		phystatus = w5100_readPSTATUS_W5200(c);

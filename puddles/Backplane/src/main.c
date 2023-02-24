@@ -115,8 +115,8 @@ static void tick_background_tasks() {
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_update_pins();
         led_network_online_set(ethernet_check_online(& eth_device));
+        led_update_pins();
     }
     
 
