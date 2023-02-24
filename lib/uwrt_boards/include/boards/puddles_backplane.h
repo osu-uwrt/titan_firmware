@@ -4,8 +4,6 @@
 // For board detection
 #define PUDDLES_BACKPLANE
 
-#define CLIENT_ID 55
-
 // ==============================
 // Board Address Definitions
 // ==============================

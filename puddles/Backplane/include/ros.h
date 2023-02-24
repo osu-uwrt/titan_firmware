@@ -64,9 +64,9 @@ bool ros_ping(void);
 // ROS Task Functions
 // ========================================
 
-rcl_ret_t ros_heartbeat_pulse();
+rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
-rcl_ret_t ros_update_firmware_status();
+rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 // TODO: Add in any additional ROS tasks here
 

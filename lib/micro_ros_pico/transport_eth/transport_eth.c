@@ -108,7 +108,7 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 	}
 
     // need to parse the packet first and see if we have data
-    int packetSize = eth_udp_parsePacket(ros_socket);
+    size_t packetSize = eth_udp_parsePacket(ros_socket);
 	if (!packetSize){
         *errcode = 2; // TODO: figure out the right error code
 		return 0;
