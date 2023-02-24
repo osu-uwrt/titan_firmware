@@ -20,7 +20,7 @@ void safety_setup(void) {
     safety_interface_setup();
 
     safety_is_setup = true;
-    watchdog_enable(SAFETY_WATCHDOG_SETUP_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
+    //watchdog_enable(SAFETY_WATCHDOG_SETUP_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
 }
 
 void safety_init(void) {
@@ -31,7 +31,7 @@ void safety_init(void) {
     safety_interface_init();
 
     safety_initialized = true;
-    watchdog_enable(SAFETY_WATCHDOG_ACTIVE_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
+    //watchdog_enable(SAFETY_WATCHDOG_ACTIVE_TIMER_MS, SAFETY_PAUSE_WATCHDOG_ON_DEBUG);
 }
 
 void safety_tick(void) {

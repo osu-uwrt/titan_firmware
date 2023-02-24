@@ -42,11 +42,11 @@
 #define FAULT_LED_PIN     4
 
 // On-Board Ethernet Pins
-#define ETH_SPI_HW     spi1
-#define ETH_RST_PIN       9
-#define ETH_CLK_PIN      10
-#define ETH_MOSI_PIN     11
-#define ETH_MISO_PIN     12
-#define ETH_CS_PIN       13
+#define ETH_SPI_HW     spi0
+#define ETH_RST_PIN       5
+#define ETH_CLK_PIN       0
+#define ETH_MOSI_PIN      1
+#define ETH_MISO_PIN      2
+#define ETH_CS_PIN        3
 
 #endif

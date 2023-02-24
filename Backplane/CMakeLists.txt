@@ -74,7 +74,7 @@ target_link_libraries(backplane_firmware
 	hardware_adc
 	hardware_spi
 	hardware_dma
-
+	wiznet_ethernet
 	micro_ros_eth
 	safety
 )

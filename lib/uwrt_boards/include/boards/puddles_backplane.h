@@ -27,13 +27,13 @@
 #define LED_RGB_B_PIN   27
 
 // On-Board Ethernet phy
-#define ETH_SPI_HW      0
-#define ETH_RST_PIN     5
-#define ETH_INT_PIN     4
-#define ETH_MOSI_PIN    3
-#define ETH_CLK_PIN     2
-#define ETH_CS_PIN      1
-#define ETH_MISO_PIN    0
+#define ETH_SPI_HW        0
+#define ETH_CLK_PIN       2
+#define ETH_MOSI_PIN      3
+#define ETH_MISO_PIN      0
+#define ETH_CS_PIN        1
+#define ETH_INT_PIN       4
+#define ETH_RST_PIN       5
 
 // I2C comm lines
 #define SENSOR_I2C_HW   i2c0
