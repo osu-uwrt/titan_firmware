@@ -38,7 +38,7 @@ const char * const source_lookup_table[] = {
     "RMW_UROS_ERROR_MIDDLEWARE_ALLOCATION",
 };
 
-#define lookup_string_enum(value, list) ((value < sizeof(list)/sizeof(*list)) && (value >= 0) ? list[value] : "Out-of-Bounds")
+#define lookup_string_enum(value, list) ((value < sizeof(list)/sizeof(*list)) ? list[value] : "Out-of-Bounds")
 #define lookup_entity_enum(value) lookup_string_enum(value, entity_lookup_table)
 #define lookup_source_enum(value) lookup_string_enum(value, source_lookup_table)
 

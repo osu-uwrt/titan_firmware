@@ -20,13 +20,13 @@ void safety_handle_kill(void) {
     // This is because safety_kill_switch_update can be called from interrupts
 
     // TODO: Modify this function to add callbacks when system is killed
-    led_killswitch_set(true);
+    led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
     // TODO: Modify this function to add callbacks for when system is enabled
 
-    led_killswitch_set(false);
+    led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {

@@ -36,7 +36,14 @@ bool transport_can_close(__unused struct uxrCustomTransport * transport)
 
 size_t transport_can_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, __unused uint8_t *errcode)
 {
+    // Setting up a timeout to avoid crashing
+    absolute_time_t timeout = make_timeout_time_ms(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT);
+
     while (!canbus_msg_write_available()) {
+        if (time_reached(timeout)){
+            *errcode = 1;
+            return 0;
+        }
         tight_loop_contents();
     }
 
@@ -48,7 +55,7 @@ size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_
     absolute_time_t timeout_time = make_timeout_time_ms(timeout);
     while (!canbus_msg_read_available()) {
         if (time_reached(timeout_time)) {
-            // TODO: Should errcode be set?
+            *errcode = 1;
             return 0;
         }
     }

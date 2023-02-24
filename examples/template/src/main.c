@@ -40,7 +40,7 @@ absolute_time_t next_can_status_check = {0};
  * @return true The timer has fired, any action which was waiting for this timer should occur
  * @return false The timer has not fired
  */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms) {
+static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
@@ -50,8 +50,9 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of timer 0x%p", i, next_fire_ptr);
-            safety_raise_fault(FAULT_TIMER_MISSED);
+            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+            if (error_on_miss)
+                safety_raise_fault(FAULT_TIMER_MISSED);
         }
         *next_fire_ptr = time_tmp;
         return true;
@@ -87,13 +88,13 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
-    if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS)) {
+    if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
         RCSOFTRETVCHECK(ros_heartbeat_pulse());
     }
 
-    if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS)) {
-        RCSOFTRETVCHECK(ros_heartbeat_pulse());
+    if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_update_firmware_status());
     }
 
     // TODO: Put any additional ROS tasks added here
@@ -103,7 +104,7 @@ static void tick_background_tasks() {
     #if MICRO_ROS_TRANSPORT_CAN
     canbus_tick();
 
-    if (timer_ready(&next_can_status_check, CAN_STATUS_CHECK_TIME_MS)) {
+    if (timer_ready(&next_can_status_check, CAN_STATUS_CHECK_TIME_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
     #endif

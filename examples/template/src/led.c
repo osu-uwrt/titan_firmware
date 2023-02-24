@@ -4,6 +4,8 @@
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
 
+#include "led.h"
+
 /**
  * @brief Rate at which the normal LED value and fault value alternates between
  */
