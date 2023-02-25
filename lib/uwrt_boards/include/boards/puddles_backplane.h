@@ -63,14 +63,14 @@
 
 // UART Definition
 // NOTE: UART will conflict with the default I2C lines
+#define RP2040_DEBUG_UART     0
+#define RP2040_DEBUG_TX_PIN   16
+
 #ifndef PICO_DEFAULT_UART
-#define PICO_DEFAULT_UART 0
+#define PICO_DEFAULT_UART RP2040_DEBUG_UART
 #endif
 #ifndef PICO_DEFAULT_UART_TX_PIN
-#define PICO_DEFAULT_UART_TX_PIN 0
-#endif
-#ifndef PICO_DEFAULT_UART_RX_PIN
-#define PICO_DEFAULT_UART_RX_PIN 1
+#define PICO_DEFAULT_UART_TX_PIN RP2040_DEBUG_TX_PIN
 #endif
 
 // --- LED ---
