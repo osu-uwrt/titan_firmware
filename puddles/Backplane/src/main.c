@@ -122,6 +122,8 @@ static void tick_background_tasks() {
 
 
     // TODO: Put any code that should periodically occur here
+    // read the aux switch state
+    bool aux_state = gpio_get(AUX_SW_SENSE);
 }
 
 
@@ -139,6 +141,11 @@ int main() {
     gpio_init(PWR_CTL_CPU);
     gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
     gpio_put(PWR_CTL_CPU, 1);
+
+    // init the acoustic pwr ctrl system off
+    gpio_init(PWR_CTL_ACC);
+    gpio_set_dir(PWR_CTL_ACC, GPIO_OUT);
+    gpio_put(PWR_CTL_ACC, 0);
 
     // init the kill and aux switches as inputs
     gpio_init(AUX_SW_SENSE);

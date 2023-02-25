@@ -89,7 +89,7 @@ std_msgs__msg__Bool killswitch_msg;
 static void killswitch_subscription_callback(const void * msgin)
 {
 	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
-    safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
+    safety_kill_switch_update(HARDWARE_KILL_SWITCH, msg->data, true);
 }
 
 // TODO: Add in node specific tasks here
