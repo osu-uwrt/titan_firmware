@@ -37,9 +37,6 @@ absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 
-// need the wiznet device config for link test
-static w5k_data_t eth_device;
-
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
  *
@@ -115,8 +112,8 @@ static void tick_background_tasks() {
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_network_online_set(ethernet_check_online(& eth_device));
-        led_update_pins();
+        led_network_online_set(ethernet_check_online());
+        // led_update_pins();
     }
     
 
@@ -155,7 +152,7 @@ int main() {
     
 
     // Initialize ROS Transports
-    if (!transport_eth_init(& eth_device)) {
+    if (!transport_eth_init()) {
         // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
         panic("Failed to initialize Ethernet hardware!");
     }
@@ -197,7 +194,7 @@ int main() {
             led_ros_connected_set(false);
             ros_initialized = false;
         } else {
-            if (time_reached(next_connect_ping)) {
+            if (time_reached(next_connect_ping) && ethernet_check_online()) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }

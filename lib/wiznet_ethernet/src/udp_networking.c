@@ -10,7 +10,8 @@ udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port)
     s->socket_active = 0;
 	s->sockindex = eth_socketBegin(c, SnMR_UDP, port, &s->socket_active);
 	if (s->sockindex >= MAX_SOCK_NUM){
-        puts("Socket index invalid");
+        printf("Socket index invalid: %d\n", s->sockindex);
+
         free(s);
         return NULL;
     }

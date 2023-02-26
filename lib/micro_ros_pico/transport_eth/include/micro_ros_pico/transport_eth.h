@@ -10,8 +10,8 @@
 #define MICRO_ROS_PICO_ETH_SOCK_NUM 0
 #endif
 
-bool transport_eth_init(w5k_data_t * eth_device);
+bool transport_eth_init();
 
-bool ethernet_check_online(w5k_data_t * eth_device);
+bool ethernet_check_online();
 
 #endif //MICRO_ROS_PICO__TRANSPORT_ETH_H

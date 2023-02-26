@@ -37,6 +37,8 @@ static uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
 static uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
 static uint8_t source_ip[] = ETHERNET_IP;
 static uint16_t source_port = ETHERNET_PORT;
+static IPAddress gateway = ETHERNET_GATEWAY;
+static IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static const int sock = MICRO_ROS_PICO_ETH_SOCK_NUM;
 static udp_socket_t ros_socket;
@@ -68,7 +70,7 @@ bool transport_eth_open(__unused struct uxrCustomTransport * transport)
 
 bool transport_eth_close(__unused struct uxrCustomTransport * transport)
 {
-    //eth_udp_stop(ros_socket);
+    // eth_udp_stop(ros_socket);
     return true;
 }
 
@@ -88,7 +90,9 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
         return 0;
 	}
 
-	eth_udp_endPacket(ros_socket);
+	if(!eth_udp_endPacket(ros_socket)){
+		// panic("UDP_XMIT fail");
+	}
 
 	return snd_len;
 }
@@ -124,12 +128,13 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 		*errcode = 2;
 		return 0;
 	}
+
     return packetSize;
 }
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-bool transport_eth_init(w5k_data_t * eth_device){
+bool transport_eth_init(){
     puts("Initializing W5200");
 
     // SPI initialisation. This example will use SPI at 1MHz.
@@ -156,22 +161,36 @@ bool transport_eth_init(w5k_data_t * eth_device){
     gpio_put(ETH_RST_PIN, 0);
     busy_wait_ms(50);
     gpio_put(ETH_RST_PIN, 1);
-    busy_wait_ms(1000);
+    busy_wait_ms(50);
 
-    *eth_device = eth_init(ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac);
+    eth_device = eth_init(ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac);
 
-	if (! *eth_device){
+	if (! eth_device){
 		puts("Failed to initialize networking!");
 		return 0;
 	}
 
 	// start the Ethernet
-	IPAddress gateway = ETHERNET_GATEWAY;
-	IPAddress subnet = ETHERNET_MASK;
+  	eth_ifconfig(eth_device, source_ip, gateway, subnet);
 
-  	eth_ifconfig(*eth_device, source_ip, gateway, subnet);
+	IPAddress tmp;
+	bool mismatch = false;
 
-	ros_socket = eth_udp_begin(*eth_device, source_port);
+	w5100_getIPAddress(eth_device, tmp);
+	puts("Configured IP address:");
+	for(size_t i = 0; i < 4; i++){
+		if(tmp[i] != source_ip[i]){
+			printf("IP mismatch after configure byte %d: %d, %d\n", i, tmp[i], source_ip[i]);
+			mismatch = true;
+		} else {
+			printf("%d ", tmp[i]);
+		}
+	}
+	puts("");
+	if(mismatch) return 0;
+	
+
+	ros_socket = eth_udp_begin(eth_device, source_port);
 	if (!ros_socket) {
 		puts("Failed to initialize UDP Server");
 		return 0;
@@ -189,6 +208,6 @@ bool transport_eth_init(w5k_data_t * eth_device){
 	return true;
 }
 
-bool ethernet_check_online(w5k_data_t * eth_device){
-	return w5100_getLinkStatus(* eth_device) == LINK_ON;
+bool ethernet_check_online(){
+	return w5100_getLinkStatus(eth_device) == LINK_ON;
 }
