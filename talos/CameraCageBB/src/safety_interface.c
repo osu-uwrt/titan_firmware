@@ -1,5 +1,10 @@
 #include <assert.h>
 #include "safety_interface.h"
+#include "led.h"
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+#include "can_mcp251Xfd/canbus.h"
+#endif
 
 // ========================================
 // Implementations for External Interface Functions
@@ -9,6 +14,8 @@ void safety_set_fault_led(bool on) {
     #ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_device_in_error(on);
     #endif
+
+    led_fault_set(on);
 }
 
 void safety_handle_kill(void) {
@@ -16,25 +23,29 @@ void safety_handle_kill(void) {
     // This is because safety_kill_switch_update can be called from interrupts
 
     // TODO: Modify this function to add callbacks when system is killed
+    led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
     // TODO: Modify this function to add callbacks for when system is enabled
+
+    led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {
+
 }
 
 void safety_interface_init(void) {
     // TODO: Modify this function to add code to be called during safety_init
 }
 
-void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
+void safety_interface_tick(void) {
+
 }
 
-void safety_interface_tick(void) {
-    
+void safety_interface_deinit(void) {
+    // TODO: Modify this function to add code to be called during safety_deinit
 }
 
 

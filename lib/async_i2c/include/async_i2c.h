@@ -4,11 +4,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "hardware/i2c.h"
-
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ASYNC_I2C, Enable/disable assertions in the Async I2C module, type=bool, default=0, group=Copro
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ASYNC_I2C, Enable/disable assertions in the Async I2C module, type=bool, default=0, group=async_i2c
 #ifndef PARAM_ASSERTIONS_ENABLED_ASYNC_I2C
 #define PARAM_ASSERTIONS_ENABLED_ASYNC_I2C 0
+#endif
+
+// PICO_CONFIG: I2C_REQ_QUEUE_SIZE, Number of pending i2c requests in the async_i2c request queue, type=int, default=16, group=async_i2c
+#ifndef I2C_REQ_QUEUE_SIZE
+#define I2C_REQ_QUEUE_SIZE 16
 #endif
 
 // I2C Request Types
@@ -20,17 +23,17 @@ struct async_i2c_request;
 typedef void (*async_i2c_cb_t)(const struct async_i2c_request *);
 typedef void (*async_i2c_abort_cb_t)(const struct async_i2c_request *, uint32_t);
 struct async_i2c_request {
-    i2c_inst_t *i2c;
-    uint8_t address;
-    bool nostop;
-    const uint8_t *tx_buffer;
-    uint8_t *rx_buffer;
-    uint16_t bytes_to_send;
-    uint16_t bytes_to_receive;
-    async_i2c_cb_t completed_callback;
-    async_i2c_abort_cb_t failed_callback;
-    const struct async_i2c_request *next_req_on_success;
-    void* user_data;
+    uint8_t i2c_num;                                        // I2C hardware number
+    uint8_t address;                                        // I2C Address
+    bool nostop;                                            // Sets nostop field in pico i2c requests
+    const uint8_t *tx_buffer;                               // Buffer to transmit (must be at least bytes_to_send size)
+    uint8_t *rx_buffer;                                     // Buffer to receive (must be at least bytes_to_receive size)
+    uint16_t bytes_to_send;                                 // Number of bytes to transmit
+    uint16_t bytes_to_receive;                              // Number of bytes to receive (receive phase occurs after transmit)
+    async_i2c_cb_t completed_callback;                      // Callback upon successful completion of request (can be NULL)
+    async_i2c_abort_cb_t failed_callback;                   // Callback upon failure of request (can be NULL)
+    const struct async_i2c_request *next_req_on_success;    // Next request to send upon succesful completion of request (can be NULL if no chaining required)
+    void* user_data;                                        // User data to access in callback
 };
 
 /**
@@ -98,23 +101,32 @@ struct async_i2c_request {
 extern bool async_i2c_initialized;
 
 /**
- * @brief Queues an async i2c request
- * 
- * INITIALIZATION REQUIRED
- * INTERRUPT SAFE
- * 
+ * @brief Queues an async i2c request.
+ * This function is safe to be called from interrupts, and from async_i2c callbacks
+ *
+ * @attention async_i2c_init must be called before this function
+ *
  * @param request Struct if request is true
  * @param in_progress Pointer to be true while request is in progress (and buffers should not be modified)
  * Note that in_progress will be true while next_req_on_success is being processed as well
+ * @return true if the request was successfully queued
+ * @return false if the request failed to queue due to a full buffer
  */
-void async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress);
+bool async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress);
 
 /**
  * @brief Initialize async i2c and the corresponding i2c hardware
- * 
+ *
+ * @attention At least one i2c bus must be initialized
+ *
+ * @param i2c0_sda The I2C0 SDA pin to assign, or -1 if i2c0 is unused
+ * @param i2c0_scl The I2C0 SCL pin to assign, or -1 if i2c0 is unused
+ * @param i2c1_sda The I2C1 SDA pin to assign, or -1 if i2c1 is unused
+ * @param i2c1_scl The I2C1 SCL pin to assign, or -1 if i2c1 is unused
  * @param baudrate The data rate of the i2c bus in Hz
  * @param bus_timeout_ms The timeout from start of a transaction in ms
  */
-void async_i2c_init(uint baudrate, uint bus_timeout_ms);
+void async_i2c_init(int i2c0_sda, int i2c0_scl, int i2c1_sda, int i2c1_scl,
+                    unsigned int baudrate, unsigned int bus_timeout_ms);
 
 #endif

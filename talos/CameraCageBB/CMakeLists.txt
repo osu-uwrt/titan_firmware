@@ -12,7 +12,7 @@ set(PICO_BOARD mk2_camera_cage_bb)
 set(UWRT_ROBOT talos)
 
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
+# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
 set(default_build_type RelWithDebInfo)
 
@@ -24,39 +24,39 @@ get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_re
 include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
-project(camera_cage_bb_mk2 C CXX ASM)
+project(camera_cage_bb C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
-add_executable(camera_cage_bb_mk2
+add_executable(camera_cage_bb
 	${SOURCES}
 )
-target_compile_options(camera_cage_bb_mk2 PRIVATE -Wall -Wextra -Wno-format)
-target_include_directories(camera_cage_bb_mk2 PUBLIC include)
+target_compile_options(camera_cage_bb PRIVATE -Wall -Wextra -Wno-format)
+target_include_directories(camera_cage_bb PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
-generate_version_tag(camera_cage_bb_mk2 1 0 PROTO)
+generate_version_tag(camera_cage_bb 1 0 DEV)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(camera_cage_bb_mk2 1)
-pico_set_program_name(camera_cage_bb_mk2 "Template Project")
+pico_enable_stdio_uart(camera_cage_bb 1)
+pico_set_program_name(camera_cage_bb "Camera Cage BB Firmware")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(camera_cage_bb_mk2)
+uwrt_use_upload_tool(camera_cage_bb)
 
 # Define linking and targets
-pico_add_extra_outputs(camera_cage_bb_mk2)
-target_link_libraries(camera_cage_bb_mk2
+pico_add_extra_outputs(camera_cage_bb)
+target_link_libraries(camera_cage_bb
 	basic_logger	# A nice little logging library
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
-	hardware_i2c
-	# Add any additional hardware here (ex. hardware_i2c)
+	hardware_pwm	# LED PWM Support
+	async_i2c		# I2C support for depth sensor
 )
 

@@ -5,26 +5,17 @@
 
 #include "basic_logger/logging.h"
 
-#include "drivers/async_i2c.h"
+#include "async_i2c.h"
 #include "safety_interface.h"
-#include "hw/depth_sensor.h"
-#include "hw/depth_sensor_commands.h"
+#include "depth_sensor.h"
+#include "depth_sensor_commands.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "depth_sensor"
 
-/**
- * @brief The polling rate in milliseconds for how often the depth should refresh
- */
-#define DEPTH_POLLING_RATE_MS 50
-
-/**
- * @brief The number of invalid reads from the depth sensor before a fault is raised
- */
-#define DEPTH_BAD_READS_FAULT_COUNT 3
-
 
 bool depth_initialized = false;
+bool depth_set_on_read = false;
 static bool in_transaction = false;
 
 static void depth_begin_zero_depth(void);
@@ -230,6 +221,7 @@ static void depth_calculate(uint32_t D1, uint32_t D2) {
     depth_pressure = (((D1*SENS2)/2097152-OFF2)/8192)/10.0;
     depth_current_read_timeout = make_timeout_time_ms(DEPTH_POLLING_RATE_MS * 2);
     depth_num_bad_reads = 0;
+    depth_set_on_read = true;
 }
 
 /**
@@ -401,8 +393,6 @@ static void depth_begin_zero_depth(void) {
 // ========================================
 
 double depth_read(void) {
-    hard_assert_if(DEPTH, !depth_initialized);
-
     return ((depth_pressure - surface_pressure)*100)/(FLUID_DENSITY*9.80665);
 }
 
@@ -411,10 +401,10 @@ bool depth_reading_valid(void) {
 }
 
 float depth_get_temperature(void) {
-    hard_assert_if(DEPTH, !depth_initialized);
     return depth_temp / 100.0;
 }
 
 void depth_init(void) {
+    // TODO: Raise fault on failure to queue
     async_i2c_enqueue(&reset_req, &in_transaction);
 }
