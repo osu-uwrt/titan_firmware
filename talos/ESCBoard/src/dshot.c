@@ -29,6 +29,8 @@ static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "
 bool dshot_initialized = false;
 bool esc_board_on = false;
 struct dshot_uart_telemetry dshot_telemetry_data[NUM_THRUSTERS] = {0};
+struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = {0};
+bool dshot_rpm_reversed[NUM_THRUSTERS] = {0};
 uint32_t vcc_reading_mv = 0;
 
 // ========================================
@@ -114,7 +116,7 @@ static void __time_critical_func(vcc_meas_cb)(void) {
     vcc_reading_mv = ((uint32_t) (adc_fifo_get() & 0xFFF)) * VCC_CONVERSION_MULT_MV / VCC_CONVERSION_DIV_MV;
 
     bool thrusters_on = (vcc_reading_mv > ESC_POWER_THRESHOLD_MV);
-    if (thrusters_on && !dshot_thrusters_on) {
+    if (thrusters_on && !esc_board_on) {
         dshot_set_time_thrusters_allowed(make_timeout_time_ms(DSHOT_WAKEUP_DELAY_MS));
     }
     esc_board_on = thrusters_on;
@@ -341,7 +343,7 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
     }
 
     // Don't send a command if the ESC board isn't powered on
-    if (!dshot_thrusters_on) {
+    if (!esc_board_on) {
         return;
     }
 
@@ -357,9 +359,12 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
         if (val == 0) {
             dshot_thruster_cmds[i] = 0;
         } else if (val > 0 && val < 1000) {
+            // TODO: Fix this to track the zero crossing
+            dshot_rpm_reversed[i] = false;
             dshot_thrusters_on = true;
             dshot_thruster_cmds[i]= val + 48;
         } else if (val < 0 && val > -1000) {
+            dshot_rpm_reversed[i] = true;
             dshot_thrusters_on = true;
             dshot_thruster_cmds[i]= (-val) + 1048;
         } else {

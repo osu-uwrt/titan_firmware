@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// ========================================
+// Configuration
+// ========================================
+
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DSHOT, Enable/disable assertions in the dshot module, type=bool, default=0, group=ESCBoard
 #ifndef PARAM_ASSERTIONS_ENABLED_DSHOT
 #define PARAM_ASSERTIONS_ENABLED_DSHOT 0
@@ -29,8 +33,8 @@
 
 // The conversion factor from the raw adc value to the vcc in millivolts
 // TODO: Calculate these values
-#define VCC_CONVERSION_MULT_MV 1200
-#define VCC_CONVERSION_DIV_MV  53
+#define VCC_CONVERSION_MULT_MV 10
+#define VCC_CONVERSION_DIV_MV  1
 
 // The voltage threshold upon which passing the ESCs will be considered powered
 #define ESC_POWER_THRESHOLD_MV 9000
@@ -51,6 +55,10 @@
 // The hardware alarm to use for periodic transfers
 #define dshot_hardware_alarm_num 1
 
+// ========================================
+// Data Types
+// ========================================
+
 struct dshot_uart_telemetry {
     int missed_count;       // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
     bool valid;             // If the packet is valid
@@ -66,6 +74,11 @@ struct dshot_rpm_telemetry {
     uint16_t rpm_period_us; // If the RPM period is valid
     bool valid;             // If the packet is valid
 };
+
+
+// ========================================
+// Exported Variables - Do not write
+// ========================================
 
 /**
  * @brief Boolean if dshot_init has been called
@@ -85,6 +98,11 @@ extern struct dshot_uart_telemetry dshot_telemetry_data[];
 extern struct dshot_rpm_telemetry dshot_rpm_data[];
 
 /**
+ * @brief Contains boolean for each thruster in NUM_THRUSTERS reporting if the rpm period is for the motor moving backwards.
+ */
+extern bool dshot_rpm_reversed[];
+
+/**
  * @brief VCC Voltage Reading in millivolts
  */
 extern uint32_t vcc_reading_mv;
@@ -93,6 +111,11 @@ extern uint32_t vcc_reading_mv;
  * @brief Report if the ESC VCC rail is considered 'powered on' determined
  */
 extern bool esc_board_on;
+
+
+// ========================================
+// Exported Methods
+// ========================================
 
 /**
  * @brief Immediately sends stop command to all thrusters.

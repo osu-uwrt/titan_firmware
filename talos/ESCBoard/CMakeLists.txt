@@ -12,7 +12,7 @@ set(PICO_BOARD mk2_esc_board)
 set(UWRT_ROBOT talos)
 
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
+# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
 set(default_build_type RelWithDebInfo)
 
@@ -41,7 +41,7 @@ pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/uart_rx.pio)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
-generate_version_tag(esc_board 1 0 PROTO)
+generate_version_tag(esc_board 1 0 DEV)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(esc_board 1)
@@ -55,9 +55,10 @@ pico_add_extra_outputs(esc_board)
 target_link_libraries(esc_board
 	basic_logger	# A nice little logging library
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
+	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
+	hardware_pwm	# LED PWM Support
 	hardware_adc	# ADC Pin for VCC Measurement
 	hardware_pio	# PIO for DShot
 )
