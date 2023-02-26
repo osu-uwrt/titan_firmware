@@ -10,7 +10,8 @@ udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port)
     s->socket_active = 0;
 	s->sockindex = eth_socketBegin(c, SnMR_UDP, port, &s->socket_active);
 	if (s->sockindex >= MAX_SOCK_NUM){
-        puts("Socket index invalid");
+        printf("Socket index invalid: %d\n", s->sockindex);
+
         free(s);
         return NULL;
     }
@@ -28,7 +29,7 @@ udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port)
 
 /* return number of bytes available in the current packet,
    will return zero if parsePacket hasn't been called yet */
-int eth_udp_available(udp_socket_t s)
+size_t eth_udp_available(udp_socket_t s)
 {
     if (!s->socket_active){
         return 0;
@@ -84,7 +85,7 @@ size_t eth_udp_write(udp_socket_t s, const uint8_t *buffer, size_t size)
 	return bytes_written;
 }
 
-int eth_udp_parsePacket(udp_socket_t s)
+size_t eth_udp_parsePacket(udp_socket_t s)
 {
     if (!s->socket_active) {
         return 0;
@@ -121,7 +122,7 @@ int eth_udp_parsePacket(udp_socket_t s)
 	return 0;
 }
 
-int eth_udp_read_single(udp_socket_t s)
+uint8_t eth_udp_read_single(udp_socket_t s)
 {
 	uint8_t byte;
 
@@ -135,7 +136,7 @@ int eth_udp_read_single(udp_socket_t s)
 	return -1;
 }
 
-int eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len)
+size_t eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len)
 {
 	if (s->remaining > 0 && s->socket_active) {
 		int got;
@@ -157,7 +158,7 @@ int eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len)
 	return -1;
 }
 
-int eth_udp_peek(udp_socket_t s)
+uint8_t eth_udp_peek(udp_socket_t s)
 {
 	// Unlike recv, peek doesn't check to see if there's any data available, so we must.
 	// If the user hasn't called parsePacket yet then return nothing otherwise they

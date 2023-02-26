@@ -1,20 +1,14 @@
+#include "pico/stdlib.h"
 #include <assert.h>
 #include "safety_interface.h"
 #include "led.h"
 
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
-#endif
 
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
-    canbus_set_device_in_error(on);
-    #endif
-
     led_fault_set(on);
 }
 
@@ -41,7 +35,10 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
+    // read the external switches
+    bool kill_state = gpio_get(KILL_SW_SENSE);
 
+    safety_kill_switch_update(HARDWARE_KILL_SWITCH, kill_state, true);
 }
 
 void safety_interface_deinit(void) {

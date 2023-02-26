@@ -42,7 +42,7 @@ target_include_directories(backplane_firmware PUBLIC include)
 generate_version_tag(backplane_firmware 1 0 DEV) # Release Types: PROTO, DEV, STABLE
 
 # Configure pico-sdk
-pico_enable_stdio_usb(backplane_firmware 1)
+pico_enable_stdio_uart(backplane_firmware 1)
 pico_set_program_name(backplane_firmware "Backplane Test")
 
 # Wait for 2 seconds for serial to connect
@@ -72,4 +72,5 @@ target_link_libraries(backplane_firmware
 	hardware_pwm
 	hardware_i2c
 	hardware_spi
+	hardware_flash
 )

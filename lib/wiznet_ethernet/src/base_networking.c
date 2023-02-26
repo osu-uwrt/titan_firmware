@@ -80,7 +80,10 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 
 	// first check hardware compatibility
 	chip = w5100_getChip(c);
-	if (!chip) return MAX_SOCK_NUM; // immediate error if no hardware detected
+	if (!chip){
+		puts("W5x00 chip read fail");
+		return MAX_SOCK_NUM; // immediate error if no hardware detected
+	} 
 #if MAX_SOCK_NUM > 4
 	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
 #endif
@@ -90,6 +93,8 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 		status[s] = w5100_readSnSR(c, s);
 		if (status[s] == SnSR_CLOSED) goto makesocket;
 	}
+
+	puts("W5x00 all sockets dirty");
 	//printf("W5000socket step2\n");
 	// as a last resort, forcibly close any already closing
 	for (s=0; s < maxindex; s++) {
@@ -108,6 +113,7 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif
+	puts("W5x00 all sockets used");
 	return MAX_SOCK_NUM; // all sockets are in use
 closemakesocket:
 	//printf("W5000socket close\n");
@@ -412,7 +418,7 @@ bool eth_socketSendUDP(w5k_data_t c, uint8_t s)
 		if (w5100_readSnIR(c, s) & SnIR_TIMEOUT) {
 			/* +2008.01 [bj]: clear interrupt */
 			w5100_writeSnIR(c, s, (SnIR_SEND_OK|SnIR_TIMEOUT));
-			//printf("sendUDP timeout\n");
+			puts("sendUDP timeout");
 			return false;
 		}
 		yield();

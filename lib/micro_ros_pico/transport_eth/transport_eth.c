@@ -9,7 +9,6 @@
 #include "safety/safety.h"
 
 #include "micro_ros_pico/transport_eth.h"
-#include "eth_networking.h"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -38,6 +37,8 @@ static uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
 static uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
 static uint8_t source_ip[] = ETHERNET_IP;
 static uint16_t source_port = ETHERNET_PORT;
+static IPAddress gateway = ETHERNET_GATEWAY;
+static IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static const int sock = MICRO_ROS_PICO_ETH_SOCK_NUM;
 static udp_socket_t ros_socket;
@@ -69,7 +70,7 @@ bool transport_eth_open(__unused struct uxrCustomTransport * transport)
 
 bool transport_eth_close(__unused struct uxrCustomTransport * transport)
 {
-    //eth_udp_stop(ros_socket);
+    // eth_udp_stop(ros_socket);
     return true;
 }
 
@@ -89,7 +90,9 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
         return 0;
 	}
 
-	eth_udp_endPacket(ros_socket);
+	if(!eth_udp_endPacket(ros_socket)){
+		// panic("UDP_XMIT fail");
+	}
 
 	return snd_len;
 }
@@ -108,7 +111,7 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 	}
 
     // need to parse the packet first and see if we have data
-    int packetSize = eth_udp_parsePacket(ros_socket);
+    size_t packetSize = eth_udp_parsePacket(ros_socket);
 	if (!packetSize){
         *errcode = 2; // TODO: figure out the right error code
 		return 0;
@@ -125,13 +128,14 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 		*errcode = 2;
 		return 0;
 	}
+
     return packetSize;
 }
 
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
-bool transport_eth_init(void){
-    puts("Initializing W5500");
+bool transport_eth_init(){
+    puts("Initializing W5200");
 
     // SPI initialisation. This example will use SPI at 1MHz.
     spi_init(ETH_SPI ? spi1 : spi0, 14*1000*1000);
@@ -144,18 +148,47 @@ bool transport_eth_init(void){
     gpio_set_function(ETH_CLK_PIN,  GPIO_FUNC_SPI);
     gpio_set_function(ETH_MOSI_PIN, GPIO_FUNC_SPI);
 
+	// set the gpio functions for cs and rst
+	gpio_init(ETH_CS_PIN);
+    gpio_init(ETH_RST_PIN);
+	gpio_set_dir(ETH_RST_PIN, GPIO_OUT);
+    gpio_set_dir(ETH_CS_PIN, GPIO_OUT);
+
+	// set cs to de-assert
+	gpio_put(ETH_CS_PIN, 1);
+
+	//reset routine TODO dont annoy watchdog
+    gpio_put(ETH_RST_PIN, 0);
+    busy_wait_ms(50);
+    gpio_put(ETH_RST_PIN, 1);
+    busy_wait_ms(50);
+
     eth_device = eth_init(ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac);
 
-	if (!eth_device){
+	if (! eth_device){
 		puts("Failed to initialize networking!");
 		return 0;
 	}
 
 	// start the Ethernet
-	IPAddress gateway = {192, 168, 1, 1};
-	IPAddress subnet = {255, 255, 255, 0};
-
   	eth_ifconfig(eth_device, source_ip, gateway, subnet);
+
+	IPAddress tmp;
+	bool mismatch = false;
+
+	w5100_getIPAddress(eth_device, tmp);
+	puts("Configured IP address:");
+	for(size_t i = 0; i < 4; i++){
+		if(tmp[i] != source_ip[i]){
+			printf("IP mismatch after configure byte %d: %d, %d\n", i, tmp[i], source_ip[i]);
+			mismatch = true;
+		} else {
+			printf("%d ", tmp[i]);
+		}
+	}
+	puts("");
+	if(mismatch) return 0;
+	
 
 	ros_socket = eth_udp_begin(eth_device, source_port);
 	if (!ros_socket) {
@@ -173,4 +206,8 @@ bool transport_eth_init(void){
 	);
 	
 	return true;
+}
+
+bool ethernet_check_online(){
+	return w5100_getLinkStatus(eth_device) == LINK_ON;
 }

@@ -40,17 +40,17 @@ typedef struct udp_socket {
 } *udp_socket_t;
 
 udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port);
-int eth_udp_available(udp_socket_t s);
+size_t eth_udp_available(udp_socket_t s);
 void eth_udp_stop(udp_socket_t s);
 bool eth_udp_isopen(udp_socket_t s);
 int eth_udp_beginPacket(udp_socket_t s, uint8_t *ip, uint16_t port);
 int eth_udp_endPacket(udp_socket_t s);
 size_t eth_udp_write_single(udp_socket_t s, uint8_t byte);
 size_t eth_udp_write(udp_socket_t s, const uint8_t *buffer, size_t size);
-int eth_udp_parsePacket(udp_socket_t s);
-int eth_udp_read_single(udp_socket_t s);
-int eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len);
-int eth_udp_peek(udp_socket_t s);
+size_t eth_udp_parsePacket(udp_socket_t s);
+uint8_t eth_udp_read_single(udp_socket_t s);
+size_t eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len);
+uint8_t eth_udp_peek(udp_socket_t s);
 
 static inline uint8_t* eth_udp_remoteIP(udp_socket_t s) { return s->remoteIP; }
 static inline uint16_t eth_udp_remotePort(udp_socket_t s) { return s->remotePort; }
