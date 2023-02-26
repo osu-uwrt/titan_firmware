@@ -8,6 +8,9 @@
 #endif
 #define UWRT_BOARD_DEFINED
 
+#define CAN_BUS_NAME INTERNAL_CAN
+#define CAN_BUS_CLIENT_ID 1
+
 #define AUX_SWITCH_PIN          0
 #define PHYS_KILLSWITCH_PIN     1
 #define SOFT_KILLSWITCH_PIN     2

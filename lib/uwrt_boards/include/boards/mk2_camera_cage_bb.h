@@ -9,7 +9,7 @@
 #define UWRT_BOARD_DEFINED
 
 #define CAN_BUS_NAME INTERNAL_CAN
-#define CAN_BUS_CLIENT_ID 7
+#define CAN_BUS_CLIENT_ID 4
 
 #define FAN_SW_PIN          0
 #define TACH4_PIN           1

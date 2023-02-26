@@ -8,6 +8,10 @@
 #endif
 #define UWRT_BOARD_DEFINED
 
+#define CAN_BUS_NAME EXTERNAL_CAN
+#define CAN_BUS_PORT_CLIENT_ID 1
+#define CAN_BUS_STBD_CLIENT_ID 2
+
 #define PERIPH_SDA_PIN      0
 #define PERIPH_SCL_PIN      1
 #define LED_R_PIN           2

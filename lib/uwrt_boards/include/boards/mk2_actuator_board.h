@@ -9,7 +9,7 @@
 #define UWRT_BOARD_DEFINED
 
 #define CAN_BUS_NAME INTERNAL_CAN
-#define CAN_BUS_CLIENT_ID 6
+#define CAN_BUS_CLIENT_ID 5
 
 // Claw
 #define CLAW_ENABLE_PIN     0

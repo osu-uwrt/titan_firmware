@@ -6,7 +6,8 @@
 // This defines which CAN bus this board is connected into
 // The CAN busses defined in the corresponding robot definition files (rate, enable FD, etc.)
 #define CAN_BUS_NAME INTERNAL_CAN
-#define CAN_BUS_CLIENT_ID 4
+#define CAN_BUS_BOARD0_CLIENT_ID 2
+#define CAN_BUS_BOARD1_CLIENT_ID 3
 
 #ifdef UWRT_BOARD_DEFINED
 #error Multiple board types defined
