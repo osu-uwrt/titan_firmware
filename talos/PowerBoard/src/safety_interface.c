@@ -2,6 +2,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
+#include "hardware/gpio.h"
+
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #endif
@@ -33,7 +35,7 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-
+    gpio_init(PHYS_KILLSWITCH_PIN);
 }
 
 void safety_interface_init(void) {
@@ -41,7 +43,7 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-
+    safety_kill_switch_update(PHYS_KILL_SWITCH, gpio_get(PHYS_KILLSWITCH_PIN), true);
 }
 
 void safety_interface_deinit(void) {

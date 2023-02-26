@@ -68,6 +68,8 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
-// TODO: Add in any additional ROS tasks here
+rcl_ret_t ros_publish_killswitch();
+
+rcl_ret_t ros_publish_robot_state();
 
 #endif

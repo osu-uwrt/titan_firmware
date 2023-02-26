@@ -6,6 +6,8 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/robot_state.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
@@ -64,7 +66,9 @@ void ros_rmw_init_error_handling(void)  {
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define KILLSWITCH_SUBCRIBER_NAME "state/kill"
+#define ROBOT_STATE_PUBLISHER_NAME "state/robot"
+#define KILLSWITCH_PUBLISHER_NAME "state/kill"
+#define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
 
 bool ros_connected = false;
 
@@ -78,25 +82,41 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher;
-rcl_subscription_t killswtich_subscriber;
+rcl_subscription_t soft_kill_subscriber;
+riptide_msgs2__msg__KillSwitchReport soft_kill_msg;
 std_msgs__msg__Bool killswitch_msg;
+rcl_publisher_t killswtich_publisher;
+rcl_publisher_t robot_state_publisher;
+riptide_msgs2__msg__RobotState robot_state_msg = {0};
 // TODO: Add node specific items here
 
 // ========================================
 // Executor Callbacks
 // ========================================
 
-static void killswitch_subscription_callback(const void * msgin)
+static void soft_kill_subscription_callback(const void * msgin)
 {
-	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
-    safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
+	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
+    safety_kill_switch_update(SOFT_KILL_SWITCH, msg->switch_asserting_kill, msg->switch_needs_update);
 }
-
-// TODO: Add in node specific tasks here
 
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
+
+rcl_ret_t ros_publish_killswitch() { 
+    killswitch_msg.data = safety_kill_get_asserting_kill();
+
+    RCSOFTRETCHECK(rcl_publish(&killswtich_publisher, &killswitch_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_robot_state()  {
+    robot_state_msg.kill_switch_inserted = !safety_kill_get_asserting_kill();
+
+    return RCL_RET_OK;
+}
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
@@ -181,16 +201,28 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
         FIRMWARE_STATUS_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber,
+    RCRETCHECK(rclc_publisher_init_default(
+        &killswtich_publisher,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-        KILLSWITCH_SUBCRIBER_NAME));
+        KILLSWITCH_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(
+        &robot_state_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, RobotState),
+        ROBOT_STATE_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_best_effort(
+        &soft_kill_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+        SOFT_KILL_SUBSCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 1;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &soft_kill_subscriber, &soft_kill_msg, &soft_kill_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 
@@ -209,7 +241,9 @@ void ros_spin_executor(void) {
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
-    RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&soft_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&robot_state_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&killswtich_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));

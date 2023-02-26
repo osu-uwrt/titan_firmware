@@ -23,6 +23,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define KILLSWITCH_PUBLISH_TIME_MS SAFETY_KILL_SWITCH_TIMEOUT_MS
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -31,6 +32,8 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
+absolute_time_t next_killswitch_publish = {0};
+absolute_time_t next_robot_state_publish = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -73,6 +76,8 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
+    next_robot_state_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
 }
 
 /**
@@ -105,7 +110,13 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    // TODO: Put any additional ROS tasks added here
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+        RCSOFTRETVCHECK(ros_publish_killswitch());
+    }
+
+    if(timer_ready(&next_robot_state_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+        RCSOFTRETVCHECK(ros_publish_robot_state());
+    }
 }
 
 static void tick_background_tasks() {
