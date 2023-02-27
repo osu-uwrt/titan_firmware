@@ -8,6 +8,7 @@ execute_process(COMMAND git log --pretty=format:'%h' -n 1
 if ("${GIT_REV}" STREQUAL "")
     set(GIT_REV "None")
     set(GIT_DIFF "")
+    set(GIT_TAG "")
     set(GIT_BRANCH "None")
 else()
     execute_process(
@@ -16,6 +17,19 @@ else()
     execute_process(
         COMMAND git rev-parse --abbrev-ref HEAD
         OUTPUT_VARIABLE GIT_BRANCH)
+    execute_process(
+        COMMAND git describe --exact-match --tags HEAD
+        RESULT_VARIABLE GIT_TAG_RESULT
+        OUTPUT_VARIABLE GIT_TAG
+        ERROR_QUIET
+    )
+
+    if ("${GIT_TAG_RESULT}" EQUAL 0)
+        string(STRIP "${GIT_TAG}" GIT_TAG)
+        set(GIT_TAG " (${GIT_TAG})")
+    else()
+        set(GIT_TAG "")
+    endif()
 
     string(STRIP "${GIT_REV}" GIT_REV)
     string(SUBSTRING "${GIT_REV}" 1 7 GIT_REV)
@@ -59,7 +73,7 @@ set(VERSION "#if !defined(PICO_PROGRAM_NAME) && defined(PICO_TARGET_NAME)
 #define PICO_PROGRAM_NAME PICO_TARGET_NAME
 #endif
 #include \"build_version.h\"
-#define VERSION_TAG \"${MAJOR_VERSION}.${MINOR_VERSION}${VER_RELEASE_TYPE}-${TARGET_ENV} ${GIT_BRANCH}/${GIT_REV}${GIT_DIFF} ${BUILD_USER}@${BUILD_HOST} ${BUILD_TIMESTAMP}\"
+#define VERSION_TAG \"${MAJOR_VERSION}.${MINOR_VERSION}${VER_RELEASE_TYPE}-${TARGET_ENV} ${GIT_BRANCH}/${GIT_REV}${GIT_DIFF}${GIT_TAG} ${BUILD_USER}@${BUILD_HOST} ${BUILD_TIMESTAMP}\"
 const int MAJOR_VERSION = ${MAJOR_VERSION};
 const int MINOR_VERSION = ${MINOR_VERSION};
 const enum version_release_type RELEASE_TYPE = ${RELEASE_TYPE};
