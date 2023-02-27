@@ -57,6 +57,7 @@ target_link_libraries(power_board
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
+	async_i2c
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

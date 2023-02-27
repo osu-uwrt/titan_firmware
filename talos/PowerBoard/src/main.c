@@ -3,6 +3,8 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
+#include "async_i2c.h"
+#include "mcp3426.h"
 #include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
@@ -24,6 +26,7 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS SAFETY_KILL_SWITCH_TIMEOUT_MS
+#define ADC_UPDATE_TIME_MS 250
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -34,6 +37,7 @@ absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_killswitch_publish = {0};
 absolute_time_t next_robot_state_publish = {0};
+absolute_time_t next_adc_update = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -134,7 +138,9 @@ static void tick_background_tasks() {
     }
     #endif
 
-    // TODO: Put any code that should periodically occur here
+    if(timer_ready(&next_adc_update, ADC_UPDATE_TIME_MS, true)) { 
+        mcp3426_update();
+    }
 }
 
 
@@ -159,6 +165,8 @@ int main() {
     gpio_init(FAN_SWITCH_PIN);
     gpio_put(FAN_SWITCH_PIN, true);
     gpio_set_dir(FAN_SWITCH_PIN, true);
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
+    mcp3426_init(MCP3426_MODE_CONTINOUS, MCP3426_SAMPLE_RATE_16_BIT, MCP3426_GAIN_X1);
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
