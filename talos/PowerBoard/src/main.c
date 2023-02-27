@@ -23,7 +23,8 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define KILLSWITCH_PUBLISH_TIME_MS SAFETY_KILL_SWITCH_TIMEOUT_MS
+#define KILLSWITCH_PUBLISH_TIME_MS 150
+#define ROBOT_STATE_PUBLISH_TIME_MS 500
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -77,7 +78,7 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
-    next_robot_state_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
+    next_robot_state_publish = make_timeout_time_ms(ROBOT_STATE_PUBLISH_TIME_MS);
 }
 
 /**
@@ -95,11 +96,7 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     uint8_t client_id = CAN_BUS_CLIENT_ID;
-    #else
-    uint8_t client_id = 1;
-    #endif
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -110,42 +107,27 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
 
-    if(timer_ready(&next_robot_state_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+    if(timer_ready(&next_robot_state_publish, ROBOT_STATE_PUBLISH_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_robot_state());
     }
 }
 
 static void tick_background_tasks() {
-    #if MICRO_ROS_TRANSPORT_CAN
     canbus_tick();
 
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
-    #else
-    // Update the LED (so it can alternate between colors if a fault is present)
-    // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_update_pins();
-    }
-    #endif
-
-    // TODO: Put any code that should periodically occur here
 }
 
 
 int main() {
     // Initialize stdio
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    // The USB transport is special since it initializes stdio for you already
-    transport_usb_serial_init_early();
-    #else
     stdio_init_all();
-    #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
 
 
@@ -154,33 +136,20 @@ int main() {
     safety_setup();
     led_init();
     ros_rmw_init_error_handling();
-    // TODO: Put any additional hardware initialization code here
 
+    // Turn on FAN to get cooling
     gpio_init(FAN_SWITCH_PIN);
     gpio_put(FAN_SWITCH_PIN, true);
     gpio_set_dir(FAN_SWITCH_PIN, true);
 
     // Initialize ROS Transports
-    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
-    #endif
-
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    transport_usb_init();
-    #endif
-
 
     // Enter main loop
-    // This is split into two sections of timers
-    // Those running with ROS, and those in the background
-    // Note that both types of timers will need to conform to the minimal delay time, as there is around
-    //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
-    // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
     while(true) {
         // Do background tasks

@@ -15,7 +15,7 @@
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "main"
+#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code

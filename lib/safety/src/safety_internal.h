@@ -28,7 +28,7 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=50, group=safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  50
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
 #endif
 
 // PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=safety
@@ -43,7 +43,7 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=5, group=safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  5
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  50
 #endif
 
 // PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=safety

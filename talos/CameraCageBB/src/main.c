@@ -133,6 +133,10 @@ int main() {
         panic("Failed to initialize CAN bus hardware!");
     }
 
+    // Turn on fans
+    gpio_init(FAN_SW_PIN);
+    gpio_put(FAN_SW_PIN, true);
+    gpio_set_dir(FAN_SW_PIN, true);
 
     // Enter main loop
     bool ros_initialized = false;

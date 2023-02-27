@@ -41,7 +41,7 @@ target_include_directories(power_board PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
-generate_version_tag(power_board 1 0 PROTO)
+generate_version_tag(power_board 1 0 DEV)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(power_board 1)

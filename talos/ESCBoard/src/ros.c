@@ -20,7 +20,7 @@
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "main"
+#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code
@@ -76,6 +76,10 @@ void ros_rmw_init_error_handling(void)  {
 
 bool ros_connected = false;
 bool dshot_command_received = false;
+
+// Constant for converting electrical RPM to mechanical RPM
+// Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
+const int num_pole_pairs = 7;
 
 // Core Variables
 rcl_node_t node;
@@ -189,9 +193,6 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
             } else if (period_us != 0) {
                 // Convert period to RPM if it's valid
                 uint32_t erpm = (60 * 1000000) / period_us;
-
-                // Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
-                const int num_pole_pairs = 7;
                 uint32_t rpm_unsigned = erpm / num_pole_pairs;
 
                 // Make sure it won't overflow
@@ -224,17 +225,17 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
     for (int i = 0; i < NUM_THRUSTERS; i++) {
         if (dshot_telemetry_data[i].valid) {
             telem_msg.esc_telemetry[i].present = true;
-            telem_msg.esc_telemetry[i].temperature = dshot_telemetry_data[i].temperature;
-            telem_msg.esc_telemetry[i].voltage = dshot_telemetry_data[i].voltage;
-            telem_msg.esc_telemetry[i].current = dshot_telemetry_data[i].current;
-            telem_msg.esc_telemetry[i].consumption = dshot_telemetry_data[i].consumption;
-            telem_msg.esc_telemetry[i].rpm = dshot_telemetry_data[i].rpm;
+            telem_msg.esc_telemetry[i].temperature_c = dshot_telemetry_data[i].temperature;
+            telem_msg.esc_telemetry[i].voltage = dshot_telemetry_data[i].voltage / 100.0;
+            telem_msg.esc_telemetry[i].current = dshot_telemetry_data[i].current / 100.0;
+            telem_msg.esc_telemetry[i].consumption_ah = dshot_telemetry_data[i].consumption / 1000.0;
+            telem_msg.esc_telemetry[i].rpm = (dshot_rpm_reversed[i] ? -1 : 1) * dshot_telemetry_data[i].rpm * 100 / num_pole_pairs;
         } else {
             telem_msg.esc_telemetry[i].present = false;
-            telem_msg.esc_telemetry[i].temperature = 0;
+            telem_msg.esc_telemetry[i].temperature_c = 0;
             telem_msg.esc_telemetry[i].voltage = 0;
             telem_msg.esc_telemetry[i].current = 0;
-            telem_msg.esc_telemetry[i].consumption = 0;
+            telem_msg.esc_telemetry[i].consumption_ah = 0;
             telem_msg.esc_telemetry[i].rpm = 0;
         }
     }

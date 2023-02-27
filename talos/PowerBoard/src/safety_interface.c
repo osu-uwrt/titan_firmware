@@ -24,31 +24,25 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    // TODO: Modify this function to add callbacks when system is killed
     led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
-    // TODO: Modify this function to add callbacks for when system is enabled
-
     led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {
     gpio_init(PHYS_KILLSWITCH_PIN);
+    gpio_pull_up(PHYS_KILLSWITCH_PIN);
 }
 
-void safety_interface_init(void) {
-    // TODO: Modify this function to add code to be called during safety_init
-}
+void safety_interface_init(void) { }
 
 void safety_interface_tick(void) {
-    safety_kill_switch_update(PHYS_KILL_SWITCH, gpio_get(PHYS_KILLSWITCH_PIN), true);
+    safety_kill_switch_update(PHYS_KILL_SWITCH, !gpio_get(PHYS_KILLSWITCH_PIN), true);
 }
 
-void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
-}
+void safety_interface_deinit(void) { }
 
 
 // ========================================

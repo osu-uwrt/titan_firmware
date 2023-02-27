@@ -17,7 +17,7 @@
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "main"
+#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code
@@ -88,7 +88,6 @@ std_msgs__msg__Bool killswitch_msg;
 rcl_publisher_t killswtich_publisher;
 rcl_publisher_t robot_state_publisher;
 riptide_msgs2__msg__RobotState robot_state_msg = {0};
-// TODO: Add node specific items here
 
 // ========================================
 // Executor Callbacks
@@ -104,7 +103,7 @@ static void soft_kill_subscription_callback(const void * msgin)
 // Public Task Methods (called in main tick)
 // ========================================
 
-rcl_ret_t ros_publish_killswitch() { 
+rcl_ret_t ros_publish_killswitch() {
     killswitch_msg.data = safety_kill_get_asserting_kill();
 
     RCSOFTRETCHECK(rcl_publish(&killswtich_publisher, &killswitch_msg, NULL));
@@ -114,6 +113,8 @@ rcl_ret_t ros_publish_killswitch() {
 
 rcl_ret_t ros_publish_robot_state()  {
     robot_state_msg.kill_switch_inserted = !safety_kill_get_asserting_kill();
+
+    RCSOFTRETCHECK(rcl_publish(&robot_state_publisher, &robot_state_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -176,8 +177,6 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-// TODO: Add in node specific tasks here
-
 // ========================================
 // ROS Core
 // ========================================
@@ -224,13 +223,6 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &soft_kill_subscriber, &soft_kill_msg, &soft_kill_subscription_callback, ON_NEW_DATA));
 
-    // TODO: Modify this method with node specific objects
-
-    // Note: Code in executor callbacks should be kept to a minimum
-    // It should set whatever flags are necessary and get out
-    // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
-    // in the event that specific request times out
-
     return RCL_RET_OK;
 }
 
@@ -239,8 +231,6 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-
     RCSOFTCHECK(rcl_subscription_fini(&soft_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&robot_state_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswtich_publisher, &node));

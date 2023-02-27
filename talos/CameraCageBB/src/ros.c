@@ -18,7 +18,7 @@
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "main"
+#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code
@@ -87,11 +87,11 @@ rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 
 // Depth Sensor
-//static rcl_publisher_t depth_publisher;
-static rcl_publisher_t water_temp_publisher;
-static riptide_msgs2__msg__Depth depth_msg;
-static char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
-static const float depth_variance = 0.003;  					// TODO: Load from config file or something
+rcl_publisher_t depth_publisher;
+rcl_publisher_t water_temp_publisher;
+riptide_msgs2__msg__Depth depth_msg;
+char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
+const float depth_variance = 0.003;
 
 // ========================================
 // Executor Callbacks
@@ -172,14 +172,13 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 
 rcl_ret_t ros_update_depth_publisher() {
     if (depth_reading_valid()) {
-        riptide_msgs2__msg__Depth depth_msg;
 		struct timespec ts;
 		nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
 		depth_msg.header.stamp.sec = ts.tv_sec;
 		depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
 		depth_msg.depth = -depth_read();
-		//RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+		RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
 	}
 
     return RCL_RET_OK;
@@ -224,12 +223,12 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_SUBCRIBER_NAME));
 
-    /*RCRETCHECK(rclc_publisher_init(
+    RCRETCHECK(rclc_publisher_init(
 		&depth_publisher,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
 		DEPTH_PUBLISHER_NAME,
-		&rmw_qos_profile_sensor_data));*/
+		&rmw_qos_profile_sensor_data));
 
     RCRETCHECK(rclc_publisher_init(
 		&water_temp_publisher,
@@ -257,7 +256,7 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));
-    //RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
