@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "hardware/i2c.h"
+
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ASYNC_I2C, Enable/disable assertions in the Async I2C module, type=bool, default=0, group=async_i2c
 #ifndef PARAM_ASSERTIONS_ENABLED_ASYNC_I2C
 #define PARAM_ASSERTIONS_ENABLED_ASYNC_I2C 0
@@ -34,6 +36,7 @@ struct async_i2c_request {
     async_i2c_abort_cb_t failed_callback;                   // Callback upon failure of request (can be NULL)
     const struct async_i2c_request *next_req_on_success;    // Next request to send upon succesful completion of request (can be NULL if no chaining required)
     void* user_data;                                        // User data to access in callback
+    absolute_time_t timeout;                                // Timeout for request to end, or nil_time if it should default to normal timeout
 };
 
 /**
@@ -113,6 +116,39 @@ extern bool async_i2c_initialized;
  * @return false if the request failed to queue due to a full buffer
  */
 bool async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress);
+
+/**
+ * @brief Queue an i2c write request and block until the request completes, or until timeout until occurs.
+ *
+ * @param i2c Either \ref i2c0 or \ref i2c1
+ * @param addr 7-bit address of device to write to
+ * @param src Pointer to data to send
+ * @param len Length of data in bytes to send
+ * @param nostop  If true, master retains control of the bus at the end of the transfer (no Stop is issued),
+ *           and the next transfer will begin with a Restart rather than a Start.
+ * @param until The absolute time that the block will wait until the entire transaction is complete. Note, an individual timeout of
+ *           this value divided by the length of data is applied for each byte transfer, so if the first or subsequent
+ *           bytes fails to transfer within that sub timeout, the function will return with an error.
+ *
+ * @return Number of bytes read, or PICO_ERROR_GENERIC if an error occurred.
+ */
+int async_i2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len,
+                                   bool nostop, absolute_time_t until);
+
+/**
+ * @brief Queue an i2c read request and block until the request completes, or until timeout until occurs.
+ *
+ * @param i2c Either @ref i2c0 or @ref i2c1
+ * @param addr 7-bit address of device to read from
+ * @param dst Pointer to buffer to receive data
+ * @param len Length of data in bytes to receive
+ * @param nostop  If true, master retains control of the bus at the end of the transfer (no Stop is issued),
+ *           and the next transfer will begin with a Restart rather than a Start.
+ * @param until The absolute time that the block will wait until the entire transaction is complete.
+ * @return Number of bytes read, or PICO_ERROR_GENERIC if an error occurred.
+ */
+int async_i2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len,
+                                  bool nostop, absolute_time_t until);
 
 /**
  * @brief Initialize async i2c and the corresponding i2c hardware
