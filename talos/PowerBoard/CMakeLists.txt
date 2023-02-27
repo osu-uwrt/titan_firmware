@@ -14,7 +14,9 @@ set(UWRT_ROBOT talos)
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
 # Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
-set(default_build_type RelWithDebInfo)
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup

@@ -14,7 +14,9 @@ set(UWRT_ROBOT talos)
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
 # Defaults to RelWithDebInfo when building normally
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
-set(default_build_type RelWithDebInfo)
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -62,7 +64,7 @@ target_link_libraries(actuator_mk2
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_adc
 	hardware_pio
-	# TODO: do we need watchdog here? 
+	# TODO: do we need watchdog here?
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

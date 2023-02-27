@@ -10,6 +10,9 @@ include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 # Add versioning commands
 include(${REPO_DIR}/lib/version_tag/version_tag.cmake)
 
+# Make relwithdebuginfo actually like Release
+set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
+
 # Define custom functions for assorted features
 function(uwrt_use_upload_tool target)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/upload_tool)

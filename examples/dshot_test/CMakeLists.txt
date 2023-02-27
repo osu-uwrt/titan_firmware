@@ -9,7 +9,9 @@ set(PICO_BOARD puddles_backplane)
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
 # Defaults to RelWithDebInfo when building normally
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
-set(default_build_type RelWithDebInfo)
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
