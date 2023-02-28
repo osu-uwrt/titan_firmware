@@ -29,8 +29,6 @@ enum mcp3426_mode {
 
 void mcp3426_init(int adc_mode, enum mcp3426_sample_rate rate, enum mcp3426_gain gain);
 
-void mcp3426_update();
-
 int mcp3426_read(enum mcp3426_channel channel);
 
 #endif

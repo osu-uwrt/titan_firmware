@@ -26,7 +26,6 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS SAFETY_KILL_SWITCH_TIMEOUT_MS
-#define ADC_UPDATE_TIME_MS 250
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -37,7 +36,6 @@ absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_killswitch_publish = {0};
 absolute_time_t next_robot_state_publish = {0};
-absolute_time_t next_adc_update = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -137,10 +135,6 @@ static void tick_background_tasks() {
         led_update_pins();
     }
     #endif
-
-    if(timer_ready(&next_adc_update, ADC_UPDATE_TIME_MS, true)) { 
-        mcp3426_update();
-    }
 }
 
 
