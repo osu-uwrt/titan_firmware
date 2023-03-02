@@ -111,7 +111,9 @@ static void killswitch_subscription_callback(const void * msgin)
 
 static void dshot_subscription_callback(const void * msgin) {
     const riptide_msgs2__msg__DshotCommand * msg = (const riptide_msgs2__msg__DshotCommand *)msgin;
-    dshot_update_thrusters(msg->values);
+    extern uint8_t esc_board_num;
+    uint offset = (esc_board_num == 1 ? 4 : 0);
+    dshot_update_thrusters(&msg->values[offset]);
     dshot_command_received = true;
 }
 
@@ -254,6 +256,7 @@ rcl_ret_t ros_init() {
     // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
+    // TODO: Update to use ESC board number
     RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
 
     // Node Initialization
