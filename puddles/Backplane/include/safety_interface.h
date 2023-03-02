@@ -11,6 +11,10 @@
 #define FAULT_CAN_RECV_ERROR      3
 #define FAULT_ROS_ERROR           4
 #define FAULT_TIMER_MISSED        5
+#define FAULT_ROS_BAD_COMMAND     6
+#define FAULT_THRUSTER_TIMEOUT    7
+#define FAULT_DEPTH_INIT_ERROR    8
+#define FAULT_DEPTH_ERROR         9
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
@@ -18,16 +22,11 @@ static const char * const fault_string_list[] = {
     "FAULT_CAN_INTERNAL_ERROR",
     "FAULT_CAN_RECV_ERROR",
     "FAULT_ROS_ERROR",
-    "FAULT_TIMER_MISSED"
-};
-
-
-// If no kill switches defined, set NUM_KILL_SWITCHES = 0
-enum kill_switch {
-    HARDWARE_KILL_SWITCH = 0,
-    // Used to automatically calculate number of kill switches
-    // This must be the last enum
-    NUM_KILL_SWITCHES
+    "FAULT_TIMER_MISSED",
+    "FAULT_ROS_BAD_COMMAND",
+    "FAULT_THRUSTER_TIMEOUT",
+    "FAULT_DEPTH_INIT_ERROR",
+    "FAULT_DEPTH_ERROR",
 };
 
 #endif

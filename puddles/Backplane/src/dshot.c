@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-#include "hardware/adc.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
 #include "hardware/sync.h"
@@ -13,8 +12,6 @@
 #include "safety_interface.h"
 #include "dshot.h"
 #include "bidir_dshot.pio.h"
-#include "uart_rx.pio.h"
-#include "uart_telemetry.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dshot"
@@ -22,16 +19,16 @@
 // Sanity check parameters
 static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "DShot TX Rate must be greater than minimum frame time");
 
+#define INDEX_TO_PIO(thruster_index) (((thruster_index)/4) == 0 ? pio0 : (((thruster_index)/4) == 1 ? pio1 : NULL))
+#define INDEX_TO_SM(thruster_index) ((thruster_index) % 4)
+
 // ========================================
 // Global Variables
 // ========================================
 
 bool dshot_initialized = false;
-bool esc_board_on = false;
-struct dshot_uart_telemetry dshot_telemetry_data[NUM_THRUSTERS] = {0};
 struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = {0};
 bool dshot_rpm_reversed[NUM_THRUSTERS] = {0};
-uint32_t vcc_reading_mv = 0;
 
 // ========================================
 // Static Variables
@@ -74,11 +71,6 @@ static bool dshot_thrusters_on = false;
 static uint dshot_thruster_cmds[NUM_THRUSTERS] = {0};
 
 /**
- * @brief Buffer for uart telemetry being actively received
- */
-struct uart_telem_buffer dshot_uart_telem_buffer = {.thruster = -1};
-
-/**
  * @brief Sets the time thrusters are allowed to the latest possible value
  * If time_allowed is greater than the current allowed time, it will set
  * If not it will keep the previous value
@@ -101,91 +93,6 @@ static inline void dshot_clear_command_state(void) {
     }
     dshot_thrusters_on = false;
     dshot_command_timeout = nil_time;
-}
-
-// ========================================
-// VCC Measurement
-// ========================================
-
-/**
- * @brief Measures the voltage divided VCC pin
- * Required so that the ESCs see a neutral signal during power up to avoid locking out the thrusters
- */
-static void __time_critical_func(vcc_meas_cb)(void) {
-    // Decode the measurement
-    vcc_reading_mv = ((uint32_t) (adc_fifo_get() & 0xFFF)) * VCC_CONVERSION_MULT_MV / VCC_CONVERSION_DIV_MV;
-
-    bool thrusters_on = (vcc_reading_mv > ESC_POWER_THRESHOLD_MV);
-    if (thrusters_on && !esc_board_on) {
-        dshot_set_time_thrusters_allowed(make_timeout_time_ms(DSHOT_WAKEUP_DELAY_MS));
-    }
-    esc_board_on = thrusters_on;
-}
-
-// ========================================
-// DShot UART Telemetry RX
-// ========================================
-
-void dshot_uart_prep_for_rx(uint thruster) {
-    dshot_uart_telem_buffer.crc = 0;
-    dshot_uart_telem_buffer.recv_index = 0;
-    dshot_uart_telem_buffer.thruster = thruster;
-    dshot_uart_telem_buffer.type = ESC_TELEM_FRAME;
-
-    if (dshot_telemetry_data[thruster].missed_count < TELEM_MAX_MISSED_PACKETS){
-        dshot_telemetry_data[thruster].missed_count++;
-    } else {
-        dshot_telemetry_data[thruster].valid = false;
-    }
-}
-
-uint8_t __time_critical_func(dshot_uart_crc_update)(uint8_t crc, uint8_t crc_seed){
-    uint8_t crc_u, i;
-    crc_u = crc;
-    crc_u ^= crc_seed;
-    for ( i=0; i<8; i++)
-        crc_u = ( crc_u & 0x80 ) ? 0x7 ^ ( crc_u << 1 ) : ( crc_u << 1 );
-    return (crc_u);
-}
-
-void __time_critical_func(dshot_uart_telem_cb)(void) {
-    // Read rx fifo pending for all 4 state machines
-    uint pending_buffers = DSHOT_TELEM_PIO_BLOCK->intr & 0xF;
-
-    for (int i = 0; i < 4; i++) {
-        // Try to read if pending interrupt set
-        if ((pending_buffers & (1<<i)) == 0) {
-            continue;
-        }
-
-        // Check if this is data we are expecting
-        uint8_t data = uart_rx_program_getc(DSHOT_TELEM_PIO_BLOCK, i);
-        if (dshot_uart_telem_buffer.thruster == i && dshot_uart_telem_buffer.recv_index < sizeof(dshot_uart_telem_buffer.buffer)) {
-            // Receive data and process it
-            dshot_uart_telem_buffer.buffer.raw[dshot_uart_telem_buffer.recv_index++] = data;
-            uint8_t last_crc = dshot_uart_telem_buffer.crc;
-            dshot_uart_telem_buffer.crc = dshot_uart_crc_update(data, last_crc);
-
-            // Check if frame is complete
-            if (dshot_uart_telem_buffer.recv_index == sizeof(dshot_uart_telem_buffer.buffer.telem_pkt)) {
-                dshot_uart_telem_buffer.thruster = -1;    // Mark as received
-                struct esc_telem_pkt *pkt = &dshot_uart_telem_buffer.buffer.telem_pkt;
-
-                if (last_crc == pkt->crc) {
-                    // Successful CRC RX, load in data
-                    dshot_telemetry_data[i].temperature = pkt->temperature;
-                    dshot_telemetry_data[i].voltage = ((pkt->voltage_high << 8) | pkt->voltage_low);
-                    dshot_telemetry_data[i].current = ((pkt->current_high << 8) | pkt->current_low);
-                    dshot_telemetry_data[i].consumption = ((pkt->consumption_high << 8) | pkt->consumption_low);
-                    dshot_telemetry_data[i].rpm = ((pkt->rpm_high << 8) | pkt->rpm_low);
-
-                    // Clear missed packet count and mark data as valid
-                    dshot_telemetry_data[i].missed_count = 0;
-                    dshot_telemetry_data[i].valid = true;
-                }
-            }
-        }
-    }
 }
 
 // ========================================
@@ -228,17 +135,26 @@ int __time_critical_func(decode_erpm_period)(uint32_t packet) {
     return (telem_data & 0x1FF) << (telem_data >> 9);
 }
 
-void __time_critical_func(dshot_telem_cb)(void) {
+void __time_critical_func(dshot_telem_cb)(PIO pio_hw) {
+    uint thruster_base = 4 * pio_get_index(pio_hw);
     for (int i = 0; i < 4; i++) {
-        if (pio_sm_get_rx_fifo_level(DSHOT_PIO_BLOCK, i) > 0) {
-            int period_us = decode_erpm_period(pio_sm_get_blocking(DSHOT_PIO_BLOCK, i));
+        if (pio_sm_get_rx_fifo_level(pio_hw, i) > 0) {
+            int period_us = decode_erpm_period(pio_sm_get_blocking(pio_hw, i));
             if (period_us >= 0) {
-                dshot_rpm_data[i].rpm_period_us = period_us;
-                dshot_rpm_data[i].valid = true;
-                dshot_rpm_data[i].missed_count = 0;
+                dshot_rpm_data[thruster_base + i].rpm_period_us = period_us;
+                dshot_rpm_data[thruster_base + i].valid = true;
+                dshot_rpm_data[thruster_base + i].missed_count = 0;
             }
         }
     }
+}
+
+void __time_critical_func(dshot_telem_pio0_cb)(void) {
+    dshot_telem_cb(pio0);
+}
+
+void __time_critical_func(dshot_telem_pio1_cb)(void) {
+    dshot_telem_cb(pio1);
 }
 
 
@@ -263,7 +179,7 @@ void __time_critical_func(dshot_send_command_internal)(uint thruster_index, uint
         dshot_rpm_data[thruster_index].valid = false;
     }
 
-    pio_sm_put_blocking(DSHOT_PIO_BLOCK, thruster_index, (~cmd) << 16);
+    pio_sm_put_blocking(INDEX_TO_PIO(thruster_index), INDEX_TO_SM(thruster_index), (~cmd) << 16);
 }
 
 void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
@@ -274,33 +190,15 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
     }
 
     if (time_reached(dshot_command_timeout) || safety_kill_get_asserting_kill() ||
-            !time_reached(dshot_time_thrusters_allowed) || !esc_board_on) {
+            !time_reached(dshot_time_thrusters_allowed)) {
         dshot_clear_command_state();
     }
-
-    static int telem_cur_thruster = 0;
-    static int telem_delay = 0;
 
     // Loop until the timer is successfully scheduled
     // If for whatever reason a high latency, higher-priority IRQ fires during scheduling, it could miss, breaking the timer
     do {
-        telem_delay++;
-        if (telem_delay == TELEM_PACKET_DELAY) {
-            telem_delay = 0;
-
-            telem_cur_thruster++;
-            if (telem_cur_thruster == NUM_THRUSTERS) {
-                telem_cur_thruster = 0;
-            }
-        }
         for (int i = 0; i < NUM_THRUSTERS; i++) {
-            if (telem_delay == 0 && telem_cur_thruster == i) {
-                dshot_uart_prep_for_rx(i);
-                dshot_send_command_internal(i, dshot_thruster_cmds[i], true);
-            } else {
-                dshot_send_command_internal(i, dshot_thruster_cmds[i], false);
-            }
-
+            dshot_send_command_internal(i, dshot_thruster_cmds[i], false);
         }
         dshot_next_allowed_frame_tx = make_timeout_time_us(bidir_dshot_min_frame_period_us(DSHOT_RATE));
     } while(hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
@@ -325,6 +223,15 @@ void dshot_stop_thrusters(void) {
     }
 }
 
+void dshot_notify_physical_kill_switch_change(bool asserting_kill) {
+    static bool last_asserting_kill = true;
+    if (last_asserting_kill) {
+        dshot_set_time_thrusters_allowed(make_timeout_time_ms(DSHOT_WAKEUP_DELAY_MS));
+    }
+
+    last_asserting_kill = asserting_kill;
+}
+
 void dshot_update_thrusters(const int16_t *throttle_values) {
     hard_assert_if(DSHOT, !dshot_initialized);
 
@@ -340,11 +247,6 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
 
     // Don't send a command if one is still currently transmitting
     if (!time_reached(dshot_next_allowed_frame_tx)) {
-        return;
-    }
-
-    // Don't send a command if the ESC board isn't powered on
-    if (!esc_board_on) {
         return;
     }
 
@@ -377,8 +279,8 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
     }
 
     // Start immediate retransmission
-    for (int i = 0; i < 4; i++) {
-        bidir_dshot_reset(DSHOT_PIO_BLOCK, i, dshot_pio_offset, DSHOT_RATE, dshot_next_allowed_frame_tx);
+    for (int i = 0; i < 8; i++) {
+        bidir_dshot_reset(INDEX_TO_PIO(i), INDEX_TO_SM(i), dshot_pio_offset, DSHOT_RATE, dshot_next_allowed_frame_tx);
     }
 
     dshot_command_timeout = make_timeout_time_ms(DSHOT_MIN_UPDATE_RATE_MS);
@@ -388,56 +290,38 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
 void dshot_init(void) {
     hard_assert_if(DSHOT, dshot_initialized);
 
-    // Binary-info Defines for UF2
-    bi_decl_if_func_used(bi_1pin_with_name(ESC1_PWM_PIN, "Thruster 1/5 DShot"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC2_PWM_PIN, "Thruster 2/6 DShot"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC3_PWM_PIN, "Thruster 3/7 DShot"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC4_PWM_PIN, "Thruster 4/8 DShot"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC1_TELEM_PIN, "Thruster 1/5 Telemetry"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC2_TELEM_PIN, "Thruster 2/6 Telemetry"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC3_TELEM_PIN, "Thruster 3/7 Telemetry"));
-    bi_decl_if_func_used(bi_1pin_with_name(ESC4_TELEM_PIN, "Thruster 4/8 Telemetry"));
-    bi_decl_if_func_used(bi_1pin_with_name(VCC_MEAS_PIN, "VCC Measurement"));
-
     // Initialize DShot Pins
-    dshot_pio_offset = pio_add_program(DSHOT_PIO_BLOCK, &bidir_dshot_program);
-    bidir_dshot_program_init(DSHOT_PIO_BLOCK, 0, dshot_pio_offset, DSHOT_RATE, ESC1_PWM_PIN);
-    bidir_dshot_program_init(DSHOT_PIO_BLOCK, 1, dshot_pio_offset, DSHOT_RATE, ESC2_PWM_PIN);
-    bidir_dshot_program_init(DSHOT_PIO_BLOCK, 2, dshot_pio_offset, DSHOT_RATE, ESC3_PWM_PIN);
-    bidir_dshot_program_init(DSHOT_PIO_BLOCK, 3, dshot_pio_offset, DSHOT_RATE, ESC4_PWM_PIN);
-    pio_set_irq0_source_mask_enabled(DSHOT_PIO_BLOCK,
+    dshot_pio_offset = pio_add_program(pio0, &bidir_dshot_program);
+    pio_add_program_at_offset(pio1, &bidir_dshot_program, dshot_pio_offset);
+
+    // I know... Macros.. Sue me, but it's way better than doing this all by hand IMO
+    #define INIT_THRUSTER(num) do { \
+       bi_decl_if_func_used(bi_1pin_with_name(THRUSTER_##num##_PIN, "Thruster " __XSTRING(num) " DShot")); \
+       bidir_dshot_program_init(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1), dshot_pio_offset, DSHOT_RATE, THRUSTER_##num##_PIN); \
+    } while(0)
+
+    INIT_THRUSTER(1);
+    INIT_THRUSTER(2);
+    INIT_THRUSTER(3);
+    INIT_THRUSTER(4);
+    INIT_THRUSTER(5);
+    INIT_THRUSTER(6);
+    INIT_THRUSTER(7);
+    INIT_THRUSTER(8);
+
+    pio_set_irq0_source_mask_enabled(pio0,
+        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
+        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
+        true);
+    pio_set_irq0_source_mask_enabled(pio1,
         PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
         true);
 
-    irq_set_exclusive_handler(PIO0_IRQ_0, dshot_telem_cb);
+    irq_set_exclusive_handler(PIO0_IRQ_0, dshot_telem_pio0_cb);
+    irq_set_exclusive_handler(PIO1_IRQ_0, dshot_telem_pio1_cb);
     irq_set_enabled(PIO0_IRQ_0, true);
-
-    // Initialize Telemetry Pins
-    uint uart_offset = pio_add_program(DSHOT_TELEM_PIO_BLOCK, &uart_rx_program);
-    uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 0, uart_offset, ESC1_TELEM_PIN, 115200);
-    uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 1, uart_offset, ESC2_TELEM_PIN, 115200);
-    uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 2, uart_offset, ESC3_TELEM_PIN, 115200);
-    uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 3, uart_offset, ESC4_TELEM_PIN, 115200);
-
-    pio_set_irq0_source_mask_enabled(DSHOT_TELEM_PIO_BLOCK,
-        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
-        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
-        true);
-
-    irq_set_exclusive_handler(PIO1_IRQ_0, dshot_uart_telem_cb);
     irq_set_enabled(PIO1_IRQ_0, true);
-
-    // Initialize VCC Measurement to detect if ESCs are powered on
-    adc_init();
-    adc_gpio_init(VCC_MEAS_PIN);
-    adc_select_input(VCC_MEAS_PIN - 26);
-    adc_set_clkdiv(48000.f);
-    adc_fifo_setup(true, true, 1, false, false);
-    adc_irq_set_enabled(true);
-    adc_run(true);
-    irq_set_exclusive_handler(ADC_IRQ_FIFO, vcc_meas_cb);
-    irq_set_enabled(ADC_IRQ_FIFO, true);
 
     // Configure hardware alarm for DShot Command Scheduling
     hardware_alarm_claim(dshot_hardware_alarm_num);

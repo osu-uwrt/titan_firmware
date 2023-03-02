@@ -64,10 +64,23 @@ bool ros_ping(void);
 // ROS Task Functions
 // ========================================
 
+/**
+ * @brief Set to true whenever a dshot command is received
+ *
+ * Useful for sending telementry for every command received
+ */
+extern bool dshot_command_received;
+
 rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
-// TODO: Add in any additional ROS tasks here
+rcl_ret_t ros_publish_killswitch(void);
+
+rcl_ret_t ros_send_rpm(void);
+
+rcl_ret_t ros_update_depth_publisher();
+
+rcl_ret_t ros_update_water_temp_publisher();
 
 #endif

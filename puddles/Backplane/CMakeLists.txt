@@ -35,7 +35,7 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(backplane_firmware
 	${SOURCES}
 )
-# pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/hw/dshot.pio)
+pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 
 target_compile_options(backplane_firmware PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(backplane_firmware PUBLIC include)
@@ -66,13 +66,10 @@ pico_add_extra_outputs(backplane_firmware)
 target_link_libraries(backplane_firmware
 	basic_logger
 	pico_stdlib
-	wiznet_ethernet
 	micro_ros_eth
 	safety
 
 	hardware_pio
 	hardware_pwm
-	hardware_i2c
-	hardware_spi
-	hardware_flash
+	async_i2c
 )

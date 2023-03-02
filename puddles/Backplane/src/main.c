@@ -1,19 +1,17 @@
 #include "pico/stdlib.h"
 
+#include "async_i2c.h"
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
+#include "depth_sensor.h"
+#include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
-#endif
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
-#include "micro_ros_pico/transport_can.h"
 #endif
 
 #ifdef MICRO_ROS_TRANSPORT_ETH
@@ -28,6 +26,8 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define KILLSWITCH_PUBLISH_TIME_MS 150
+#define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -36,6 +36,8 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
+absolute_time_t next_killswitch_publish = {0};
+absolute_time_t next_water_temp_publish = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -78,6 +80,8 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
+    next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
 }
 
 /**
@@ -105,17 +109,32 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    // TODO: Put any additional ROS tasks added here
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_publish_killswitch());
+    }
+
+    // Send depth as soon as a new reading comes in
+    if (depth_reading_valid() && depth_set_on_read) {
+        depth_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
+
+    if (depth_reading_valid() && timer_ready(&next_water_temp_publish, WATER_TEMP_PUBLISH_INTERVAL_MS, false)) {
+        RCSOFTRETVCHECK(ros_update_water_temp_publisher());
+    }
+
+    // Send Dshot telemetry response after a dshot command is sent
+    if (dshot_command_received) {
+        dshot_command_received = false;
+        RCSOFTRETVCHECK(ros_send_rpm());
+    }
 }
 
 static void tick_background_tasks() {
-    // Update the LED (so it can alternate between colors if a fault is present)
-    // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
+    // Update the LED to report ethernet link status
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(ethernet_check_online());
-        // led_update_pins();
     }
-    
 
 
     // TODO: Put any code that should periodically occur here
@@ -134,6 +153,12 @@ int main() {
     led_init();
     ros_rmw_init_error_handling();
 
+    static_assert(SENSOR_I2C == 0, "Sensor i2c expected on i2c0");
+    static_assert(BOARD_I2C == 1, "Board i2c expected on i2c0");
+    async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 200000, 10);
+    depth_init();
+    dshot_init();
+
     // init the CPU pwr ctrl system
     gpio_init(PWR_CTL_CPU);
     gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
@@ -144,12 +169,10 @@ int main() {
     gpio_set_dir(PWR_CTL_ACC, GPIO_OUT);
     gpio_put(PWR_CTL_ACC, 0);
 
-    // init the kill and aux switches as inputs
+    // init the aux switches as input
     gpio_init(AUX_SW_SENSE);
     gpio_set_dir(AUX_SW_SENSE, GPIO_IN);
-    gpio_init(KILL_SW_SENSE);
-    gpio_set_dir(KILL_SW_SENSE, GPIO_IN);
-    
+
 
     // Initialize ROS Transports
     if (!transport_eth_init()) {

@@ -80,11 +80,11 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
     }
 }
 
-bool safety_kill_get_asserting_kill(void) {
+bool __time_critical_func(safety_kill_get_asserting_kill)(void) {
     return last_state_asserting_kill;
 }
 
-absolute_time_t safety_kill_get_last_change(void) {
+absolute_time_t __time_critical_func(safety_kill_get_last_change)(void) {
     return last_kill_switch_change;
 }
 

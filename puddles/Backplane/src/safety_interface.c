@@ -1,7 +1,22 @@
 #include "pico/stdlib.h"
 #include <assert.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
+#include "dshot.h"
 #include "safety_interface.h"
 #include "led.h"
+
+static inline void safety_interface_refresh_physical_kill_switch(void) {
+    // read the external switches
+    bool kill_state = gpio_get(KILL_SW_SENSE);
+    safety_kill_switch_update(riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL, kill_state, true);
+    dshot_notify_physical_kill_switch_change(kill_state);
+}
+
+static void safety_interface_gpio_callback(uint gpio, __unused uint32_t events) {
+    if (gpio == KILL_SW_SENSE) {
+        safety_interface_refresh_physical_kill_switch();
+    }
+}
 
 
 // ========================================
@@ -16,41 +31,37 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    // TODO: Modify this function to add callbacks when system is killed
+    dshot_stop_thrusters();
     led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
-    // TODO: Modify this function to add callbacks for when system is enabled
-
     led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {
-
+    // Initialize physical kill switch pin
+    gpio_init(KILL_SW_SENSE);
+    gpio_pull_up(KILL_SW_SENSE);
+    gpio_set_dir(KILL_SW_SENSE, GPIO_IN);
+    gpio_set_irq_enabled_with_callback(KILL_SW_SENSE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &safety_interface_gpio_callback);
 }
 
-void safety_interface_init(void) {
-    // TODO: Modify this function to add code to be called during safety_init
-}
+void safety_interface_init(void) {}
 
 void safety_interface_tick(void) {
-    // read the external switches
-    bool kill_state = gpio_get(KILL_SW_SENSE);
-
-    safety_kill_switch_update(HARDWARE_KILL_SWITCH, kill_state, true);
+    safety_interface_refresh_physical_kill_switch();
 }
 
-void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
-}
+void safety_interface_deinit(void) {}
 
 
 // ========================================
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES];
+struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] =
+    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
 const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
 static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 

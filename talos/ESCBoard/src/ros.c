@@ -177,7 +177,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
 
 rcl_ret_t ros_send_rpm(uint8_t board_id) {
     riptide_msgs2__msg__DshotRPMFeedback rpm_msg;
-    uint8_t valid_mask;
+    uint8_t valid_mask = 0;
     uint thruster_base = (board_id == 0 ? 0 : 4);
 
     for (int i = 0; i < NUM_THRUSTERS; i++) {
@@ -211,6 +211,8 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
 
         rpm_msg.rpm[thruster_base + i] = rpm;
     }
+
+    rpm_msg.valid_mask = valid_mask;
 
     RCSOFTRETCHECK(rcl_publish(&dshot_rpm_publisher, &rpm_msg, NULL));
 

@@ -122,7 +122,7 @@ int main() {
     ros_rmw_init_error_handling();
 
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
-    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
     depth_init();
 
 

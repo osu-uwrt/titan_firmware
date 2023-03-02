@@ -9,6 +9,7 @@ target_sources(micro_ros_eth INTERFACE
 target_link_libraries(micro_ros_eth INTERFACE
     pico_stdlib
     wiznet_ethernet
+    hardware_flash
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )
