@@ -6,6 +6,14 @@
 #include "can_mcp251Xfd/canbus.h"
 #endif
 
+void safety_handle_can_internal_error(int data) {
+    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+}
+
+void safety_handle_can_receive_error(int data) {
+    safety_raise_fault(FAULT_CAN_RECV_ERROR);
+}
+
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
@@ -33,7 +41,8 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-
+    canbus_set_receive_error_cb(safety_handle_can_receive_error);
+    canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
 void safety_interface_init(void) {

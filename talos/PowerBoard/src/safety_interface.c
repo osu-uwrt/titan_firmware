@@ -22,6 +22,13 @@ static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
     }
 }
 
+void safety_handle_can_internal_error(int data) {
+    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+}
+
+void safety_handle_can_receive_error(int data) {
+    safety_raise_fault(FAULT_CAN_RECV_ERROR);
+}
 
 // ========================================
 // Implementations for External Interface Functions
@@ -60,6 +67,9 @@ void safety_interface_setup(void) {
     gpio_pull_up(PHYS_KILLSWITCH_PIN);
     gpio_set_dir(PHYS_KILLSWITCH_PIN, GPIO_IN);
     gpio_set_irq_enabled_with_callback(PHYS_KILLSWITCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &safety_interface_gpio_callback);
+
+    canbus_set_receive_error_cb(safety_handle_can_receive_error);
+    canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
 void safety_interface_init(void) { }
