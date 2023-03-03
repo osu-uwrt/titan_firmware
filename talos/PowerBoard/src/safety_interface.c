@@ -1,21 +1,34 @@
 #include <assert.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
+#include "can_mcp251Xfd/canbus.h"
+#include "hardware/gpio.h"
+
 #include "safety_interface.h"
 #include "led.h"
 
-#include "hardware/gpio.h"
+bool safety_interface_kill_switch_refreshed = false;
+static bool prev_kill_state = false;
 
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
-#endif
+static inline void safety_interface_refresh_physical_kill_switch(void) {
+    // read the external switches
+    bool kill_state = !gpio_get(PHYS_KILLSWITCH_PIN);
+    safety_kill_switch_update(riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL, kill_state, true);
+}
+
+static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
+    can_mcp251xfd_interrupt_cb(gpio, events);
+    if (gpio == PHYS_KILLSWITCH_PIN) {
+        safety_interface_refresh_physical_kill_switch();
+    }
+}
+
 
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_device_in_error(on);
-    #endif
 
     led_fault_set(on);
 }
@@ -25,21 +38,34 @@ void safety_handle_kill(void) {
     // This is because safety_kill_switch_update can be called from interrupts
 
     led_killswitch_set(false);
+
+    if (!prev_kill_state) {
+        prev_kill_state = true;
+        safety_interface_kill_switch_refreshed = true;
+    }
 }
 
 void safety_handle_enable(void) {
     led_killswitch_set(true);
+
+    if (prev_kill_state) {
+        prev_kill_state = false;
+        safety_interface_kill_switch_refreshed = true;
+    }
 }
 
 void safety_interface_setup(void) {
+    // Initialize physical kill switch pin
     gpio_init(PHYS_KILLSWITCH_PIN);
     gpio_pull_up(PHYS_KILLSWITCH_PIN);
+    gpio_set_dir(PHYS_KILLSWITCH_PIN, GPIO_IN);
+    gpio_set_irq_enabled_with_callback(PHYS_KILLSWITCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &safety_interface_gpio_callback);
 }
 
 void safety_interface_init(void) { }
 
 void safety_interface_tick(void) {
-    safety_kill_switch_update(PHYS_KILL_SWITCH, !gpio_get(PHYS_KILLSWITCH_PIN), true);
+    safety_interface_refresh_physical_kill_switch();
 }
 
 void safety_interface_deinit(void) { }
@@ -49,7 +75,8 @@ void safety_interface_deinit(void) { }
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES];
+struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] =
+    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
 const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
 static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 

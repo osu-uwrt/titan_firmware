@@ -95,7 +95,6 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher;
-rcl_publisher_t killswitch_publisher;
 
 // Dshot publishers
 rcl_publisher_t dshot_rpm_publisher;
@@ -103,6 +102,7 @@ rcl_subscription_t dshot_subscriber;
 riptide_msgs2__msg__DshotCommand dshot_msg;
 
 // Physical kill switch
+rcl_publisher_t killswitch_publisher;
 rcl_subscription_t software_kill_subscriber;
 riptide_msgs2__msg__KillSwitchReport software_kill_msg;
 char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE+1] = {0};

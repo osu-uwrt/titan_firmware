@@ -7,14 +7,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
-#ifdef MICRO_ROS_TRANSPORT_USB
-#include "micro_ros_pico/transport_usb.h"
-#endif
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
-#endif
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -24,7 +18,6 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS 150
-#define ROBOT_STATE_PUBLISH_TIME_MS 500
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -34,7 +27,6 @@ absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_killswitch_publish = {0};
-absolute_time_t next_robot_state_publish = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -78,7 +70,6 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
-    next_robot_state_publish = make_timeout_time_ms(ROBOT_STATE_PUBLISH_TIME_MS);
 }
 
 /**
@@ -107,12 +98,9 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) || safety_interface_kill_switch_refreshed) {
+        safety_interface_kill_switch_refreshed = false;
         RCSOFTRETVCHECK(ros_publish_killswitch());
-    }
-
-    if(timer_ready(&next_robot_state_publish, ROBOT_STATE_PUBLISH_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_publish_robot_state());
     }
 }
 

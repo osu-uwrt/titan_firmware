@@ -66,7 +66,6 @@ void ros_rmw_init_error_handling(void)  {
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define ROBOT_STATE_PUBLISHER_NAME "state/robot"
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
 
@@ -82,21 +81,57 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher;
-rcl_subscription_t soft_kill_subscriber;
-riptide_msgs2__msg__KillSwitchReport soft_kill_msg;
-std_msgs__msg__Bool killswitch_msg;
-rcl_publisher_t killswtich_publisher;
-rcl_publisher_t robot_state_publisher;
-riptide_msgs2__msg__RobotState robot_state_msg = {0};
+
+// Kill switch
+rcl_publisher_t killswitch_publisher;
+rcl_subscription_t software_kill_subscriber;
+riptide_msgs2__msg__KillSwitchReport software_kill_msg;
+char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE+1] = {0};
 
 // ========================================
 // Executor Callbacks
 // ========================================
 
-static void soft_kill_subscription_callback(const void * msgin)
+static void software_kill_subscription_callback(const void * msgin)
 {
 	const riptide_msgs2__msg__KillSwitchReport * msg = (const riptide_msgs2__msg__KillSwitchReport *)msgin;
-    safety_kill_switch_update(SOFT_KILL_SWITCH, msg->switch_asserting_kill, msg->switch_needs_update);
+
+    // Make sure kill switch id is valid
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
+            msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
+        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Make sure frame id isn't too large
+    if (msg->sender_id.size >= SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE) {
+        LOG_WARN("Software Kill Frame ID too large");
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    struct kill_switch_state* kill_entry = &kill_switch_states[msg->kill_switch_id];
+
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill &&
+            strncmp(kill_entry->locking_frame, msg->sender_id.data, SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id, kill_entry->locking_frame, msg->sender_id.data);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Set frame id of the switch requesting disable
+    // This can technically override previous kills and allow one node to kill when another is stopping
+    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
+    // If multiple points are needed to be separate, separate kill switch IDs should be used
+    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
+    // since it must be asserted as killed by the node to take ownership of the lock
+    if (msg->switch_asserting_kill) {
+        strncpy(kill_entry->locking_frame, msg->sender_id.data, msg->sender_id.size);
+        kill_entry->locking_frame[msg->sender_id.size] = '\0';
+    }
+
+    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
 // ========================================
@@ -104,17 +139,9 @@ static void soft_kill_subscription_callback(const void * msgin)
 // ========================================
 
 rcl_ret_t ros_publish_killswitch() {
-    killswitch_msg.data = safety_kill_get_asserting_kill();
+    std_msgs__msg__Bool killswitch_msg = {.data = safety_kill_get_asserting_kill()};
 
-    RCSOFTRETCHECK(rcl_publish(&killswtich_publisher, &killswitch_msg, NULL));
-
-    return RCL_RET_OK;
-}
-
-rcl_ret_t ros_publish_robot_state()  {
-    robot_state_msg.kill_switch_inserted = !safety_kill_get_asserting_kill();
-
-    RCSOFTRETCHECK(rcl_publish(&robot_state_publisher, &robot_state_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&killswitch_publisher, &killswitch_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -135,7 +162,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     status_msg.kill_switches_timed_out = 0;
 
     absolute_time_t now = get_absolute_time();
-    for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
+    for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
             status_msg.kill_switches_enabled |= (1<<i);
         }
@@ -201,19 +228,13 @@ rcl_ret_t ros_init() {
         FIRMWARE_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_default(
-        &killswtich_publisher,
+        &killswitch_publisher,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(
-        &robot_state_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, RobotState),
-        ROBOT_STATE_PUBLISHER_NAME));
-
     RCRETCHECK(rclc_subscription_init_best_effort(
-        &soft_kill_subscriber,
+        &software_kill_subscriber,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
         SOFT_KILL_SUBSCRIBER_NAME));
@@ -221,7 +242,12 @@ rcl_ret_t ros_init() {
     // Executor Initialization
     const int executor_num_handles = 1;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &soft_kill_subscriber, &soft_kill_msg, &soft_kill_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
+
+    // Populate messages
+    software_kill_msg.sender_id.data = software_kill_frame_str;
+	software_kill_msg.sender_id.capacity = sizeof(software_kill_frame_str);
+	software_kill_msg.sender_id.size = 0;
 
     return RCL_RET_OK;
 }
@@ -231,9 +257,8 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    RCSOFTCHECK(rcl_subscription_fini(&soft_kill_subscriber, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&robot_state_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&killswtich_publisher, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));

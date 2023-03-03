@@ -29,4 +29,6 @@ static const char * const fault_string_list[] = {
     "FAULT_DEPTH_ERROR",
 };
 
+extern bool safety_interface_kill_switch_refreshed;
+
 #endif

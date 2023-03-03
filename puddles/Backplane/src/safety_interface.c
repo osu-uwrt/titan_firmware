@@ -5,6 +5,9 @@
 #include "safety_interface.h"
 #include "led.h"
 
+bool safety_interface_kill_switch_refreshed = false;
+static bool prev_kill_state = false;
+
 static inline void safety_interface_refresh_physical_kill_switch(void) {
     // read the external switches
     bool kill_state = gpio_get(KILL_SW_SENSE);
@@ -33,10 +36,20 @@ void safety_handle_kill(void) {
 
     dshot_stop_thrusters();
     led_killswitch_set(false);
+
+    if (!prev_kill_state) {
+        prev_kill_state = true;
+        safety_interface_kill_switch_refreshed = true;
+    }
 }
 
 void safety_handle_enable(void) {
     led_killswitch_set(true);
+
+    if (prev_kill_state) {
+        prev_kill_state = false;
+        safety_interface_kill_switch_refreshed = true;
+    }
 }
 
 void safety_interface_setup(void) {

@@ -354,7 +354,11 @@ MCP251XFD_Filter mcp251xfd_utility_rx_filter =
 // Interrupt Pin Handling
 // ========================================
 
-static void can_mcp251xfd_interrupt_cb(__unused uint gpio, __unused uint32_t events) {
+void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
+    if (gpio != CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN || events != CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS) {
+        return;
+    }
+
     setMCP251XFD_InterruptEvents active_interrupts;
     eERRORRESULT error_code = MCP251XFD_GetInterruptEvents(&mcp251xfd_device, &active_interrupts);
 
@@ -657,8 +661,11 @@ bool can_mcp251xfd_configure(unsigned int client_id)
         return false;
     }
 
-    // TODO: Fix only one irq allowed at a time
-    gpio_set_irq_enabled_with_callback(MCP2517FD_INT_PIN, GPIO_IRQ_LEVEL_LOW, true, &can_mcp251xfd_interrupt_cb);
+    #if CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB
+    gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, true);
+    #else
+    gpio_set_irq_enabled_with_callback(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, true, &can_mcp251xfd_interrupt_cb);
+    #endif
 
     return true;
 }
@@ -692,12 +699,12 @@ void can_mcp251xfd_report_utility_rx_fifo_ready(void) {
 }
 
 uint32_t save_and_disable_mcp251Xfd_irq(void) {
-    unsigned int was_enabled = (gpio_is_irq_enabled(MCP2517FD_INT_PIN, GPIO_IRQ_LEVEL_LOW) ? 1 : 0);
-    gpio_set_irq_enabled(MCP2517FD_INT_PIN, GPIO_IRQ_LEVEL_LOW, false);
+    unsigned int was_enabled = (gpio_is_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS) ? 1 : 0);
+    gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, false);
 
     return was_enabled;
 }
 
 void restore_mcp251Xfd_irq(uint32_t prev_interrupt_state) {
-    gpio_set_irq_enabled(MCP2517FD_INT_PIN, GPIO_IRQ_LEVEL_LOW, prev_interrupt_state != 0);
+    gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, prev_interrupt_state != 0);
 }

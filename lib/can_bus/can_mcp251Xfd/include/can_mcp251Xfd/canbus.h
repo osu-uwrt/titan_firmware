@@ -20,6 +20,10 @@
  * `canbus_utility_` set of functions, which have the CAN default MTU of 8 bytes.
 */
 
+// PICO_CONFIG: CAN_MCP251xFD_USE_EXTERNAL_INTERRUPT_CB, Configure external interrupts. Allows hooking of GPIO interrupts in conjunction with this driver, type=bool, default=0, group=can_mcp251Xfd
+#ifndef CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB
+#define CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB 0
+#endif
 
 // ========================================
 // CAN Bus Control Functions
@@ -82,6 +86,22 @@ void canbus_tick(void);
  * @brief Boolean if `canbus_init` has been called.
 */
 extern bool canbus_initialized;
+
+
+#define CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN MCP2517FD_INT_PIN
+#define CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS GPIO_IRQ_LEVEL_LOW
+
+#if CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB
+/**
+ * @brief Notify mcp251xfd library of a gpio interrupt
+ * Only enabled if CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB defined to 1.
+ * Note that this MUST be configured before calling canbus_init
+ *
+ * @param gpio gpio pin provided to gpio callback
+ * @param events gpio events provided to gpio callback
+ */
+void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events);
+#endif
 
 
 // ========================================
