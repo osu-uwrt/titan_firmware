@@ -18,7 +18,12 @@
 
 #include "pico/asm_helper.S"
 #include "hardware/regs/addressmap.h"
+#include "hardware/regs/m0plus.h"
 #include "hardware/regs/ssi.h"
+#include "hardware/regs/xip.h"
+
+#define BOOTROM_ROM_LOOKUP_PTR_ADDR 0x00000018
+#define BOOTROM_ROM_FUNCTION_TABLE_ADDR 0x00000014
 
 // ----------------------------------------------------------------------------
 // Config section
@@ -90,11 +95,53 @@ _stage2_boot:
     str r1, [r3, #SSI_SSIENR_OFFSET]
 
 // We are now in XIP mode. Any bus accesses to the XIP address window will be
-// translated by the SSI into 03h read commands to the external flash (if cache is missed),
-// and the data will be returned to the bus.
+// translated by the SSI into 03h read commands to the external flash.
 
-// Pull in standard exit routine
-#include "boot2_helpers/exit_from_boot2.S"
+    // Disable XIP Cache so we can copy out bootloader to memory
+    ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
+    str r1, [r3, #XIP_CTRL_OFFSET]
+
+    // Lookup memcpy for copying out bootrom function
+    ldr r0, =BOOTROM_ROM_FUNCTION_TABLE_ADDR
+    ldrh r0, [r0]
+    ldr r1, =0x3443     // _memcpy44 (bootrom code 'C', '4')
+    ldr r3, =BOOTROM_ROM_LOOKUP_PTR_ADDR
+    ldrh r3, [r3]
+    blx r3
+    mov r3, r0
+
+    // Copy data from flash into XIP cache
+    ldr r0, ram_copyout_start
+    ldr r1, ram_copyout_source
+    ldr r2, ram_copyout_size
+
+    push {r0}
+    blx r3
+    pop {r3}
+
+// If entered from the bootrom, lr (which we earlier pushed) will be 0,
+// and we vector through the table at the start of the main flash image.
+// Any regular function call will have a nonzero value for lr.
+check_return:
+    pop {r0}
+    cmp r0, #0
+    beq vector_into_flash
+    bx r0
+vector_into_flash:
+    mov r0, r3
+    ldr r1, =(PPB_BASE + M0PLUS_VTOR_OFFSET)
+    str r0, [r1]
+    ldmia r0, {r0, r1}
+    msr msp, r0
+    bx r1
+
+.align 2
+ram_copyout_start:
+.word XIP_SRAM_BASE
+ram_copyout_source:
+.word XIP_BASE+0x100
+ram_copyout_size:
+.word XIP_SRAM_END-XIP_SRAM_BASE
 
 .global literals
 literals:

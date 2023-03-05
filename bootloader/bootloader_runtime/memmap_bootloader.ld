@@ -24,7 +24,6 @@ MEMORY
     FLASH_APP(r)   : ORIGIN = 0x10004000, LENGTH = 2032k
     RAM(rwx)       : ORIGIN = 0x20000000, LENGTH = 256k
     XIP_RAM(rwx)   : ORIGIN = 0x15000000, LENGTH = 16k
-    USB_RAM(rwx)   : ORIGIN = 0x50100000, LENGTH = 4k
     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
 }
@@ -67,18 +66,31 @@ SECTIONS
         KEEP (*(.reset))
         *(.text*)
         . = ALIGN(4);
+        *(.time_critical*)
+        . = ALIGN(4);
         __ram_text_end__ = .;
     } > XIP_RAM AT> FLASH_BL
     __ram_copyout_source__ = LOADADDR(.text);
 
     .data : {
         __data_start__ = .;
-        *(.time_critical*)
-
-        . = ALIGN(4);
         *(.rodata*)
         . = ALIGN(4);
         *(.data*)
+
+        . = ALIGN(4);
+        /* preinit data */
+        PROVIDE_HIDDEN (__preinit_array_start = .);
+        KEEP(*(SORT(.preinit_array.*)))
+        KEEP(*(.preinit_array))
+        PROVIDE_HIDDEN (__preinit_array_end = .);
+
+        . = ALIGN(4);
+        /* init data
+        PROVIDE_HIDDEN (__init_array_start = .);
+        KEEP(*(SORT(.init_array.*)))
+        KEEP(*(.init_array))
+        PROVIDE_HIDDEN (__init_array_end = .); */
 
         . = ALIGN(4);
         /* All data end */
@@ -105,7 +117,7 @@ SECTIONS
     .uninitialized_data (COPY): {
         . = ALIGN(4);
         *(.uninitialized_data*)
-    } > USB_RAM
+    } > SCRATCH_X
 
     .bss  : {
         . = ALIGN(4);
@@ -114,7 +126,7 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4);
         __bss_end__ = .;
-    } > USB_RAM
+    } > SCRATCH_X
 
     /* .stack*_dummy section doesn't contains any symbols. It is only
      * used for linker to calculate size of stack sections, and assign
@@ -127,11 +139,11 @@ SECTIONS
     } > SCRATCH_Y
 
     /* End of RAM Calculations */
-    .usbram_end (COPY):
+    .scratch_x_end (COPY):
     {
         __end__ = .;
         end = __end__;
-    } > USB_RAM
+    } > SCRATCH_X
 
     .flash_end : {
         __flash_binary_end = .;
@@ -148,10 +160,9 @@ SECTIONS
     PROVIDE(__stack = __StackTop);
 
     /* Ensure data and RAM is continuous */
-    /* TODO: Fix to be == rather than <= */
     ASSERT(__ram_text_end__ <= __data_start__, "Text and data are not continuous")
-    /* Check if fits in USB RAM limit */
-    ASSERT(ORIGIN(USB_RAM) + LENGTH(USB_RAM) >= __end__, "region USB RAM overflowed")
+    /* Check if fits in Scratch X RAM limit */
+    ASSERT(ORIGIN(SCRATCH_X) + LENGTH(SCRATCH_X) >= __end__, "region SCRATCH X overflowed")
     /* Check if fits in XIP RAM limit */
     ASSERT(ORIGIN(XIP_RAM) + LENGTH(XIP_RAM) >= __ram_copyout_end, "region XIP RAM overflowed")
     /* Check if fits in bootloader section of flash */

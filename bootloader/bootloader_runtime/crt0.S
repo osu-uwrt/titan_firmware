@@ -218,7 +218,7 @@ platform_entry: // symbol for stack traces
     blx r1
     ldr r1, =main
     blx r1
-    ldr r1, =exit
+    ldr r1, =_exit
     blx r1
     // exit should not return.  If it does, hang the core.
     // (fall thru into our hang _exit impl
