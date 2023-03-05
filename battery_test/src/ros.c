@@ -12,6 +12,8 @@
 #include "build_version.h"
 #include "basic_logger/logging.h"
 
+#include "mcp3426.h"
+
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
@@ -108,12 +110,12 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     status_msg.version_major = MAJOR_VERSION;
     status_msg.version_minor = MINOR_VERSION;
     status_msg.faults = *fault_list_reg;
-    status_msg.kill_switches_enabled = 0;
-    status_msg.kill_switches_asserting_kill = 0;
-    status_msg.kill_switches_needs_update = 0;
-    status_msg.kill_switches_timed_out = 0;
+    status_msg.kill_switches_enabled = mcp3426_read(MCP3426_CHANNEL_1);
+    status_msg.kill_switches_asserting_kill = mcp3426_read(MCP3426_CHANNEL_2);
+    status_msg.kill_switches_needs_update = mcp3426_read(MCP3426_CHANNEL_3);
+    status_msg.kill_switches_timed_out = mcp3426_read(MCP3426_CHANNEL_4);
 
-    absolute_time_t now = get_absolute_time();
+    /*absolute_time_t now = get_absolute_time();
     for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
             status_msg.kill_switches_enabled |= (1<<i);
@@ -130,7 +132,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
         if (kill_switch_states[i].needs_update && absolute_time_diff_us(now, kill_switch_states[i].update_timeout) < 0) {
             status_msg.kill_switches_timed_out |= (1<<i);
         }
-    }
+    }*/
 
     RCSOFTRETCHECK(rcl_publish(&firmware_status_publisher, &status_msg, NULL));
 

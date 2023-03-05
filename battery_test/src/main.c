@@ -160,8 +160,16 @@ int main() {
     #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
     #endif
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
+    sleep_ms(2000);
+    safety_tick();
+    sleep_ms(2000);
+    safety_tick();
+    printf("Trying...\n");
+    sleep_ms(2000);
+    safety_tick();
 
-    mcp3426_init(MCP3426_MODE_CONTINOUS, MCP3426_SAMPLE_RATE_16_BIT, MCP3426_GAIN_X1);
+    mcp3426_init();
 
     // Enter main loop
     // This is split into two sections of timers
