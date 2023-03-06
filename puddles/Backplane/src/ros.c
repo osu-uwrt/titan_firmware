@@ -1,22 +1,28 @@
 #include "pico/stdlib.h"
 
 #include <rmw_microros/rmw_microros.h>
+
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+
 #include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/dshot_command.h>
 #include <riptide_msgs2/msg/dshot_rpm_feedback.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
+#include <riptide_msgs2/msg/electrical_readings.h>
+
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/float32.h>
 
+
 #include "build_version.h"
 #include "basic_logger/logging.h"
 
+#include "mcp3246.h"
 #include "depth_sensor.h"
 #include "dshot.h"
 #include "ros.h"
@@ -77,6 +83,7 @@ void ros_rmw_init_error_handling(void)  {
 #define SOFTWARE_KILL_PUBLISHER_NAME "control/software_kill"
 #define DEPTH_PUBLISHER_NAME "depth/raw"
 #define WATER_TEMP_PUBLISHER_NAME "depth/temp"
+#define ADC_PUBLISHER_NAME "adc/voltage"
 
 bool ros_connected = false;
 bool dshot_command_received = false;
@@ -113,6 +120,10 @@ rcl_publisher_t water_temp_publisher;
 riptide_msgs2__msg__Depth depth_msg;
 char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
 const float depth_variance = 0.003;
+
+// Voltage ADC
+rcl_publisher_t adc_publisher;
+riptide_msgs2__msg__ElectricalReadings status_msg = {0};
 
 // ========================================
 // Executor Callbacks
@@ -214,6 +225,15 @@ rcl_ret_t ros_publish_killswitch(void) {
 
     RCSOFTRETCHECK(rcl_publish(&killswitch_publisher, &killswitch_msg, NULL));
 
+    return RCL_RET_OK;
+}
+
+rcl_ret_t adc_update(uint8_t client_id) {
+    status_msg.three_volt_voltage = mcp3426_query(0);
+    status_msg.five_volt_voltage = mcp3426_query(1);
+    status_msg.twelve_volt_voltage = mcp3426_query(2);
+    status_msg.balanced_voltage = mcp3426_query(3);
+    RCSOFTRETCHECK(rcl_publish(&adc_publisher, &status_msg, NULL));
     return RCL_RET_OK;
 }
 
@@ -355,6 +375,12 @@ rcl_ret_t ros_init() {
 		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
 		SOFTWARE_KILL_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(
+        &adc_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
+        ADC_PUBLISHER_NAME));
+
     RCRETCHECK(rclc_publisher_init(
 		&depth_publisher,
 		&node,
@@ -401,6 +427,7 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&adc_publisher, &node))
     RCSOFTCHECK(rcl_publisher_fini(&dshot_rpm_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&dshot_subscriber, &node));

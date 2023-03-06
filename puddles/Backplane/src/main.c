@@ -5,6 +5,7 @@
 #include "build_version.h"
 
 #include "depth_sensor.h"
+#include "mcp3426.h"
 #include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -25,6 +26,7 @@
 #define UROS_CONNECT_PING_TIME_MS 1000
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
+#define ADC_TIME_MS 500
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
@@ -38,6 +40,7 @@ absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_killswitch_publish = {0};
 absolute_time_t next_water_temp_publish = {0};
+absolute_time_t next_adc = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -82,6 +85,7 @@ static void start_ros_timers() {
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
     next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
+    next_adc = make_timeout_time_ms(ADC_TIME_MS);
 }
 
 /**
@@ -124,6 +128,10 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
 
+    if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
+        RCSOFTRETVCHECK(adc_update(client_id));
+    }
+
     // Send Dshot telemetry response after a dshot command is sent
     if (dshot_command_received) {
         dshot_command_received = false;
@@ -141,6 +149,8 @@ static void tick_background_tasks() {
     // TODO: Put any code that should periodically occur here
     // read the aux switch state
     bool aux_state = gpio_get(AUX_SW_SENSE);
+
+    mcp3426_read();
 }
 
 
@@ -159,6 +169,7 @@ int main() {
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 200000, 10);
     depth_init();
     dshot_init();
+    mcp3426_init();
 
     // init the CPU pwr ctrl system
     gpio_init(PWR_CTL_CPU);
