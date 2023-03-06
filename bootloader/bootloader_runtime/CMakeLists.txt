@@ -15,7 +15,7 @@ target_include_directories(bootloader_runtime INTERFACE ${CMAKE_CURRENT_LIST_DIR
 
 # Configure to use our custom boot2 to copyout bootloader into XIP
 # Required so that the entire executable can live in RAM so the bootloader can *in theory* be updated
-pico_define_boot_stage2(bs2_bootloader_03_copyout ${CMAKE_CURRENT_LIST_DIR}/boot2_bootloader_03_copyout.S)
+# pico_define_boot_stage2(bs2_w25q080_relative ${CMAKE_CURRENT_LIST_DIR}/boot2_w25q080_relative.S)
 
 # Configure the linker using options we want from pico_standard_link
 pico_add_map_output(bootloader_runtime)
@@ -41,7 +41,8 @@ target_link_libraries(bootloader_runtime INTERFACE
 	pico_float
 
 	# Link in boot stage 2
-	bs2_bootloader_03_copyout_library
+	# TODO: Make it grab from PICO_TARGET_BOOT_STAGE2 property
+	bs2_default_library
 
 	# Simple libraries to make writing the bootloader not painful
 	hardware_pll

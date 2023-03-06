@@ -67,9 +67,12 @@ SECTIONS
         *(.text*)
         . = ALIGN(4);
         *(.time_critical*)
-        . = ALIGN(4);
+
+        /* Align to 16 bytes or else linker will insert dead space between sections */
+        . = ALIGN(16);
         __ram_text_end__ = .;
     } > XIP_RAM AT> FLASH_BL
+
     __ram_copyout_source__ = LOADADDR(.text);
 
     .data : {
@@ -160,7 +163,7 @@ SECTIONS
     PROVIDE(__stack = __StackTop);
 
     /* Ensure data and RAM is continuous */
-    ASSERT(__ram_text_end__ <= __data_start__, "Text and data are not continuous")
+    ASSERT(__ram_text_end__ == __data_start__, "Text and data are not continuous")
     /* Check if fits in Scratch X RAM limit */
     ASSERT(ORIGIN(SCRATCH_X) + LENGTH(SCRATCH_X) >= __end__, "region SCRATCH X overflowed")
     /* Check if fits in XIP RAM limit */

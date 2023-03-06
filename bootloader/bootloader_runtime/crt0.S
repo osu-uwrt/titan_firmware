@@ -8,6 +8,10 @@
 #include "hardware/regs/m0plus.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/sio.h"
+#include "hardware/regs/xip.h"
+
+#define BOOTROM_ROM_LOOKUP_PTR_ADDR 0x00000018
+#define BOOTROM_ROM_FUNCTION_TABLE_ADDR 0x00000014
 
 .syntax unified
 .cpu cortex-m0plus
@@ -179,6 +183,60 @@ _entry_point:
     msr msp, r1
     bx r2
 
+// Flash Reset Handler
+// This copies the program into XIP RAM, fixes up VTOR, and begins exiting directly from XIP
+.type _reset_handler,%function
+.thumb_func
+_reset_handler:
+    // So we're in a very unstable state right now
+    // VTOR is pointing to the table in flash, which has this reset handler
+    // However all the other functions in VTOR, including hardfault, is referencing RAM, which hasn't been copied out yet
+    // Copy the data out, fixup VTOR, then reset
+
+    // Disable XIP Cache so we can copy out bootloader to memory
+    ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
+    str r1, [r3, #XIP_CTRL_OFFSET]
+
+    // Lookup memcpy for copying out bootrom function
+    ldr r0, =BOOTROM_ROM_FUNCTION_TABLE_ADDR
+    ldrh r0, [r0]
+    ldr r1, =0x3443     // _memcpy44 (bootrom code 'C', '4')
+    ldr r3, =BOOTROM_ROM_LOOKUP_PTR_ADDR
+    ldrh r3, [r3]
+    blx r3
+    mov r3, r0
+
+    // Copy data from flash into XIP cache
+    ldr r0, ram_copyout_start
+    ldr r1, ram_copyout_source
+    ldr r2, ram_copyout_end
+    subs r2, r2, r0 // Compute length of copyout
+    push {r0}
+    blx r3
+    pop {r0}
+
+    // Now that we've copied out the data, fixup the vector table pointed to by r3 and to be all in flash
+    ldr r1, =_ram_reset_entry
+    str r1, [r0, #4]
+
+    // Set VTOR and run the RAM reset handler
+    ldr r1, =(PPB_BASE + M0PLUS_VTOR_OFFSET)
+    str r0, [r1]
+    ldmia r0, {r0, r1}
+    msr msp, r0
+    bx r1
+
+.align 2
+ram_copyout_start:
+.word __ram_copyout_start__
+ram_copyout_source:
+.word __ram_copyout_source__
+ram_copyout_end:
+.word __ram_copyout_end__
+
+
+
+
 .section .reset, "ax"
 
 // Reset handler:
@@ -187,9 +245,9 @@ _entry_point:
 // - calls main
 // - calls exit (which should eventually hang the processor via _exit)
 
-.type _reset_handler,%function
+.type _ram_reset_entry,%function
 .thumb_func
-_reset_handler:
+_ram_reset_entry:
     // Only core 0 should run the C runtime startup code; core 1 is normally
     // sleeping in the bootrom at this point but check to be sure
     ldr r0, =(SIO_BASE + SIO_CPUID_OFFSET)
@@ -197,8 +255,7 @@ _reset_handler:
     cmp r0, #0
     bne hold_non_core0_in_bootrom
 
-    // We are already running in SRAM, as boot2 copied us out
-    // So, no need to initialize .data as this was included in the copyout
+    // We are already in SRAM with the .data segment, so no need to copy .data
 
     // Zero out the BSS
     ldr r1, =__bss_start__
@@ -218,6 +275,14 @@ platform_entry: // symbol for stack traces
     blx r1
     ldr r1, =main
     blx r1
+
+    // If main returns 0, do the boot trampoline
+    cmp r0, #0
+    bne 1f
+    ldr r1, =_boot_trampoline
+    blx r1
+    // This shouldn't return, but if it does, fallthrough to _exit
+1:
     ldr r1, =_exit
     blx r1
     // exit should not return.  If it does, hang the core.
@@ -257,6 +322,17 @@ __get_current_exception:
     mrs  r0, ipsr
     uxtb r0, r0
     bx   lr
+
+.global _boot_trampoline
+.type _boot_trampoline,%function
+.thumb_func
+_boot_trampoline:
+1:
+// TODO: Actually write boot trampoline
+// 1. Check if image valid
+// 2. Branch to it
+    bkpt #0
+    b 1b
 
 // ----------------------------------------------------------------------------
 // Stack/heap dummies to set size

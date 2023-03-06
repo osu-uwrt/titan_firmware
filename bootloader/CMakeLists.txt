@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD pico)
+set(PICO_BOARD mk2_esc_board)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -38,6 +38,7 @@ add_subdirectory(bootloader_runtime)
 #file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(bootloader_common
 	main.c
+	can_bl_interface.c
 )
 target_compile_options(bootloader_common PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(bootloader_common PUBLIC include)
@@ -47,11 +48,15 @@ target_include_directories(bootloader_common PUBLIC include)
 #generate_version_tag(bootloader_common 1 0 DEV)
 
 # Enable the 'make upload' and 'make serial' commands for project
-#uwrt_use_upload_tool(bootloader_common)
+uwrt_use_upload_tool(bootloader_common)
 
 # Define linking and targets
 pico_add_extra_outputs(bootloader_common)
 target_link_libraries(bootloader_common
 	bootloader_runtime
+	hardware_spi
+
+	can_mcp251Xfd_ll_driver
+	canmore_protocol
 )
 
