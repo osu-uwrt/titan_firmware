@@ -584,7 +584,7 @@ void async_i2c_init(int i2c0_sda, int i2c0_scl, int i2c1_sda, int i2c1_scl,
 
     if (i2c1_sda != -1 && i2c1_scl != -1) {
         // Make sure the pins actually correspond to their corresponding value
-        valid_params_if(ASYNC_I2C, (i2c1_sda % 4) == 0 && (i2c1_scl % 4) == 1);
+        valid_params_if(ASYNC_I2C, (i2c1_sda % 4) == 2 && (i2c1_scl % 4) == 3);
 
         i2c_init(i2c1, baudrate);
         gpio_set_function(i2c1_sda, GPIO_FUNC_I2C);

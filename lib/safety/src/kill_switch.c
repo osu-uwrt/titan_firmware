@@ -20,8 +20,6 @@ static void safety_local_handle_kill(void) {
     last_kill_switch_change = get_absolute_time();
 
     safety_handle_kill();
-
-    LOG_DEBUG("Kill Switch Asserting Kill");
 }
 
 
@@ -54,7 +52,6 @@ void safety_internal_kill_refresh_switches(void) {
         if (asserting_kill) {
             safety_local_handle_kill();
         } else {
-            LOG_DEBUG("Kill Switch Okay (Enabled)");
             last_kill_switch_change = get_absolute_time();
             safety_handle_enable();
         }
