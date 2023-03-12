@@ -131,7 +131,7 @@ riptide_msgs2__msg__ElectricalReadings status_msg = {0};
 
 static void dshot_subscription_callback(const void * msgin) {
     const riptide_msgs2__msg__DshotCommand * msg = (const riptide_msgs2__msg__DshotCommand *)msgin;
-    dshot_update_thrusters(msg->values);
+    // dshot_update_thrusters(msg->values);
     // dshot_command_received = true;
 }
 
@@ -420,7 +420,7 @@ rcl_ret_t ros_init() {
 }
 
 void ros_spin_executor(void) {
-    rclc_executor_spin_some(&executor, 0);
+    RCSOFTRETVCHECK(rclc_executor_spin_some(&executor, 0));
 }
 
 void ros_fini(void) {
