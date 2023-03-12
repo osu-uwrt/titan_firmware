@@ -11,6 +11,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
+#include "time.h"
+
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
 #endif
@@ -113,7 +115,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) || safety_interface_kill_switch_refreshed) {
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ){ //|| safety_interface_kill_switch_refreshed) {
         safety_interface_kill_switch_refreshed = false;
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
@@ -128,15 +130,15 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
 
-    if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
-        RCSOFTRETVCHECK(adc_update(client_id));
-    }
+    // if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
+    //     RCSOFTRETVCHECK(adc_update(client_id));
+    // }
 
     // Send Dshot telemetry response after a dshot command is sent
-    if (dshot_command_received) {
-        dshot_command_received = false;
-        RCSOFTRETVCHECK(ros_send_rpm());
-    }
+    // if (dshot_command_received) {
+    //     dshot_command_received = false;
+    //     RCSOFTRETVCHECK(ros_send_rpm());
+    // }
 }
 
 static void tick_background_tasks() {
@@ -148,9 +150,9 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     // read the aux switch state
-    bool aux_state = gpio_get(AUX_SW_SENSE);
+    // bool aux_state = gpio_get(AUX_SW_SENSE);
 
-    mcp3426_read();
+    // mcp3426_read();
 }
 
 
@@ -167,9 +169,9 @@ int main() {
     static_assert(SENSOR_I2C == 0, "Sensor i2c expected on i2c0");
     static_assert(BOARD_I2C == 1, "Board i2c expected on i2c0");
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 200000, 10);
-    depth_init();
+    // depth_init();
     dshot_init();
-    mcp3426_init();
+    // mcp3426_init();
 
     // init the CPU pwr ctrl system
     gpio_init(PWR_CTL_CPU);
@@ -192,6 +194,8 @@ int main() {
         panic("Failed to initialize Ethernet hardware!");
     }
 
+
+    clock_t max_ros_spin = 0;
 
     // Enter main loop
     // This is split into two sections of timers
@@ -219,8 +223,18 @@ int main() {
                     ros_fini();
                 }
             } else {
+                clock_t startTime = time_us_64();
+                
                 ros_spin_executor();
                 tick_ros_tasks();
+
+                clock_t endTime = time_us_64();
+
+                clock_t executionTime = (endTime - startTime);
+                if(executionTime > max_ros_spin){
+                    printf("ex%.8d\n", executionTime);
+                    max_ros_spin = executionTime;
+                }
             }
         } else if(ros_initialized){
             LOG_INFO("Lost connection to ROS")

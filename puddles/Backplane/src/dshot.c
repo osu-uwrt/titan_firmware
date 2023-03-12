@@ -320,8 +320,8 @@ void dshot_init(void) {
 
     irq_set_exclusive_handler(PIO0_IRQ_0, dshot_telem_pio0_cb);
     irq_set_exclusive_handler(PIO1_IRQ_0, dshot_telem_pio1_cb);
-    irq_set_enabled(PIO0_IRQ_0, true);
-    irq_set_enabled(PIO1_IRQ_0, true);
+    // irq_set_enabled(PIO0_IRQ_0, true);
+    // irq_set_enabled(PIO1_IRQ_0, true);
 
     // Configure hardware alarm for DShot Command Scheduling
     hardware_alarm_claim(dshot_hardware_alarm_num);
