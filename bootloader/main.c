@@ -2,12 +2,14 @@
 #include "hardware/watchdog.h"
 #include "pico/time.h"
 
+#include "boot_app.h"
 #include "can_bl_interface.h"
 
 #define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
 
-#define BOOTLOADER_TIMEOUT_SEC 30
+#define WATCHDOG_TIMEOUT_MS 5000
 #define BOOT_DELAY_MS 500
+#define BOOTLOADER_TIMEOUT_SEC 30
 
 void tick_led(void) {
     static absolute_time_t next_update = {0};
@@ -55,6 +57,8 @@ void run_bootloader(void) {
     absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
 
     while (!time_reached(bootloader_timeout)) {
+        watchdog_update();
+
         tick_led();
         tick_heartbeat();
         if (handle_test_protocol()) {
@@ -68,6 +72,11 @@ void run_bootloader(void) {
 }
 
 int main(void) {
+    // First step, enable the watchdog
+    // In the event something in the bootloader crashes, or the app image is corrupted after branching,
+    // we can go back into the bootloader. Even if the main image is bootlooping, the boot delay allows recovery
+    watchdog_enable(WATCHDOG_TIMEOUT_MS, true);
+
     // Initialize RGB LEDs
     gpio_init_mask(RGB_MASK);
     gpio_clr_mask(RGB_MASK);
@@ -80,15 +89,21 @@ int main(void) {
         gpio_set_dir(STATUS_LEDR_PIN, 0);
 
         busy_wait_ms(BOOT_DELAY_MS);
+
+        // Try to boot an image, if this fails, just exit
+        boot_app_attempt();
         return 0;
     }
 
     bool enter_bootloader = false;
     can_bl_heartbeat();
 
-    // TODO: Print version string to serial console
-    // TODO: Enable watchdog
-    // TODO: Read watchdog register and clear so we don't infinitely loop
+
+
+    if (watchdog_hw->scratch[4] == 0xb00710ad) {
+        enter_bootloader = true;
+        watchdog_hw->scratch[4] = 0;
+    }
 
     uint8_t msg[8];
     size_t size;
@@ -101,12 +116,14 @@ int main(void) {
         }
     }
 
-    if (enter_bootloader) {
-        run_bootloader();
+    // If we aren't supposed to enter bootloader, try to boot the application image
+    if (!enter_bootloader) {
+        watchdog_update();
+        boot_app_attempt();
     }
 
-    // Set color code in the event if hangs during the trampoline
-    gpio_set_mask(RGB_MASK);
-    gpio_set_dir(STATUS_LEDB_PIN, 0);
+    // Fallthrough into bootloader
+    run_bootloader();
+
     return 0;
 }

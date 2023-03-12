@@ -22,11 +22,11 @@ static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
     }
 }
 
-void safety_handle_can_internal_error(int data) {
+void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
     safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
 }
 
-void safety_handle_can_receive_error(int data) {
+void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
     safety_raise_fault(FAULT_CAN_RECV_ERROR);
 }
 

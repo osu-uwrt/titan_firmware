@@ -4,7 +4,9 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD pico)
+set(PICO_BOARD mk2_power_board)
+
+set(UWRT_ROBOT talos)
 
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
 # Defaults to RelWithDebInfo when building normally
@@ -44,6 +46,7 @@ target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_T
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(pico_sdk_example)
+uwrt_enable_bootloader(pico_sdk_example can)
 
 # Define linking and targets
 pico_add_extra_outputs(pico_sdk_example)

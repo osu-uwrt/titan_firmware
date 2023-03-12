@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "hardware/exception.h"
+#include "hardware/structs/psm.h"
 #include "hardware/structs/systick.h"
 #include "hardware/structs/vreg_and_chip_reset.h"
 #include "hardware/structs/watchdog.h"
@@ -20,11 +21,13 @@
 // scratch[0]: Last Crash Action
 //  - CLEAN_BOOT: Last reset was a clean boot. Note that if this set, then a software requested reset occurred.
 //                This is primarily used in the log to denote when the first clean boot occurred
-//     scratch[1]: The reset cause
+//     scratch[1]: The reset cause (note the power on reset/run pin isn't actually in this register, rather only used in the crash log)
 //       - 0x7193001: Power on reset
 //       - 0x7193002: Reset from RUN pin
 //       - 0x7193003: Reset from debug emergency reset
-//       - 0x7193004: Reset from software watchdog reset
+//       - 0x7193004: Reset from software requested reset
+//       - 0x7193005: Reset from USB interface request
+//       - 0x7193006: Reset from bootloader mode
 //  - UNKNOWN_SAFETY_PREINIT: Unknown, crashed after safety_setup
 //  - UNKNOWN_SAFETY_ACTIVE: Unknown, crashed after safety_init
 //  - PANIC: Set on panic function call
@@ -42,19 +45,20 @@
 //     Default: Should be set to 0xFFFFFFFF on clean boot
 //     Will be set during zeroing of the depth sensor
 
-#define CLEAN_BOOT                 0x1035000
-#define UNKNOWN_SAFETY_PREINIT     0x1035001
-#define UNKNOWN_SAFETY_ACTIVE      0x1035002
-#define PANIC                      0x1035003
-#define HARD_FAULT                 0x1035004
-#define ASSERT_FAIL                0x1035005
-#define IN_ROS_TRANSPORT_LOOP      0x1035006
+#define CLEAN_BOOT                   0x1035000
+#define UNKNOWN_SAFETY_PREINIT       0x1035001
+#define UNKNOWN_SAFETY_ACTIVE        0x1035002
+#define PANIC                        0x1035003
+#define HARD_FAULT                   0x1035004
+#define ASSERT_FAIL                  0x1035005
+#define IN_ROS_TRANSPORT_LOOP        0x1035006
 
-#define CLEAN_RESET_TYPE_POR       0x7193001
-#define CLEAN_RESET_TYPE_RUN       0x7193002
-#define CLEAN_RESET_TYPE_PSM       0x7193003
-#define CLEAN_RESET_TYPE_SOFTWARE  0x7193004
-#define CLEAN_RESET_TYPE_USB       0x7193005
+#define CLEAN_RESET_TYPE_POR         0x7193001
+#define CLEAN_RESET_TYPE_RUN         0x7193002
+#define CLEAN_RESET_TYPE_PSM         0x7193003
+#define CLEAN_RESET_TYPE_SOFTWARE    0x7193004
+#define CLEAN_RESET_TYPE_USB         0x7193005
+#define CLEAN_RESET_TYPE_BOOTLOADER  0x7193006
 
 
 // ========================================
@@ -226,6 +230,8 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
             reset_type = "Software Request";
         } else if (entry->scratch_1 == CLEAN_RESET_TYPE_USB) {
             reset_type = "USB Interface Request";
+        } else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTLOADER) {
+            reset_type = "Bootloader";
         }
 
         inc_safety_print(snprintf(msg, size, "Clean Boot: %s", reset_type));
@@ -366,6 +372,9 @@ static void safety_process_last_reset_cause(void) {
         } else if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_USB) {
             next_entry->scratch_1 = CLEAN_RESET_TYPE_USB;
             watchdog_hw->scratch[1] = 0;
+        } else if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_BOOTLOADER) {
+            next_entry->scratch_1 = CLEAN_RESET_TYPE_BOOTLOADER;
+            watchdog_hw->scratch[1] = 0;
         } else {
             next_entry->scratch_1 = 0;
             if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_POR_BITS) {
@@ -479,4 +488,25 @@ void safety_print_crash_log(void) {
 void safety_notify_software_reset(void) {
     *reset_reason_reg = CLEAN_BOOT;
     watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
+}
+
+void safety_enter_bootloader(void) {
+    // Set proper fields to be decoded after exiting bootloader mode
+    *reset_reason_reg = CLEAN_BOOT;
+    watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_BOOTLOADER;
+
+    // Set the flag to tell bootloader to start rather than user application
+    watchdog_hw->scratch[4] = 0xb00710ad;
+
+    // Disable current watchdog
+    hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+
+    // Reset everything except oscillators
+    hw_set_bits(&psm_hw->wdsel, PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS));
+
+    // Trigger reset now
+    hw_set_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_TRIGGER_BITS);
+
+    // Halt
+    while(1) {tight_loop_contents();}
 }

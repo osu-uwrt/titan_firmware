@@ -3,7 +3,7 @@
 
 #include "build_version.h"
 
-const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+const uint LED_PIN = STATUS_LEDR_PIN;
 
 int main() {
     stdio_init_all();

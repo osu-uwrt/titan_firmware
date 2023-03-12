@@ -1,4 +1,6 @@
-/* Based on GCC ARM embedded samples.
+/* Stripped down linker script for a 16k bootloader.
+
+   Based on GCC ARM embedded samples.
    Defines the following symbols for use by code:
     __ram_copyout_start__
     __ram_copyout_source__
@@ -8,6 +10,10 @@
     __etext
     __data_start__
     __data_end__
+    __boot_trampoline_entry__
+    __boot_trampoline_end__
+    __boot_trampoline_source__
+    __flash_app
     __bss_start__
     __bss_end__
     __end__
@@ -20,7 +26,7 @@
 MEMORY
 {
     /* Flash isn't executable as it needs to be able to be overwritten by the bootloader */
-    FLASH_BL(r)    : ORIGIN = 0x10000000, LENGTH = 16k
+    FLASH_BL(rx)    : ORIGIN = 0x10000000, LENGTH = 16k
     FLASH_APP(r)   : ORIGIN = 0x10004000, LENGTH = 2032k
     RAM(rwx)       : ORIGIN = 0x20000000, LENGTH = 256k
     XIP_RAM(rwx)   : ORIGIN = 0x15000000, LENGTH = 16k
@@ -131,6 +137,16 @@ SECTIONS
         __bss_end__ = .;
     } > SCRATCH_X
 
+    /* Stash boot trampoline at bottom of stack, needed since XIP cache needs to be re-enabled here */
+    .boot_trampoline : {
+        . = ALIGN(4);
+        __boot_trampoline_entry__ = .;
+        KEEP (*(.boot_trampoline))
+        __boot_trampoline_end__ = .;
+        . = ALIGN(4);
+    } > SCRATCH_Y AT> FLASH_BL
+    __boot_trampoline_source__ = LOADADDR(.boot_trampoline);
+
     /* .stack*_dummy section doesn't contains any symbols. It is only
      * used for linker to calculate size of stack sections, and assign
      * values to stack symbols later
@@ -155,6 +171,10 @@ SECTIONS
     .xip_end : {
         __ram_copyout_end = .;
     } > XIP_RAM
+
+    .flash_app_addr : {
+        __flash_app = .;
+    } > FLASH_APP
 
     /* stack limit is poorly named, but historically is maximum heap ptr */
     __StackLimit = ORIGIN(RAM) + LENGTH(RAM);

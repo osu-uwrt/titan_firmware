@@ -5,20 +5,16 @@ target_sources(bootloader_runtime INTERFACE
 	${CMAKE_CURRENT_LIST_DIR}/clocks.c
 	${CMAKE_CURRENT_LIST_DIR}/crt0.S
 	${CMAKE_CURRENT_LIST_DIR}/timer.c
+	${CMAKE_CURRENT_LIST_DIR}/boot_app.c
 )
 
 target_include_directories(bootloader_runtime INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include_sdk_override)
 
 # Linking and early initialization
-# Required since we want to have a custom boot2, memory map, and crt0, so we can't use pico_standard_link
+# Required since we want to have a custom memory map and crt0, so we can't use pico_standard_link
 # Instead we get to reimplement it all here
 
-# Configure to use our custom boot2 to copyout bootloader into XIP
-# Required so that the entire executable can live in RAM so the bootloader can *in theory* be updated
-# pico_define_boot_stage2(bs2_w25q080_relative ${CMAKE_CURRENT_LIST_DIR}/boot2_w25q080_relative.S)
-
 # Configure the linker using options we want from pico_standard_link
-pico_add_map_output(bootloader_runtime)
 target_link_options(bootloader_runtime INTERFACE "LINKER:--script=${CMAKE_CURRENT_LIST_DIR}/memmap_bootloader.ld")
 target_link_options(bootloader_runtime INTERFACE "LINKER:-z,max-page-size=4096")
 target_compile_options(bootloader_runtime INTERFACE -ffunction-sections -fdata-sections)

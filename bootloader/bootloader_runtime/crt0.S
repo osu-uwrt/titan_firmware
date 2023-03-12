@@ -194,6 +194,7 @@ _reset_handler:
     // Copy the data out, fixup VTOR, then reset
 
     // Disable XIP Cache so we can copy out bootloader to memory
+    movs r1, #1
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
 
@@ -234,8 +235,35 @@ ram_copyout_source:
 ram_copyout_end:
 .word __ram_copyout_end__
 
+// ----------------------------------------------------------------------------
+
+.section .boot_trampoline, "ax"
+
+.global _boot_trampoline
+.type _boot_trampoline,%function
+.thumb_func
+_boot_trampoline:
+    // Reenable XIP Cache for the main application (this is why we need the trampoline)
+    movs r1, #1
+    ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_SET_BITS)
+    str r1, [r3, #XIP_CTRL_OFFSET]
+
+    // Call boot2 (copied into USBCTRL_DPRAM_BASE before calling this function)
+    ldr r0, =USBCTRL_DPRAM_BASE
+    blx r0
+
+    // Jump into actual firmware
+    movs r0, #0
+    mov lr, r0
+    ldr r0, =(__flash_app + 0x100)
+    ldr r1, =(PPB_BASE + M0PLUS_VTOR_OFFSET)
+    str r0, [r1]
+    ldmia r0, {r0, r1}
+    msr msp, r0
+    bx r1
 
 
+// ----------------------------------------------------------------------------
 
 .section .reset, "ax"
 
@@ -275,14 +303,6 @@ platform_entry: // symbol for stack traces
     blx r1
     ldr r1, =main
     blx r1
-
-    // If main returns 0, do the boot trampoline
-    cmp r0, #0
-    bne 1f
-    ldr r1, =_boot_trampoline
-    blx r1
-    // This shouldn't return, but if it does, fallthrough to _exit
-1:
     ldr r1, =_exit
     blx r1
     // exit should not return.  If it does, hang the core.
@@ -323,16 +343,6 @@ __get_current_exception:
     uxtb r0, r0
     bx   lr
 
-.global _boot_trampoline
-.type _boot_trampoline,%function
-.thumb_func
-_boot_trampoline:
-1:
-// TODO: Actually write boot trampoline
-// 1. Check if image valid
-// 2. Branch to it
-    bkpt #0
-    b 1b
 
 // ----------------------------------------------------------------------------
 // Stack/heap dummies to set size
