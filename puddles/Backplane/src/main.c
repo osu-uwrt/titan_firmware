@@ -205,12 +205,17 @@ int main() {
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
     while(true) {
+        profiler_push(PROFILER_MAIN_LOOP);
+
         // Do background tasks
+        profiler_push(PROFILER_BACKGROUND_TICK);
         tick_background_tasks();
+        profiler_pop(PROFILER_BACKGROUND_TICK);
 
         // Handle ROS state logic
         if(is_ros_connected()) {
             if(!ros_initialized) {
+                profiler_push(PROFILER_ROS_CONFIG);
                 LOG_INFO("ROS connected");
 
                 if(ros_init() == RCL_RET_OK) {
@@ -222,11 +227,17 @@ int main() {
                     LOG_ERROR("ROS failed to initialize.");
                     ros_fini();
                 }
+                profiler_pop(PROFILER_ROS_CONFIG);
             } else {
                 clock_t startTime = time_us_64();
-                
+
+                profiler_push(PROFILER_EXECUTOR_TICK);
                 ros_spin_executor();
+                profiler_pop(PROFILER_EXECUTOR_TICK);
+
+                profiler_push(PROFILER_ROS_TICK);
                 tick_ros_tasks();
+                profiler_pop(PROFILER_ROS_TICK);
 
                 clock_t endTime = time_us_64();
 
@@ -248,6 +259,8 @@ int main() {
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }
         }
+
+        profiler_pop(PROFILER_MAIN_LOOP);
 
         // Tick safety
         safety_tick();

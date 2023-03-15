@@ -150,11 +150,15 @@ void __time_critical_func(dshot_telem_cb)(PIO pio_hw) {
 }
 
 void __time_critical_func(dshot_telem_pio0_cb)(void) {
+    profiler_push(PROFILER_DSHOT_RX_IRQ0);
     dshot_telem_cb(pio0);
+    profiler_pop(PROFILER_DSHOT_RX_IRQ0);
 }
 
 void __time_critical_func(dshot_telem_pio1_cb)(void) {
+    profiler_push(PROFILER_DSHOT_RX_IRQ1);
     dshot_telem_cb(pio1);
+    profiler_pop(PROFILER_DSHOT_RX_IRQ1);
 }
 
 
@@ -184,6 +188,8 @@ void __time_critical_func(dshot_send_command_internal)(uint thruster_index, uint
 }
 
 void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
+    profiler_push(PROFILER_DSHOT_TX_IRQ);
+
     // Raise fault if thrusters timed out
     if (time_reached(dshot_command_timeout) && dshot_thrusters_on) {
         safety_raise_fault(FAULT_THRUSTER_TIMEOUT);
@@ -203,6 +209,8 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
         }
         dshot_next_allowed_frame_tx = make_timeout_time_us(bidir_dshot_min_frame_period_us(DSHOT_RATE));
     } while(hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
+
+    profiler_pop(PROFILER_DSHOT_TX_IRQ);
 }
 
 // ========================================
