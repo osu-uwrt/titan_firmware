@@ -150,15 +150,15 @@ void __time_critical_func(dshot_telem_cb)(PIO pio_hw) {
 }
 
 void __time_critical_func(dshot_telem_pio0_cb)(void) {
-    profiler_push(PROFILER_DSHOT_RX_IRQ0);
+    // profiler_push(PROFILER_DSHOT_RX_IRQ0);
     dshot_telem_cb(pio0);
-    profiler_pop(PROFILER_DSHOT_RX_IRQ0);
+    // profiler_pop(PROFILER_DSHOT_RX_IRQ0);
 }
 
 void __time_critical_func(dshot_telem_pio1_cb)(void) {
-    profiler_push(PROFILER_DSHOT_RX_IRQ1);
+    // profiler_push(PROFILER_DSHOT_RX_IRQ1);
     dshot_telem_cb(pio1);
-    profiler_pop(PROFILER_DSHOT_RX_IRQ1);
+    // profiler_pop(PROFILER_DSHOT_RX_IRQ1);
 }
 
 
@@ -259,7 +259,7 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
         return;
     }
 
-    puts("alm cncl");
+    profiler_push(PROFILER_DHSOT_TX_EVT);
 
     // Cancel pending dshot transmission alarm
     cancel_alarm(dshot_hardware_alarm_num);
@@ -289,16 +289,15 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
         }
     }
 
-    puts("dsht rst");
-
     // Start immediate retransmission
     // for (int i = 0; i < 8; i++) {
     //     bidir_dshot_reset(INDEX_TO_PIO(i), INDEX_TO_SM(i), dshot_pio_offset, DSHOT_RATE, dshot_next_allowed_frame_tx);
     // }
 
     dshot_command_timeout = make_timeout_time_ms(DSHOT_MIN_UPDATE_RATE_MS);
-    puts("dsht tx");
     dshot_transmit_timer_cb(dshot_hardware_alarm_num);
+
+    profiler_pop(PROFILER_DHSOT_TX_EVT);
 }
 
 void dshot_init(void) {
