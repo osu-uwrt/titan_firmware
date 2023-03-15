@@ -129,7 +129,7 @@ void profiler_dump(void) {
                         entry->total_time);
                 } else {
                     printf("Push %s @%lld us (Exception Level %d)",
-                        profiler_data[found_profiler_id],
+                        profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num);
                 }
@@ -138,7 +138,7 @@ void profiler_dump(void) {
                 int64_t time_us = absolute_time_diff_us(last_time_reset, entry->pop_time) / 1000;
                 int64_t diff_us = absolute_time_diff_us(entry->push_time, entry->pop_time) / 1000;
                 printf("Pop %s @%lld us - Time in loop %lld us",
-                    profiler_data[found_profiler_id],
+                    profiler_names[found_profiler_id],
                     time_us,
                     diff_us);
             }
@@ -148,6 +148,7 @@ void profiler_dump(void) {
             }
         }
     } while(time_found);
+    printf("\n");
 }
 
 #endif

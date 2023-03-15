@@ -229,8 +229,6 @@ int main() {
                 }
                 profiler_pop(PROFILER_ROS_CONFIG);
             } else {
-                clock_t startTime = time_us_64();
-
                 profiler_push(PROFILER_EXECUTOR_TICK);
                 ros_spin_executor();
                 profiler_pop(PROFILER_EXECUTOR_TICK);
@@ -238,14 +236,6 @@ int main() {
                 profiler_push(PROFILER_ROS_TICK);
                 tick_ros_tasks();
                 profiler_pop(PROFILER_ROS_TICK);
-
-                clock_t endTime = time_us_64();
-
-                clock_t executionTime = (endTime - startTime);
-                if(executionTime > max_ros_spin){
-                    printf("ex%.8d\n", executionTime);
-                    max_ros_spin = executionTime;
-                }
             }
         } else if(ros_initialized){
             LOG_INFO("Lost connection to ROS")
