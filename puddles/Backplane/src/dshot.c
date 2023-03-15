@@ -179,6 +179,7 @@ void __time_critical_func(dshot_send_command_internal)(uint thruster_index, uint
         dshot_rpm_data[thruster_index].valid = false;
     }
 
+    // Check guards for this call?
     pio_sm_put_blocking(INDEX_TO_PIO(thruster_index), INDEX_TO_SM(thruster_index), (~cmd) << 16);
 }
 
@@ -250,6 +251,8 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
         return;
     }
 
+    puts("alm cncl");
+
     // Cancel pending dshot transmission alarm
     cancel_alarm(dshot_hardware_alarm_num);
 
@@ -278,12 +281,15 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
         }
     }
 
+    puts("dsht rst");
+
     // Start immediate retransmission
-    for (int i = 0; i < 8; i++) {
-        bidir_dshot_reset(INDEX_TO_PIO(i), INDEX_TO_SM(i), dshot_pio_offset, DSHOT_RATE, dshot_next_allowed_frame_tx);
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     bidir_dshot_reset(INDEX_TO_PIO(i), INDEX_TO_SM(i), dshot_pio_offset, DSHOT_RATE, dshot_next_allowed_frame_tx);
+    // }
 
     dshot_command_timeout = make_timeout_time_ms(DSHOT_MIN_UPDATE_RATE_MS);
+    puts("dsht tx");
     dshot_transmit_timer_cb(dshot_hardware_alarm_num);
 }
 
