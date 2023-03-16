@@ -56,7 +56,7 @@ static void depth_init_failure(__unused const struct async_i2c_request* req, uin
  */
 static int64_t depth_reset_timer_callback(__unused alarm_id_t id, __unused void *user_data) {
     depth_prom_read_index = 0;
-    async_i2c_enqueue(&prom_read_req, &in_transaction);
+    hard_assert(async_i2c_enqueue(&prom_read_req, &in_transaction));
     return 0;
 }
 
@@ -112,7 +112,7 @@ static void depth_prom_read_finished(__unused const struct async_i2c_request *re
 
     if (depth_prom_read_index < 7) {
         prom_read_cmd[0] = DEPTH_CMD_PROM_READ(depth_prom_read_index);
-        async_i2c_enqueue(&prom_read_req, &in_transaction);
+        hard_assert(async_i2c_enqueue(&prom_read_req, &in_transaction));
     } else {
         uint8_t crc = (depth_prom[0] >> 12) & 0xF;
         uint8_t calculated_crc = crc4(depth_prom);
@@ -232,7 +232,7 @@ static void depth_calculate(uint32_t D1, uint32_t D2) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t depth_adc_wait_callback(__unused alarm_id_t id, __unused void *user_data) {
-    async_i2c_enqueue(&adc_read_req, &in_transaction);
+    hard_assert(async_i2c_enqueue(&adc_read_req, &in_transaction));
     return 0;
 }
 
@@ -259,7 +259,7 @@ static void depth_adc_read_finished(__unused const struct async_i2c_request *req
         depth_read_num_reads_remaining--;
         if (depth_read_num_reads_remaining) {
             depth_read_reading_d2 = false;
-            async_i2c_enqueue(&d1_convert_req, &in_transaction);
+            hard_assert(async_i2c_enqueue(&d1_convert_req, &in_transaction));
         } else {
             depth_read_running = false;
 
@@ -270,7 +270,7 @@ static void depth_adc_read_finished(__unused const struct async_i2c_request *req
     } else {
         depth_read_reading_d2 = true;
         depth_read_d1_temp = adc_read_data[0] << 16 | adc_read_data[1] << 8 | adc_read_data[2];
-        async_i2c_enqueue(&d2_convert_req, &in_transaction);
+        hard_assert(async_i2c_enqueue(&d2_convert_req, &in_transaction));
     }
 }
 
@@ -311,7 +311,7 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
     depth_read_num_reads_remaining = num_reads;
     depth_read_reading_d2 = false;
     depth_read_finished_cb = callback;
-    async_i2c_enqueue(&d1_convert_req, &in_transaction);
+    hard_assert(async_i2c_enqueue(&d1_convert_req, &in_transaction));
 }
 
 /**
@@ -323,7 +323,7 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
  */
 static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data) {
     if (depth_read_running) {
-        LOG_ERROR("Depth new transaction started with one still in progress");
+        // LOG_ERROR("Depth new transaction started with one still in progress");
         safety_raise_fault(FAULT_DEPTH_ERROR);
     } else {
         depth_adc_queue_reads(1, NULL);
@@ -406,5 +406,5 @@ float depth_get_temperature(void) {
 
 void depth_init(void) {
     // TODO: Raise fault on failure to queue
-    async_i2c_enqueue(&reset_req, &in_transaction);
+    hard_assert(async_i2c_enqueue(&reset_req, &in_transaction));
 }
