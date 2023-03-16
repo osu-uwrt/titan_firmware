@@ -130,7 +130,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
 
-    if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
+    if (timer_ready(&next_adc, ADC_TIME_MS, false)) {
         RCSOFTRETVCHECK(adc_update(client_id));
     }
 
@@ -152,7 +152,7 @@ static void tick_background_tasks() {
     // read the aux switch state
     // bool aux_state = gpio_get(AUX_SW_SENSE);
 
-    // mcp3426_read();
+    mcp3426_read();
 }
 
 

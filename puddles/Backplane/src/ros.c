@@ -84,7 +84,7 @@ void ros_rmw_init_error_handling(void)  {
 #define SOFTWARE_KILL_PUBLISHER_NAME "control/software_kill"
 #define DEPTH_PUBLISHER_NAME "depth/raw"
 #define WATER_TEMP_PUBLISHER_NAME "depth/temp"
-#define ADC_PUBLISHER_NAME "adc/voltage"
+#define ADC_PUBLISHER_NAME "state/electrical"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "control/electrical"
 
 bool ros_connected = false;
