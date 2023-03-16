@@ -146,9 +146,10 @@ void profiler_dump(void) {
             if (is_push_entry) {
                 nested_level++;
             }
+
+            printf("\n");
         }
     } while(time_found);
-    printf("\n");
 }
 
 #endif
