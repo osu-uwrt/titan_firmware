@@ -138,7 +138,7 @@ riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 static void dshot_subscription_callback(const void * msgin) {
     const riptide_msgs2__msg__DshotCommand * msg = (const riptide_msgs2__msg__DshotCommand *)msgin;
     dshot_update_thrusters(msg->values);
-    // dshot_command_received = true;
+    dshot_command_received = true;
 }
 
 static void elec_command_subscription_callback(const void * msgin){

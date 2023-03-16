@@ -115,7 +115,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ){ //|| safety_interface_kill_switch_refreshed) {
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) || safety_interface_kill_switch_refreshed) {
         safety_interface_kill_switch_refreshed = false;
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
@@ -193,9 +193,6 @@ int main() {
         // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
         panic("Failed to initialize Ethernet hardware!");
     }
-
-
-    clock_t max_ros_spin = 0;
 
     // Enter main loop
     // This is split into two sections of timers
