@@ -130,15 +130,15 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
 
-    // if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
-    //     RCSOFTRETVCHECK(adc_update(client_id));
-    // }
+    if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
+        RCSOFTRETVCHECK(adc_update(client_id));
+    }
 
     // Send Dshot telemetry response after a dshot command is sent
-    // if (dshot_command_received) {
-    //     dshot_command_received = false;
-    //     RCSOFTRETVCHECK(ros_send_rpm());
-    // }
+    if (dshot_command_received) {
+        dshot_command_received = false;
+        RCSOFTRETVCHECK(ros_send_rpm());
+    }
 }
 
 static void tick_background_tasks() {
@@ -171,7 +171,7 @@ int main() {
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 200000, 10);
     depth_init();
     dshot_init();
-    // mcp3426_init();
+    mcp3426_init();
 
     // init the CPU pwr ctrl system
     gpio_init(PWR_CTL_CPU);
