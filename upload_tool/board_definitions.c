@@ -91,9 +91,13 @@ const struct rp2040_board_instance board_definitions[] = {
         .board_type_name = "pico",
         .serial = "E660B44007924D2A"
     },
-    {   // First puddles backplane assembled
+    {   // First puddles backplane assembled (dev board)
         .board_type_name = "puddles_backplane",
         .serial = "E462288893572D28"
+    },
+    {   // Second puddles backplane assembled (in puddles)
+        .board_type_name = "puddles_backplane",
+        .serial = "E462288893573D28",
     },
     {   // One of the first picos the team bought, taken during competition for use in the abomination of the 2022 Competition Actuator Board
         .board_type_name = "terry",
