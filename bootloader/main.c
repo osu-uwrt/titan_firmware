@@ -7,7 +7,7 @@
 
 #define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
 
-#define WATCHDOG_TIMEOUT_MS 5000
+#define WATCHDOG_TIMEOUT_MS 3000
 #define BOOT_DELAY_MS 500
 #define BOOTLOADER_TIMEOUT_SEC 30
 
@@ -49,6 +49,12 @@ bool handle_test_protocol(void) {
     }
 }
 
+void halt_now(void) {
+    gpio_set_mask(RGB_MASK);
+    gpio_set_dir(STATUS_LEDG_PIN, 0);
+    __breakpoint();
+}
+
 void run_bootloader(void) {
     // Configure LED pins
     gpio_put(STATUS_LEDR_PIN, 1);
@@ -72,7 +78,14 @@ void run_bootloader(void) {
 }
 
 int main(void) {
-    // First step, enable the watchdog
+    // First step, before enabling the watchdog (which clears scratch[4]), check if bootloader magic set
+    bool enter_bootloader = false;
+    if (watchdog_hw->scratch[4] == 0xb00710ad) {
+        enter_bootloader = true;
+        watchdog_hw->scratch[4] = 0;
+    }
+
+    // Next enable watchdog before anything else
     // In the event something in the bootloader crashes, or the app image is corrupted after branching,
     // we can go back into the bootloader. Even if the main image is bootlooping, the boot delay allows recovery
     watchdog_enable(WATCHDOG_TIMEOUT_MS, true);
@@ -95,15 +108,7 @@ int main(void) {
         return 0;
     }
 
-    bool enter_bootloader = false;
     can_bl_heartbeat();
-
-
-
-    if (watchdog_hw->scratch[4] == 0xb00710ad) {
-        enter_bootloader = true;
-        watchdog_hw->scratch[4] = 0;
-    }
 
     uint8_t msg[8];
     size_t size;

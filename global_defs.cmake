@@ -43,6 +43,7 @@ function(uwrt_enable_bootloader TARGET TYPE)
     set(BOOTLOADER_APP_UF2_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_ota.uf2)
     set(BOOTLOADER_COMBINED_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_with_bl.uf2)
 
+    # Add the bootloader subdirectory (before disabling uf2 so the bootloader gets one)
     add_subdirectory(${REPO_DIR}/bootloader/ ${BOOTLOADER_DIR})
 
     # Make sure pico doesn't spit out a UF2
@@ -56,11 +57,17 @@ function(uwrt_enable_bootloader TARGET TYPE)
         MESSAGE(FATAL_ERROR "pico_add_extra_outputs must be called after uwrt_enable_bootloader" )
     endif()
 
-    set(PICO_NO_UF2 1)
+    # Now that we've checked that the target doesn't have extra outputs generated yet, and we've generated the bootloader
+    # (so it gets a uf2 file) disable uf2 file generation for the sdk
+    set(PICO_NO_UF2 1 PARENT_SCOPE)
 
+    # Add the bootloader to the target (so it'll get built)
     add_dependencies(${TARGET} ${BOOTLOADER_TARGET})
+
+    # Configure the project to use the bootloader app linker script (so it has space for the bootloader)
 	pico_set_linker_script(${TARGET} ${REPO_DIR}/bootloader/bootloader_runtime/memmap_app.ld)
 
+    # Prep for uf2 generation
     if (NOT BOOTUF2CAT_FOUND)
         set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/bootloader)
         find_package(BOOTUF2CAT)
@@ -70,8 +77,11 @@ function(uwrt_enable_bootloader TARGET TYPE)
         find_package(ELF2UF2)
     endif()
 
+    # Build the uf2 file for the project (needs to be different to suffix it with _ota)
     add_custom_command(TARGET ${TARGET} POST_BUILD
             COMMAND ELF2UF2 $<TARGET_FILE:${TARGET}> ${BOOTLOADER_APP_UF2_FILE})
+
+    # Generate the combined uf2 file for the project (to allow usb flashing)
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND BOOTUF2CAT
             ${BOOTLOADER_BL_UF2_FILE}

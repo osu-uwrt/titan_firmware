@@ -239,6 +239,8 @@ ram_copyout_end:
 
 .section .boot_trampoline, "ax"
 
+.extern app_boot2_copyout
+
 .global _boot_trampoline
 .type _boot_trampoline,%function
 .thumb_func
@@ -248,8 +250,8 @@ _boot_trampoline:
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_SET_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
 
-    // Call boot2 (copied into USBCTRL_DPRAM_BASE before calling this function)
-    ldr r0, =USBCTRL_DPRAM_BASE
+    // Call application boot2 (copied into boot2_copyout before calling the function)
+    ldr r0, =(app_boot2_copyout + 1)
     blx r0
 
     // Jump into actual firmware

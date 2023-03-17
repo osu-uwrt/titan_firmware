@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "pico.h"
 #include "hardware/structs/dma.h"
 
@@ -7,6 +8,8 @@ extern const void __boot_trampoline_end__;
 extern const void __boot_trampoline_source__;
 
 extern const void __flash_app;
+
+uint32_t app_boot2_copyout[0x3F] __attribute__((aligned(256)));
 
 void boot_app_attempt(void) {
     const uint dma_channel = 0;
@@ -22,8 +25,8 @@ void boot_app_attempt(void) {
     uint32_t *app_boot2 = (uint32_t*)&__flash_app;
 
     dma_hw->ch[dma_channel].read_addr = (uintptr_t)app_boot2;
-    dma_hw->ch[dma_channel].write_addr = USBCTRL_DPRAM_BASE;
-    dma_hw->ch[dma_channel].transfer_count = 0x3F;
+    dma_hw->ch[dma_channel].write_addr = (uintptr_t)app_boot2_copyout;
+    dma_hw->ch[dma_channel].transfer_count = sizeof(app_boot2_copyout) / sizeof(*app_boot2_copyout);
     dma_hw->ch[dma_channel].ctrl_trig = DMA_CH0_CTRL_TRIG_SNIFF_EN_BITS |
                                         (DMA_CH0_CTRL_TRIG_TREQ_SEL_VALUE_PERMANENT << DMA_CH0_CTRL_TRIG_TREQ_SEL_LSB) |
                                         (dma_channel << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB) |
@@ -53,6 +56,6 @@ void boot_app_attempt(void) {
 
         // Call the trampoline. This shouldn't return
         __boot_trampoline_entry__();
-        __breakpoint();
+        exit(1);
     }
 }

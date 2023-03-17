@@ -11,13 +11,10 @@
 #define FLASH_SIZE (16*1024*1024) // 16 MB Flash size
 #define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing
 
-#define FLASH_USAGE_ARRAY_SIZE (FLASH_SIZE/(UF2_PAGE_SIZE*8))
-static_assert(FLASH_SIZE % (UF2_PAGE_SIZE*8) == 0, "Unaligned flash size");
-
-
 struct uf2_handle {
     const char *filename;
     FILE *fp;
+    uint32_t base_addr;
     uint32_t num_blocks;
     bool is_bootloader;
 };
@@ -27,6 +24,7 @@ struct uf2_write_handle {
     FILE *fp;
     uint32_t num_blocks;    // Total number of blocks to write
     uint32_t block_count;   // The current count of blocks written to fp
+    uint32_t next_addr;     // The next address to write in the uf2 (needed for contiguous UF2s), only valid when block_count > 0
 };
 
 // #define DEBUG_VERIFY(...) do {} while(0)
@@ -135,6 +133,7 @@ bool open_uf2(const char *filename, bool is_bootloader, struct uf2_handle* handl
     handle_out->filename = filename;
     handle_out->is_bootloader = is_bootloader;
     handle_out->num_blocks = block.num_blocks;
+    handle_out->base_addr = block.target_addr;
 
     return true;
 
@@ -154,13 +153,81 @@ bool create_uf2(const char *filename, struct uf2_write_handle *handle_out) {
     handle_out->fp = f;
     handle_out->block_count = 0;
     handle_out->num_blocks = 0;
+    handle_out->next_addr = 0;
 
     return true;
 }
 
-bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle, uint8_t *usage_array) {
+static struct uf2_block padding_block = {
+    .magic_start0 = UF2_MAGIC_START0,
+    .magic_start1 = UF2_MAGIC_START1,
+    .flags = UF2_FLAG_FAMILY_ID_PRESENT,
+    .payload_size = UF2_PAGE_SIZE,
+    .file_size = RP2040_FAMILY_ID,
+    .data = {[0 ... (UF2_PAGE_SIZE-1)] = 0xFF},
+    .magic_end = UF2_MAGIC_END,
+};
+
+uint32_t calc_required_padding_blocks(uint32_t prev_base, uint32_t prev_block_count, uint32_t next_base) {
+    uint32_t prev_end = prev_base + (prev_block_count * UF2_PAGE_SIZE);
+
+    // This should be caught by the caller, but just check to be sure before the math breaks down
+    assert(prev_end <= next_base);
+
+    uint32_t padding_bytes = next_base - prev_end;
+
+    // Ensure that the padding is aligned
+    // Again, this should be caught by the caller, but just to be safe
+    assert(padding_bytes % UF2_PAGE_SIZE == 0);
+
+    return padding_bytes / UF2_PAGE_SIZE;
+}
+
+bool pad_uf2(struct uf2_write_handle *write_handle, uint32_t target_addr) {
+    if (write_handle->block_count == 0) {
+        write_handle->next_addr = target_addr;
+        return true;
+    }
+
+    if (target_addr < write_handle->next_addr) {
+        DEBUG_VERIFY("Cannot pad to address 0x%08x < 0x%08x\n", target_addr, write_handle->next_addr);
+        return false;
+    }
+
+    if (target_addr % 256 != 0) {
+        DEBUG_VERIFY("Cannot pad to unaligned address 0x%08x\n", target_addr);
+        return false;
+    }
+
+    padding_block.num_blocks = write_handle->num_blocks;
+
+    while (write_handle->next_addr < target_addr) {
+        padding_block.block_no = write_handle->block_count++;
+        padding_block.target_addr = write_handle->next_addr;
+        write_handle->next_addr += UF2_PAGE_SIZE;
+
+        size_t written = fwrite(&padding_block, sizeof(padding_block), 1, write_handle->fp);
+        if (written != 1) {
+            printf("[%s] Failed to write output file: %s", write_handle->filename, strerror(errno));
+            return false;
+        }
+    }
+
+    // If this isn't true, the program logic is messed up
+    assert(write_handle->next_addr == target_addr);
+
+    return true;
+}
+
+bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle) {
     struct uf2_block block;
     uint32_t expected_block_no = 0;
+
+    // First insert the required padding for the uf2 file
+    if (!pad_uf2(write_handle, handle->base_addr)) {
+        printf("[%s] Failed to pad output file before writing contents\n", handle->filename);
+        return false;
+    }
 
     while (1) {
         size_t readsize = fread(&block, 1, sizeof(block), handle->fp);
@@ -184,23 +251,19 @@ bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle
             return false;
         }
 
-        // Check if the target address has already been allocated
-        // No need to worry about a remainder, is_block_valid already asserts page alignment
-        uint32_t page_num = ((block.target_addr - FLASH_BASE)/UF2_PAGE_SIZE);
-        uint32_t usgae_arr_offset = page_num / 8;
-        uint32_t usage_arr_bit = 1 << (page_num % 8);
-        if (usage_array[usgae_arr_offset] & usage_arr_bit) {
-            printf("[%s] Duplicate Address Found: 0x%08x\n", handle->filename, block.target_addr);
-            return false;
-        }
-        usage_array[usgae_arr_offset] |= usage_arr_bit;
-
         // Ensure that the block numbering is sequential
         if (expected_block_no != block.block_no) {
-            printf("[%s] Out of order UF2 block\n", handle->filename);
+            printf("[%s] Out of order UF2 block (%d expected, %d found)\n", handle->filename, expected_block_no, block.block_no);
             return false;
         }
         expected_block_no++;
+
+        // Ensure that target address is in-order and contiguous
+        if (write_handle->next_addr != block.target_addr) {
+            printf("[%s] Non-contiguous UF2 address (0x%08x expected, 0x%08x found)\n", handle->filename, write_handle->next_addr, block.target_addr);
+            return false;
+        }
+        write_handle->next_addr += UF2_PAGE_SIZE;
 
         // Block appears to check out, now the block counts need to be fixed up
         block.block_no = write_handle->block_count++;
@@ -222,7 +285,6 @@ bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle
 }
 
 int main(int argc, char** argv) {
-    static uint8_t flash_usage_array[FLASH_USAGE_ARRAY_SIZE] = {0};
     struct uf2_write_handle write_handle;
     struct uf2_handle bl_handle, app_handle;
     bool successful = false;
@@ -241,11 +303,12 @@ int main(int argc, char** argv) {
     if (!open_uf2(argv[1], true, &bl_handle)) goto cleanup_output;
     write_handle.num_blocks += bl_handle.num_blocks;
     if (!open_uf2(argv[2], false, &app_handle)) goto cleanup_bl;
+    write_handle.num_blocks += calc_required_padding_blocks(bl_handle.base_addr, bl_handle.num_blocks, app_handle.base_addr);
     write_handle.num_blocks += app_handle.num_blocks;
 
     // Append output files
-    if (!append_uf2(&bl_handle, &write_handle, flash_usage_array)) goto cleanup;
-    if (!append_uf2(&app_handle, &write_handle, flash_usage_array)) goto cleanup;
+    if (!append_uf2(&bl_handle, &write_handle)) goto cleanup;
+    if (!append_uf2(&app_handle, &write_handle)) goto cleanup;
 
     // In theory other checks should catch this, but just make sure all blocks have been written
     assert(write_handle.block_count == write_handle.num_blocks);
