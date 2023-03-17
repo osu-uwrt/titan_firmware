@@ -40,7 +40,7 @@ const struct rp2040_device_capabilities board_types[] = {
     },
     {
         .board_type_name = "puddles_backplane",
-        .supports_general_code = true,
+        .supports_general_code = false,
         .supports_i2c_upload = false,
         .supports_i2c_proxy = false,
     },
