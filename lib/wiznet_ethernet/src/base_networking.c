@@ -418,7 +418,7 @@ bool eth_socketSendUDP(w5k_data_t c, uint8_t s)
 		if (w5100_readSnIR(c, s) & SnIR_TIMEOUT) {
 			/* +2008.01 [bj]: clear interrupt */
 			w5100_writeSnIR(c, s, (SnIR_SEND_OK|SnIR_TIMEOUT));
-			puts("sendUDP timeout");
+			// puts("sendUDP timeout");
 			return false;
 		}
 		yield();

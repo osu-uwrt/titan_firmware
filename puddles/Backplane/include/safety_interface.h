@@ -3,6 +3,9 @@
 
 #include "safety/safety.h"
 
+#include "safety/profiler.h"
+#include "profiler_defs.h"
+
 // NOTE: If adding fault IDs make sure to update the fault_string_list as well
 
 //      FAULT_WATCHDOG_RESET      0

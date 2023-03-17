@@ -55,6 +55,7 @@ uwrt_use_upload_tool(backplane_firmware)
 
 # Compile Definitions
 target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
+target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
 # target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
 # target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
 # target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)

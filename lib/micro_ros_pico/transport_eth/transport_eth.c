@@ -138,7 +138,7 @@ bool transport_eth_init(){
     puts("Initializing W5200");
 
     // SPI initialisation. This example will use SPI at 1MHz.
-    spi_init(ETH_SPI ? spi1 : spi0, 14*1000*1000);
+    spi_init(ETH_SPI ? spi1 : spi0, 30000000);
     spi_set_format( ETH_SPI ? spi1 : spi0,   // SPI instance
                     8,      // Number of bits per transfer
                     0,      // Polarity (CPOL)

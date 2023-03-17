@@ -11,6 +11,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
+#include "time.h"
+
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
 #endif
@@ -128,7 +130,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
 
-    if (timer_ready(&next_adc, ADC_TIME_MS, true)) {
+    if (timer_ready(&next_adc, ADC_TIME_MS, false)) {
         RCSOFTRETVCHECK(adc_update(client_id));
     }
 
@@ -148,7 +150,7 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     // read the aux switch state
-    bool aux_state = gpio_get(AUX_SW_SENSE);
+    // bool aux_state = gpio_get(AUX_SW_SENSE);
 
     mcp3426_read();
 }
@@ -192,7 +194,6 @@ int main() {
         panic("Failed to initialize Ethernet hardware!");
     }
 
-
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
@@ -201,12 +202,17 @@ int main() {
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
     while(true) {
+        profiler_push(PROFILER_MAIN_LOOP);
+
         // Do background tasks
+        profiler_push(PROFILER_BACKGROUND_TICK);
         tick_background_tasks();
+        profiler_pop(PROFILER_BACKGROUND_TICK);
 
         // Handle ROS state logic
         if(is_ros_connected()) {
             if(!ros_initialized) {
+                profiler_push(PROFILER_ROS_CONFIG);
                 LOG_INFO("ROS connected");
 
                 if(ros_init() == RCL_RET_OK) {
@@ -218,9 +224,15 @@ int main() {
                     LOG_ERROR("ROS failed to initialize.");
                     ros_fini();
                 }
+                profiler_pop(PROFILER_ROS_CONFIG);
             } else {
+                profiler_push(PROFILER_EXECUTOR_TICK);
                 ros_spin_executor();
+                profiler_pop(PROFILER_EXECUTOR_TICK);
+
+                profiler_push(PROFILER_ROS_TICK);
                 tick_ros_tasks();
+                profiler_pop(PROFILER_ROS_TICK);
             }
         } else if(ros_initialized){
             LOG_INFO("Lost connection to ROS")
@@ -234,6 +246,8 @@ int main() {
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }
         }
+
+        profiler_pop(PROFILER_MAIN_LOOP);
 
         // Tick safety
         safety_tick();
