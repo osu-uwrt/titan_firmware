@@ -4,6 +4,7 @@
 #include "pico/time.h"
 #include "hardware/watchdog.h"
 
+#include "safety/profiler.h"
 #include "safety_internal.h"
 
 
@@ -61,6 +62,7 @@ void safety_tick(void) {
 
     safety_internal_fault_tick();
     safety_interface_tick();
+    profiler_reset(true);
 
     if (absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time) <
             1000 * (safety_initialized ? SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS :

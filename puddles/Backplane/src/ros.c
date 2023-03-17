@@ -13,6 +13,7 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <riptide_msgs2/msg/electrical_readings.h>
+#include <riptide_msgs2/msg/electrical_command.h>
 
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/int8.h>
@@ -83,7 +84,8 @@ void ros_rmw_init_error_handling(void)  {
 #define SOFTWARE_KILL_PUBLISHER_NAME "control/software_kill"
 #define DEPTH_PUBLISHER_NAME "depth/raw"
 #define WATER_TEMP_PUBLISHER_NAME "depth/temp"
-#define ADC_PUBLISHER_NAME "adc/voltage"
+#define ADC_PUBLISHER_NAME "state/electrical"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "control/electrical"
 
 bool ros_connected = false;
 bool dshot_command_received = false;
@@ -125,6 +127,10 @@ const float depth_variance = 0.003;
 rcl_publisher_t adc_publisher;
 riptide_msgs2__msg__ElectricalReadings status_msg = {0};
 
+// Electrical Commands
+rcl_subscription_t elec_command_subscriber;
+riptide_msgs2__msg__ElectricalCommand elec_command_msg;
+
 // ========================================
 // Executor Callbacks
 // ========================================
@@ -133,6 +139,15 @@ static void dshot_subscription_callback(const void * msgin) {
     const riptide_msgs2__msg__DshotCommand * msg = (const riptide_msgs2__msg__DshotCommand *)msgin;
     dshot_update_thrusters(msg->values);
     dshot_command_received = true;
+}
+
+static void elec_command_subscription_callback(const void * msgin){
+    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+        puts("Commanded robot reset, Engaging intentional WDR");
+        safety_notify_software_reset();
+        watchdog_reboot(0, 0, 0);
+    }
 }
 
 static void software_kill_subscription_callback(const void * msgin)
@@ -395,12 +410,19 @@ rcl_ret_t ros_init() {
 		WATER_TEMP_PUBLISHER_NAME,
 		&rmw_qos_profile_sensor_data));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &elec_command_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+
 
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_subscriber, &dshot_msg, &dshot_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg, &elec_command_subscription_callback, ON_NEW_DATA));
 
     depth_msg.header.frame_id.data = depth_frame;
 	depth_msg.header.frame_id.capacity = sizeof(depth_frame);
@@ -420,7 +442,7 @@ rcl_ret_t ros_init() {
 }
 
 void ros_spin_executor(void) {
-    rclc_executor_spin_some(&executor, 0);
+    RCSOFTRETVCHECK(rclc_executor_spin_some(&executor, 0));
 }
 
 void ros_fini(void) {

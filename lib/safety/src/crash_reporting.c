@@ -13,6 +13,7 @@
 #include "hardware/watchdog.h"
 
 #include "safety_internal.h"
+#include "safety/profiler.h"
 
 
 // Use of Watchdog Scratch Registers
@@ -353,6 +354,9 @@ static void safety_process_last_reset_cause(void) {
         if (crash_data.crash_counter.total_crashes) {
             should_raise_fault = true;
         }
+
+        // Dump profiler data from last session
+        profiler_dump();
     } else {
         // Clear watchdog registers that maintain state through crashes
         *depth_cal_reg = DEPTH_CALIBRATION_INVALID;
@@ -383,6 +387,7 @@ static void safety_process_last_reset_cause(void) {
     // Clear all watchdog registers that contain state for current reboot session
     *uptime_reg = 0;
     *fault_list_reg = 0;
+    profiler_reset(false);
 
     // Apply changes to next_entry and checksum
     if (crash_data.header.next_entry == (SAFETY_NUM_CRASH_LOG_ENTRIES - 1)) {

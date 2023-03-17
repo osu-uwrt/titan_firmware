@@ -8,6 +8,8 @@ target_sources(safety INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/kill_switch.c
     ${CMAKE_CURRENT_LIST_DIR}/src/safety.c
     ${CMAKE_CURRENT_LIST_DIR}/src/safety_helper.S
+
+    ${CMAKE_CURRENT_LIST_DIR}/src/profiler.c
 )
 
 target_link_libraries(safety INTERFACE
