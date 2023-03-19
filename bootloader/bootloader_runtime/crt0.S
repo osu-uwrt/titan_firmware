@@ -194,6 +194,10 @@ _reset_handler:
     // Copy the data out, fixup VTOR, then reset
 
     // Disable XIP Cache so we can copy out bootloader to memory
+    ldr r3, =XIP_CTRL_BASE
+    // Stall if a cache flush is running to prevent memory corruption
+    ldr r1, [r3, #XIP_FLUSH_OFFSET]
+    // Now disable XIP cache
     movs r1, #1
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
@@ -246,9 +250,11 @@ ram_copyout_end:
 .thumb_func
 _boot_trampoline:
     // Reenable XIP Cache for the main application (this is why we need the trampoline)
+    // Also flush the cache as there is garbage in the cache right now
     movs r1, #1
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_SET_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
+    str r1, [r3, #XIP_FLUSH_OFFSET]
 
     // Call application boot2 (copied into boot2_copyout before calling the function)
     ldr r0, =(app_boot2_copyout + 1)
