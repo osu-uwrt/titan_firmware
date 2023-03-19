@@ -1,4 +1,4 @@
-#include "can_bl_interface.h"
+#include "bl_interface.h"
 
 #include <stdint.h>
 #include "hardware/clocks.h"
@@ -7,7 +7,7 @@
 #include "hardware/spi.h"
 #include "pico/time.h"
 
-#include "canmore/protocol.h"
+#include "canmore_titan/protocol.h"
 #include "CRC16_CMS.h"
 #include "MCP251XFD.h"
 
@@ -186,19 +186,52 @@ MCP251XFD_Filter mcp251xfd_utility_rx_filter =
     .PointTo = mcp251xfd_utility_rx_fifo,
 };
 
+#if MCP2517FD_TERM_SENSE_ON_INT0
+
+/**
+ * @brief Gets the termination resistor state
+ *
+ * @param term_state_out Pointer to write termination state if valid, writes true if termination is enabled, false if not
+ * @return true The termination state is valid
+ * @return false Could not read termination state
+ */
+static bool can_mcp251x_get_term_state(bool *term_state_out) {
+    uint8_t pin_state;
+    eERRORRESULT err = MCP251XFD_GetGPIOPinsInputLevel(&mcp251xfd_device, &pin_state);
+
+    if (err == ERR_OK) {
+        if (pin_state & MCP251XFD_GPIO0_HIGH) {
+            *term_state_out = false;
+        } else {
+            *term_state_out = true;
+        }
+
+        return true;
+    } else {
+        return false;
+    }
+}
+
+#else
+
+static bool can_mcp251x_get_term_state(bool *term_state_out) {
+    return false;
+}
+
+#endif
 
 // ========================================
 // Driver Exports
 // ========================================
 
-bool can_bl_init(unsigned int client_id, unsigned int channel)
+bool bl_interface_init(void)
 {
-    saved_client_id = client_id;
-    saved_channel = channel;
+    saved_client_id = 1;
+    saved_channel = 1;
 
     //--- Compute Filter Values ---
     // Mask was set up in initialization (use configured client_id and channel, set ID to be from agent)
-    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(client_id, channel);
+    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(saved_client_id, saved_channel);
 
     //--- Initialize Int pins or GPIOs ---
     // Initialize CS Pin
@@ -264,21 +297,41 @@ bool can_bl_init(unsigned int client_id, unsigned int channel)
     return true;
 }
 
-void can_bl_heartbeat(void) {
+void can_mcp251x_send_heartbeat(int mode) {
     MCP251XFD_CANMessage msg;
-    // TODO: Calculate actual heartbeat
-    uint8_t data[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    static canmore_titan_heartbeat_t heartbeat = {.data = 0};
 
-    msg.DLC = MCP251XFD_DLC_4BYTE;
+    heartbeat.pkt.cnt += 1;
+    heartbeat.pkt.error = 0;
+    heartbeat.pkt.mode = mode;
+
+    bool term_enabled;
+    if (can_mcp251x_get_term_state(&term_enabled)) {
+        heartbeat.pkt.term_valid = 1;
+        heartbeat.pkt.term_enabled = (term_enabled ? 1 : 0);
+    } else {
+        heartbeat.pkt.term_valid = 0;
+        heartbeat.pkt.term_enabled = 0;
+    }
+
+    msg.DLC = MCP251XFD_DLC_1BYTE;
     msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, CANMORE_CHAN_HEARTBEAT);
     msg.ControlFlags = MCP251XFD_CAN20_FRAME;
     msg.MessageSEQ = 0;
-    msg.PayloadData = data;
+    msg.PayloadData = &heartbeat.data;
 
     MCP251XFD_TransmitMessageToFIFO(&mcp251xfd_device, &msg, mcp251xfd_utility_tx_fifo, true);
 }
 
-bool can_bl_try_receive(uint8_t *msg_out, size_t *len_out) {
+void bl_interface_heartbeat(void) {
+    can_mcp251x_send_heartbeat(CANMORE_TITAN_HEARTBEAT_MODE_BOOTLOADER);
+}
+
+void bl_interface_notify_boot(void) {
+    can_mcp251x_send_heartbeat(CANMORE_TITAN_HEARTBEAT_MODE_BOOT_DELAY);
+}
+
+bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out) {
     // First check if a message is pending
     if (gpio_get(MCP2517FD_INT_PIN)) {
         // INT high, no message pening
@@ -306,7 +359,7 @@ bool can_bl_try_receive(uint8_t *msg_out, size_t *len_out) {
     return true;
 }
 
-void can_bl_transmit(uint8_t *msg, size_t len) {
+void bl_interface_transmit(uint8_t *msg, size_t len) {
     // Don't allow messages > CAN frame size
     if (len > 8 || len < 1)
         return;

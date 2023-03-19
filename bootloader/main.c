@@ -3,7 +3,7 @@
 #include "pico/time.h"
 
 #include "boot_app.h"
-#include "can_bl_interface.h"
+#include "bl_interface.h"
 
 #define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
 
@@ -31,28 +31,22 @@ void tick_heartbeat(void) {
     static absolute_time_t next_update = {0};
     if (time_reached(next_update)) {
         next_update = make_timeout_time_ms(500);
-        can_bl_heartbeat();
+        bl_interface_heartbeat();
     }
 }
 
 bool handle_test_protocol(void) {
     uint8_t msg[8];
     size_t size;
-    if (can_bl_try_receive(msg, &size)) {
+    if (bl_interface_try_receive(msg, &size)) {
         for (uint i = 0; i < size; i++) {
             msg[i]++;
         }
-        can_bl_transmit(msg, size);
+        bl_interface_transmit(msg, size);
         return true;
     } else {
         return false;
     }
-}
-
-void halt_now(void) {
-    gpio_set_mask(RGB_MASK);
-    gpio_set_dir(STATUS_LEDG_PIN, 0);
-    __breakpoint();
 }
 
 void run_bootloader(void) {
@@ -96,7 +90,7 @@ int main(void) {
     gpio_set_dir_out_masked(RGB_MASK);
 
     // Initialize CAN Bus
-    if (!can_bl_init(1, 1)) {
+    if (!bl_interface_init()) {
         // If CAN fails to bring up, just abort (and change the LED to show that it messed up)
         gpio_set_mask(RGB_MASK);
         gpio_set_dir(STATUS_LEDR_PIN, 0);
@@ -108,12 +102,12 @@ int main(void) {
         return 0;
     }
 
-    can_bl_heartbeat();
+    bl_interface_notify_boot();
 
     uint8_t msg[8];
     size_t size;
     while ((time_us_64() < BOOT_DELAY_MS * 1000) && !enter_bootloader) {
-        if (can_bl_try_receive(msg, &size)) {
+        if (bl_interface_try_receive(msg, &size)) {
             // TODO: Replace to be the actual check rather than some garbage check
             if (msg[0] > 0) {
                 enter_bootloader = true;

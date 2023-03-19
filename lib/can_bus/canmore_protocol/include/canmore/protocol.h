@@ -43,6 +43,7 @@ extern "C" {
  * Message: A single DDS-XRCE packet. This can be spread over several CAN frames
  * Message (Type) Frame: A CANmore frame type designed to carry fragmented messages
  * NOC: Number or Channel, This field represents the message sequence number or utility frame channel, depending on frame type
+ * RFU: Reserved for Future Use. This field does not curerntly have a defined value, but could be defined in the future. Should be set to 0
  * Sequence Number:
  *
  *
@@ -125,14 +126,14 @@ extern "C" {
  * client requests. The interval for this heartbeat is up to the implementer.
  *
  * Heartbeat frames have a DLC of 1, with the following format:
- *   +-*-*-*-*-+-*-+-*-*-*-+
- *   |  EXTRA  | E |  CNT  |
- *   +-*-*-*-*-+-*-+-*-*-*-+
- *     7     4   3   2   0
+ *   +-*-*-*-*-*-+-*-+-*-*-+
+ *   |   EXTRA   | E | CNT |
+ *   +-*-*-*-*-*-+-*-+-*-*-+
+ *     7       3   2   1 0
  *
- * CNT: An increasing mod-8 counter incremented for each packet sent. This can be use to detect dropped packets
+ * CNT: An increasing mod-4 counter incremented for each packet sent. This can be use to detect dropped packets
  * E (ERROR): A single bit representing the status of the client (0 for normal, 1 for error-state)
- * EXTRA: 4 bits of extra data available to the implementer
+ * EXTRA: 5 bits of extra data available to the implementer
 */
 
 
@@ -174,9 +175,9 @@ extern "C" {
 
 // Heartbeat field lengths
 #define CANMORE_CHAN_HEARTBEAT          15
-#define CANMORE_HEARTBEAT_CNT_LENGTH    3
+#define CANMORE_HEARTBEAT_CNT_LENGTH    2
 #define CANMORE_HEARTBEAT_ERROR_LENGTH  1
-#define CANMORE_HEARTBEAT_EXTRA_LENGTH  4
+#define CANMORE_HEARTBEAT_EXTRA_LENGTH  5
 
 // Heartbeat offsets
 #define CANMORE_HEARTBEAT_CNT_OFFSET    0

@@ -1,9 +1,12 @@
-#ifndef CAN_BL_INTERFACE_H
-#define CAN_BL_INTERFACE_H
+#ifndef BL_INTERFACE_H
+#define BL_INTERFACE_H
 
 /**
- * @file can_bl_interface.h
- * @brief Stripped down CAN bus interface for bootloader communciation
+ * @file bl_interface.h
+ * @brief Stripped down interface for bootloader communciation
+ *
+ * This is an abstract interface which can be implemented by a variety of protocols, mainly CAN bus and Ethernet.
+ * This allows for a single bootloader application to be built for a variety of protocols.
  *
  * Many features are removed from this interface, keeping only the essentials to establish communication.
  * Fault handling is also not considered in this application. Errors are only processed during init, where the
@@ -16,37 +19,42 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define BL_INTERFACE_MAX_PACKET_LEN 8
+
 /**
- * @brief Initialize the CAN bus for bootloader communication.
+ * @brief Initialize the communication channel for bootloader communication.
  *
- * @param client_id The client ID to listen for
- * @param channel The configured channel for bootloader communication
  * @return true The CAN bus was successfully initialized
  * @return false CAN bus failed to initialize
  */
-bool can_bl_init(unsigned int client_id, unsigned int channel);
+bool bl_interface_init(void);
 
 /**
- * @brief Attempt to transmit a heartbeat over CAN bus
+ * @brief Attempt to transmit a heartbeat over the heartbeat channel
  */
-void can_bl_heartbeat(void);
+void bl_interface_heartbeat(void);
+
+/**
+ * @brief Attempt to notify that the device has booted over the heartbeat channel
+ */
+void bl_interface_notify_boot(void);
 
 /**
  * @brief Attempt to receive a message over the bootloader channel
  *
- * @param msg_out Pointer to store received message. Must be at least CAN bus frame size
+ * @param msg_out Pointer to store received message. Must be at BL_INTERFACE_MAX_PACKET_LEN in size
  * @param len_out Pointer to store length of received message
  * @return true Packet was successfully received into cmd_out
  * @return false No packet was waiting to be received
  */
-bool can_bl_try_receive(uint8_t *msg_out, size_t *len_out);
+bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out);
 
 /**
  * @brief Attempt to transmit a message over the bootloader channel
  *
  * @param cmd Array of bytes to send
- * @param len Length of bytes to send. Must be < frame size
+ * @param len Length of bytes to send. Must be < BL_INTERFACE_MAX_PACKET_LEN
  */
-void can_bl_transmit(uint8_t *msg, size_t len);
+void bl_interface_transmit(uint8_t *msg, size_t len);
 
 #endif
