@@ -7,6 +7,7 @@ add_subdirectory(bootloader_runtime)
 add_library(bootloader_common INTERFACE)
 target_sources(bootloader_common INTERFACE
 	main.c
+	bl_server.c
 )
 target_compile_options(bootloader_common INTERFACE -Wall -Wextra -Wno-format)
 target_include_directories(bootloader_common INTERFACE include)

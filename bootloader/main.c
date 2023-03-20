@@ -4,6 +4,7 @@
 
 #include "boot_app.h"
 #include "bl_interface.h"
+#include "bl_server.h"
 
 #define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
 
@@ -35,20 +36,6 @@ void tick_heartbeat(void) {
     }
 }
 
-bool handle_test_protocol(void) {
-    uint8_t msg[8];
-    size_t size;
-    if (bl_interface_try_receive(msg, &size)) {
-        for (uint i = 0; i < size; i++) {
-            msg[i]++;
-        }
-        bl_interface_transmit(msg, size);
-        return true;
-    } else {
-        return false;
-    }
-}
-
 void run_bootloader(void) {
     // Configure LED pins
     gpio_put(STATUS_LEDR_PIN, 1);
@@ -61,7 +48,7 @@ void run_bootloader(void) {
 
         tick_led();
         tick_heartbeat();
-        if (handle_test_protocol()) {
+        if (bl_server_tick()) {
             bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
         }
     }
@@ -104,14 +91,10 @@ int main(void) {
 
     bl_interface_notify_boot();
 
-    uint8_t msg[8];
-    size_t size;
+    // TODO: Make not hardcoded
     while ((time_us_64() < BOOT_DELAY_MS * 1000) && !enter_bootloader) {
-        if (bl_interface_try_receive(msg, &size)) {
-            // TODO: Replace to be the actual check rather than some garbage check
-            if (msg[0] > 0) {
-                enter_bootloader = true;
-            }
+        if (bl_server_check_for_magic_packet()) {
+            enter_bootloader = true;
         }
     }
 

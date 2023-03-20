@@ -155,6 +155,7 @@
  *   2: Bulk Request Sequence Error
  *   3: Invalid Register Address
  *   4: Invalid Register Mode (Ex: Trying to write to a read-only register, multiword write across page boundary)
+ *   5: Invalid Data (If attempting to write an invalid value, such an invalid command to a register which executes the command)
  * Seq No: The last sequence number received from the agent if successful, or the sequence number the error occurred on (all subsequent requests ignored)
  * Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error occurred
  */
@@ -174,20 +175,20 @@ static_assert(sizeof(union reg_mapped_request_flags) == 1, "Struct did not pack 
 
 typedef union reg_mapped_request {
     uint8_t data[REG_MAPPED_MAX_REQUEST_SIZE];
-    struct __attribute__((packed)) {
+    struct reg_mapped_write_request {
         union reg_mapped_request_flags flags;
         uint8_t count;
         uint8_t page;
         uint8_t offset;
         uint32_t data;
-    } write_pkt;
+    } __attribute__((packed)) write_pkt;
 
-    struct __attribute__((packed)) {
+    struct reg_mapped_read_request {
         union reg_mapped_request_flags flags;
         uint8_t count;
         uint8_t page;
         uint8_t offset;
-    } read_pkt;
+    } __attribute__((packed)) read_pkt;
 } reg_mapped_request_t;
 static_assert(sizeof(reg_mapped_request_t) == REG_MAPPED_MAX_REQUEST_SIZE, "Struct did not pack properly");
 
@@ -196,6 +197,7 @@ static_assert(sizeof(reg_mapped_request_t) == REG_MAPPED_MAX_REQUEST_SIZE, "Stru
 #define REG_MAPPED_RESULT_BULK_REQUEST_SEQ_ERROR 2
 #define REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS 3
 #define REG_MAPPED_RESULT_INVALID_REGISTER_MODE 4
+#define REG_MAPPED_RESULT_INVALID_DATA 5
 
 #define REG_MAPPED_MAX_RESPONSE_SIZE 5
 typedef union reg_mapped_response {

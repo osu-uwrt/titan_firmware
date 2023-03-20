@@ -18,9 +18,9 @@
  *
  * 0 - 13: RFU
  *
- * 14: Varies
+ * 14: Control Interface
  *   If Client Heartbeat:Mode = Boot Delay:
- *      Follows Boot Request
+ *      Follows Bootloader Request
  *   If Client Heartbeat:Mode = Normal Mode
  *      Follows Client Debug Protocol
  *   If Client Heartbeat:Mode = Bootloader Mode
@@ -47,6 +47,9 @@
  * T (Term Enabled): 1 if the node has its termination resistor enabled, 0 if disabled
  * X: Reserved for future use (set to 0)
  */
+
+#define CANMORE_TITAN_CHAN_CONTROL_INTERFACE 14
+#define CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST {0xB0, 0x07, 0x10, 0xAD}
 
 // Heartbeat field lengths
 #define CANMORE_TITAN_HEARTBEAT_MODE_LENGTH          2

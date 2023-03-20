@@ -55,7 +55,6 @@
 #define UTILITY_MSG_PAYLOAD_SIZE_ENUM MCP251XFD_PAYLOAD_8BYTE
 
 uint32_t saved_client_id;
-uint32_t saved_channel;
 
 
 // ========================================
@@ -226,12 +225,11 @@ static bool can_mcp251x_get_term_state(bool *term_state_out) {
 
 bool bl_interface_init(void)
 {
-    saved_client_id = 1;
-    saved_channel = 1;
+    saved_client_id = CAN_BUS_CLIENT_ID;
 
     //--- Compute Filter Values ---
     // Mask was set up in initialization (use configured client_id and channel, set ID to be from agent)
-    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(saved_client_id, saved_channel);
+    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(saved_client_id, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
 
     //--- Initialize Int pins or GPIOs ---
     // Initialize CS Pin
@@ -367,7 +365,7 @@ void bl_interface_transmit(uint8_t *msg, size_t len) {
     // Don't need to worry about checking if the buffer is full, we have no handling, it'll just drop the message
     MCP251XFD_CANMessage can_msg;
     can_msg.DLC = len;
-    can_msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, saved_channel);
+    can_msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
     can_msg.ControlFlags = MCP251XFD_CAN20_FRAME;
     can_msg.MessageSEQ = 0;
     can_msg.PayloadData = msg;
