@@ -48,10 +48,15 @@ SECTIONS
     } > FLASH_BL
 
     .boot2 : {
+        __ram_copyout_start__ = .;
+        __ram_text_start__ = .;
+
         __boot2_start__ = .;
         KEEP (*(.boot2))
         __boot2_end__ = .;
-    } > FLASH_BL
+    } > XIP_RAM AT> FLASH_BL
+
+    __ram_copyout_source__ = LOADADDR(.boot2);
 
     ASSERT(__boot2_end__ - __boot2_start__ == 256,
         "ERROR: Pico second stage bootloader must be 256 bytes in size")
@@ -65,8 +70,6 @@ SECTIONS
 
     .text : {
         . = ALIGN(4);
-        __ram_copyout_start__ = .;
-        __ram_text_start__ = .;
         __logical_binary_start = .;
         KEEP (*(.vectors))
         KEEP (*(.reset))
@@ -78,8 +81,6 @@ SECTIONS
         . = ALIGN(16);
         __ram_text_end__ = .;
     } > XIP_RAM AT> FLASH_BL
-
-    __ram_copyout_source__ = LOADADDR(.text);
 
     .data : {
         __data_start__ = .;

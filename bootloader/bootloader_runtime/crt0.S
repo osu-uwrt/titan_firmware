@@ -216,9 +216,8 @@ _reset_handler:
     ldr r1, ram_copyout_source
     ldr r2, ram_copyout_end
     subs r2, r2, r0 // Compute length of copyout
-    push {r0}
     blx r3
-    pop {r0}
+    ldr r0, =__logical_binary_start
 
     // Now that we've copied out the data, fixup the vector table pointed to by r3 and to be all in flash
     ldr r1, =_ram_reset_entry

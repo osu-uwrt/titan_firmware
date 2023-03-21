@@ -1,11 +1,12 @@
 add_library(bootloader_runtime INTERFACE)
 
 target_sources(bootloader_runtime INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/runtime.c
+	${CMAKE_CURRENT_LIST_DIR}/boot_app.c
 	${CMAKE_CURRENT_LIST_DIR}/clocks.c
 	${CMAKE_CURRENT_LIST_DIR}/crt0.S
+	${CMAKE_CURRENT_LIST_DIR}/flash.c
+    ${CMAKE_CURRENT_LIST_DIR}/runtime.c
 	${CMAKE_CURRENT_LIST_DIR}/timer.c
-	${CMAKE_CURRENT_LIST_DIR}/boot_app.c
 )
 
 target_include_directories(bootloader_runtime INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include_sdk_override)

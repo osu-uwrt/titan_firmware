@@ -3,6 +3,8 @@
 #include "hardware/regs/m0plus.h"
 #include "hardware/structs/padsbank0.h"
 
+#include "pico/bootrom.h"
+
 void runtime_init(void) {
     // Reset all peripherals to put system into a known state,
     // - except for QSPI pads and the XIP IO bank, as this is fatal if running from flash
@@ -71,6 +73,11 @@ void runtime_init(void) {
 
     // Don't call init_array, as this isn't needed for anything critical and just wastes space in the bootrom
     // Really only useful for C++ stuff
+
+    // Exit XIP mode, allowing the flash to be reprogrammed however it is required
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    assert(flash_exit_xip);
+    flash_exit_xip();
 }
 
 // Using _exit defined in crt0.S

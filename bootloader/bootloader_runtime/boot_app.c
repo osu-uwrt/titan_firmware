@@ -1,8 +1,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include "pico.h"
+#include "pico/bootrom.h"
 #include "hardware/structs/dma.h"
 
+extern void __boot2_start__(void);
 extern void __boot_trampoline_entry__(void);
 extern const void __boot_trampoline_end__;
 extern const void __boot_trampoline_source__;
@@ -12,6 +14,9 @@ extern const void __flash_app;
 uint32_t app_boot2_copyout[0x3F] __attribute__((aligned(256)));
 
 void boot_app_attempt(void) {
+    // Call boot2 to enable XIP
+    __boot2_start__();
+
     const uint dma_channel = 0;
 
     // Configure CRC-32 on the sniffer so we can check if apps boot2 is valid
@@ -58,4 +63,9 @@ void boot_app_attempt(void) {
         __boot_trampoline_entry__();
         exit(1);
     }
+
+    // If we failed, then exit XIP
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    assert(flash_exit_xip);
+    flash_exit_xip();
 }

@@ -15,7 +15,6 @@ target_include_directories(bootloader_common INTERFACE include)
 # Define linking and targets
 target_link_libraries(bootloader_common INTERFACE
 	bootloader_runtime
-	hardware_flash
 	hardware_uart
 )
 

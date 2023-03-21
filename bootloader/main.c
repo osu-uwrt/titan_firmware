@@ -41,9 +41,9 @@ void run_bootloader(void) {
     gpio_put(STATUS_LEDR_PIN, 1);
     gpio_put(STATUS_LEDB_PIN, 0);
 
-    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
+    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000 * 3600);
 
-    while (!time_reached(bootloader_timeout)) {
+    while (!time_reached(bootloader_timeout) && !bl_server_should_reboot()) {
         watchdog_update();
 
         tick_led();
@@ -89,9 +89,9 @@ int main(void) {
         return 0;
     }
 
+    bl_server_init();
     bl_interface_notify_boot();
 
-    // TODO: Make not hardcoded
     while ((time_us_64() < BOOT_DELAY_MS * 1000) && !enter_bootloader) {
         if (bl_server_check_for_magic_packet()) {
             enter_bootloader = true;

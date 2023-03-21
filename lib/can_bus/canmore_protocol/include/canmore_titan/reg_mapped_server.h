@@ -9,6 +9,10 @@
 
 struct reg_mapped_server_register_definition;
 
+// ========================================
+// Register Map Structures
+// ========================================
+
 /**
  * @brief Transmit function
  */
@@ -40,7 +44,7 @@ enum reg_mapped_server_register_permissions {
  */
 typedef struct reg_mapped_server_register_definition {
     enum reg_mapped_server_register_type {
-        REGISTER_TYPE_UNIMPLEMENTED,
+        REGISTER_TYPE_UNIMPLEMENTED = 0,
         REGISTER_TYPE_MEMORY,
         REGISTER_TYPE_EXEC
     } reg_type;
@@ -64,7 +68,7 @@ typedef struct reg_mapped_server_register_definition {
  */
 typedef struct reg_mapped_server_page_definition {
     enum reg_mapped_server_page_type {
-        PAGE_TYPE_UNIMPLEMENTED,
+        PAGE_TYPE_UNIMPLEMENTED = 0,
         PAGE_TYPE_MEMORY_MAPPED_WORD,
         PAGE_TYPE_MEMORY_MAPPED_BYTE,
         PAGE_TYPE_REGISTER_MAPPED
@@ -108,6 +112,107 @@ typedef struct reg_mapped_server_inst {
     uint8_t bulk_error_code;
     bool in_bulk_request;
 } reg_mapped_server_inst_t;
+
+// ========================================
+// Convenience Macros for Register Defs
+// ========================================
+/**
+ * @brief Create a register that is a pointer to memory
+ *
+ * @example
+ *  #define EXAMPLE_PAGE_TEST_DATA_OFFSET 0
+ *  uint32_t test_data = 0xDEADBEEF;
+ *  const reg_mapped_server_register_def_t example_page[] = {
+ *      DEFINE_REG_MEMORY_PTR(EXAMPLE_PAGE_TEST_DATA_OFFSET, &test_data, REGISTER_PERM_READ_ONLY)
+ *  };
+ */
+#define DEFINE_REG_MEMORY_PTR(reg_offset, ptr, permission) [reg_offset] = {.reg_type = REGISTER_TYPE_MEMORY, .type = {.memory = {.perm = (permission), .reg_ptr = (ptr)}}}
+
+/**
+ * @brief Create a register that executes a callback
+ *
+ * @example
+ *  #define EXAMPLE_PAGE_MY_CALLBACK_OFFSET 1
+ *  bool my_callback(const struct reg_mapped_server_register_definition *reg, bool is_write, uint32_t *data_ptr) {
+ *      // ... Do stuff here
+ *  }
+ *  const reg_mapped_server_register_def_t example_page[] = {
+ *      DEFINE_REG_EXEC_CALLBACK(EXAMPLE_PAGE_MY_CALLBACK_OFFSET, my_callback, REGISTER_PERM_WRITE_ONLY)
+ *  };
+ */
+#define DEFINE_REG_EXEC_CALLBACK(reg_offset, reg_callback, permission) [reg_offset] = {.reg_type = REGISTER_TYPE_EXEC, .type = {.exec = {.perm = (permission), .callback = (reg_callback)}}}
+
+/**
+ * @brief Create an unimplemented register
+ *
+ * @example
+ *  #define EXAMPLE_PAGE_UNIMPLEMENTED_OFFSET 2
+ *  const reg_mapped_server_register_def_t example_page[] = {
+ *      DEFINE_REG_UNIMPLEMENTED(EXAMPLE_PAGE_UNIMPLEMENTED_OFFSET)
+ *  };
+ */
+#define DEFINE_REG_UNIMPLEMENTED(reg_offset) [reg_offset] = {.reg_type = REGISTER_TYPE_UNIMPLEMENTED}
+
+/**
+ * @brief Create a register mapped page
+ *
+ * @example
+ *  #define EXAMPLE_PAGE_NUM 0
+ *  const reg_mapped_server_register_def_t example_page[] = {
+ *      // ... Define your registers here
+ *  };
+ *
+ *  const reg_mapped_server_page_def_t example_server_pages[] = {
+ *      DEFINE_PAGE_REG_MAPPED(EXAMPLE_PAGE_NUM, example_page)
+ *  };
+ */
+#define DEFINE_PAGE_REG_MAPPED(page_num, reg_map) [page_num] = {.page_type = PAGE_TYPE_REGISTER_MAPPED, .type = {.reg_mapped = {.num_registers = (sizeof(reg_map)/sizeof(*(reg_map))), .reg_array = reg_map}}}
+
+/**
+ * @brief Create a page memory mapped to a uint8_t* pointer
+ *
+ * @example
+ *  #define PTR_MAPPED_PAGE_NUM 1
+ *
+ *  // These are defined by the application
+ *  uint8_t *mapped_ptr;
+ *  size_t mapped_size;
+ *
+ *  const reg_mapped_server_page_def_t example_server_pages[] = {
+ *      DEFINE_PAGE_MEMMAPPED_BYTE_PTR(PTR_MAPPED_PAGE_NUM, mapped_ptr, mapped_size, REGISTER_PERM_READ_WRITE)
+ *  };
+ */
+#define DEFINE_PAGE_MEMMAPPED_BYTE_PTR(page_num, ptr, len, permission) [page_num] = {.page_type = PAGE_TYPE_MEMORY_MAPPED_BYTE, .type = {.mem_mapped_byte = {.perm = (permission), .base_addr = (ptr), .size = (len)}}}
+
+/**
+ * @brief Create a page mapped to a uint8_t array
+ *
+ * @example
+ *  #define ARRAY_MAPPED_PAGE_NUM 2
+ *
+ *  // These are defined by the application
+ *  uint8_t test_buffer[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB};
+ *
+ *  const reg_mapped_server_page_def_t example_server_pages[] = {
+ *      DEFINE_PAGE_MEMMAPPED_BYTE_ARRAY(ARRAY_MAPPED_PAGE_NUM, test_buffer, REGISTER_PERM_READ_WRITE)
+ *  };
+ */
+#define DEFINE_PAGE_MEMMAPPED_BYTE_ARRAY(page_num, array, permission) DEFINE_PAGE_MEMMAPPED_BYTE_PTR(page_num, array, sizeof(array), permission)
+
+/**
+ * @brief Create an unimplemented page. This will error on usage
+ *
+ * @example
+ *  #define UNIMPLEMENTED_PAGE_NUM 3
+ *  const reg_mapped_server_page_def_t example_server_pages[] = {
+ *      DEFINE_PAGE_UNIMPLEMENTED(UNIMPLEMENTED_PAGE_NUM)
+ *  };
+ */
+#define DEFINE_PAGE_UNIMPLEMENTED(page_num) [page_num] = {.page_type = PAGE_TYPE_UNIMPLEMENTED}
+
+// ========================================
+// Functions
+// ========================================
 
 /**
  * @brief Handles a received request for the reg mapped server
