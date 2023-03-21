@@ -2,9 +2,9 @@
 #include "pico/stdlib.h"
 #include "stdint.h"
 #include "async_i2c.h"
+#include "stdio.h"
 
-#define MCP3426_WRITE_ADDR 0x68 // 1101000
-#define MCP3426_READ_ADDR 0x69  // 1101001 
+#define MCP3426_ADDR 0x68 // 1101000
 #define MCP3426_GENERAL_CALL_RESET 0x06
 
 // Modes used internally by the driver
@@ -21,18 +21,23 @@
 
 static void mcp3426_on_read(const struct async_i2c_request *req);
 static void mcp3426_on_write(const struct async_i2c_request *req);
+static void mcp3426_on_setup_complete(const struct async_i2c_request *req);
+
+static void mcp3426_on_error(const struct async_i2c_request *req, uint32_t error_code) {
+    printf("ERROR: %x\n", error_code);
+}
 
 static uint8_t set_channel_cmds[MCP3426_CHANNEL_COUNT] = {0};
 static struct async_i2c_request set_channel_req = {
     .i2c_num = I2C_NUM,
-    .address = MCP3426_WRITE_ADDR,
+    .address = MCP3426_ADDR,
     .nostop = false,
-    .tx_buffer = NULL, 
+    .tx_buffer = NULL,
     .rx_buffer = NULL,
     .bytes_to_send = 0,
     .bytes_to_receive = 0,
     .completed_callback = &mcp3426_on_write,
-    .failed_callback = NULL,
+    .failed_callback = &mcp3426_on_error,
     .next_req_on_success = NULL,
 };
 
@@ -45,37 +50,37 @@ static struct async_i2c_request general_call_reset_req = {
     .rx_buffer = NULL,
     .bytes_to_send = 1,
     .bytes_to_receive = 0,
-    .completed_callback = NULL,
-    .failed_callback = NULL, // TODO
+    .completed_callback = &mcp3426_on_setup_complete,
+    .failed_callback = &mcp3426_on_error, // TODO
     .next_req_on_success = NULL,
 };
 
 static uint8_t rx_buffer[3];
 static struct async_i2c_request read_req = {
     .i2c_num = I2C_NUM,
-    .address = MCP3426_READ_ADDR,
+    .address = MCP3426_ADDR,
     .nostop = false,
-    .tx_buffer = NULL, 
+    .tx_buffer = NULL,
     .rx_buffer = rx_buffer,
     .bytes_to_send = 0,
     .bytes_to_receive = 3,
     .completed_callback = mcp3426_on_read,
-    .failed_callback = NULL,
+    .failed_callback = &mcp3426_on_error,
     .next_req_on_success = NULL,
 };
 static int mode = MCP3426_MODE_UNINITIALIZED;
 
 static bool msg_in_progress = false;
 
-static uint16_t adc_values[MCP3426_CHANNEL_COUNT] = {0};
+static float adc_values[MCP3426_CHANNEL_COUNT] = {0};
 
-static int64_t mcp3426_enqueue_read(__unused alarm_id_t id, __unused void *user_data) { 
+static int64_t mcp3426_enqueue_read(__unused alarm_id_t id, __unused void *user_data) {
     async_i2c_enqueue(&read_req, &msg_in_progress);
 
     return 0;
 }
 
-static void mcp3426_on_write(const struct async_i2c_request *req) { 
+static void mcp3426_on_write(const struct async_i2c_request *req) {
     (void) req;
     add_alarm_in_ms(100, &mcp3426_enqueue_read, NULL, true);
 }
@@ -92,7 +97,7 @@ static void mcp3426_set_channel(enum mcp3426_channel channel)
 }
 
 static void mcp3426_on_setup_complete(const struct async_i2c_request *req)
-{    
+{
     mode = (int) req->user_data;
     mcp3426_set_channel(0);
 }
@@ -100,15 +105,29 @@ static void mcp3426_on_setup_complete(const struct async_i2c_request *req)
 static void mcp3426_on_read(const struct async_i2c_request *req)
 {
     (void) req;
-    uint16_t data = rx_buffer[0]; 
+    uint16_t data = rx_buffer[0];
     data = ((data << 8) & 0xFF00) | rx_buffer[1];
     uint8_t config = rx_buffer[2];
     uint8_t channel = (config >> 5) & 0x03;
     bool ready = !(config & 0x80);
 
-    if(ready) { 
-        adc_values[channel] = data;
-        printf("[ADC %d]: %hd\n", channel, data);
+    if(ready) {
+        float voltage = (float) data;
+        voltage *= 2.048 * 2.0;
+        voltage /= 65536.0;
+
+        float top = 10000.0;
+        float bottom = 0.0;
+
+        if (channel == 0) {
+            bottom = 10000.0;
+        } else {
+            bottom = 1000.0;
+        }
+        voltage *= 1.0 / (bottom / (bottom + top));
+
+        adc_values[channel] = voltage;
+        printf("[ADC %d]: %f\n", channel, voltage);
 
         if(channel == MCP3426_CHANNEL_COUNT - 1)  {
             mcp3426_set_channel(0);
@@ -143,9 +162,9 @@ void mcp3426_init(int adc_mode, enum mcp3426_sample_rate rate, enum mcp3426_gain
 }
 
 /**
- * Reads the most recent value returned by the ADC. 
- * 
- * If not value has been read yet, zero is returned. 
+ * Reads the most recent value returned by the ADC.
+ *
+ * If not value has been read yet, zero is returned.
 */
 int mcp3426_read(enum mcp3426_channel channel)
 {

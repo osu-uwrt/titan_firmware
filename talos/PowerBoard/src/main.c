@@ -112,11 +112,11 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
 
-    if(timer_ready(&next_robot_state_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) { 
+    if(timer_ready(&next_robot_state_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_robot_state());
     }
 }
