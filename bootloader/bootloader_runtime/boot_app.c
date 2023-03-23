@@ -14,6 +14,12 @@ extern const void __flash_app;
 uint32_t app_boot2_copyout[0x3F] __attribute__((aligned(256)));
 
 void boot_app_attempt(void) {
+    // Reconnect flash in case the application did anything strange
+    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+    assert(connect_internal_flash);
+    __compiler_memory_barrier();
+    connect_internal_flash();
+
     // Call boot2 to enable XIP
     __boot2_start__();
 

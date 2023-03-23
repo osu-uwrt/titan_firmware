@@ -67,7 +67,6 @@ SECTIONS
         KEEP (*(.binary_info_header))
         __binary_info_header_end = .;
         KEEP (*(.reset))
-        /* TODO revisit this now memset/memcpy/float in ROM */
         /* bit of a hack right now to exclude all floating point and time critical (e.g. memset, memcpy) code from
          * FLASH ... we will include any thing excluded here in .data below by default */
         *(.init)

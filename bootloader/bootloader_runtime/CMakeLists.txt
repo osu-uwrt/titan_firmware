@@ -24,6 +24,9 @@ target_link_options(bootloader_runtime INTERFACE "LINKER:--gc-sections")
 # Binary info was removed from the linker to save space (only 16K), so tell the sdk to not use it
 target_compile_definitions(bootloader_runtime INTERFACE PICO_NO_BINARY_INFO=1)
 
+# Set the boot stage 2 based on target configuration
+target_link_libraries(bootloader_runtime INTERFACE $<IF:$<BOOL:$<TARGET_PROPERTY:PICO_TARGET_BOOT_STAGE2>>,$<TARGET_PROPERTY:PICO_TARGET_BOOT_STAGE2>,bs2_default>_library)
+
 target_link_libraries(bootloader_runtime INTERFACE
 	# Minimum headers required for pico sdk project
 	pico_base_headers
@@ -36,10 +39,6 @@ target_link_libraries(bootloader_runtime INTERFACE
 	pico_divider
 	pico_mem_ops
 	pico_float
-
-	# Link in boot stage 2
-	# TODO: Make it grab from PICO_TARGET_BOOT_STAGE2 property
-	bs2_default_library
 
 	# Simple libraries to make writing the bootloader not painful
 	hardware_pll
