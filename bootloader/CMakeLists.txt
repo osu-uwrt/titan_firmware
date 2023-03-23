@@ -26,6 +26,7 @@ add_executable(bootloader_can
 # Set version: major minor release_type (see build_version.h for more info)
 # Increment this if any compatability changes occur
 # Release Types: PROTO, DEV, STABLE
+# Note: The bootloader verison is tied to the protocol, changing this will alert the client of a protocol change
 generate_version_tag(bootloader_can 1 0 PROTO)
 
 target_link_libraries(bootloader_can

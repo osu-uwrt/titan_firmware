@@ -61,9 +61,9 @@ static bool reg_mapped_client_linux_rx_cb(uint8_t *buf, size_t len, unsigned int
     FD_ZERO(&rfds);
     FD_SET(inst->socket, &rfds);
 
-    struct timeval tv = {timeout_ms/1000, (timeout_ms%1000) * 1000};
+    struct timeval tv = {.tv_sec = timeout_ms/1000, .tv_usec = (timeout_ms%1000) * 1000};
     int num_fds;
-    if ((num_fds = select(1, &rfds, NULL, NULL, &tv)) < 0) {
+    if ((num_fds = select(FD_SETSIZE, &rfds, NULL, NULL, &tv)) < 0) {
         if (verbose) perror("CAN select");
         return false;
     }
@@ -124,7 +124,7 @@ bool reg_mapped_client_linux_open(reg_mapped_client_linux_inst_t *inst, unsigned
     // Configure filter for specific client/channel
 	struct can_filter rfilter[] = {{
         .can_id = CANMORE_CALC_UTIL_ID_C2A(client_id, channel),
-        .can_mask = CAN_SFF_MASK
+        .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_SFF_MASK)
     }};
 	if (setsockopt(inst->socket, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
         if (verbose) perror("CAN setsockopt");
@@ -162,26 +162,4 @@ bool reg_mapped_client_linux_close(reg_mapped_client_linux_inst_t *inst) {
     }
 
     return true;
-}
-
-// ========================================
-// Wrapped Functions
-// ========================================
-
-int reg_mapped_client_linux_read_register(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset, uint32_t *data_out) {
-    return reg_mapped_client_read_register(&inst->client_cfg, page, offset, data_out);
-}
-
-int reg_mapped_client_linux_write_register(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset, uint32_t data) {
-    return reg_mapped_client_write_register(&inst->client_cfg, page, offset, data);
-}
-
-int reg_mapped_client_linux_read_array(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset_start,
-                                        uint32_t *data_array, uint8_t num_words) {
-    return reg_mapped_client_read_array(&inst->client_cfg, page, offset_start, data_array, num_words);
-}
-
-int reg_mapped_client_linux_write_array(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset_start,
-                                        const uint32_t *data_array, uint8_t num_words) {
-    return reg_mapped_client_write_array(&inst->client_cfg, page, offset_start, data_array, num_words);
 }

@@ -76,7 +76,7 @@ void bl_server_init(void) {
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].page_type = PAGE_TYPE_MEMORY_MAPPED_BYTE;
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.perm = REGISTER_PERM_READ_ONLY;
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.base_addr = (uint8_t*) FULL_BUILD_TAG;
-    bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.size = strlen(FULL_BUILD_TAG);
+    bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.size = strlen(FULL_BUILD_TAG) + 1;
 
     // Fill out version ID
     flash_get_unique_id(mcu_control_flash_id.id_byte);

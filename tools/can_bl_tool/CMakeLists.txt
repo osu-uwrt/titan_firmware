@@ -14,7 +14,11 @@ set(CMAKE_CXX_STANDARD 14)
 add_subdirectory(${PICO_SDK_PATH}/src/common/boot_uf2 boot_uf2_headers)
 add_subdirectory(${REPO_DIR}/lib/can_bus/canmore_protocol canmore_protocol)
 
-add_executable(can_bl_tool main.c reg_mapped_client_linux.c)
+add_executable(can_bl_tool
+	main.c
+	bl_client.c
+	reg_mapped_client_linux.c
+)
 target_link_libraries(can_bl_tool
     canmore_protocol
 )

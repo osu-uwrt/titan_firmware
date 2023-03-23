@@ -38,55 +38,15 @@ bool reg_mapped_client_linux_open(reg_mapped_client_linux_inst_t *inst, unsigned
 bool reg_mapped_client_linux_close(reg_mapped_client_linux_inst_t *inst);
 
 /**
- * @brief Read a register
+ * @brief Return pointer to reg mapped client to use with reg_mapped_client functions
  *
- * @param inst Client instance pointer
- * @param page Page to read
- * @param offset Register offset to read
- * @param data_out Pointer to write read data
- * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
+ * @note The returned reg_mapped_client instance will be invalid after calling reg_mapped_client_linux_close
+ *
+ * @param inst Instance to retrieve reg_mapped_client for
+ * @return reg_mapped_client_cfg_t* Pointer to reg_mapped_client tied to this instance
  */
-int reg_mapped_client_linux_read_register(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset, uint32_t *data_out);
-
-/**
- * @brief Write to a register
- *
- * @param inst Client instance pointer
- * @param page Page to write to
- * @param offset Register offset to write
- * @param data Data word to write into register
- * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
- */
-int reg_mapped_client_linux_write_register(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset, uint32_t data);
-
-/**
- * @brief Read array of words from a page
- *
- * @note This function can only read to words in the same page
- *
- * @param inst Client instance pointer
- * @param page Page to read
- * @param offset_start Start offset to begin reading in page
- * @param data_array Array of words to read data into
- * @param num_words  Number of words to read
- * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
- */
-int reg_mapped_client_linux_read_array(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset_start,
-                                        uint32_t *data_array, uint8_t num_words);
-
-/**
- * @brief Write array of words to a page
- *
- * @note This function can only write to words in the same page
- *
- * @param inst Client instance pointer
- * @param page Page to write
- * @param offset_start Start offset to begin writing in page
- * @param data_array Array of words to write
- * @param num_words  Number of words to write
- * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
- */
-int reg_mapped_client_linux_write_array(reg_mapped_client_linux_inst_t *inst, uint8_t page, uint8_t offset_start,
-                                        const uint32_t *data_array, uint8_t num_words);
+static inline reg_mapped_client_cfg_t* reg_mapped_client_linux_get_client(reg_mapped_client_linux_inst_t *inst) {
+    return &inst->client_cfg;
+}
 
 #endif

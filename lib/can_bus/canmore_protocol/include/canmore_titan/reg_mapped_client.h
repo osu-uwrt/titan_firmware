@@ -152,4 +152,16 @@ int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t pag
 int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset_start,
                                     const uint32_t *data_array, uint8_t num_words);
 
+/**
+ * @brief Read a page containing a null-temrinated string
+ *
+ * @param cfg Register mapped client configuration
+ * @param page_num Page containing null-terminated string
+ * @param str_out Pointer to store received string
+ * @param max_len Max number of bytes to write to str_out
+ * @return int Length of read string, or negative on error
+ */
+int reg_mapped_client_read_string_page(const reg_mapped_client_cfg_t *cfg, uint8_t page_num,
+                                        char* str_out, size_t max_len);
+
 #endif

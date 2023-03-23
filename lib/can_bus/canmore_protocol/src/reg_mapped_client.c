@@ -139,3 +139,51 @@ int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t pag
 
     return REG_MAPPED_RESULT_SUCCESSFUL;
 }
+
+int reg_mapped_client_read_string_page(const reg_mapped_client_cfg_t *cfg, uint8_t page_num, char* str_out, size_t max_len) {
+    // We unfortunately have to do a slow word-by-word read since the length is determined by the location of the null termination
+
+    // To avoid unnecessary reading of words at max_len, we assume str_out can hold at least one character
+    // So this has to be checked here
+    if (max_len < 2) {
+        if (max_len > 0) {
+            str_out[0] = 0;
+        }
+        return 0;
+    }
+
+    // Limit to read up to an entire page
+    unsigned int word_num = 0;
+    for (word_num = 0; word_num < 0x100; word_num++) {
+        union {
+            uint32_t word;
+            uint8_t bytes[4];
+        } read_data;
+
+        int result = reg_mapped_client_read_register(cfg, page_num, word_num, &read_data.word);
+        if (result != REG_MAPPED_RESULT_SUCCESSFUL) {
+            return (result < 0 ? result : -result);
+        }
+
+        for (unsigned int i = 0; i < sizeof(read_data.bytes); i++) {
+            size_t str_offset = word_num * 4 + i;
+            str_out[str_offset] = read_data.bytes[i];
+
+            if (read_data.bytes[i] == 0) {
+                // Read successful, good to exit
+                return str_offset;
+            }
+
+            // Check if we filled the buffer and if so, return
+            str_offset++;
+            if (str_offset + 1 == max_len) {
+                str_out[str_offset] = 0;
+                return str_offset;
+            }
+        }
+    }
+
+    // Already checked length, we should be good to just write the terminator
+    str_out[word_num * 4] = 0;
+    return word_num * 4;
+}
