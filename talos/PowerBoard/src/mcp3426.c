@@ -1,8 +1,13 @@
 #include "mcp3426.h"
 #include "pico/stdlib.h"
 #include "stdint.h"
+#include "basic_logger/logging.h"
+#include "safety_interface.h"
 #include "async_i2c.h"
 #include "stdio.h"
+
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "mcp3426_adc"
 
 #define MCP3426_ADDR 0x68 // 1101000
 #define MCP3426_GENERAL_CALL_RESET 0x06
@@ -24,7 +29,10 @@ static void mcp3426_on_write(const struct async_i2c_request *req);
 static void mcp3426_on_setup_complete(const struct async_i2c_request *req);
 
 static void mcp3426_on_error(const struct async_i2c_request *req, uint32_t error_code) {
-    printf("ERROR: %x\n", error_code);
+    (void) req;
+
+    LOG_WARN("ADC failure: ", error_code);
+    safety_raise_fault(FAULT_ADC_ERROR);
 }
 
 static uint8_t set_channel_cmds[MCP3426_CHANNEL_COUNT] = {0};
@@ -87,9 +95,9 @@ static void mcp3426_on_write(const struct async_i2c_request *req) {
 
 static void mcp3426_set_channel(enum mcp3426_channel channel)
 {
-    assert(!write_in_progress);
+    assert(!msg_in_progress);
     assert(mode == MCP3426_MODE_CONTINOUS || mode == MCP3426_MODE_ONE_SHOT);
-    assert(channel >= MCP3426_CHANNEL_1 && channel < MCP3426_CHANNEL_COUNT);
+    assert(channel < MCP3426_CHANNEL_COUNT);
 
     set_channel_req.tx_buffer = &set_channel_cmds[channel];
     set_channel_req.bytes_to_send = 1;
@@ -127,7 +135,6 @@ static void mcp3426_on_read(const struct async_i2c_request *req)
         voltage *= 1.0 / (bottom / (bottom + top));
 
         adc_values[channel] = voltage;
-        printf("[ADC %d]: %f\n", channel, voltage);
 
         if(channel == MCP3426_CHANNEL_COUNT - 1)  {
             mcp3426_set_channel(0);
@@ -145,8 +152,7 @@ static void mcp3426_on_read(const struct async_i2c_request *req)
 void mcp3426_init(int adc_mode, enum mcp3426_sample_rate rate, enum mcp3426_gain gain)
 {
     assert(mode == MCP3426_MODE_UNINITIALIZED);
-    assert(!read_in_progress);
-    assert(!write_in_progress);
+    assert(!msg_in_progress);
 
     for (int i = 0; i < MCP3426_CHANNEL_COUNT; i++)
     {
@@ -168,7 +174,7 @@ void mcp3426_init(int adc_mode, enum mcp3426_sample_rate rate, enum mcp3426_gain
 */
 int mcp3426_read(enum mcp3426_channel channel)
 {
-    assert(channel >= MCP3426_CHANNEL_1 && channel < MCP3426_CHANNEL_COUNT);
+    assert(channel < MCP3426_CHANNEL_COUNT);
 
     return adc_values[channel];
 }
