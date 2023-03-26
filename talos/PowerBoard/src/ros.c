@@ -8,12 +8,15 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/robot_state.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
+#include <riptide_msgs2/msg/electrical_readings.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
 #include "build_version.h"
 #include "basic_logger/logging.h"
 
+#include "mcp3426.h"
+#include "analog_io.h"
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
@@ -69,6 +72,7 @@ void ros_rmw_init_error_handling(void)  {
 #define ROBOT_STATE_PUBLISHER_NAME "state/robot"
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
+#define ELECTRICAL_READING_NAME "state/electrical"
 
 bool ros_connected = false;
 
@@ -88,6 +92,9 @@ std_msgs__msg__Bool killswitch_msg;
 rcl_publisher_t killswtich_publisher;
 rcl_publisher_t robot_state_publisher;
 riptide_msgs2__msg__RobotState robot_state_msg = {0};
+rcl_publisher_t electrical_reading_publisher;
+riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = {0};
+
 // TODO: Add node specific items here
 
 // ========================================
@@ -103,6 +110,22 @@ static void soft_kill_subscription_callback(const void * msgin)
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
+
+rcl_ret_t ros_publish_electrical_readings() { 
+    electrical_reading_msg.port_voltage = analog_io_read_port_meas();
+    electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
+    electrical_reading_msg.three_volt_voltage = mcp3426_read(MCP3426_CHANNEL_1);
+    electrical_reading_msg.balanced_voltage = mcp3426_read(MCP3426_CHANNEL_2);
+    electrical_reading_msg.twelve_volt_voltage = mcp3426_read(MCP3426_CHANNEL_3);
+    electrical_reading_msg.five_volt_voltage = mcp3426_read(MCP3426_CHANNEL_4);
+    
+    size_t esc_current_length = sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
+    for(size_t i = 0; i < esc_current_length; i++) { 
+        electrical_reading_msg.esc_current[i] = 0;
+    }
+
+    return RCL_RET_OK;
+}
 
 rcl_ret_t ros_publish_killswitch() { 
     killswitch_msg.data = safety_kill_get_asserting_kill();
@@ -213,6 +236,12 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, RobotState),
         ROBOT_STATE_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(
+        &electrical_reading_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
+        ELECTRICAL_READING_NAME));
+
     RCRETCHECK(rclc_subscription_init_best_effort(
         &soft_kill_subscriber,
         &node,
@@ -242,6 +271,7 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
     RCSOFTCHECK(rcl_subscription_fini(&soft_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&robot_state_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswtich_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));

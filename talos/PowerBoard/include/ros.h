@@ -72,4 +72,6 @@ rcl_ret_t ros_publish_killswitch();
 
 rcl_ret_t ros_publish_robot_state();
 
+rcl_ret_t ros_publish_electrical_readings();
+
 #endif

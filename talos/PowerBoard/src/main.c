@@ -25,6 +25,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define ELECTRICAL_READINGS_INTERVAL 1000
 #define KILLSWITCH_PUBLISH_TIME_MS SAFETY_KILL_SWITCH_TIMEOUT_MS
 
 // Initialize all to nil time
@@ -36,6 +37,7 @@ absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_killswitch_publish = {0};
 absolute_time_t next_robot_state_publish = {0};
+absolute_time_t next_electrical_reading_publish = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -80,6 +82,7 @@ static void start_ros_timers() {
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
     next_robot_state_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
+    next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
 }
 
 /**
@@ -118,6 +121,10 @@ static void tick_ros_tasks() {
 
     if(timer_ready(&next_robot_state_publish, KILLSWITCH_PUBLISH_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_robot_state());
+    }
+
+    if(timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_electrical_readings());
     }
 }
 
