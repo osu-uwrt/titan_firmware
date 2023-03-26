@@ -111,23 +111,37 @@ static void soft_kill_subscription_callback(const void * msgin)
 // Public Task Methods (called in main tick)
 // ========================================
 
-rcl_ret_t ros_publish_electrical_readings() { 
+static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
+    float top = 10000.0;
+    float bottom;
+
+    if (is_3v3) {
+        bottom = 10000.0;
+    } else {
+        bottom = 1000.0;
+    }
+    return adc_voltage * 1.0 / (bottom / (bottom + top));
+}
+
+rcl_ret_t ros_publish_electrical_readings() {
     electrical_reading_msg.port_voltage = analog_io_read_port_meas();
     electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
-    electrical_reading_msg.three_volt_voltage = mcp3426_read(MCP3426_CHANNEL_1);
-    electrical_reading_msg.balanced_voltage = mcp3426_read(MCP3426_CHANNEL_2);
-    electrical_reading_msg.twelve_volt_voltage = mcp3426_read(MCP3426_CHANNEL_3);
-    electrical_reading_msg.five_volt_voltage = mcp3426_read(MCP3426_CHANNEL_4);
-    
+    electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
+    electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
+    electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
+    electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
+
     size_t esc_current_length = sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
-    for(size_t i = 0; i < esc_current_length; i++) { 
+    for(size_t i = 0; i < esc_current_length; i++) {
         electrical_reading_msg.esc_current[i] = 0;
     }
+
+    RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
 
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_publish_killswitch() { 
+rcl_ret_t ros_publish_killswitch() {
     killswitch_msg.data = safety_kill_get_asserting_kill();
 
     RCSOFTRETCHECK(rcl_publish(&killswtich_publisher, &killswitch_msg, NULL));

@@ -4,8 +4,8 @@
 
 void analog_io_init();
 
-uint16_t analog_io_read_port_meas();
+float analog_io_read_port_meas();
 
-uint16_t analog_io_read_stbd_meas();
+float analog_io_read_stbd_meas();
 
 #endif

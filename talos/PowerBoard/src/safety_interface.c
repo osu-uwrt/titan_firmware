@@ -36,6 +36,7 @@ void safety_handle_enable(void) {
 
 void safety_interface_setup(void) {
     gpio_init(PHYS_KILLSWITCH_PIN);
+    gpio_disable_pulls(PHYS_KILLSWITCH_PIN);
 }
 
 void safety_interface_init(void) {
@@ -43,7 +44,7 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-    safety_kill_switch_update(PHYS_KILL_SWITCH, gpio_get(PHYS_KILLSWITCH_PIN), true);
+    safety_kill_switch_update(PHYS_KILL_SWITCH, !gpio_get(PHYS_KILLSWITCH_PIN), true);
 }
 
 void safety_interface_deinit(void) {

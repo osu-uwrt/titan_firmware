@@ -124,16 +124,6 @@ static void mcp3426_on_read(const struct async_i2c_request *req)
         voltage *= 2.048 * 2.0;
         voltage /= 65536.0;
 
-        float top = 10000.0;
-        float bottom = 0.0;
-
-        if (channel == 0) {
-            bottom = 10000.0;
-        } else {
-            bottom = 1000.0;
-        }
-        voltage *= 1.0 / (bottom / (bottom + top));
-
         adc_values[channel] = voltage;
 
         if(channel == MCP3426_CHANNEL_COUNT - 1)  {
@@ -168,11 +158,11 @@ void mcp3426_init(int adc_mode, enum mcp3426_sample_rate rate, enum mcp3426_gain
 }
 
 /**
- * Reads the most recent value returned by the ADC.
+ * Reads the most recent voltage returned by the ADC
  *
  * If not value has been read yet, zero is returned.
 */
-int mcp3426_read(enum mcp3426_channel channel)
+float mcp3426_read_voltage(enum mcp3426_channel channel)
 {
     assert(channel < MCP3426_CHANNEL_COUNT);
 

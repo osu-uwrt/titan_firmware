@@ -3,6 +3,7 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
+#include "analog_io.h"
 #include "async_i2c.h"
 #include "mcp3426.h"
 #include "ros.h"
@@ -166,6 +167,7 @@ int main() {
     gpio_init(FAN_SWITCH_PIN);
     gpio_put(FAN_SWITCH_PIN, true);
     gpio_set_dir(FAN_SWITCH_PIN, true);
+    analog_io_init();
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
     mcp3426_init(MCP3426_MODE_CONTINOUS, MCP3426_SAMPLE_RATE_16_BIT, MCP3426_GAIN_X1);
 
