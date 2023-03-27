@@ -3,13 +3,17 @@ add_library(bootloader_runtime INTERFACE)
 target_sources(bootloader_runtime INTERFACE
 	${CMAKE_CURRENT_LIST_DIR}/boot_app.c
 	${CMAKE_CURRENT_LIST_DIR}/clocks.c
+	${CMAKE_CURRENT_LIST_DIR}/crc32.c
 	${CMAKE_CURRENT_LIST_DIR}/crt0.S
 	${CMAKE_CURRENT_LIST_DIR}/flash.c
     ${CMAKE_CURRENT_LIST_DIR}/runtime.c
 	${CMAKE_CURRENT_LIST_DIR}/timer.c
 )
 
-target_include_directories(bootloader_runtime INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include_sdk_override)
+target_include_directories(bootloader_runtime INTERFACE
+	${CMAKE_CURRENT_LIST_DIR}/include
+	${CMAKE_CURRENT_LIST_DIR}/include_sdk_override
+)
 
 # Linking and early initialization
 # Required since we want to have a custom memory map and crt0, so we can't use pico_standard_link

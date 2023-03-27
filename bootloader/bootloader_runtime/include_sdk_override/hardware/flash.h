@@ -105,6 +105,13 @@ void flash_get_unique_id(uint8_t *id_out);
  */
 void flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count);
 
+/*! \brief Read flash
+ *
+ * \param flash_offs Flash address of the first byte to be read. Must be aligned to a 256-byte flash page.
+ * \param data_out Pointer to the data to write the contents of flash into
+ * \param count Number of bytes to read. Must be a multiple of 256 bytes (one page).
+ */
+void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count);
 
 #ifdef __cplusplus
 }

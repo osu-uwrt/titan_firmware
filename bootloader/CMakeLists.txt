@@ -12,10 +12,16 @@ target_sources(bootloader_common INTERFACE
 target_compile_options(bootloader_common INTERFACE -Wall -Wextra -Wno-format)
 target_include_directories(bootloader_common INTERFACE include)
 
+# Target minimum compile size to fit in 16K
+target_compile_options(bootloader_common INTERFACE -Os)
+
 # Define linking and targets
 target_link_libraries(bootloader_common INTERFACE
 	bootloader_runtime
 	hardware_uart
+
+	# We need canmore protocol in all builds as the bl_server depends on it
+	canmore_protocol
 )
 
 # Define CAN bus bootloader variant
@@ -34,7 +40,6 @@ target_link_libraries(bootloader_can
 
 	hardware_spi
 	can_mcp251Xfd_ll_driver
-	canmore_protocol
 )
 pico_add_extra_outputs(bootloader_can)
 

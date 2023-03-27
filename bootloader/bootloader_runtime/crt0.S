@@ -5,6 +5,7 @@
  */
 
 #include "pico.h"
+#include "pico/bootrom.h"
 #include "hardware/regs/m0plus.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/sio.h"
@@ -183,6 +184,7 @@ _entry_point:
     msr msp, r1
     bx r2
 
+
 // Flash Reset Handler
 // This copies the program into XIP RAM, fixes up VTOR, and begins exiting directly from XIP
 .type _reset_handler,%function
@@ -193,6 +195,24 @@ _reset_handler:
     // However all the other functions in VTOR, including hardfault, is referencing RAM, which hasn't been copied out yet
     // Copy the data out, fixup VTOR, then reset
 
+    // Prepare for bootrom function lookup (needed for both hold bootrom and memcpy function)
+    movs r0, #BOOTROM_ROM_FUNCTION_TABLE_ADDR
+    ldrh r0, [r0]
+    movs r3, #BOOTROM_ROM_LOOKUP_PTR_ADDR
+    ldrh r3, [r3]
+
+    // Only core 0 should run the C runtime startup code; core 1 is normally
+    // sleeping in the bootrom at this point but check to be sure
+    ldr r1, =(SIO_BASE + SIO_CPUID_OFFSET)
+    ldr r1, [r1]
+    cmp r1, #0
+    bne hold_non_core0_in_bootrom
+
+    // Lookup memcpy to copy out data
+    ldr r1, =ROM_FUNC_MEMCPY44
+    blx r3
+    mov r3, r0
+
     // Disable XIP Cache so we can copy out bootloader to memory
     ldr r3, =XIP_CTRL_BASE
     // Stall if a cache flush is running to prevent memory corruption
@@ -201,15 +221,6 @@ _reset_handler:
     movs r1, #1
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
-
-    // Lookup memcpy for copying out bootrom function
-    ldr r0, =BOOTROM_ROM_FUNCTION_TABLE_ADDR
-    ldrh r0, [r0]
-    ldr r1, =0x3443     // _memcpy44 (bootrom code 'C', '4')
-    ldr r3, =BOOTROM_ROM_LOOKUP_PTR_ADDR
-    ldrh r3, [r3]
-    blx r3
-    mov r3, r0
 
     // Copy data from flash into XIP cache
     ldr r0, ram_copyout_start
@@ -230,6 +241,18 @@ _reset_handler:
     msr msp, r0
     bx r1
 
+// ----------------------------------------------------------------------------
+// If core 1 somehow gets into crt0 due to a spectacular VTOR mishap, we need to
+// catch it and send back to the sleep-and-launch code in the bootrom. Shouldn't
+// happen (it should sleep in the ROM until given an entry point via the
+// cross-core FIFOs) but it's good to be defensive.
+
+hold_non_core0_in_bootrom:
+    ldr r1, = 'W' | ('V' << 8)
+    // Lookup bootrom (based on instruction flow before this call here)
+    blx r3
+    bx r0
+
 .align 2
 ram_copyout_start:
 .word __ram_copyout_start__
@@ -248,12 +271,16 @@ ram_copyout_end:
 .type _boot_trampoline,%function
 .thumb_func
 _boot_trampoline:
-    // Reenable XIP Cache for the main application (this is why we need the trampoline)
-    // Also flush the cache as there is garbage in the cache right now
-    movs r1, #1
-    ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_SET_BITS)
-    str r1, [r3, #XIP_CTRL_OFFSET]
-    str r1, [r3, #XIP_FLUSH_OFFSET]
+    // Call bootrom flush cache
+    // This reenables XIP Cache for the main application (this is why we need the trampoline)
+    // Also clears the tags so it won't try to use the junk we copied in as valid cache
+    movs r0, #BOOTROM_ROM_FUNCTION_TABLE_ADDR
+    ldrh r0, [r0]
+    ldr r1, =ROM_FUNC_FLASH_FLUSH_CACHE
+    movs r3, #BOOTROM_ROM_LOOKUP_PTR_ADDR
+    ldrh r3, [r3]
+    blx r3
+    blx r0
 
     // Call application boot2 (copied into boot2_copyout before calling the function)
     ldr r0, =(app_boot2_copyout + 1)
@@ -275,6 +302,7 @@ _boot_trampoline:
 .section .reset, "ax"
 
 // Reset handler:
+// - disables XIP
 // - clears .bss
 // - calls runtime_init
 // - calls main
@@ -283,14 +311,17 @@ _boot_trampoline:
 .type _ram_reset_entry,%function
 .thumb_func
 _ram_reset_entry:
-    // Only core 0 should run the C runtime startup code; core 1 is normally
-    // sleeping in the bootrom at this point but check to be sure
-    ldr r0, =(SIO_BASE + SIO_CPUID_OFFSET)
-    ldr r0, [r0]
-    cmp r0, #0
-    bne hold_non_core0_in_bootrom
+    // Begin actual environment setup now that we're running in RAM with all our code
+    // No need to copy .data, it was copied in with the code
 
-    // We are already in SRAM with the .data segment, so no need to copy .data
+    // First disable XIP now that we don't need to execute from flash anymore
+    movs r0, #BOOTROM_ROM_FUNCTION_TABLE_ADDR
+    ldrh r0, [r0]
+    ldr r1, =ROM_FUNC_FLASH_EXIT_XIP
+    movs r3, #BOOTROM_ROM_LOOKUP_PTR_ADDR
+    ldrh r3, [r3]
+    blx r3
+    blx r0
 
     // Zero out the BSS
     ldr r1, =__bss_start__
@@ -331,17 +362,6 @@ _exit:
 .thumb_func
 runtime_init:
     bx lr
-
-// ----------------------------------------------------------------------------
-// If core 1 somehow gets into crt0 due to a spectacular VTOR mishap, we need to
-// catch it and send back to the sleep-and-launch code in the bootrom. Shouldn't
-// happen (it should sleep in the ROM until given an entry point via the
-// cross-core FIFOs) but it's good to be defensive.
-
-hold_non_core0_in_bootrom:
-    ldr r0, = 'W' | ('V' << 8)
-    bl rom_func_lookup
-    bx r0
 
 .global __get_current_exception
 .thumb_func
