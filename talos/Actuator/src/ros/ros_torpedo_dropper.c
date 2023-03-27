@@ -5,7 +5,11 @@
 #include <riptide_msgs2/action/arm_torpedo_dropper.h>
 #include <riptide_msgs2/action/actuate_droppers.h>
 #include <riptide_msgs2/action/actuate_torpedos.h>
+
 #include "ros/ros.h"
+#include "actuators/torpedo.h"
+#include "actuators/dropper.h"
+#include "actuators/arm_state.h"
 
 #include <assert.h> // TODO remove
 
@@ -40,12 +44,12 @@ rcl_ret_t arm_torpedo_dropper_goal_request(rclc_action_goal_handle_t *goal_handl
     bool result;
     if (req->goal.arm_droppers)
     {
-        // result = dropper_arm();
+        result = dropper_arm();
         assert(false);
     }
     else if (req->goal.arm_torpedos)
     {
-        // result = torpedo_arm();
+        result = torpedo_arm();
     }
     else
     {
@@ -77,12 +81,12 @@ bool arm_torpedo_dropper_cancel(rclc_action_goal_handle_t *goal_handle, void *co
     if (req->goal.arm_torpedos)
     {
         assert(false);
-        // cancel = torpedo_disarm();
+        cancel = torpedo_disarm();
     }
     else if (req->goal.arm_droppers)
     {
         assert(false);
-        // cancel = dropper_disarm();
+        cancel = dropper_disarm();
     }
     else
     {
@@ -113,8 +117,7 @@ rcl_ret_t actuate_torpedos_goal_request(rclc_action_goal_handle_t * goal_handle,
 	uint8_t torpedo = req->goal.torpedo_id;
 
     assert(false);
-    bool result = false;
-	//  bool result = torpedo_fire(torpedo);
+    bool result = torpedo_fire(torpedo);
 
 	if(result)  {
 		LOG_DEBUG("Torpedo fired. Accepted torpedo goal");

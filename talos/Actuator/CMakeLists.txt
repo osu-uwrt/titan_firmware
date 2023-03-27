@@ -64,6 +64,7 @@ target_link_libraries(actuator_mk2
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_adc
 	hardware_pio
+	hardware_pwm
 	# TODO: do we need watchdog here?
 	# Add any additional hardware here (ex. hardware_i2c)
 )
