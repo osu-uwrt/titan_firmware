@@ -212,7 +212,7 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
         rpm_msg.rpm[thruster_base + i] = rpm;
     }
 
-    rpm_msg.valid_mask = valid_mask;
+    rpm_msg.rpm_valid_mask = valid_mask;
 
     RCSOFTRETCHECK(rcl_publish(&dshot_rpm_publisher, &rpm_msg, NULL));
 

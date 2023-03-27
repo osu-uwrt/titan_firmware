@@ -110,7 +110,7 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
     invalid_params_if(FLASH, count & (FLASH_PAGE_SIZE - 1));
     rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
-    assert(flash_exit_xip && connect_internal_flash && flash_range_program);
+    assert(flash_exit_xip && connect_internal_flash);
 
     __compiler_memory_barrier();
 

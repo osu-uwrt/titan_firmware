@@ -72,6 +72,10 @@ int main(int argc, char** argv) {
     printf("Board ID: %s\n", id_out);
     printf("Version String: %s\n", version_str);
 
+    if (!bl_client_reboot_server(&bl_client_inst)) {
+        printf("Failed to reboot!\n");
+    }
+
     reg_mapped_client_linux_close(&comm_inst);
     return 0;
 }

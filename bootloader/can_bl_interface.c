@@ -54,7 +54,7 @@
 
 #define UTILITY_MSG_PAYLOAD_SIZE_ENUM MCP251XFD_PAYLOAD_8BYTE
 
-uint32_t saved_client_id;
+int saved_client_id;
 
 
 // ========================================
@@ -223,9 +223,38 @@ static bool can_mcp251x_get_term_state(bool *term_state_out) {
 // Driver Exports
 // ========================================
 
+#ifdef TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP
+
+// Includ board-specific file override
+// This can be enabled in the board definition file
+// This allows for client id to be looked up at startup (such as on the ESC board to determine client ID by pin type)
+// If you are getting an error that this file doesn't exist, ensure that either
+//  a) If you want to determine the client_id at runtime, the file exists in the folder with the right name
+//  b) or if you just want to use the generic CAN_BUS_CLIENT_ID, that you don't set TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP
+
+#include TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP
+
+#else
+
+/*
+ * Default client ID lookup function
+ * Used if not overridden by board-specific file
+ */
+static bool bl_board_get_client_id(int *client_id) {
+    *client_id = CAN_BUS_CLIENT_ID;
+    return true;
+}
+
+#endif
+
 bool bl_interface_init(void)
 {
-    saved_client_id = CAN_BUS_CLIENT_ID;
+    // Attempt to get client id
+    // This allows for the client to be determined at runtime
+    // If this runtime determination fails, this will report as a failure for CAN init
+    if (!bl_board_get_client_id(&saved_client_id)) {
+        return false;
+    }
 
     //--- Compute Filter Values ---
     // Mask was set up in initialization (use configured client_id and channel, set ID to be from agent)
