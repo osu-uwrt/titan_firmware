@@ -5,6 +5,7 @@
 #include "safety_interface.h"
 #include "async_i2c.h"
 #include "stdio.h"
+#include "math.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "mcp3426_adc"
@@ -24,6 +25,10 @@
 /// Creates a MCP3426 configuration byte.
 #define mcp3426_config_reg(read, chan, mode, rate, gain) (read << 7) | (chan << 5) | (mode << 4) | (rate << 2) | (gain)
 
+static float adc_values[MCP3426_CHANNEL_COUNT] = {0};
+static int mode = MCP3426_MODE_UNINITIALIZED;
+static bool msg_in_progress = false;
+
 static void mcp3426_on_read(const struct async_i2c_request *req);
 static void mcp3426_on_write(const struct async_i2c_request *req);
 static void mcp3426_on_setup_complete(const struct async_i2c_request *req);
@@ -33,6 +38,10 @@ static void mcp3426_on_error(const struct async_i2c_request *req, uint32_t error
 
     LOG_WARN("ADC failure: ", error_code);
     safety_raise_fault(FAULT_ADC_ERROR);
+
+    for (size_t i = 0; i < MCP3426_CHANNEL_COUNT; i++)  {
+        adc_values[i] = NAN;
+    }
 }
 
 static uint8_t set_channel_cmds[MCP3426_CHANNEL_COUNT] = {0};
@@ -76,11 +85,6 @@ static struct async_i2c_request read_req = {
     .failed_callback = &mcp3426_on_error,
     .next_req_on_success = NULL,
 };
-static int mode = MCP3426_MODE_UNINITIALIZED;
-
-static bool msg_in_progress = false;
-
-static float adc_values[MCP3426_CHANNEL_COUNT] = {0};
 
 static int64_t mcp3426_enqueue_read(__unused alarm_id_t id, __unused void *user_data) {
     async_i2c_enqueue(&read_req, &msg_in_progress);
