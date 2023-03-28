@@ -138,6 +138,10 @@ SECTIONS
         __bss_end__ = .;
     } > SCRATCH_X
 
+    .trampoline_align : {
+        . = ALIGN(256);
+    } > FLASH_BL
+
     /* Stash boot trampoline at bottom of stack, needed since XIP cache needs to be re-enabled here */
     .boot_trampoline : {
         . = ALIGN(4);

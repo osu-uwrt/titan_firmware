@@ -141,6 +141,7 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
         if (can_get && rx_remaining) {
             if (cmd_rx_count < sizeof(cmd_buf)) {
                 (void) ssi_hw->dr0;
+                cmd_rx_count++;
             } else {
                 *data_out++ = (uint8_t)ssi_hw->dr0;
             }

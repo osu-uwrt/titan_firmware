@@ -33,7 +33,10 @@ void boot_app_attempt(void) {
         // We need to copy out a boot trampoline to a different area of RAM (at the bottom of the stack) as we're executing in XIP cache
         // This needs to be enabled before launching the application, which we can't do here
         size_t boot_trampoline_size = ((uintptr_t)&__boot_trampoline_end__) - ((uintptr_t)&__boot_trampoline_entry__);
-        memcpy(&__boot_trampoline_entry__, &__boot_trampoline_source__, boot_trampoline_size);
+        uintptr_t boot_trampoline_offset = ((uintptr_t)&__boot_trampoline_source__) - XIP_BASE;
+        hard_assert(boot_trampoline_offset % FLASH_PAGE_SIZE == 0);
+        hard_assert(boot_trampoline_size <= FLASH_PAGE_SIZE);
+        flash_read(boot_trampoline_offset, (uint8_t*)&__boot_trampoline_entry__, FLASH_PAGE_SIZE);
 
         // Call the trampoline. This shouldn't return
         __boot_trampoline_entry__();

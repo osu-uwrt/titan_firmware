@@ -211,7 +211,7 @@ _reset_handler:
     // Lookup memcpy to copy out data
     ldr r1, =ROM_FUNC_MEMCPY44
     blx r3
-    mov r3, r0
+    mov r4, r0
 
     // Disable XIP Cache so we can copy out bootloader to memory
     ldr r3, =XIP_CTRL_BASE
@@ -227,7 +227,7 @@ _reset_handler:
     ldr r1, ram_copyout_source
     ldr r2, ram_copyout_end
     subs r2, r2, r0 // Compute length of copyout
-    blx r3
+    blx r4
     ldr r0, =__logical_binary_start
 
     // Now that we've copied out the data, fixup the vector table pointed to by r3 and to be all in flash
