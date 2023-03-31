@@ -351,11 +351,11 @@ void can_mcp251x_send_heartbeat(int mode) {
 }
 
 void bl_interface_heartbeat(void) {
-    can_mcp251x_send_heartbeat(CANMORE_TITAN_HEARTBEAT_MODE_BOOTLOADER);
+    can_mcp251x_send_heartbeat(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER);
 }
 
 void bl_interface_notify_boot(void) {
-    can_mcp251x_send_heartbeat(CANMORE_TITAN_HEARTBEAT_MODE_BOOT_DELAY);
+    can_mcp251x_send_heartbeat(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY);
 }
 
 bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out) {

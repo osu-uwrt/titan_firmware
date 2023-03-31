@@ -2,7 +2,7 @@
 
 int reg_mapped_client_read_register(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset, uint32_t *data_out) {
     reg_mapped_request_t req = {.read_pkt = {
-        .flags = {.f = {.write = false}},
+        .flags = {.f = {.write = false, .mode = cfg->control_interface_mode}},
         .count = 0,
         .page = page,
         .offset = offset
@@ -31,7 +31,7 @@ int reg_mapped_client_read_register(const reg_mapped_client_cfg_t *cfg, uint8_t 
 
 int reg_mapped_client_write_register(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset, uint32_t data) {
     reg_mapped_request_t req = {.write_pkt = {
-        .flags = {.f = {.write = true}},
+        .flags = {.f = {.write = true, .mode = cfg->control_interface_mode}},
         .count = 0,
         .page = page,
         .offset = offset,
@@ -67,7 +67,7 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
 
     if (cfg->transfer_mode == TRNASFER_MODE_BULK) {
         reg_mapped_request_t req = {.write_pkt = {
-            .flags = {.f = {.write = true, .bulk_req = true}},
+            .flags = {.f = {.write = true, .bulk_req = true, .mode = cfg->control_interface_mode}},
             .count = 0,
             .page = page,
             .offset = offset_start,

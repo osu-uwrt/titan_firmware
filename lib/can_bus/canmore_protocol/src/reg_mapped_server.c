@@ -21,7 +21,7 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
         return REG_MAPPED_RESULT_SUCCESSFUL;
     }
     if (page->page_type == PAGE_TYPE_MEMORY_MAPPED_BYTE) {
-        const int word_size = sizeof(req->data);
+        const unsigned int word_size = sizeof(req->data);
 
         // If the request is completely outside of the region, return invalid address
         if (req->offset * word_size >= page->type.mem_mapped_byte.size) {
@@ -41,7 +41,7 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
         else {
             uint32_t write_word = req->data;
             size_t write_offset = req->offset * word_size;
-            for (int i = 0; i < (word_size - extra_bytes); i++) {
+            for (unsigned int i = 0; i < (word_size - extra_bytes); i++) {
                 page->type.mem_mapped_byte.base_addr[write_offset++] = write_word;
                 write_word >>= 8;
             }
@@ -109,7 +109,7 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
         return REG_MAPPED_RESULT_SUCCESSFUL;
     }
     if (page->page_type == PAGE_TYPE_MEMORY_MAPPED_BYTE) {
-        const int word_size = sizeof(*data_out);
+        const unsigned int word_size = sizeof(*data_out);
 
         // If the request is completely outside of the region, return invalid address
         if (req->offset * word_size >= page->type.mem_mapped_byte.size) {
@@ -129,7 +129,7 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
         else {
             uint32_t partial_read = 0;
             size_t read_offset = req->offset * word_size;
-            for (int i = 0; i < (word_size - required_padding); i++) {
+            for (unsigned int i = 0; i < (word_size - required_padding); i++) {
                 partial_read |= page->type.mem_mapped_byte.base_addr[read_offset++] << (8*i);
             }
 
@@ -192,7 +192,7 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
 
     // Initialize decode variables
     reg_mapped_request_t *req = (reg_mapped_request_t *)msg;
-    uint8_t result_code;
+    uint8_t result_code = REG_MAPPED_RESULT_MALFORMED_REQUEST;
     uint32_t read_data = 0;
     reg_mapped_response_t response = {0};
     size_t response_size;
@@ -224,6 +224,11 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
     if (request_type_bulk_end && !request_type_bulk) {
         // Bulk end can only be sent if its a bulk request
         result_code = REG_MAPPED_RESULT_MALFORMED_REQUEST;
+        goto finish_request;
+    }
+
+    if (flags.f.mode != inst->control_interface_mode) {
+        result_code = REG_MAPPED_RESULT_INVALID_MODE;
         goto finish_request;
     }
 

@@ -124,7 +124,7 @@ static reg_mapped_server_register_def_t bl_server_flash_control_regs[] = {
     DEFINE_REG_EXEC_CALLBACK(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, flash_control_command_cb, REGISTER_PERM_WRITE_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, &flash_control_target_addr, REGISTER_PERM_READ_WRITE),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_OFFSET, &flash_control_bl_write_key, REGISTER_PERM_READ_WRITE),
-    DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET, &flash_control_target_addr, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET, &flash_size, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_CRC_OFFSET, &flash_control_crc, REGISTER_PERM_READ_ONLY),
 };
 
@@ -141,7 +141,8 @@ static reg_mapped_server_page_def_t bl_server_pages[] = {
 static reg_mapped_server_inst_t bl_server_inst = {
     .tx_func = &bl_interface_transmit,
     .page_array = bl_server_pages,
-    .num_pages = sizeof(bl_server_pages)/sizeof(*bl_server_pages)
+    .num_pages = sizeof(bl_server_pages)/sizeof(*bl_server_pages),
+    .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
 };
 
 // ========================================

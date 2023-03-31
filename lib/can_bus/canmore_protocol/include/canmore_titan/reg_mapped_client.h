@@ -7,6 +7,10 @@
 
 #include "canmore_titan/reg_mapped_protocol.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Transfer modes supported by client
  */
@@ -74,6 +78,10 @@ typedef bool (*reg_mapped_client_rx_func)(uint8_t *buf, size_t len, unsigned int
  * @brief Configuration struct for reg mapped client library functions
  */
 typedef struct reg_mapped_client_cfg {
+    /**
+     * @brief The mode for the current reg mapped interface to send
+     */
+    uint8_t control_interface_mode;
     /**
      * @brief Callback to perform transmit
      */
@@ -163,5 +171,9 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
  */
 int reg_mapped_client_read_string_page(const reg_mapped_client_cfg_t *cfg, uint8_t page_num,
                                         char* str_out, size_t max_len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

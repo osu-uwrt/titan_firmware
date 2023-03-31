@@ -7,6 +7,10 @@
 
 #include "canmore_titan/reg_mapped_protocol.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct reg_mapped_server_register_definition;
 
 // ========================================
@@ -105,6 +109,7 @@ typedef struct reg_mapped_server_inst {
     reg_mapped_server_tx_func tx_func;
     const reg_mapped_server_page_def_t *page_array;
     size_t num_pages;
+    uint8_t control_interface_mode;
 
     // Should be initialized to 0, holds state tracking data
     // ... Put stuff here
@@ -222,5 +227,9 @@ typedef struct reg_mapped_server_inst {
  * @param len Length of msg
  */
 void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *msg, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

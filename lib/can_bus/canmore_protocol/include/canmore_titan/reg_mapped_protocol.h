@@ -4,6 +4,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Register-Mapped Channel Protocol
  * ********************************
@@ -106,10 +110,12 @@
  * Field Definitions:
  *
  * Flags:
- *   +-*-*-*-*-+-*-+-*-+-*-+-*-+
- *   |   RFU   | M | E | B | W |
- *   +-*-*-*-*-+-*-+-*-+-*-+-*-+
- *     7     4   3   2   1   0
+ *   +-*-*-*-+-*-+-*-+-*-+-*-+-*-+
+ *   | Mode  | R | M | E | B | W |
+ *   +-*-*-*-+-*-+-*-+-*-+-*-+-*-+
+ *     7   5   4   3   2   1   0
+ *   Mode: The Control Interface Mode implemented by this protocol
+ *   R (RFU): Reserved for future use, set to 0
  *   W (Write): Set to 1 if write request, 0 if read request
  *   B (Bulk Request): Set to 1 if a bulk request, 0 if normal request
  *   E (Bulk End): Set to 1 if the last transfer in a bulk request, 0 if not last request or not a bulk request
@@ -167,6 +173,8 @@ union reg_mapped_request_flags {
         uint8_t bulk_req:1;
         uint8_t bulk_end:1;
         uint8_t multiword:1;
+        uint8_t reserved:1;
+        uint8_t mode:3;
     } f;
 };
 static_assert(sizeof(union reg_mapped_request_flags) == 1, "Struct did not pack properly");
@@ -198,6 +206,7 @@ static_assert(sizeof(reg_mapped_request_t) == REG_MAPPED_MAX_REQUEST_SIZE, "Stru
 #define REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS 3
 #define REG_MAPPED_RESULT_INVALID_REGISTER_MODE 4
 #define REG_MAPPED_RESULT_INVALID_DATA 5
+#define REG_MAPPED_RESULT_INVALID_MODE 6
 
 #define REG_MAPPED_MAX_RESPONSE_SIZE 5
 typedef union reg_mapped_response {
@@ -216,5 +225,12 @@ typedef union reg_mapped_response {
         uint32_t data;
     } read_pkt;
 } reg_mapped_response_t;
+
+#define REG_MAPPED_PAGE_NUM_WORDS 0x100
+#define REG_MAPPED_PAGE_SIZE (REG_MAPPED_PAGE_NUM_WORDS * 4)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

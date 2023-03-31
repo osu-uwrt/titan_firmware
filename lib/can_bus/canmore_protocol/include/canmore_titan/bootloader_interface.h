@@ -1,8 +1,13 @@
 #ifndef CANMORE_TITAN__BOOTLOADER_INTERFACE_H
 #define CANMORE_TITAN__BOOTLOADER_INTERFACE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Bootloader Interface Map
+ * Implemented control interface for CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER
  *
  * Page Map:
  * ==========
@@ -132,5 +137,9 @@
 #define CANMORE_BL_FLASH_READ_ADDR_ALIGN_MASK 0xFF
 #define CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK 0xFF
 #define CANMORE_BL_FLASH_ERASE_ADDR_ALIGN_MASK 0xFFF
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
