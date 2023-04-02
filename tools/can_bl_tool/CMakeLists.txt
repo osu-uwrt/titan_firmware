@@ -17,6 +17,8 @@ add_subdirectory(${REPO_DIR}/lib/can_bus/canmore_protocol canmore_protocol)
 add_executable(can_bl_tool
 	main.cpp
 	UF2.cpp
+	canmore_cpp/Discovery.cpp
+	canmore_cpp/CANDiscovery.cpp
 	canmore_cpp/RegMappedClient.cpp
 	canmore_cpp/RegMappedCANClient.cpp
 	canmore_cpp/BootloaderClient.cpp

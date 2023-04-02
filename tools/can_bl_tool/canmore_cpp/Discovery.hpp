@@ -1,0 +1,248 @@
+#pragma once
+
+#include <chrono>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <thread>
+#include <vector>
+#include <unordered_map>
+
+#include "canmore_titan/protocol.h"
+#include "BootloaderClient.hpp"
+
+namespace Canmore {
+
+// Timeout to use when switching between modes for discovery
+#define MODE_SWITCH_TIMEOUT_MS 500
+
+// ========================================
+// Interface Definitions
+// ========================================
+
+class Device {
+    public:
+        Device(std::string interfaceName, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+            interfaceName(interfaceName), clientId(clientId), termValid(heartbeatData.pkt.term_valid),
+            termEnabled(heartbeatData.pkt.term_enabled), inErrorState(heartbeatData.pkt.error),
+            mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::steady_clock::now()) {}
+
+        // Constructor to allow creating Device for time comparisons
+        Device(std::chrono::time_point<std::chrono::steady_clock> time):
+            interfaceName(""), clientId(0), termValid(false), termEnabled(false), inErrorState(false),
+            mode(0), discoveryTime(time) {}
+
+        virtual ~Device() {}
+
+        const std::string interfaceName;
+        const uint8_t clientId;
+        const bool termValid;
+        const bool termEnabled;
+        const bool inErrorState;
+        const unsigned int mode;
+        const std::chrono::time_point<std::chrono::steady_clock> discoveryTime;
+
+        bool operator<(const Device &y) const { return discoveryTime < y.discoveryTime; }
+        bool operator==(const Device &y) const { return (interfaceName == y.interfaceName) &&
+                                                        (clientId == y.clientId);}
+};
+
+class NormalDevice: public Device {
+    public:
+        using Device::Device;
+
+        virtual uint64_t getFlashId() = 0;
+        virtual std::shared_ptr<BootloaderClient> switchToBootloaderMode() = 0;
+};
+
+class BootDelayDevice: public Device {
+    public:
+        using Device::Device;
+
+        virtual std::shared_ptr<BootloaderClient> enterBootloader() = 0;
+};
+
+class BootloaderDevice: public Device {
+    public:
+        using Device::Device;
+
+        virtual uint64_t getFlashId() = 0;
+        virtual std::shared_ptr<BootloaderClient> getClient() = 0;
+};
+
+class Discovery {
+    public:
+        ~Discovery();
+
+        virtual std::string getInterfaceName() = 0;
+        void discoverDevices(std::vector<std::shared_ptr<Device>> &devicesOut);
+        std::shared_ptr<BootloaderClient> catchDeviceInBootDelay(uint8_t clientId);
+
+        // Timeout in milliseconds or -1 if block indefinitely
+        template<typename DeviceType> std::shared_ptr<DeviceType> waitForDevice(uint8_t clientId, int64_t timeoutMs) {
+            std::shared_ptr<DeviceType> device;
+            std::unique_lock<std::mutex> lock(discoveredDevicesMutex);
+
+            // First check if we can find the device (before entering wait state)
+            for (std::shared_ptr<Device> d : discoveredDevices) {
+                if (d->clientId == clientId && (device = std::dynamic_pointer_cast<DeviceType>(d)) != nullptr) return device;
+            }
+
+            if (timeoutMs == 0) {
+                // If no blocking, just return null
+                return nullptr;
+            }
+            else if (timeoutMs > 0) {
+                // If a timeout specified, wait for timeout
+                discoveredNotify.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&](){
+                    for (std::shared_ptr<Device> d : discoveredDevices) {
+                        if (d->clientId == clientId && (device = std::dynamic_pointer_cast<DeviceType>(d)) != nullptr) return true;
+                    }
+                    return false;
+                });
+            }
+            else {
+                // Else (-1) wait indefinitely
+                discoveredNotify.wait(lock, [&](){
+                    for (std::shared_ptr<Device> d : discoveredDevices) {
+                        if (d->clientId == clientId && (device = std::dynamic_pointer_cast<DeviceType>(d)) != nullptr) return true;
+                    }
+                    return false;
+                });
+            }
+
+            // Note that this will return null if it timed out, as the dynamic cast is the last check before exiting the wait condition
+            return device;
+        }
+
+    protected:
+        // The child constructor should use singletons
+        Discovery();
+
+        // Called after initializing socketFd with a valid file descriptor (for select)
+        void startSocketThread();
+
+        // FD for the socket created by discovery
+        // This socket is polled, and if data is available, handleSocketData is called
+        int socketFd;
+
+        // Callback after select finds data available in the socket
+        // This call should do what is required to socketFd to read the data, and report it with
+        // Must be overidden by client
+        virtual void handleSocketData() = 0;
+
+        // Reports that a device has been discovered by the receiving socket
+        void reportDiscoveredDevice(std::shared_ptr<Device> &device);
+
+    private:
+        // Utility to prune old discovered devices
+        // The caller MUST lock the mutex before calling this function
+        void pruneDiscoveredDevices();
+
+        // Wakes up socketThread to handle events
+        void notifyEventFd();
+
+        // Entry point for the socket thread
+        void socketThread();
+
+        // fd to allow polling alongside socketFd
+        int threadEventFd;
+
+        // Thread handling polling
+        std::thread thread;
+
+        // Condition variable to wait for a device to appear (for catchDeviceInBootDelay)
+        std::condition_variable discoveredNotify;
+
+        // Local copy of discoveredDevices
+        std::set<std::shared_ptr<Device>> discoveredDevices;
+
+        // Lock protecting discoveredDevices
+        std::mutex discoveredDevicesMutex;
+
+        // Flag set during running, cleared to stop the thread
+        std::atomic_flag threadStopFlag;
+};
+
+
+// ========================================
+// CAN Discovery
+// ========================================
+
+struct CANDiscoveryKey
+{
+    int ifIndex;
+    CANDiscoveryKey(int ifIndex): ifIndex(ifIndex) {}
+    bool operator==(const CANDiscoveryKey &other) const { return ifIndex == other.ifIndex; }
+};
+
+struct CANDiscoveryKeyHasher
+{
+    std::size_t operator()(const CANDiscoveryKey& k) const {return std::hash<int>()(k.ifIndex);}
+};
+
+class CANDiscovery: public Discovery, public SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher> {
+    public:
+        friend class SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher>;
+        ~CANDiscovery();
+
+        int getInterfaceNum() {return ifIndex;}
+        std::string getInterfaceName() override {return interfaceName;}
+
+    protected:
+        void handleSocketData() override;
+
+    private:
+        CANDiscovery(int ifIndex);
+        int socketFd;
+        int ifIndex;
+        std::string interfaceName;
+};
+
+class CANNormalDevice: public NormalDevice {
+    public:
+        CANNormalDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+            NormalDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
+            ifIndex(parentInterface.getInterfaceNum()),
+            isFlashIdCached(false) {}
+
+        uint64_t getFlashId() override;
+        std::shared_ptr<BootloaderClient> switchToBootloaderMode() override;
+
+    private:
+        int ifIndex;
+        union flash_id cachedFlashId;
+        bool isFlashIdCached;
+};
+
+class CANBootloaderDevice: public BootloaderDevice {
+    public:
+        CANBootloaderDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+            BootloaderDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
+            ifIndex(parentInterface.getInterfaceNum()),
+            isFlashIdCached(false) {}
+
+        uint64_t getFlashId() override;
+        std::shared_ptr<BootloaderClient> getClient() override;
+
+    private:
+        int ifIndex;
+        union flash_id cachedFlashId;
+        bool isFlashIdCached;
+};
+
+class CANBootDelayDevice: public BootDelayDevice {
+    public:
+        CANBootDelayDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+            BootDelayDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
+            ifIndex(parentInterface.getInterfaceNum()) {}
+
+        std::shared_ptr<BootloaderClient> enterBootloader() override;
+
+    private:
+        int ifIndex;
+};
+
+};

@@ -5,6 +5,7 @@
 
 #include "canmore_titan/protocol.h"
 #include "RP2040FlashInterface.hpp"
+#include "canmore_cpp/Discovery.hpp"
 #include "canmore_cpp/BootloaderClient.hpp"
 #include "canmore_cpp/RegMappedClient.hpp"
 
@@ -64,20 +65,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto blInterface = std::make_shared<Canmore::RegMappedCANClient>(ifIndex, 4, CANMORE_TITAN_CHAN_CONTROL_INTERFACE, 500);
+    auto blInterface = Canmore::RegMappedCANClient::create(ifIndex, 4, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
     Canmore::BootloaderClient client(blInterface);
 
-    union {
-        uint64_t doubleword;
-        uint8_t bytes[8];
-    } flash_id;
+    Canmore::flash_id flash_id = {.doubleword = client.getFlashId()};
 
-    flash_id.doubleword = client.getFlashId();
     size_t i;
     // Generate hex one nibble at a time
     char id_out[17];
     for (i = 0; (i < sizeof(flash_id) * 2); i++) {
-        int nibble = (flash_id.bytes[i/2] >> (4 - 4 * (i&1))) & 0xf;
+        int nibble = (flash_id.byte[i/2] >> (4 - 4 * (i&1))) & 0xf;
         id_out[i] = (char)(nibble < 10 ? nibble + '0' : nibble + 'A' - 10);
     }
     id_out[i] = 0;
