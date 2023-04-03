@@ -115,7 +115,7 @@ extern bool async_i2c_initialized;
  * @return true if the request was successfully queued
  * @return false if the request failed to queue due to a full buffer
  */
-bool async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress);
+bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *in_progress);
 
 /**
  * @brief Queue an i2c write request and block until the request completes, or until timeout until occurs.

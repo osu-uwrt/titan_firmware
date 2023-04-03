@@ -245,9 +245,9 @@ rcl_ret_t ros_publish_killswitch(void) {
 
 rcl_ret_t adc_update(uint8_t client_id) {
     status_msg.three_volt_voltage = (mcp3426_query(0) * .0033067);
-    status_msg.five_volt_voltage = mcp3426_query(1);
-    status_msg.twelve_volt_voltage = (mcp3426_query(3) * .0078905);
-    status_msg.balanced_voltage = (mcp3426_query(2) * .0154);
+    status_msg.five_volt_voltage = (mcp3426_query(1) * .00333556);
+    status_msg.twelve_volt_voltage = (mcp3426_query(2) * .01100897);
+    status_msg.balanced_voltage = (mcp3426_query(3) * .01099898);
     RCSOFTRETCHECK(rcl_publish(&adc_publisher, &status_msg, NULL));
     return RCL_RET_OK;
 }

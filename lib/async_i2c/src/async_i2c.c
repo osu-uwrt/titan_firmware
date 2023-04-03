@@ -30,7 +30,7 @@ static inline bool i2c_reserved_addr(uint8_t addr) {
 // Define Ring Bufer
 struct pending_i2c_request {
     const struct async_i2c_request *pending_request;
-    bool *in_progress;
+    volatile bool *in_progress;
 } pending_request_queue[I2C_REQ_QUEUE_SIZE];
 
 static int request_queue_next_entry = 0;
@@ -57,7 +57,7 @@ static struct active_transfer_data {
 
     // None of these values are valid when request_state is I2C_IDLE
     const struct async_i2c_request *request;
-    bool *in_progress;
+    volatile bool *in_progress;
     uint16_t bytes_sent;
     uint16_t bytes_received;
     uint16_t receive_commands_queued;
@@ -153,7 +153,7 @@ static int64_t async_i2c_timeout_callback(__unused alarm_id_t id, __unused void 
  * @param in_progress The pointer to the in_progress boolean
  */
 int total_allocated_alarm_count = 0;
-static bool async_i2c_start_request_internal(const struct async_i2c_request *request, bool *in_progress) {
+static bool async_i2c_start_request_internal(const struct async_i2c_request *request, volatile bool *in_progress) {
     LOG_DEBUG("Starting request 0x%p", request);
     active_transfer.request = request;
     active_transfer.in_progress = in_progress;
@@ -437,7 +437,7 @@ static bool async_i2c_queue_full(void) {
     return ((request_queue_next_space + 1) % I2C_REQ_QUEUE_SIZE) == request_queue_next_entry;
 }
 
-bool async_i2c_enqueue(const struct async_i2c_request *request, bool *in_progress) {
+bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *in_progress) {
     valid_params_if(ASYNC_I2C, async_i2c_validate_request(request));
     invalid_params_if(ASYNC_I2C, *in_progress);
     hard_assert_if(ASYNC_I2C, !async_i2c_initialized);
@@ -516,7 +516,7 @@ int async_i2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t 
         .timeout = until
     };
 
-    bool in_progress = false;
+    volatile bool in_progress = false;
     async_i2c_enqueue(&req, &in_progress);
 
     while (in_progress) {
@@ -545,7 +545,7 @@ int async_i2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, s
         .timeout = until
     };
 
-    bool in_progress = false;
+    volatile bool in_progress = false;
     async_i2c_enqueue(&req, &in_progress);
 
     while (in_progress) {
