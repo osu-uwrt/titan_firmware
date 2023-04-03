@@ -2,12 +2,10 @@
 #include <system_error>
 #include <cstring>
 
-#include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
 
 #include <net/if.h>
-#include <sys/ioctl.h>
 #include <sys/socket.h>
 
 #include <linux/can.h>
@@ -21,28 +19,6 @@ using namespace Canmore;
 
 // The W25Q16JV datasheet specifies max sector erase time to be 400ms
 #define REG_MAPPED_TIMEOUT_MS 500
-
-// std::unordered_map<CANSocketKey,std::weak_ptr<RegMappedCANClient>,CANSocketKeyHasher> RegMappedCANClient::clients;
-
-// std::shared_ptr<RegMappedCANClient> RegMappedCANClient::create(int ifIndex, uint8_t clientId, uint8_t channel)
-// {
-//     // Search for instance
-//     auto key = CANSocketKey(ifIndex, clientId, channel);
-//     auto it = clients.find(key);
-//     if (it != clients.end()) {
-//         // Weak pointer exists, check if still valid
-//         auto client = it->second.lock();
-//         if (client) {
-//             // Client still valid, we can return it
-//             return client;
-//         }
-//     }
-
-//     // We couldn't get a client, make a new one
-//     auto client = std::shared_ptr<RegMappedCANClient>(new RegMappedCANClient(ifIndex, clientId, channel));
-//     clients[key] = client;
-//     return client;
-// }
 
 RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t channel) :
     ifIndex(ifIndex), clientId(clientId), channel(channel), socketFd(-1)

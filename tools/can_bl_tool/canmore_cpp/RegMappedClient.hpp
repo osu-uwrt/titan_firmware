@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <unordered_map>
 
+#include <arpa/inet.h>
+
 #include "SocketSingleton.hpp"
 
 namespace Canmore {
@@ -127,6 +129,76 @@ class RegMappedCANClient: public RegMappedClient, public SocketSingleton<RegMapp
     public:
         RegMappedCANClient(RegMappedCANClient const &) = delete;
         RegMappedCANClient& operator=(RegMappedCANClient const &) = delete;
+};
+
+// ========================================
+// Ethernet
+// ========================================
+
+struct EthernetSocketKey
+{
+    struct in_addr ipAddr;
+    uint16_t port;
+
+    EthernetSocketKey(struct in_addr ipAddr, uint16_t port): ipAddr(ipAddr), port(port) {}
+
+    bool operator==(const EthernetSocketKey &other) const {
+        return (ipAddr.s_addr == other.ipAddr.s_addr
+                && port == other.port);
+    }
+};
+
+struct EthernetSocketKeyHasher
+{
+    std::size_t operator()(const EthernetSocketKey& k) const
+    {
+        using std::hash;
+
+        // Since client_id and channel are 8-bit integers
+        // Just hash the combined 16-bit integer
+        return hash<uint64_t>()((((uint64_t)k.port) << 32) |
+                                ((uint64_t)k.ipAddr.s_addr));
+    }
+};
+
+class RegMappedEthernetClient: public RegMappedClient, public SocketSingleton<RegMappedEthernetClient, EthernetSocketKey, EthernetSocketKeyHasher>  {
+    public:
+        friend class SocketSingleton<RegMappedEthernetClient, EthernetSocketKey, EthernetSocketKeyHasher>;
+        // To prevent creating of duplicate sockets (which would break things), there will only be one socket per port per IP per application
+        // The factory will need to be used to check if one exists already, and if so, return it
+
+        // However if all references are removed, then we can destroy it and recreate it next time its needed
+        ~RegMappedEthernetClient();
+
+        void sendRaw(const std::vector<uint8_t> data);
+
+    private:
+        // Instance handles
+        RegMappedEthernetClient(struct in_addr ipAddr, uint16_t port);
+
+        // State Variables
+        struct sockaddr_in destaddr;
+        int socketFd;
+
+        // Function Callbacks
+        bool clientTx(const uint8_t* buf, size_t len);
+        bool clientRx(uint8_t *buf, size_t len, unsigned int timeoutMs);
+        bool clearRx(void);
+
+        static bool clientRxCB(uint8_t *buf, size_t len, unsigned int timeout, void* arg) {
+            auto inst = (RegMappedEthernetClient*) arg;
+            return inst->clientRx(buf, len, timeout);
+        }
+
+        static bool clearRxCB(void* arg) {
+            auto inst = (RegMappedEthernetClient*) arg;
+            return inst->clearRx();
+        }
+
+        static bool clientTxCB(const uint8_t *buf, size_t len, void* arg) {
+            auto inst = (RegMappedEthernetClient*) arg;
+            return inst->clientTx(buf, len);
+        }
 };
 
 }

@@ -20,8 +20,10 @@ add_executable(can_bl_tool
 	FlashUI.cpp
 	canmore_cpp/Discovery.cpp
 	canmore_cpp/CANDiscovery.cpp
+	canmore_cpp/EthernetDiscovery.cpp
 	canmore_cpp/RegMappedClient.cpp
 	canmore_cpp/RegMappedCANClient.cpp
+	canmore_cpp/RegMappedEthernetClient.cpp
 	canmore_cpp/BootloaderClient.cpp
 )
 

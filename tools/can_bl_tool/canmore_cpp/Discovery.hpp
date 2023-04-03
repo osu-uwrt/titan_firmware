@@ -10,6 +10,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include <arpa/inet.h>
+
 #include "canmore_titan/protocol.h"
 #include "BootloaderClient.hpp"
 
@@ -273,6 +275,84 @@ class CANBootDelayDevice: public BootDelayDevice {
 
     private:
         int ifIndex;
+};
+
+// ========================================
+// Ethernet Discovery
+// ========================================
+
+struct EthernetDiscoveryKey
+{
+    EthernetDiscoveryKey() {}
+    bool operator==(const EthernetDiscoveryKey &other) const { (void)other; return true; }
+};
+
+struct EthernetDiscoveryKeyHasher
+{
+    std::size_t operator()(const EthernetDiscoveryKey& k) const { (void)k; return std::hash<int>()(0);}
+};
+
+class EthernetDiscovery: public Discovery, public SocketSingleton<EthernetDiscovery, EthernetDiscoveryKey, EthernetDiscoveryKeyHasher> {
+    public:
+        friend class SocketSingleton<EthernetDiscovery, EthernetDiscoveryKey, EthernetDiscoveryKeyHasher>;
+        ~EthernetDiscovery();
+
+        std::string getInterfaceName() override {return "UDP";}
+
+    protected:
+        void handleSocketData() override;
+
+    private:
+        EthernetDiscovery();
+        int socketFd;
+};
+
+class EthernetNormalDevice: public NormalDevice {
+    public:
+        // Use lower byte of IP as client ID
+        EthernetNormalDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
+            NormalDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
+            isFlashIdCached(false) {
+                this->devAddr.s_addr = devAddr.s_addr;
+            }
+
+        uint64_t getFlashId() override;
+        std::shared_ptr<BootloaderClient> switchToBootloaderMode() override;
+
+    private:
+        in_addr devAddr;
+        union flash_id cachedFlashId;
+        bool isFlashIdCached;
+};
+
+class EthernetBootloaderDevice: public BootloaderDevice {
+    public:
+        EthernetBootloaderDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
+            BootloaderDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
+            isFlashIdCached(false) {
+                this->devAddr.s_addr = devAddr.s_addr;
+            }
+
+        uint64_t getFlashId() override;
+        std::shared_ptr<BootloaderClient> getClient() override;
+
+    private:
+        in_addr devAddr;
+        union flash_id cachedFlashId;
+        bool isFlashIdCached;
+};
+
+class EthernetBootDelayDevice: public BootDelayDevice {
+    public:
+        EthernetBootDelayDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
+            BootDelayDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData) {
+                this->devAddr.s_addr = devAddr.s_addr;
+            }
+
+        std::shared_ptr<BootloaderClient> enterBootloader() override;
+
+    private:
+        in_addr devAddr;
 };
 
 };

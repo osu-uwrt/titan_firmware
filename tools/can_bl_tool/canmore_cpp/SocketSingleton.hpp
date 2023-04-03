@@ -30,6 +30,12 @@ class SocketSingleton
             instances[key] = inst;
             return inst;
         }
+
+        SocketSingleton(SocketSingleton const &) = delete;
+        SocketSingleton& operator=(SocketSingleton const &) = delete;
+
+    protected:
+        SocketSingleton() {}
 };
 
 };
