@@ -62,28 +62,14 @@ class RP2040Device {
         virtual uint64_t getFlashId() = 0;
         virtual bool supportsFlashInterface() const = 0;
 
-        virtual std::shared_ptr<RP2040FlashInterface> getFlashInterface() {return nullptr;};
+        virtual std::shared_ptr<RP2040FlashInterface> getFlashInterface() {
+            throw std::runtime_error("Device can not enter flashing mode!");
+        };
 };
 
 class RP2040Discovery {
     public:
         virtual void discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &devicesOut) = 0;
-};
-
-class DemoDiscovery: public RP2040Device {
-    public:
-        DemoDiscovery(const char *mode, const char *interface, uint64_t boardId): mode(mode), interface(interface), boardId(boardId) {}
-
-        std::string getMode() const override {return mode;}
-        std::string getInterface() const override {return interface;}
-        bool supportsFlashInterface() const override {return true;};
-        uint64_t getFlashId() override {return boardId;}
-        std::shared_ptr<RP2040FlashInterface> getFlashInterface() override {return nullptr;}
-
-    private:
-        const std::string mode;
-        const std::string interface;
-        const std::uint64_t boardId;
 };
 
 // ========================================

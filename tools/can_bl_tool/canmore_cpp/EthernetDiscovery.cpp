@@ -19,8 +19,9 @@ using namespace Canmore;
 // EthernetDiscovery
 // ========================================
 
-EthernetDiscovery::EthernetDiscovery(): socketFd(-1) {
+EthernetDiscovery::EthernetDiscovery() {
     // Open socket
+    int socketFd;
 	if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
@@ -32,21 +33,15 @@ EthernetDiscovery::EthernetDiscovery(): socketFd(-1) {
     addr.sin_port = htons(CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT);
 
 	if (bind(socketFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(socketFd);
         throw std::system_error(errno, std::generic_category(), "bind");
 	}
 
     // We've set up the socket, ready to start processing heartbeats
-    startSocketThread();
+    startSocketThread(socketFd);
 }
 
-EthernetDiscovery::~EthernetDiscovery() {
-    if (socketFd >= 0) {
-        close(socketFd);
-        socketFd = -1;
-    }
-}
-
-void EthernetDiscovery::handleSocketData() {
+void EthernetDiscovery::handleSocketData(int socketFd) {
     canmore_titan_heartbeat_t heartbeatData;
 
     struct sockaddr_in recvaddr;
@@ -129,5 +124,8 @@ std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::enterBootloader() {
     auto discovery = EthernetDiscovery::create();
     // TODO: Fix this so clientId can't have colissions
     std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+    if (!dev) {
+        throw BootloaderError("Failed to reconnect to device in bootloader mode");
+    }
     return dev->getClient();
 }

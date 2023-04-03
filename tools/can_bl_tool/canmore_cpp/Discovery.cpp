@@ -6,7 +6,7 @@
 
 using namespace Canmore;
 
-#define STALE_DISCOVERY_MS 1000
+#define STALE_DISCOVERY_MS 1100
 
 Discovery::Discovery(): socketFd(-1), threadEventFd(-1) {}
 
@@ -20,10 +20,16 @@ Discovery::~Discovery() {
         close(threadEventFd);
         threadEventFd = -1;
     }
+
+    if (socketFd >= 0) {
+        close(socketFd);
+        socketFd = -1;
+    }
 }
 
-void Discovery::startSocketThread() {
+void Discovery::startSocketThread(int socketFd) {
     assert(!thread.joinable());
+    this->socketFd = socketFd;
 
     // Set thread to start, or else it will think it should stop
     threadStopFlag.test_and_set();
@@ -61,7 +67,7 @@ void Discovery::socketThread() {
         }
 
         if (fds[1].revents & POLLIN) {
-            handleSocketData();
+            handleSocketData(socketFd);
         }
     }
 }
@@ -90,7 +96,8 @@ void Discovery::pruneDiscoveredDevices() {
     // NOTE: The caller MUST lock the mutex before calling this function
 
     // Get range of valid devices
-    auto lastValidTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(STALE_DISCOVERY_MS);
+    auto lastValidTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+        - std::chrono::milliseconds(STALE_DISCOVERY_MS);
     auto searchDev = std::make_shared<Device>(lastValidTime);
     auto it = discoveredDevices.lower_bound(searchDev);
 
@@ -125,6 +132,9 @@ void Discovery::discoverCanmoreDevices(std::vector<std::shared_ptr<Device>> &dev
 std::shared_ptr<BootloaderClient> Discovery::catchDeviceInBootDelay(uint8_t clientId) {
     auto device = waitForDevice<BootDelayDevice>(clientId, -1);
 
-    // This should be non-null as it is set to block indefinitely
+    if (device == nullptr) {
+        throw BootloaderError("Failed to catch device in boot delay!");
+    }
+
     return device->enterBootloader();
 }

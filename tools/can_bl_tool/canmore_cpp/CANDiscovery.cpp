@@ -18,7 +18,7 @@ using namespace Canmore;
 // CANDiscovery
 // ========================================
 
-CANDiscovery::CANDiscovery(int ifIndex): socketFd(-1), ifIndex(ifIndex) {
+CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
     // Lookup socket name (to report for each CAN device)
     char nameBuf[IF_NAMESIZE];
     if (if_indextoname(ifIndex, nameBuf) != nameBuf) {
@@ -27,6 +27,7 @@ CANDiscovery::CANDiscovery(int ifIndex): socketFd(-1), ifIndex(ifIndex) {
     interfaceName.assign(nameBuf);
 
     // Open socket
+    int socketFd;
 	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
@@ -37,6 +38,7 @@ CANDiscovery::CANDiscovery(int ifIndex): socketFd(-1), ifIndex(ifIndex) {
 	addr.can_ifindex = ifIndex;
 
 	if (bind(socketFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(socketFd);
         throw std::system_error(errno, std::generic_category(), "CAN bind");
 	}
 
@@ -46,21 +48,15 @@ CANDiscovery::CANDiscovery(int ifIndex): socketFd(-1), ifIndex(ifIndex) {
         .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CANMORE_CALC_FILTER_MASK(false, true, true, true))
     }};
 	if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
+        close(socketFd);
         throw std::system_error(errno, std::generic_category(), "CAN setsockopt");
     }
 
     // We've set up the socket, ready to start processing heartbeats
-    startSocketThread();
+    startSocketThread(socketFd);
 }
 
-CANDiscovery::~CANDiscovery() {
-    if (socketFd >= 0) {
-        close(socketFd);
-        socketFd = -1;
-    }
-}
-
-void CANDiscovery::handleSocketData() {
+void CANDiscovery::handleSocketData(int socketFd) {
     struct can_frame frame;
     ssize_t ret = read(socketFd, &frame, sizeof(frame));
     if (ret != sizeof(frame)) {
@@ -150,5 +146,9 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
     // Get a discovery context to wait for bootloader
     auto discovery = CANDiscovery::create(ifIndex);
     std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+
+    if (!dev) {
+        throw BootloaderError("Failed to reconnect to device in bootloader mode");
+    }
     return dev->getClient();
 }

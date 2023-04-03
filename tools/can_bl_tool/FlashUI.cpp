@@ -66,6 +66,10 @@ void printDevices(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices,
 }
 
 std::shared_ptr<RP2040FlashInterface> selectInterface(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap) {
+    if (discoveredDevices.size() == 0) {
+        throw std::runtime_error("No devices to select");
+    }
+
     printDevices(discoveredDevices, deviceMap);
     while (1) {
         std::cout << "Please Select a Device: ";

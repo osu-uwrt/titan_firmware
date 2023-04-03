@@ -87,6 +87,11 @@ int main(int argc, char** argv) {
 
     std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
     discovery->discoverDevices(discovered);
+    if (discovered.size() == 0) {
+        std::cout << "No devices to select" << std::endl;
+        return 0;
+    }
+
     auto interface = UploadTool::selectInterface(discovered, devMap);
 
     // std::string version;

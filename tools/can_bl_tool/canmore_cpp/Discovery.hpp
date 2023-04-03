@@ -31,10 +31,11 @@ class Device: public UploadTool::RP2040Device {
         Device(std::string interfaceName, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
             interfaceName(interfaceName), clientId(clientId), termValid(heartbeatData.pkt.term_valid),
             termEnabled(heartbeatData.pkt.term_enabled), inErrorState(heartbeatData.pkt.error),
-            mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::steady_clock::now()) {}
+            mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch())) {}
 
         // Constructor to allow creating Device for time comparisons
-        Device(std::chrono::time_point<std::chrono::steady_clock> time):
+        Device(std::chrono::milliseconds time):
             interfaceName(""), clientId(0), termValid(false), termEnabled(false), inErrorState(false),
             mode(0), discoveryTime(time) {}
 
@@ -53,12 +54,18 @@ class Device: public UploadTool::RP2040Device {
         const bool termEnabled;
         const bool inErrorState;
         const unsigned int mode;
-        const std::chrono::time_point<std::chrono::steady_clock> discoveryTime;
+        const std::chrono::milliseconds discoveryTime;
 
         // Set operators
         bool operator<(const Device &y) const { return discoveryTime < y.discoveryTime; }
         bool operator==(const Device &y) const { return (interfaceName == y.interfaceName) &&
                                                         (clientId == y.clientId);}
+};
+
+struct DeviceCmp {
+    bool operator() (std::shared_ptr<Device> a, std::shared_ptr<Device> b) const {
+        return *a < *b;
+    }
 };
 
 class NormalDevice: public Device {
@@ -149,26 +156,27 @@ class Discovery: public UploadTool::RP2040Discovery {
             return device;
         }
 
+        // Callback after select finds data available in the socket
+        // This call should do what is required to socketFd to read the data, and report it with
+        // Must be overidden by client
+        virtual void handleSocketData(int socketFd) = 0;
+
     protected:
         // The child constructor should use singletons
         Discovery();
 
         // Called after initializing socketFd with a valid file descriptor (for select)
-        void startSocketThread();
-
-        // FD for the socket created by discovery
-        // This socket is polled, and if data is available, handleSocketData is called
-        int socketFd;
-
-        // Callback after select finds data available in the socket
-        // This call should do what is required to socketFd to read the data, and report it with
-        // Must be overidden by client
-        virtual void handleSocketData() = 0;
+        void startSocketThread(int socketFd);
 
         // Reports that a device has been discovered by the receiving socket
         void reportDiscoveredDevice(std::shared_ptr<Device> &device);
 
     private:
+
+        // FD for the socket created by discovery
+        // This socket is polled, and if data is available, handleSocketData is called
+        int socketFd;
+
         // Utility to prune old discovered devices
         // The caller MUST lock the mutex before calling this function
         void pruneDiscoveredDevices();
@@ -189,7 +197,7 @@ class Discovery: public UploadTool::RP2040Discovery {
         std::condition_variable discoveredNotify;
 
         // Local copy of discoveredDevices
-        std::set<std::shared_ptr<Device>> discoveredDevices;
+        std::set<std::shared_ptr<Device>, DeviceCmp> discoveredDevices;
 
         // Lock protecting discoveredDevices
         std::mutex discoveredDevicesMutex;
@@ -218,17 +226,15 @@ struct CANDiscoveryKeyHasher
 class CANDiscovery: public Discovery, public SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher> {
     public:
         friend class SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher>;
-        ~CANDiscovery();
 
         int getInterfaceNum() {return ifIndex;}
         std::string getInterfaceName() override {return interfaceName;}
 
     protected:
-        void handleSocketData() override;
+        void handleSocketData(int socketFd) override;
 
     private:
         CANDiscovery(int ifIndex);
-        int socketFd;
         int ifIndex;
         std::string interfaceName;
 };
@@ -295,16 +301,14 @@ struct EthernetDiscoveryKeyHasher
 class EthernetDiscovery: public Discovery, public SocketSingleton<EthernetDiscovery, EthernetDiscoveryKey, EthernetDiscoveryKeyHasher> {
     public:
         friend class SocketSingleton<EthernetDiscovery, EthernetDiscoveryKey, EthernetDiscoveryKeyHasher>;
-        ~EthernetDiscovery();
 
         std::string getInterfaceName() override {return "UDP";}
 
     protected:
-        void handleSocketData() override;
+        void handleSocketData(int socketFd) override;
 
     private:
         EthernetDiscovery();
-        int socketFd;
 };
 
 class EthernetNormalDevice: public NormalDevice {
