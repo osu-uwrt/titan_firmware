@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "DeviceMap.hpp"
+
 #define BOOTLOADER_SIZE 0x4000
 #define FLASH_BASE 0x10000000
 #define MAX_FLASH_SIZE (16*1024*1024) // 16 MB Flash size
@@ -17,6 +19,8 @@ class RP2040UF2 {
     public:
         RP2040UF2(std::ifstream &stream, bool isOTA);
         RP2040UF2(const char *filename, bool isOTA);
+
+        const bool isOTA;
 
         void getBlock(uint32_t blockNum, std::vector<uint8_t> &dataOut);
         void getAddress(uint32_t flashAddress, std::vector<uint8_t> &dataOut);
@@ -36,18 +40,6 @@ class RP2040UF2 {
         void initFromStream(std::ifstream &stream, bool isOTA);
 };
 
-class RP2040OTAUF2: public RP2040UF2 {
-    public:
-        RP2040OTAUF2(std::ifstream &stream): RP2040UF2(stream, true) {}
-        RP2040OTAUF2(const char *filename): RP2040UF2(filename, true) {}
-};
-
-class RP2040FullUF2: public RP2040UF2 {
-    public:
-        RP2040FullUF2(std::ifstream &stream): RP2040UF2(stream, false) {}
-        RP2040FullUF2(const char *filename): RP2040UF2(filename, false) {}
-};
-
 class RP2040FlashInterface {
     public:
         virtual void readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) = 0;
@@ -63,4 +55,42 @@ class RP2040FlashInterface {
         virtual void enableBootloaderOverwrite() {};
 };
 
-}
+class RP2040Device {
+    public:
+        virtual std::string getMode() const = 0;
+        virtual std::string getInterface() const = 0;
+        virtual uint64_t getFlashId() = 0;
+        virtual bool supportsFlashInterface() const = 0;
+
+        virtual std::shared_ptr<RP2040FlashInterface> getFlashInterface() {return nullptr;};
+};
+
+class RP2040Discovery {
+    public:
+        virtual void discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &devicesOut) = 0;
+};
+
+class DemoDiscovery: public RP2040Device {
+    public:
+        DemoDiscovery(const char *mode, const char *interface, uint64_t boardId): mode(mode), interface(interface), boardId(boardId) {}
+
+        std::string getMode() const override {return mode;}
+        std::string getInterface() const override {return interface;}
+        bool supportsFlashInterface() const override {return true;};
+        uint64_t getFlashId() override {return boardId;}
+        std::shared_ptr<RP2040FlashInterface> getFlashInterface() override {return nullptr;}
+
+    private:
+        const std::string mode;
+        const std::string interface;
+        const std::uint64_t boardId;
+};
+
+// ========================================
+// Flash UI
+// ========================================
+
+std::shared_ptr<RP2040FlashInterface> selectInterface(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap);
+void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2);
+
+};

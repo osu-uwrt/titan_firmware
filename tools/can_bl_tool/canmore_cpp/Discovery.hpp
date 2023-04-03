@@ -13,6 +13,8 @@
 #include "canmore_titan/protocol.h"
 #include "BootloaderClient.hpp"
 
+#include "../RP2040FlashInterface.hpp"
+
 namespace Canmore {
 
 // Timeout to use when switching between modes for discovery
@@ -22,7 +24,7 @@ namespace Canmore {
 // Interface Definitions
 // ========================================
 
-class Device {
+class Device: public UploadTool::RP2040Device {
     public:
         Device(std::string interfaceName, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
             interfaceName(interfaceName), clientId(clientId), termValid(heartbeatData.pkt.term_valid),
@@ -36,6 +38,13 @@ class Device {
 
         virtual ~Device() {}
 
+        // RP2040Discovery overrides
+        std::string getMode() const override {return "Unknown";}
+        std::string getInterface() const override {return interfaceName + " - Client " + std::to_string(clientId);}
+        uint64_t getFlashId() override {return 0;}                      // Just return null flash ID unless its supported
+        bool supportsFlashInterface() const override {return false;}    // By default device doesn't support bootloader
+
+        // Attributes
         const std::string interfaceName;
         const uint8_t clientId;
         const bool termValid;
@@ -44,6 +53,7 @@ class Device {
         const unsigned int mode;
         const std::chrono::time_point<std::chrono::steady_clock> discoveryTime;
 
+        // Set operators
         bool operator<(const Device &y) const { return discoveryTime < y.discoveryTime; }
         bool operator==(const Device &y) const { return (interfaceName == y.interfaceName) &&
                                                         (clientId == y.clientId);}
@@ -55,6 +65,12 @@ class NormalDevice: public Device {
 
         virtual uint64_t getFlashId() = 0;
         virtual std::shared_ptr<BootloaderClient> switchToBootloaderMode() = 0;
+
+        // RP2040Discovery overrides
+        std::string getMode() const override {return "Application";}
+        bool supportsFlashInterface() const override {return true;}
+        std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
+            {return std::static_pointer_cast<UploadTool::RP2040FlashInterface>(switchToBootloaderMode());}
 };
 
 class BootDelayDevice: public Device {
@@ -62,6 +78,12 @@ class BootDelayDevice: public Device {
         using Device::Device;
 
         virtual std::shared_ptr<BootloaderClient> enterBootloader() = 0;
+
+        // RP2040Discovery overrides
+        std::string getMode() const override {return "Boot Delay";}
+        bool supportsFlashInterface() const override {return true;}
+        std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
+            {return std::static_pointer_cast<UploadTool::RP2040FlashInterface>(enterBootloader());}
 };
 
 class BootloaderDevice: public Device {
@@ -70,14 +92,22 @@ class BootloaderDevice: public Device {
 
         virtual uint64_t getFlashId() = 0;
         virtual std::shared_ptr<BootloaderClient> getClient() = 0;
+
+        // RP2040Discovery overrides
+        std::string getMode() const override {return "Bootloader";}
+        bool supportsFlashInterface() const override {return true;}
+        std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
+            {return std::static_pointer_cast<UploadTool::RP2040FlashInterface>(getClient());}
 };
 
-class Discovery {
+class Discovery: public UploadTool::RP2040Discovery {
     public:
         ~Discovery();
 
+        void discoverDevices(std::vector<std::shared_ptr<UploadTool::RP2040Device>> &devicesOut) override;
+
         virtual std::string getInterfaceName() = 0;
-        void discoverDevices(std::vector<std::shared_ptr<Device>> &devicesOut);
+        void discoverCanmoreDevices(std::vector<std::shared_ptr<Device>> &devicesOut);
         std::shared_ptr<BootloaderClient> catchDeviceInBootDelay(uint8_t clientId);
 
         // Timeout in milliseconds or -1 if block indefinitely

@@ -51,7 +51,7 @@ bool is_block_valid(struct uf2_block *block, bool is_ota, uint32_t expected_num_
 
     // Compute valid address range
     // Note max address is the end address minus page size
-    uint32_t min_addr = (is_ota ? FLASH_BASE : FLASH_BASE + BOOTLOADER_SIZE);
+    uint32_t min_addr = (is_ota ? FLASH_BASE + BOOTLOADER_SIZE : FLASH_BASE);
     uint32_t max_addr = (FLASH_BASE + MAX_FLASH_SIZE) - UF2_PAGE_SIZE;
 
     // Check address is valid within flash
@@ -75,13 +75,12 @@ bool is_block_valid(struct uf2_block *block, bool is_ota, uint32_t expected_num_
     return true;
 }
 
-RP2040UF2::RP2040UF2(std::ifstream &stream, bool isOTA) {
+RP2040UF2::RP2040UF2(std::ifstream &stream, bool isOTA): isOTA(isOTA) {
     initFromStream(stream, isOTA);
 }
-
-RP2040UF2::RP2040UF2(const char *filename, bool isOTA) {
-    std::ifstream ifs(filename, std::ifstream::in);
-    initFromStream(ifs, isOTA);
+RP2040UF2::RP2040UF2(const char *filename, bool isOTA): isOTA(isOTA) {
+    std::ifstream stream(filename, std::ifstream::binary);
+    initFromStream(stream, isOTA);
 }
 
 void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
@@ -110,7 +109,7 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
         if (first_block) {
             baseAddress = block.target_addr;
             expected_addr = block.target_addr;
-            expected_num_blocks = block.block_no;
+            expected_num_blocks = block.num_blocks;
             first_block = false;
         }
 
@@ -123,6 +122,8 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
         std::array<uint8_t, UF2_PAGE_SIZE> uf2Data;
         std::copy_n(block.data, UF2_PAGE_SIZE, uf2Data.begin());
         uf2Array.push_back(uf2Data);
+
+        stream.peek();
     } while(!stream.eof());
 
     if (expected_block_no != expected_num_blocks) {

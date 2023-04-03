@@ -1,15 +1,23 @@
 #include <iostream>
+#include <filesystem>
 #include <memory>
 #include <vector>
+#include <thread>
 #include <net/if.h>
 
-#include "canmore_titan/protocol.h"
 #include "RP2040FlashInterface.hpp"
+#include "canmore_titan/protocol.h"
 #include "canmore_cpp/Discovery.hpp"
 #include "canmore_cpp/BootloaderClient.hpp"
 #include "canmore_cpp/RegMappedClient.hpp"
 
+#ifndef DEVICE_DEFINITIONS_FILE
+#error DEVICE_DEFINITIONS_FILE must be defined as json file relative to application
+#endif
+
 char version_str[1024];
+
+namespace fs = std::filesystem;
 
 void DumpHex(const void* data, size_t size) {
 	char ascii[17];
@@ -54,6 +62,14 @@ int main(int argc, char** argv) {
     //     if_freenameindex(if_nidxs);
     // }
 
+    // Load in device map
+    fs::path applicationPath = argv[0];
+    auto deviceDefinitionPath = applicationPath.parent_path().append(DEVICE_DEFINITIONS_FILE);
+    if (!fs::exists(deviceDefinitionPath)) {
+        throw std::runtime_error("Cannot locate device file '" DEVICE_DEFINITIONS_FILE "' in application directory");
+    }
+    UploadTool::DeviceMap devMap(deviceDefinitionPath);
+
     if (argc != 2) {
         printf("Usage: %s [interface]\n", argv[0]);
         return 1;
@@ -65,30 +81,23 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto blInterface = Canmore::RegMappedCANClient::create(ifIndex, 4, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
-    Canmore::BootloaderClient client(blInterface);
+    auto discovery = Canmore::CANDiscovery::create(ifIndex);
+    std::cout << "Waiting for devices..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-    Canmore::flash_id flash_id = {.doubleword = client.getFlashId()};
+    std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
+    discovery->discoverDevices(discovered);
+    auto interface = UploadTool::selectInterface(discovered, devMap);
 
-    size_t i;
-    // Generate hex one nibble at a time
-    char id_out[17];
-    for (i = 0; (i < sizeof(flash_id) * 2); i++) {
-        int nibble = (flash_id.byte[i/2] >> (4 - 4 * (i&1))) & 0xf;
-        id_out[i] = (char)(nibble < 10 ? nibble + '0' : nibble + 'A' - 10);
-    }
-    id_out[i] = 0;
+    // std::string version;
+    // client.getVersion(version);
 
-    std::string version;
-    client.getVersion(version);
-
-    std::cout << "Board ID: " << id_out << std::endl;
-    std::cout << "Version: " << version << std::endl;
+    // std::cout << "Version: " << version << std::endl;
 
     std::vector<uint8_t> my_page;
-    client.readBytes(0x10000000, my_page);
+    interface->readBytes(0x10000000, my_page);
     DumpHex(my_page.data(), my_page.size());
 
-    client.reboot();
+    interface->reboot();
     return 0;
 }

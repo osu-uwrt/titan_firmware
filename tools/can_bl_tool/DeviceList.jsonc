@@ -1,0 +1,146 @@
+[
+    // ========================================
+    // Mark 2 Era Boards
+    // ========================================
+    {
+        // The first puddles backplane assembled
+        "name": "Puddles Backplane",
+        "boardType": "puddles_backplane",
+        "serial": "E462288893572D28"
+    },
+    // All these boards were part of the Mark 2 design
+    {
+        "name": "Mark 2 ESC Board 0",
+        "boardType": "mk2_esc_board",
+        "serial": "E6621455075D8323"
+    },
+
+
+
+    // ========================================
+    // Mark 1 Era Boards (2020-2021)
+    // In chronological order of assembly/usage
+    // ========================================
+    {
+        // My Pico! A good chunk of this firmware was actually tested on this guy, hence why it's the first item in this list
+        // However his use has fallen out as CAN bus makes it difficult to test without a function CAN block, and our electronics
+        // have gotten a bit more stable for testing compared to when I was originally developing (and didn't have a functional board for the longest time)
+        "name": "Robert Pafford's Pico",
+        "boardType": "pico",
+        "serial": "E66038B713849D31"
+    },
+    {
+        // The backplane breakout board created for tempest Mark 1
+        // However after we needed to use the puddles converter board with Mark 1 electronics, the peltier control/power
+        // pins were swapped from the Mark 2 power board. So this board ended up getting shelved for the majority of Tempest's life
+        // and the Puddles backplane breakout board was used (as this had the modifications made to the board to protect)
+        // the gpio from 5V on the peltier power pin. But, at competition, we ended up frying the regulator (and a USB cable)
+        // and killed the Puddles Backplane Breakout Board. We took this board out of the spare boards box and put it in Mark 1.
+        // It ended up loosing its USB port on the drive back from Robosub, and now lies in Mark 1 (hopefully not to be needed)
+        // This was the first one in the Digikey Order of picos
+        "name": "Tempest Backplane Breakout",
+        "boardType": "backplane_breakout_board",
+        "serial": "E660B440070E5E2A"
+    },
+    {
+        "name": "Team Raspberry Pi Pico",
+        "boardType": "pico",
+        "serial": "E660583883731D2D"
+    },
+    {
+        // The puddles backplane breakout board. As stated in the Tempest one, it was designed originally to go in puddles
+        // to allow the puddles electronics system to continue on (as this was right when we started with Tempest, and
+        // still had puddles and felt that we'd need to keep both firmware in operation (this ended up happening with Cole)
+        // but this board never saw it's true purpose. When we ended up needing to raid puddles to get the Tempest electronics
+        // functional (like the power board, ESC adapter cable, and modifying the DVL subconn cable [Puddles had a 8 pin normal,
+        // not ethernet, and we didn't have a spare, so we had to modify it and steal the Tether replacement we planned for puddles])
+        // So this board never ended up running in puddles. However, as stated above, we did need to inherit puddles's architecture
+        // to get the converter board, so this was actually Tempest's primary MCU for most of Mark 1's life, until getting fried
+        // (although the core is [I believe] still alive, just no 3V3 regulator)
+        // This was the second one in the Digikey Order of picos
+        "name": "Puddles Backplane Breakout Board",
+        "boardType": "backplane_breakout_board",
+        "serial": "E660B440075F7B26"
+    },
+    {
+        // The first RP2040 eval board assembled. So this board was actually designed *before* the backplane breakout board,
+        // but we couldn't figure out how to assemble it. We assembled the STM32 boards by soldering a pin at a time with a
+        // fine pitch soldering iron and just taking time, but the QFN was too fine pitch to allow putting solder on, and the
+        // pad underneath didn't work. We also lacked the skill to hot air it. We ended up assembling a toaster oven to use
+        // to reflow the RP2040 chip. We then ended up waiting to order to Mark 1 actuator board (the second one, after
+        // switching to the RP2040 chip since STM32s were unobtainium). When we put in that order we got a stencil, so we could
+        // finally try to reflow on an RP2040. Now, again, I designed this RP2040 eval board over the summer, but we couldn't
+        // aseemble it until that winter. We couldn't figure out how to do the stencil the first time, so we ended up doing something
+        // cursed with the solder paste and just rubbing it on with a toothpick (so we didn't need the stencil that first time)
+        // After putting on the RP2040, I began the assembly process for everything else by hand. And ended up destroying the
+        // USB port in the process (and the crystal was an abomination floating like 5mm in the air). So we had to redo the
+        // reflow, and that time we made this board. That time we put more stuff on during the reflow, like the crystal and
+        // USB port. We ended up having power issues with that board, and replaced the RP2040 a few times until we got a good ground
+        // (bad ground caused the crystal to not lock in, I think the RP2040 ground was floating 0.6V above true ground).
+        // This guy was finally put back after being put in the oven twice (buttons got a bit toasty). It was still a little sus,
+        // sometimes getting stuck during clock initialization. But I chalk that up to us not knowing how to assemble it.
+        // I had this board with me over the summer, and at my internship my parter and I ended up trying to fix the chip to use
+        // for prototyping a project we had, so it got a little more stable. But it still occasionally gets stuck during startup
+        // and hangs initializing clocks. So I never trusted it enough to run at the 2021 competition [and hence Jerry was made]
+        "name": "Original RP2040 Eval Board",
+        "boardType": "actuator_mk1_hat",
+        "serial": "E460CCB01B3F532C"
+    },
+    {
+        // The second RP2040 eval board [well, second one to make it through full assembly]. This one was made later
+        // when we learned more about the RP2040 soldering (made late spring 2021) and was assembled specifically to run
+        // the Mark 1 Actuator Hat, as that was designed as just circuits, and this would run the board. It sockted in
+        // well, until competition when we needed to add in a level shifter so we could actually drive the N-Ch FETs on
+        // the torpedo gauge, so some pins got cut and wires soldered on to add in this level shifter. We ended up killing
+        // this board's IO from the perf-board level shifters ending up sending 5V to the IO and killing the RP2040 I/O.
+        // (The core was alive with USB, but couldn't access flash). But it says here in memorium.
+        "name": "MK1 Actuator RP2040 Eval Board",
+        "boardType": "actuator_mk1_hat",
+        "serial": "E460CCB01B29352A"
+    },
+    {
+        // This was just a generic pico used for testing stuff, I forget what but it probably wasn't used for anything
+        // too interesting. If I remember it might have been given to people working on firmware to test stuff
+        "name": "Team raspberry pi pico (4th one in the order box)",
+        "boardType": "pico",
+        "serial": "E660B44007924D2A"
+    },
+    {
+        // So this guy was the team's oldest pico, and Flip was actually the person who got this guy.
+        // I think he might have brought this one in from microcenter when he worked there.
+        // But this pico had some wires soldered on during testing, and kind of floated around. It didn't have headers
+        // so I didn't use it for testing, and with it filled with solder it made it not great for putting test clips in.
+        // But it ended up in my box and I used it when I needed a picoprobe. Until competition... At this point we had
+        // killed the eval board for the actuators, and we didn't trust the other two boards enough for our application.
+        // So we decided to just solder on wires from a pico to the surface mount pads on the actuator HAT, and just
+        // make a functional abomination. So this was the perfect candidate. It already had wires coming out of it, so
+        // I pulled all those out and added on the wires we needed to get onto the Actuator hat. This was over the course of a night
+        // from like 6pm after team village closed, where we went back and decided our best path forward was this rather than trying to get
+        // a sketchy eval board to work. So over the process of the night until like 7am when we finally got the actuators firing.
+        // And at that point we needed it in the water to run for the wildcard run, so we just covered it in an egregious amount of
+        // hot glue, and sent it. Now where does the name terry come in? Well I needed a name for a bord, and couldn't think one, so
+        // I asked Colin for a name, and he gave me terry. And hence the board type terry was born, the pin assignments for the pico to the
+        // Mark 1 actuator hat.
+        "name": "One of the first picos the team bought, taken during competition for use in the abomination of the 2022 Competition Actuator Board",
+        "boardType": "terry",
+        "serial": "E660583883754F2C"
+    },
+    {
+        // This was the 5th pico we got on the digikey order of 6 picos, and continues on the board type trend of calling
+        // the picos in -erry name. I believe a larry also existed at some point, but it was brief. But this pico was used
+        // at the tail end of Mark 1, in the fall of 2021, when at a pool test, an adapter Flip made brought our i2c bus just
+        // long enough to start causing signal issues, to bring the depth sensor from one side of the vehicle to the other.
+        // It was like 3 feet of i2c, which it was DEFINITELY not designed for. So our inital plan was to just connect
+        // the depth sensor to the orin, but it was not working for whatever reason (I missed that meeting), so at team
+        // leads the next day I just threw together a program to read the depth sensor and use micro-ROS over USB to send
+        // the depth data to the Orin. Now this was before we knew about the USB serial driver bug in that Jetpack release
+        // but it worked well enough for us to limp along to Mark 2. And this was also a big factor to convince us to
+        // not have a common i2c bus (as we planned in the original mark 2 spec) and instead throw an RP2040 on every board
+        // as we've always had I2C communication issues, and sending a bus across every board seemed like a recipe for
+        // I2C gremlins if we couldn't get it just to the other side for the depth sensor. And hence, CAN bus and modualrized firmware
+        // And so, that's why this firmware is so convoluted to add support for several MCUs and a distributed architecture over CAN bus
+        "name": "Team raspberry pi pico (5th one in the order box)",
+        "boardType": "jerry",
+        "serial": "E660B440076B4B2A"
+    }
+]

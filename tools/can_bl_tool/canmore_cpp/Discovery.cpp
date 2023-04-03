@@ -102,7 +102,17 @@ void Discovery::pruneDiscoveredDevices() {
 // Public Functions
 // ========================================
 
-void Discovery::discoverDevices(std::vector<std::shared_ptr<Device>> &devicesOut) {
+void Discovery::discoverDevices(std::vector<std::shared_ptr<UploadTool::RP2040Device>> &devicesOut) {
+    const std::lock_guard<std::mutex> lock(discoveredDevicesMutex);
+    pruneDiscoveredDevices();
+
+    devicesOut.clear();
+    for (auto device : discoveredDevices) {
+        devicesOut.push_back(std::static_pointer_cast<UploadTool::RP2040Device>(device));
+    }
+}
+
+void Discovery::discoverCanmoreDevices(std::vector<std::shared_ptr<Device>> &devicesOut) {
     const std::lock_guard<std::mutex> lock(discoveredDevicesMutex);
     pruneDiscoveredDevices();
 
