@@ -72,6 +72,8 @@ SECTIONS
         . = ALIGN(4);
         __logical_binary_start = .;
         KEEP (*(.vectors))
+        KEEP (*(.binary_info_header))
+        __binary_info_header_end = .;
         KEEP (*(.reset))
         *(.text*)
         . = ALIGN(4);
@@ -124,11 +126,13 @@ SECTIONS
         . = ALIGN(4);
     } > FLASH_BL
 
+    /* Uninitialized Data Segment */
     .uninitialized_data (COPY): {
         . = ALIGN(4);
         *(.uninitialized_data*)
     } > SCRATCH_X
 
+    /* All other data segment */
     .bss  : {
         . = ALIGN(4);
         __bss_start__ = .;
@@ -137,6 +141,17 @@ SECTIONS
         . = ALIGN(4);
         __bss_end__ = .;
     } > SCRATCH_X
+
+    /* Machine inspectable binary information */
+    .binary_info :
+    {
+        . = ALIGN(4);
+        __binary_info_start = .;
+        KEEP(*(.binary_info.keep.*))
+        *(.binary_info.*)
+        __binary_info_end = .;
+        . = ALIGN(4);
+    } > FLASH_BL
 
     .trampoline_align : {
         . = ALIGN(256);
@@ -195,6 +210,9 @@ SECTIONS
     ASSERT(ORIGIN(XIP_RAM) + LENGTH(XIP_RAM) >= __ram_copyout_end, "region XIP RAM overflowed")
     /* Check if fits in bootloader section of flash */
     ASSERT(ORIGIN(FLASH_BL) + LENGTH(FLASH_BL) >= __flash_binary_end, "Bootloader region of FLASH overflowed")
-
+    /* Make sure that binary magic is where it should be */
+    ASSERT( __binary_info_header_end - __logical_binary_start <= 256, "Binary info must be in first 256 bytes of the binary")
+    /* Make sure boot trampoline fits in a page */
+    ASSERT( __boot_trampoline_end__ - __boot_trampoline_entry__ <= 256, "Boot trampoline must fit in flash page")
 }
 

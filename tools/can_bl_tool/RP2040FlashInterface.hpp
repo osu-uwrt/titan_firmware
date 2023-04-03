@@ -8,7 +8,7 @@
 
 #include "DeviceMap.hpp"
 
-#define BOOTLOADER_SIZE 0x4000
+#define BOOTLOADER_SIZE 0x4000  // TODO: Read this from the binary info
 #define FLASH_BASE 0x10000000
 #define MAX_FLASH_SIZE (16*1024*1024) // 16 MB Flash size
 #define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing

@@ -10,6 +10,7 @@
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/sio.h"
 #include "hardware/regs/xip.h"
+#include "pico/binary_info/defs.h"
 
 #define BOOTROM_ROM_LOOKUP_PTR_ADDR 0x00000018
 #define BOOTROM_ROM_FUNCTION_TABLE_ADDR 0x00000014
@@ -151,6 +152,23 @@ __unhandled_user_irq:
 unhandled_user_irq_num_in_r0:
     bkpt #0
 
+// ----------------------------------------------------------------------------
+
+.section .binary_info_header, "a"
+
+// Header must be in first 256 bytes of main image (i.e. excluding flash boot2).
+// For flash builds we put it immediately after vector table; for NO_FLASH the
+// vectors are at a +0x100 offset because the bootrom enters RAM images directly
+// at their lowest address, so we put the header in the VTOR alignment hole.
+
+#if !PICO_NO_BINARY_INFO
+binary_info_header:
+.word BINARY_INFO_MARKER_START
+.word __binary_info_start
+.word __binary_info_end
+.word data_cpy_table // we may need to decode pointers that are in RAM at runtime.
+.word BINARY_INFO_MARKER_END
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -260,6 +278,19 @@ ram_copyout_source:
 .word __ram_copyout_source__
 ram_copyout_end:
 .word __ram_copyout_end__
+
+// Data cpy table must live in flash so that the address isn't in RAM (since this is needed to get those maps)
+.align 2
+data_cpy_table:
+.word __ram_copyout_source__
+.word __ram_copyout_start__
+.word __ram_copyout_end__
+
+.word __boot_trampoline_source__
+.word __boot_trampoline_entry__
+.word __boot_trampoline_end__
+
+.word 0 // null terminator
 
 // ----------------------------------------------------------------------------
 

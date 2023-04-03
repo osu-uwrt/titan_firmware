@@ -81,6 +81,8 @@ extern "C" {
  *       +----------------+
  * 0x04: |   Flash Size   | RO
  *       +----------------+
+ * 0x05: |    App Base    | RO
+ *       +----------------+
  *
  * Command:         The command to execute. If the command or target addr is invalid (invalid region or unaligned), the
  *                  register write will error with bad data. The register write will not respond until the operation has
@@ -95,6 +97,7 @@ extern "C" {
  *                  erase/program this region will error with invalid address.
  * CRC:             Holds the result CRC calculated with the CRC command
  * Flash Size:      The flash size in bytes
+ * App Base:        The flash address where the application image is expected by the bootloader
  *
  *
  * Flash Buffer
@@ -131,6 +134,7 @@ extern "C" {
 #define CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_VALUE 0x55AA55AA
 #define CANMORE_BL_FLASH_CONTROL_CRC_OFFSET 0x03
 #define CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET 0x04
+#define CANMORE_BL_FLASH_CONTROL_APP_BASE_OFFSET 0x05
 
 // Target Address Alignment
 #define CANMORE_BL_FLASH_ERASE_SIZE 0x1000

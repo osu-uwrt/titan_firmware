@@ -44,13 +44,14 @@ static_assert(CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK + 1 == FLASH_PAGE_SIZE, "Wr
 static_assert(CANMORE_BL_FLASH_ERASE_SIZE == FLASH_SECTOR_SIZE, "Erase size does not match sector size");
 static_assert(CANMORE_BL_FLASH_ERASE_ADDR_ALIGN_MASK + 1 == FLASH_SECTOR_SIZE, "Erase addr alignment does not match sector size");
 
+extern char __flash_app;
+
 uint8_t flash_buffer[CANMORE_BL_FLASH_BUFFER_SIZE];
 uint32_t flash_size = PICO_FLASH_SIZE_BYTES;
+uint32_t flash_app_base = (uintptr_t)&__flash_app;
 uint32_t flash_control_target_addr = 0;
 uint32_t flash_control_bl_write_key = 0;
 uint32_t flash_control_crc = 0;
-
-extern char __flash_app;
 
 static bool flash_control_command_cb(__unused const struct reg_mapped_server_register_definition *reg, bool is_write, uint32_t *data_ptr) {
     if (!is_write) return false;
@@ -126,6 +127,7 @@ static reg_mapped_server_register_def_t bl_server_flash_control_regs[] = {
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_OFFSET, &flash_control_bl_write_key, REGISTER_PERM_READ_WRITE),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET, &flash_size, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_CRC_OFFSET, &flash_control_crc, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_BL_FLASH_CONTROL_APP_BASE_OFFSET, &flash_app_base, REGISTER_PERM_READ_ONLY),
 };
 
 static reg_mapped_server_page_def_t bl_server_pages[] = {
