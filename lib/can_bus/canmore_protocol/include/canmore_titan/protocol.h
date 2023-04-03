@@ -85,8 +85,8 @@ typedef union __attribute__((__packed__)) canmore_titan_heartbeat {
 
 #define CANMORE_CALC_TITAN_HEARTBEAT_DATA(cnt, error, mode, term_valid, term_enabled) \
     ( \
-        (((cnt) & ((1u<<CANMORE_TITAN_HEARTBEAT_CNT_LENGTH) - 1u)) << CANMORE_TITAN_HEARTBEAT_CNT_OFFSET) | \
-        (((error) & ((1u<<CANMORE_TITAN_HEARTBEAT_ERROR_LENGTH) - 1u)) << CANMORE_TITAN_HEARTBEAT_ERROR_OFFSET) | \
+        (((cnt) & ((1u<<CANMORE_HEARTBEAT_CNT_LENGTH) - 1u)) << CANMORE_HEARTBEAT_CNT_OFFSET) | \
+        (((error) & ((1u<<CANMORE_HEARTBEAT_ERROR_LENGTH) - 1u)) << CANMORE_HEARTBEAT_ERROR_OFFSET) | \
         (((mode) & ((1u<<CANMORE_TITAN_HEARTBEAT_MODE_LENGTH) - 1u)) << CANMORE_TITAN_HEARTBEAT_MODE_OFFSET) | \
         (((term_valid) & ((1u<<CANMORE_TITAN_HEARTBEAT_TERM_VALID_LENGTH) - 1u)) << CANMORE_TITAN_HEARTBEAT_TERM_VALID_OFFSET) | \
         (((term_enabled) & ((1u<<CANMORE_TITAN_HEARTBEAT_TERM_ENABLED_LENGTH) - 1u)) << CANMORE_TITAN_HEARTBEAT_TERM_ENABLED_OFFSET) \

@@ -27,23 +27,18 @@
 
 // Initializes a new W5K compatible network device with the specified SPI configuration and mac address
 // Returns either a pointer to the w5k data struct or NULL of the initialization failed.
-w5k_data_t eth_init(spi_inst_t *spi, uint8_t ss_pin, uint8_t reset, uint8_t *mac)
+bool eth_init(w5k_data_t *cOut, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset, uint8_t *mac)
 {
-    w5k_data_t c = (w5k_data_t)malloc(sizeof(struct w5k_data));
-	if (c == NULL){
-		return NULL;
-	}
-	if (w5100_init(c, spi, ss_pin, reset) == 0) {
-        free((void*)c);
-        return NULL;
+	if (w5100_init(cOut, spi, ss_pin, reset) == 0) {
+        return false;
     }
-    w5100_setMACAddress(c, mac);
-    return c;
+    w5100_setMACAddress(cOut, mac);
+    return true;
 }
 
 // Configures the W5K device with the specified network configuration
 //
-void eth_ifconfig(w5k_data_t c, uint8_t* ip, uint8_t* gateway, uint8_t* subnet)
+void eth_ifconfig(w5k_data_t *c, uint8_t* ip, uint8_t* gateway, uint8_t* subnet)
 {
 	w5100_setIPAddress(c, ip);
 	w5100_setGatewayIp(c, gateway);
@@ -52,7 +47,7 @@ void eth_ifconfig(w5k_data_t c, uint8_t* ip, uint8_t* gateway, uint8_t* subnet)
 
 // De-initializes the socket. Note when this is called it frees the w5k data pointer
 // Do not call any functions after this function is called using the w5k data pointer
-void eth_deinit(w5k_data_t c)
+void eth_deinit(w5k_data_t *c)
 {
     w5100_softReset(c);
     // TODO: Reset SS pin state
@@ -61,7 +56,6 @@ void eth_deinit(w5k_data_t c)
             *c->socket_state[i].state_ref = 0;
         }
     }
-    free(c);
 }
 
 /*****************************************/
@@ -71,7 +65,7 @@ void eth_deinit(w5k_data_t c)
 // Opens a socket with the specified protocol and port. state_ref will be set to 1 when socket is open
 // and will be set to zero when socket is closed. Returns the socket number. If no sockets are available
 // MAX_SOCK_NUMBER will be returned.
-SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *state_ref)
+SOCKET eth_socketBegin(w5k_data_t *c, uint8_t protocol, uint16_t port, uint8_t *state_ref)
 {
     if (state_ref != NULL) {
         *state_ref = 0;
@@ -81,9 +75,9 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 	// first check hardware compatibility
 	chip = w5100_getChip(c);
 	if (!chip){
-		puts("W5x00 chip read fail");
+		//puts("W5x00 chip read fail");
 		return MAX_SOCK_NUM; // immediate error if no hardware detected
-	} 
+	}
 #if MAX_SOCK_NUM > 4
 	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
 #endif
@@ -94,7 +88,7 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 		if (status[s] == SnSR_CLOSED) goto makesocket;
 	}
 
-	puts("W5x00 all sockets dirty");
+	//puts("W5x00 all sockets dirty");
 	//printf("W5000socket step2\n");
 	// as a last resort, forcibly close any already closing
 	for (s=0; s < maxindex; s++) {
@@ -113,7 +107,7 @@ SOCKET eth_socketBegin(w5k_data_t c, uint8_t protocol, uint16_t port, uint8_t *s
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif
-	puts("W5x00 all sockets used");
+	//puts("W5x00 all sockets used");
 	return MAX_SOCK_NUM; // all sockets are in use
 closemakesocket:
 	//printf("W5000socket close\n");
@@ -147,7 +141,7 @@ makesocket:
 	return s;
 }
 
-SOCKET eth_socketCreate(w5k_data_t c, uint8_t* ip, uint16_t sport, uint8_t protocol, uint16_t dport, uint8_t *state_ref)
+SOCKET eth_socketCreate(w5k_data_t *c, uint8_t* ip, uint16_t sport, uint8_t protocol, uint16_t dport, uint8_t *state_ref)
 {
 	SOCKET sock = eth_socketBegin(c, protocol, sport, state_ref);
 	w5100_writeSnDIPR(c, sock, ip);
@@ -157,7 +151,7 @@ SOCKET eth_socketCreate(w5k_data_t c, uint8_t* ip, uint16_t sport, uint8_t proto
 
 // Closes the socket. If there are any active users of the socket it will deinit that as well
 //
-void eth_close_socket(w5k_data_t c, SOCKET s)
+void eth_close_socket(w5k_data_t *c, SOCKET s)
 {
     if (c->socket_state[s].state_ref != NULL) {
         *c->socket_state[s].state_ref = 0;
@@ -168,7 +162,7 @@ void eth_close_socket(w5k_data_t c, SOCKET s)
 
 // Get socket status. Returns the enum of the current socket status
 //
-uint8_t eth_socketStatus(w5k_data_t c, SOCKET s)
+uint8_t eth_socketStatus(w5k_data_t *c, SOCKET s)
 {
 	uint8_t status = w5100_readSnSR(c, s);
 	return status;
@@ -179,7 +173,7 @@ uint8_t eth_socketStatus(w5k_data_t c, SOCKET s)
 /*****************************************/
 
 
-static uint16_t getSnRX_RSR(w5k_data_t c, uint8_t s)
+static uint16_t getSnRX_RSR(w5k_data_t *c, uint8_t s)
 {
 #if 1
         uint16_t val, prev;
@@ -198,7 +192,7 @@ static uint16_t getSnRX_RSR(w5k_data_t c, uint8_t s)
 #endif
 }
 
-static void read_data(w5k_data_t c, uint8_t s, uint16_t src, uint8_t *dst, uint16_t len)
+static void read_data(w5k_data_t *c, uint8_t s, uint16_t src, uint8_t *dst, uint16_t len)
 {
 	uint16_t size;
 	uint16_t src_mask;
@@ -220,7 +214,7 @@ static void read_data(w5k_data_t c, uint8_t s, uint16_t src, uint8_t *dst, uint1
 
 // Receive data.  Returns size, or -1 for no data, or 0 if connection closed
 //
-int eth_socketRecv(w5k_data_t c, uint8_t s, uint8_t *buf, int16_t len)
+int eth_socketRecv(w5k_data_t *c, uint8_t s, uint8_t *buf, int16_t len)
 {
 	// Check how much data is available
 	int ret = c->socket_state[s].RX_RSR;
@@ -264,7 +258,7 @@ int eth_socketRecv(w5k_data_t c, uint8_t s, uint8_t *buf, int16_t len)
 	return ret;
 }
 
-uint16_t eth_socketRecvAvailable(w5k_data_t c, uint8_t s)
+uint16_t eth_socketRecvAvailable(w5k_data_t *c, uint8_t s)
 {
 	uint16_t ret = c->socket_state[s].RX_RSR;
 	if (ret == 0) {
@@ -278,7 +272,7 @@ uint16_t eth_socketRecvAvailable(w5k_data_t c, uint8_t s)
 
 // get the first byte in the receive queue (no checking)
 //
-uint8_t eth_socketPeek(w5k_data_t c, uint8_t s)
+uint8_t eth_socketPeek(w5k_data_t *c, uint8_t s)
 {
 	uint8_t b;
 	uint16_t ptr = c->socket_state[s].RX_RD;
@@ -292,7 +286,7 @@ uint8_t eth_socketPeek(w5k_data_t c, uint8_t s)
 /*    Socket Data Transmit Functions     */
 /*****************************************/
 
-static uint16_t getSnTX_FSR(w5k_data_t c, uint8_t s)
+static uint16_t getSnTX_FSR(w5k_data_t *c, uint8_t s)
 {
         uint16_t val, prev;
 
@@ -308,7 +302,7 @@ static uint16_t getSnTX_FSR(w5k_data_t c, uint8_t s)
 }
 
 
-static void write_data(w5k_data_t c, uint8_t s, uint16_t data_offset, const uint8_t *data, uint16_t len)
+static void write_data(w5k_data_t *c, uint8_t s, uint16_t data_offset, const uint8_t *data, uint16_t len)
 {
 	uint16_t ptr = w5100_readSnTX_WR(c, s);
 	ptr += data_offset;
@@ -332,7 +326,7 @@ static void write_data(w5k_data_t c, uint8_t s, uint16_t data_offset, const uint
  * @brief	This function used to send the data in TCP mode
  * @return	1 for success else 0.
  */
-uint16_t eth_socketSend(w5k_data_t c, uint8_t s, const uint8_t * buf, uint16_t len)
+uint16_t eth_socketSend(w5k_data_t *c, uint8_t s, const uint8_t * buf, uint16_t len)
 {
 	uint8_t status=0;
 	uint16_t ret=0;
@@ -372,7 +366,7 @@ uint16_t eth_socketSend(w5k_data_t c, uint8_t s, const uint8_t * buf, uint16_t l
 	return ret;
 }
 
-uint16_t eth_socketSendAvailable(w5k_data_t c, uint8_t s)
+uint16_t eth_socketSendAvailable(w5k_data_t *c, uint8_t s)
 {
 	uint8_t status=0;
 	uint16_t freesize=0;
@@ -384,7 +378,7 @@ uint16_t eth_socketSendAvailable(w5k_data_t c, uint8_t s)
 	return 0;
 }
 
-uint16_t eth_socketBufferData(w5k_data_t c, uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len)
+uint16_t eth_socketBufferData(w5k_data_t *c, uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len)
 {
 	//printf("  bufferData, offset=%d, len=%d\n", offset, len);
 	uint16_t ret =0;
@@ -398,7 +392,7 @@ uint16_t eth_socketBufferData(w5k_data_t c, uint8_t s, uint16_t offset, const ui
 	return ret;
 }
 
-bool eth_socketStartUDP(w5k_data_t c, uint8_t s, uint8_t* addr, uint16_t port)
+bool eth_socketStartUDP(w5k_data_t *c, uint8_t s, uint8_t* addr, uint16_t port)
 {
 	if ( ((addr[0] == 0x00) && (addr[1] == 0x00) && (addr[2] == 0x00) && (addr[3] == 0x00)) ||
 	  ((port == 0x00)) ) {
@@ -409,7 +403,7 @@ bool eth_socketStartUDP(w5k_data_t c, uint8_t s, uint8_t* addr, uint16_t port)
 	return true;
 }
 
-bool eth_socketSendUDP(w5k_data_t c, uint8_t s)
+bool eth_socketSendUDP(w5k_data_t *c, uint8_t s)
 {
 	w5100_execCmdSn(c, s, SockCMD_SEND);
 
@@ -418,7 +412,7 @@ bool eth_socketSendUDP(w5k_data_t c, uint8_t s)
 		if (w5100_readSnIR(c, s) & SnIR_TIMEOUT) {
 			/* +2008.01 [bj]: clear interrupt */
 			w5100_writeSnIR(c, s, (SnIR_SEND_OK|SnIR_TIMEOUT));
-			puts("sendUDP timeout");
+			//puts("sendUDP timeout");
 			return false;
 		}
 		yield();
