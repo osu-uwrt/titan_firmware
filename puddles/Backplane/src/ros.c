@@ -24,6 +24,7 @@
 #include "basic_logger/logging.h"
 
 #include "mcp3426.h"
+#include "128D818.h"
 #include "depth_sensor.h"
 #include "dshot.h"
 #include "ros.h"
@@ -248,6 +249,9 @@ rcl_ret_t adc_update(uint8_t client_id) {
     status_msg.five_volt_voltage = (mcp3426_query(1) * .00333556);
     status_msg.twelve_volt_voltage = (mcp3426_query(2) * .01100897);
     status_msg.balanced_voltage = (mcp3426_query(3) * .01099898);
+    for(int i = 0; i < 8; i++) {
+        status_msg.esc_current[i] = D818_query(i);
+    }
     RCSOFTRETCHECK(rcl_publish(&adc_publisher, &status_msg, NULL));
     return RCL_RET_OK;
 }

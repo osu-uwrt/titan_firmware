@@ -6,6 +6,7 @@
 
 #include "depth_sensor.h"
 #include "mcp3426.h"
+#include "128D818.h"
 #include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -153,6 +154,7 @@ static void tick_background_tasks() {
     // bool aux_state = gpio_get(AUX_SW_SENSE);
 
     mcp3426_read();
+    D818_read();
 }
 
 
@@ -168,10 +170,11 @@ int main() {
 
     static_assert(SENSOR_I2C == 0, "Sensor i2c expected on i2c0");
     static_assert(BOARD_I2C == 1, "Board i2c expected on i2c0");
-    async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 200000, 10);
+    async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 400000, 10);
     depth_init();
     dshot_init();
     mcp3426_init();
+    D818_init();
 
     // init the CPU pwr ctrl system
     gpio_init(PWR_CTL_CPU);
