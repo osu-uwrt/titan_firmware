@@ -12,6 +12,7 @@
 #define FAULT_ROS_ERROR           4
 #define FAULT_TIMER_MISSED        5
 #define FAULT_ROS_BAD_COMMAND     6
+#define FAULT_ADC_ERROR           7
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
@@ -20,7 +21,8 @@ static const char * const fault_string_list[] = {
     "FAULT_CAN_RECV_ERROR",
     "FAULT_ROS_ERROR",
     "FAULT_TIMER_MISSED",
-    "FAULT_ROS_BAD_COMMAND"
+    "FAULT_ROS_BAD_COMMAND",
+    "FAULT_ADC_ERROR",
 };
 
 extern bool safety_interface_kill_switch_refreshed;

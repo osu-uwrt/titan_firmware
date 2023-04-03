@@ -61,6 +61,8 @@ target_link_libraries(power_board
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
+	hardware_adc	
+	async_i2c		# used for MCP34326
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

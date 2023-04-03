@@ -8,6 +8,7 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/robot_state.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
+#include <riptide_msgs2/msg/electrical_readings.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
@@ -15,6 +16,8 @@
 #include "basic_logger/logging.h"
 
 #include "ros.h"
+#include "mcp3426.h"
+#include "analog_io.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -68,6 +71,7 @@ void ros_rmw_init_error_handling(void)  {
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
+#define ELECTRICAL_READING_NAME "state/electrical"
 
 bool ros_connected = false;
 
@@ -81,6 +85,8 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher;
+rcl_publisher_t electrical_reading_publisher;
+riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = {0};
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -137,6 +143,36 @@ static void software_kill_subscription_callback(const void * msgin)
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
+
+static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
+    float top = 10000.0;
+    float bottom;
+
+    if (is_3v3) {
+        bottom = 10000.0;
+    } else {
+        bottom = 1000.0;
+    }
+    return adc_voltage * 1.0 / (bottom / (bottom + top));
+}
+
+rcl_ret_t ros_publish_electrical_readings() {
+    electrical_reading_msg.port_voltage = analog_io_read_port_meas();
+    electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
+    electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
+    electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
+    electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
+    electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
+
+    size_t esc_current_length = sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
+    for(size_t i = 0; i < esc_current_length; i++) {
+        electrical_reading_msg.esc_current[i] = 0;
+    }
+
+    RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
+
+    return RCL_RET_OK;
+}
 
 rcl_ret_t ros_publish_killswitch() {
     std_msgs__msg__Bool killswitch_msg = {.data = safety_kill_get_asserting_kill()};
@@ -233,6 +269,12 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(
+        &electrical_reading_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
+        ELECTRICAL_READING_NAME));
+
     RCRETCHECK(rclc_subscription_init_best_effort(
         &software_kill_subscriber,
         &node,
@@ -258,6 +300,7 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))

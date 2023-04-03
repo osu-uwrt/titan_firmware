@@ -70,4 +70,6 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 rcl_ret_t ros_publish_killswitch();
 
+rcl_ret_t ros_publish_electrical_readings();
+
 #endif
