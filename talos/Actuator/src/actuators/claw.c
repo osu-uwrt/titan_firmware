@@ -13,7 +13,7 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
 
-static const uint direction_pin = 0; // TODO rewrite
+static const uint direction_pin = CLAW_PHASE_PIN; // TODO rewrite
 static const uint mode2_pin = CLAW_MODE2_PIN;
 static const uint enable_pin = CLAW_ENABLE_PIN;
 

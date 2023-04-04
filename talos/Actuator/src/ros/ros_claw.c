@@ -79,6 +79,6 @@ rcl_ret_t ros_claw_init(rclc_executor_t *executor, rcl_node_t *node, rclc_suppor
     return RCL_RET_OK;
 }
 
-void ros_claw_fini(rcl_node_t *node) { 
+void ros_claw_fini(rcl_node_t *node) {
 	RCSOFTCHECK(rclc_action_server_fini(&change_claw_state_server, node));
 }

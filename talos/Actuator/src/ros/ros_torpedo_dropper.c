@@ -45,7 +45,6 @@ rcl_ret_t arm_torpedo_dropper_goal_request(rclc_action_goal_handle_t *goal_handl
     if (req->goal.arm_droppers)
     {
         result = dropper_arm();
-        assert(false);
     }
     else if (req->goal.arm_torpedos)
     {
@@ -76,16 +75,14 @@ bool arm_torpedo_dropper_cancel(rclc_action_goal_handle_t *goal_handle, void *co
     (void)goal_handle;
     riptide_msgs2__action__ArmTorpedoDropper_SendGoal_Request *req =
         (riptide_msgs2__action__ArmTorpedoDropper_SendGoal_Request *)goal_handle->ros_goal_request;
-
+    printf("help robert please why no cancel the ros :(\n");
     bool cancel;
     if (req->goal.arm_torpedos)
     {
-        assert(false);
         cancel = torpedo_disarm();
     }
     else if (req->goal.arm_droppers)
     {
-        assert(false);
         cancel = dropper_disarm();
     }
     else
@@ -96,7 +93,7 @@ bool arm_torpedo_dropper_cancel(rclc_action_goal_handle_t *goal_handle, void *co
 
     if (cancel)
     {
-        LOG_DEBUG("cancelling arm torpedo/dropper goal.");
+        LOG_INFO("cancelling arm torpedo/dropper goal.");
         arm_torpedo_dropper_goal_handle = NULL;
     }
 
@@ -208,31 +205,31 @@ rcl_ret_t ros_torpedo_dropper_init(rclc_executor_t *executor, rcl_node_t *node, 
         actuate_torpedos_cancel,
         (void *) &actuate_torpedo_server));
 
-    RCRETCHECK(
-        rclc_action_server_init_default(
-        &actuate_dropper_server,
-        node,
-        support,
-        ROSIDL_GET_ACTION_TYPE_SUPPORT(riptide_msgs2, ActuateDroppers),
-        "actuate_dropper"
-    ));
+    // RCRETCHECK(
+    //     rclc_action_server_init_default(
+    //     &actuate_dropper_server,
+    //     node,
+    //     support,
+    //     ROSIDL_GET_ACTION_TYPE_SUPPORT(riptide_msgs2, ActuateDroppers),
+    //     "actuate_dropper"
+    // ));
 
-	RCRETCHECK(rclc_executor_add_action_server(
-        executor,
-        &actuate_dropper_server,
-        1,
-        actuate_droppers_ros_goal_request,
-        sizeof(riptide_msgs2__action__ActuateDroppers_SendGoal_Request),
-        actuate_dropper_goal_request,
-        actuate_dropper_cancel,
-        (void *) &actuate_dropper_server));
+	// RCRETCHECK(rclc_executor_add_action_server(
+    //     executor,
+    //     &actuate_dropper_server,
+    //     1,
+    //     actuate_droppers_ros_goal_request,
+    //     sizeof(riptide_msgs2__action__ActuateDroppers_SendGoal_Request),
+    //     actuate_dropper_goal_request,
+    //     actuate_dropper_cancel,
+    //     (void *) &actuate_dropper_server));
 
     return RCL_RET_OK;
 }
 
 void ros_torpedo_dropper_fini(rcl_node_t *node)
 {
-    RCSOFTCHECK(rclc_action_server_fini(&arm_torpedo_dropper_server, node));
-    RCSOFTCHECK(rclc_action_server_fini(&actuate_dropper_server, node));
-    RCSOFTCHECK(rclc_action_server_fini(&actuate_torpedo_server, node));
+    // RCSOFTCHECK(rclc_action_server_fini(&arm_torpedo_dropper_server, node));
+    // RCSOFTCHECK(rclc_action_server_fini(&actuate_dropper_server, node));
+    // RCSOFTCHECK(rclc_action_server_fini(&actuate_torpedo_server, node));
 }

@@ -6,6 +6,7 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/actuator_status.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
@@ -13,6 +14,9 @@
 #include "basic_logger/logging.h"
 
 #include "ros/ros.h"
+#include "actuators/dropper.h"
+#include "actuators/torpedo.h"
+#include "actuators/claw.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -80,6 +84,8 @@ int failed_heartbeats = 0;
 rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
+rcl_publisher_t actuator_status_publisher;
+riptide_msgs2__msg__ActuatorStatus actuator_status_msg;
 // TODO: Add node specific items here
 
 // ========================================
@@ -97,6 +103,58 @@ static void killswitch_subscription_callback(const void * msgin)
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
+
+static uint8_t actuator_to_ros_dropper_state(enum dropper_state dropper_state) {
+	if (dropper_state == DROPPER_STATE_READY) {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
+	} else if (dropper_state == DROPPER_STATE_DROPPING) {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
+	}
+}
+
+static uint8_t actuator_to_ros_torpedo_state(enum torpedo_state torpedo_state) {
+	if (torpedo_state == TORPEDO_STATE_DISARMED) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
+	} else if (torpedo_state == TORPEDO_STATE_CHARGING) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
+	} else if (torpedo_state == TORPEDO_STATE_READY) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
+	} else if (torpedo_state == TORPEDO_STATE_FIRING) {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+	}
+}
+
+static uint8_t actuator_to_ros_claw_state(enum claw_state claw_state) {
+	if (claw_state == CLAW_STATE_UNKNOWN_POSITION) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_UNKNOWN;
+	} else if (claw_state == CLAW_STATE_OPENED) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENED;
+	} else if (claw_state == CLAW_STATE_CLOSED) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSED;
+	} else if (claw_state == CLAW_STATE_OPENING) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENING;
+	} else if (claw_state == CLAW_STATE_CLOSING) {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSING;
+	} else {
+		return riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
+	}
+}
+
+rcl_ret_t ros_update_actuator_status(uint8_t client_id) {
+	actuator_status_msg.claw_state = actuator_to_ros_claw_state(claw_get_state());
+	actuator_status_msg.torpedo1_state = actuator_to_ros_torpedo_state(torpedo_get_state(1));
+	actuator_status_msg.torpedo2_state = actuator_to_ros_torpedo_state(torpedo_get_state(2));
+	actuator_status_msg.dropper1_state = actuator_to_ros_dropper_state(dropper_get_state(1));
+	actuator_status_msg.dropper2_state = actuator_to_ros_dropper_state(dropper_get_state(2));
+
+	RCRETCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
+
+    return RCL_RET_OK;
+}
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
@@ -187,8 +245,15 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_SUBCRIBER_NAME));
 
+    RCRETCHECK(rclc_publisher_init(
+		&actuator_status_publisher,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorStatus),
+		"state/actuator",
+		&rmw_qos_profile_sensor_data));
+
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 5;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
@@ -214,6 +279,7 @@ void ros_fini(void) {
     ros_claw_fini(&node);
     ros_torpedo_dropper_fini(&node);
 
+    RCSOFTCHECK(rcl_publisher_fini(&actuator_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))

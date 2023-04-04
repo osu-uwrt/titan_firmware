@@ -26,6 +26,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define ACTUATOR_STATUS_TIME_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -34,6 +35,7 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
+absolute_time_t next_actuator_status = {0};
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -76,6 +78,7 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
 }
 
 /**
@@ -106,6 +109,10 @@ static void tick_ros_tasks() {
 
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+    }
+
+    if(timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_update_actuator_status(client_id));
     }
 
     // TODO: Put any additional ROS tasks added here

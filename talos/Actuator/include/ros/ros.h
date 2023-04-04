@@ -80,4 +80,6 @@ rcl_ret_t ros_torpedo_dropper_init(rclc_executor_t *executor, rcl_node_t *node, 
 
 void ros_torpedo_dropper_fini(rcl_node_t *node);
 
+rcl_ret_t ros_update_actuator_status(uint8_t client_id);
+
 #endif
