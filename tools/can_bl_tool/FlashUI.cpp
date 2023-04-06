@@ -108,8 +108,7 @@ void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2) {
     if (uf2.isOTA && uf2.getBaseAddress() == appBoot2Addr) {
         // Make sure boot2 matches (since pico sdk likes to refer to XIP_BASE rather than the linker boot2)
         // So in the event the sdk calls boot2 (and it typically always does), it won't break things
-        std::vector<uint8_t> appBoot2;
-        uf2.getAddress(appBoot2Addr, appBoot2);
+        auto appBoot2 = uf2.getAddress(appBoot2Addr);
 
         if (!interface.verifyBytes(appBoot2Addr, appBoot2)) {
             if (!showConfirmation("[WARNING] The boot2 used by this application does not match the bootloader boot2. This may cause performance or other stability issues. Continue with flashing?")) {
@@ -130,8 +129,7 @@ void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2) {
         drawProgressBar(((float)i) / (blockCount - 1));
 
         // Write data
-        std::vector<uint8_t> block;
-        uf2.getBlock(i, block);
+        auto block = uf2.getBlock(i);
         interface.writeBytes(uf2.getBlockAddress(i), block);
     }
     drawProgressBar(1.0);
@@ -142,8 +140,7 @@ void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2) {
         drawProgressBar(((float)i) / (blockCount - 1));
 
         // Write data
-        std::vector<uint8_t> block;
-        uf2.getBlock(i, block);
+        auto block = uf2.getBlock(i);
         if (!interface.verifyBytes(uf2.getBlockAddress(i), block)) {
             std::cout << std::endl << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(i) << std::dec << std::endl;
             return;
@@ -154,8 +151,7 @@ void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2) {
 
     std::cout << "Sealing Image..." << std::endl;
     {
-        std::vector<uint8_t> block;
-        uf2.getBlock(0, block);
+        auto block = uf2.getBlock(0);
         interface.writeBytes(uf2.getBlockAddress(0), block);
         if (!interface.verifyBytes(uf2.getBlockAddress(0), block)) {
             std::cout << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(0) << std::dec << std::endl;

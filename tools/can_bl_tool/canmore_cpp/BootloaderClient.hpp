@@ -33,9 +33,9 @@ class BootloaderClient: public UploadTool::RP2040FlashInterface {
         void getVersion(std::string &versionOut);
 
         // Overidden Functions
-        void readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) override;
-        void writeBytes(uint32_t addr, std::vector<uint8_t> &bytes) override;
-        bool verifyBytes(uint32_t addr, std::vector<uint8_t> &bytes) override;
+        void readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) override;
+        void writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) override;
+        bool verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) override;
         void enableBootloaderOverwrite() override;
         void reboot() override;
 

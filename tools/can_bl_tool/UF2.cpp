@@ -131,12 +131,11 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
     }
 }
 
-void RP2040UF2::getBlock(uint32_t blockNum, std::vector<uint8_t> &dataOut) {
-    auto& blockData = uf2Array.at(blockNum);
-    dataOut.insert(dataOut.begin(), blockData.begin(), blockData.end());
+std::array<uint8_t, 256>& RP2040UF2::getBlock(uint32_t blockNum) {
+    return uf2Array.at(blockNum);
 }
 
-void RP2040UF2::getAddress(uint32_t flashAddress, std::vector<uint8_t> &dataOut) {
+std::array<uint8_t, 256>& RP2040UF2::getAddress(uint32_t flashAddress) {
     if (flashAddress % UF2_PAGE_SIZE != 0) {
         throw std::runtime_error("Unaligned uf2 address read");
     }
@@ -144,5 +143,5 @@ void RP2040UF2::getAddress(uint32_t flashAddress, std::vector<uint8_t> &dataOut)
         throw std::runtime_error("Invalid flash address");
     }
 
-    getBlock((flashAddress - baseAddress) / UF2_PAGE_SIZE, dataOut);
+    return getBlock((flashAddress - baseAddress) / UF2_PAGE_SIZE);
 }

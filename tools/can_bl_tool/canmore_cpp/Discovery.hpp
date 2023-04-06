@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -169,7 +170,7 @@ class Discovery: public UploadTool::RP2040Discovery {
         void startSocketThread(int socketFd);
 
         // Reports that a device has been discovered by the receiving socket
-        void reportDiscoveredDevice(std::shared_ptr<Device> &device);
+        void reportDiscoveredDevice(const std::shared_ptr<Device> &device);
 
     private:
 

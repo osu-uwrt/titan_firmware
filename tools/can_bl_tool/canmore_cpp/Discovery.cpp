@@ -79,17 +79,27 @@ void Discovery::notifyEventFd() {
     }
 }
 
-void Discovery::reportDiscoveredDevice(std::shared_ptr<Device> &device) {
+void Discovery::reportDiscoveredDevice(const std::shared_ptr<Device> &device) {
     const std::lock_guard<std::mutex> lock(discoveredDevicesMutex);
 
     // Remove older version of Device if it exists
-    discoveredDevices.erase(device);
+    for (auto it = discoveredDevices.begin(); it != discoveredDevices.end(); ) {
+        if (**it == *device) {
+            discoveredDevices.erase(it++);
+        }
+        else {
+            ++it;
+        }
+    }
 
     // Insert new version
     discoveredDevices.insert(device);
 
     // Take chance to prune any not discovered devices
     pruneDiscoveredDevices();
+
+    // Notify
+    discoveredNotify.notify_one();
 }
 
 void Discovery::pruneDiscoveredDevices() {

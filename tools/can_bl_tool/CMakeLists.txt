@@ -11,11 +11,13 @@ project(caN_bl_tool)
 
 set(CMAKE_CXX_STANDARD 17)
 
+add_subdirectory(${PICO_SDK_PATH}/src/common/pico_binary_info pico_binary_info)
 add_subdirectory(${PICO_SDK_PATH}/src/common/boot_uf2 boot_uf2_headers)
 add_subdirectory(${REPO_DIR}/lib/can_bus/canmore_protocol canmore_protocol)
 
 add_executable(can_bl_tool
 	main.cpp
+	BinaryInfo.cpp
 	UF2.cpp
 	FlashUI.cpp
 	canmore_cpp/Discovery.cpp
@@ -37,4 +39,5 @@ target_compile_options(can_bl_tool PUBLIC -Wall -Wextra)
 target_link_libraries(can_bl_tool
     canmore_protocol
 	boot_uf2_headers
+	pico_binary_info
 )

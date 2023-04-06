@@ -11,7 +11,7 @@
 #define BOOTLOADER_SIZE 0x4000  // TODO: Read this from the binary info
 #define FLASH_BASE 0x10000000
 #define MAX_FLASH_SIZE (16*1024*1024) // 16 MB Flash size
-#define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing
+#define UF2_PAGE_SIZE 256u       // All RP2040 UF2 files are have 256 bytes of data for flashing
 
 namespace UploadTool {
 
@@ -22,9 +22,9 @@ class RP2040UF2 {
 
         const bool isOTA;
 
-        void getBlock(uint32_t blockNum, std::vector<uint8_t> &dataOut);
-        void getAddress(uint32_t flashAddress, std::vector<uint8_t> &dataOut);
-        void getFlashOffset(uint32_t flashOffset, std::vector<uint8_t> &dataOut) {getAddress(FLASH_BASE + flashOffset, dataOut);}
+        std::array<uint8_t, 256>& getBlock(uint32_t blockNum);
+        std::array<uint8_t, 256>& getAddress(uint32_t flashAddress);
+        std::array<uint8_t, 256>& getFlashOffset(uint32_t flashOffset) {return getAddress(FLASH_BASE + flashOffset);}
 
         uint32_t getBlockAddress(uint32_t blockNum) {return baseAddress + (blockNum * UF2_PAGE_SIZE);}
         uint32_t getBaseAddress() {return baseAddress;}
@@ -42,9 +42,9 @@ class RP2040UF2 {
 
 class RP2040FlashInterface {
     public:
-        virtual void readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) = 0;
-        virtual void writeBytes(uint32_t addr, std::vector<uint8_t> &bytes) = 0;
-        virtual bool verifyBytes(uint32_t addr, std::vector<uint8_t> &bytes) = 0;
+        virtual void readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) = 0;
+        virtual void writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) = 0;
+        virtual bool verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) = 0;
         virtual uint64_t getFlashId() = 0;
         virtual uint32_t getFlashSize() = 0;
         virtual void reboot() = 0;
@@ -78,5 +78,8 @@ class RP2040Discovery {
 
 std::shared_ptr<RP2040FlashInterface> selectInterface(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap);
 void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2);
+
+// Binary Image
+std::string getBoardType(RP2040UF2 &uf2);
 
 };

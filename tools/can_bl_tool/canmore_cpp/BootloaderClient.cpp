@@ -58,7 +58,7 @@ void BootloaderClient::getVersion(std::string &versionOut) {
     client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM, versionOut);
 }
 
-void BootloaderClient::readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) {
+void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
     if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK) != 0) {
         throw BootloaderError("Invalid Read Address");
     }
@@ -71,7 +71,6 @@ void BootloaderClient::readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) 
     client->readArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0,
                         flashContents, CANMORE_BL_FLASH_BUFFER_SIZE/sizeof(uint32_t));
 
-    bytesOut.resize(CANMORE_BL_FLASH_BUFFER_SIZE);
     for (size_t i = 0; i < flashContents.size(); i++) {
         uint32_t word = flashContents.at(i);
         bytesOut.at((i * 4) + 0) = (word >> 0) & 0xFF;
@@ -81,7 +80,7 @@ void BootloaderClient::readBytes(uint32_t addr, std::vector<uint8_t> &bytesOut) 
     }
 }
 
-void BootloaderClient::writeBytes(uint32_t addr, std::vector<uint8_t> &bytes) {
+void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) {
     if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK) != 0) {
         throw BootloaderError("Invalid Write Address");
     }
@@ -125,7 +124,7 @@ void BootloaderClient::writeBytes(uint32_t addr, std::vector<uint8_t> &bytes) {
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_WRITE);
 }
 
-bool BootloaderClient::verifyBytes(uint32_t addr, std::vector<uint8_t> &bytes) {
+bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) {
     if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_READ_ADDR_ALIGN_MASK) != 0) {
         throw BootloaderError("Invalid Write Address");
     }
@@ -136,9 +135,7 @@ bool BootloaderClient::verifyBytes(uint32_t addr, std::vector<uint8_t> &bytes) {
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     // Compute CRC
-    auto bytesCopy = std::vector<uint8_t>(bytes);
-    bytesCopy.resize(CANMORE_BL_FLASH_BUFFER_SIZE, 0);  // Pad with 0s (this is how its written to the device)
-    uint32_t crcExpected = crcdetail::compute(bytesCopy.data(), bytesCopy.size());
+    uint32_t crcExpected = crcdetail::compute(bytes.data(), bytes.size());
 
     // Read CRC from device
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);

@@ -70,8 +70,8 @@ int main(int argc, char** argv) {
     }
     UploadTool::DeviceMap devMap(deviceDefinitionPath);
 
-    if (argc != 2) {
-        printf("Usage: %s [interface]\n", argv[0]);
+    if (argc != 3) {
+        printf("Usage: %s [interface] [filename]\n", argv[0]);
         return 1;
     }
 
@@ -81,6 +81,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    UploadTool::RP2040UF2 uf2(argv[2], true);
+    // std::string imageType = UploadTool::getBoardType(uf2);
+    // std::cout << "Image Type: " << imageType << std::endl;
+
     auto discovery = Canmore::CANDiscovery::create(ifIndex);
     std::cout << "Waiting for devices..." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -89,20 +93,25 @@ int main(int argc, char** argv) {
     discovery->discoverDevices(discovered);
     if (discovered.size() == 0) {
         std::cout << "No devices to select" << std::endl;
+        auto interface = discovery->catchDeviceInBootDelay(4);
+
+        std::string version;
+        interface->getVersion(version);
+        std::cout << "Version: " << version << std::endl;
         return 0;
     }
 
     auto interface = UploadTool::selectInterface(discovered, devMap);
 
     // std::string version;
-    // client.getVersion(version);
-
+    // interface->getVersion(version);
     // std::cout << "Version: " << version << std::endl;
 
-    std::vector<uint8_t> my_page;
-    interface->readBytes(0x10000000, my_page);
-    DumpHex(my_page.data(), my_page.size());
+    // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
+    // interface->readBytes(0x10000000, my_page);
+    // DumpHex(my_page.data(), my_page.size());
 
-    interface->reboot();
+    UploadTool::flashImage(*interface, uf2);
+
     return 0;
 }

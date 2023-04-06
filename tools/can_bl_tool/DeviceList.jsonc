@@ -14,6 +14,11 @@
         "boardType": "mk2_esc_board",
         "serial": "E6621455075D8323"
     },
+    {
+        "name": "Mark 2 Camera Cage BB",
+        "boardType": "mk2_camera_cage_bb",
+        "serial": "E66214550758B927"
+    },
 
 
 
