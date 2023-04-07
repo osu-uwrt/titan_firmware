@@ -17,6 +17,10 @@ void can_mcp251xfd_report_msg_rx_fifo_ready(void);
 void can_mcp251xfd_report_utility_tx_fifo_ready(void);
 void can_mcp251xfd_report_utility_rx_fifo_ready(void);
 
+bool can_mcp251xfd_get_in_error(void);
+
+bool can_mcp251x_get_term_state(bool *term_state_out);
+
 /**
  * @brief Disables the GPIO interrupt for the MCP251XFD and saves the previous state for restoring
  *
@@ -58,5 +62,12 @@ void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code);
 
 #define canbus_report_driver_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, true)
 #define canbus_report_library_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, false)
+
+// ========================================
+// CAN Debug Interface Exports
+// ========================================
+
+void can_debug_init(void);
+void can_debug_tick(void);
 
 #endif

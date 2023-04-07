@@ -7,7 +7,7 @@
 #include "pico/binary_info.h"
 #include "pico/mutex.h"
 
-#include "canmore/protocol.h"
+#include "canmore_titan/protocol.h"
 
 #include "can_mcp251XFD_bridge.h"
 #include "mcp251Xfd/CRC16_CMS.h"
@@ -349,6 +349,40 @@ MCP251XFD_Filter mcp251xfd_utility_rx_filter =
     .PointTo = mcp251xfd_utility_rx_fifo,
 };
 
+#if MCP2517FD_TERM_SENSE_ON_INT0
+
+/**
+ * @brief Gets the termination resistor state
+ *
+ * @param term_state_out Pointer to write termination state if valid, writes true if termination is enabled, false if not
+ * @return true The termination state is valid
+ * @return false Could not read termination state
+ */
+bool can_mcp251x_get_term_state(bool *term_state_out) {
+    uint8_t pin_state;
+    eERRORRESULT err = MCP251XFD_GetGPIOPinsInputLevel(&mcp251xfd_device, &pin_state);
+
+    if (err == ERR_OK) {
+        if (pin_state & MCP251XFD_GPIO0_HIGH) {
+            *term_state_out = false;
+        } else {
+            *term_state_out = true;
+        }
+
+        return true;
+    } else {
+        return false;
+    }
+}
+
+#else
+
+bool can_mcp251x_get_term_state(bool *term_state_out) {
+    return false;
+}
+
+#endif
+
 
 // ========================================
 // Interrupt Pin Handling
@@ -549,6 +583,13 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 // ========================================
 // Driver Exports
 // ========================================
+
+bool can_mcp251xfd_get_in_error(void) {
+    uint8_t txErrCnt, rxErrCnt;
+    eMCP251XFD_TXRXErrorStatus statusOut;
+    eERRORRESULT result = MCP251XFD_GetTransmitReceiveErrorCountAndStatus(&mcp251xfd_device, &txErrCnt, &rxErrCnt, &statusOut);
+    return result == ERR_OK && statusOut != MCP251XFD_TX_NO_ERROR;
+}
 
 bool can_mcp251xfd_configure(unsigned int client_id)
 {

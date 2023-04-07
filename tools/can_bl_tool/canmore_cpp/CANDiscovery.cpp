@@ -11,6 +11,7 @@
 
 #include "canmore_titan/protocol.h"
 #include "Discovery.hpp"
+#include "DebugClient.hpp"
 
 using namespace Canmore;
 
@@ -105,13 +106,30 @@ void CANDiscovery::handleSocketData(int socketFd) {
 // ========================================
 
 uint64_t CANNormalDevice::getFlashId() {
-    // TODO: Implement me
-    return 0;
+    if (!isFlashIdCached) {
+        auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+        auto debugClient = DebugClient(interface);
+        cachedFlashId.doubleword = debugClient.getFlashId();
+
+        isFlashIdCached = true;
+    }
+
+    return cachedFlashId.doubleword;
 }
 
 std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
-    // TODO: Implement me
-    return nullptr;
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto debugClient = DebugClient(interface);
+    debugClient.enterBootloader();
+
+    // Get a discovery context to wait for bootloader
+    auto discovery = CANDiscovery::create(ifIndex);
+    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+
+    if (!dev) {
+        throw BootloaderError("Failed to reconnect to device in bootloader mode");
+    }
+    return dev->getClient();
 }
 
 uint64_t CANBootloaderDevice::getFlashId() {

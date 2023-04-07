@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../RP2040FlashInterface.hpp"
+#include "Canmore.hpp"
 #include "RegMappedClient.hpp"
 #include "canmore_titan/bootloader_interface.h"
 
@@ -15,12 +16,6 @@ static_assert(MAX_FLASH_SIZE % UF2_PAGE_SIZE == 0, "Flash size does not divide e
 static_assert(UF2_PAGE_SIZE == CANMORE_BL_FLASH_BUFFER_SIZE, "Flash buffer size does not match uf2 page size");
 
 namespace Canmore {
-
-union flash_id {
-    uint64_t doubleword;
-    uint32_t word[2];
-    uint8_t byte[8];
-};
 
 class BootloaderError : public std::runtime_error {
     public:

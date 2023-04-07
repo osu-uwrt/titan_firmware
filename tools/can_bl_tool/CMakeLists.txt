@@ -21,6 +21,7 @@ add_executable(can_bl_tool
 	UF2.cpp
 	FlashUI.cpp
 	canmore_cpp/Discovery.cpp
+	canmore_cpp/DebugClient.cpp
 	canmore_cpp/CANDiscovery.cpp
 	canmore_cpp/EthernetDiscovery.cpp
 	canmore_cpp/RegMappedClient.cpp
