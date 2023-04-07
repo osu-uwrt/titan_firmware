@@ -31,7 +31,7 @@ target_link_libraries(titan_bootloader PUBLIC
 # Increment this if any compatability changes occur
 # Release Types: PROTO, DEV, STABLE
 # Note: The bootloader verison is tied to the protocol, changing this will alert the client of a protocol change
-generate_version_tag(titan_bootloader 1 0 PROTO)
+generate_version_tag(titan_bootloader 1 0 STABLE)
 
 pico_add_extra_outputs(titan_bootloader)
 
