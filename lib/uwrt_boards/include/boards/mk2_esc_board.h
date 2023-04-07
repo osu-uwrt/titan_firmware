@@ -9,6 +9,9 @@
 #define CAN_BUS_BOARD0_CLIENT_ID 2
 #define CAN_BUS_BOARD1_CLIENT_ID 3
 
+// Define custom client lookup for the bootloader (since we need to detect which board we're on)
+#define TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP "can_bl_custom_id/mk2_esc_board.h"
+
 #ifdef UWRT_BOARD_DEFINED
 #error Multiple board types defined
 #endif

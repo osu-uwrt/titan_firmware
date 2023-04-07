@@ -1,19 +1,13 @@
 #include "eth_networking.h"
 
-udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port)
+bool eth_udp_begin(udp_socket_t *s, w5k_data_t *c, uint16_t port)
 {
-    udp_socket_t s = (udp_socket_t)malloc(sizeof(struct udp_socket));
-    if (s == NULL){
-        puts("Failed to allocate struct");
-        return NULL;
-    }
     s->socket_active = 0;
 	s->sockindex = eth_socketBegin(c, SnMR_UDP, port, &s->socket_active);
 	if (s->sockindex >= MAX_SOCK_NUM){
-        printf("Socket index invalid: %d\n", s->sockindex);
+        //printf("Socket index invalid: %d\n", s->sockindex);
 
-        free(s);
-        return NULL;
+        return false;
     }
     s->device = c;
 	s->port = port;
@@ -24,12 +18,12 @@ udp_socket_t eth_udp_begin(w5k_data_t c, uint16_t port)
     s->remoteIP[2] = 0;
     s->remoteIP[3] = 0;
     s->remotePort = 0;
-	return s;
+	return true;
 }
 
 /* return number of bytes available in the current packet,
    will return zero if parsePacket hasn't been called yet */
-size_t eth_udp_available(udp_socket_t s)
+size_t eth_udp_available(udp_socket_t *s)
 {
     if (!s->socket_active){
         return 0;
@@ -38,20 +32,19 @@ size_t eth_udp_available(udp_socket_t s)
 }
 
 /* Release any resources being used by this EthernetUDP instance */
-void eth_udp_stop(udp_socket_t s)
+void eth_udp_stop(udp_socket_t *s)
 {
 	if (s->socket_active) {
 		eth_close_socket(s->device, s->sockindex);
 	}
-    free(s);
 }
 
-bool eth_udp_isopen(udp_socket_t s)
+bool eth_udp_isopen(udp_socket_t *s)
 {
 	return s->socket_active;
 }
 
-int eth_udp_beginPacket(udp_socket_t s, uint8_t *ip, uint16_t port)
+int eth_udp_beginPacket(udp_socket_t *s, uint8_t *ip, uint16_t port)
 {
     if (!s->socket_active){
         return 0;
@@ -61,7 +54,7 @@ int eth_udp_beginPacket(udp_socket_t s, uint8_t *ip, uint16_t port)
 	return eth_socketStartUDP(s->device, s->sockindex, ip, port);
 }
 
-int eth_udp_endPacket(udp_socket_t s)
+int eth_udp_endPacket(udp_socket_t *s)
 {
     if (!s->socket_active){
         return 0;
@@ -69,12 +62,12 @@ int eth_udp_endPacket(udp_socket_t s)
 	return eth_socketSendUDP(s->device, s->sockindex);
 }
 
-size_t eth_udp_write_single(udp_socket_t s, uint8_t byte)
+size_t eth_udp_write_single(udp_socket_t *s, uint8_t byte)
 {
 	return eth_udp_write(s, &byte, 1);
 }
 
-size_t eth_udp_write(udp_socket_t s, const uint8_t *buffer, size_t size)
+size_t eth_udp_write(udp_socket_t *s, const uint8_t *buffer, size_t size)
 {
     if (!s->socket_active){
         return 0;
@@ -85,7 +78,7 @@ size_t eth_udp_write(udp_socket_t s, const uint8_t *buffer, size_t size)
 	return bytes_written;
 }
 
-size_t eth_udp_parsePacket(udp_socket_t s)
+size_t eth_udp_parsePacket(udp_socket_t *s)
 {
     if (!s->socket_active) {
         return 0;
@@ -122,7 +115,7 @@ size_t eth_udp_parsePacket(udp_socket_t s)
 	return 0;
 }
 
-uint8_t eth_udp_read_single(udp_socket_t s)
+uint8_t eth_udp_read_single(udp_socket_t *s)
 {
 	uint8_t byte;
 
@@ -136,7 +129,7 @@ uint8_t eth_udp_read_single(udp_socket_t s)
 	return -1;
 }
 
-size_t eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len)
+size_t eth_udp_read(udp_socket_t *s, unsigned char *buffer, size_t len)
 {
 	if (s->remaining > 0 && s->socket_active) {
 		int got;
@@ -158,7 +151,7 @@ size_t eth_udp_read(udp_socket_t s, unsigned char *buffer, size_t len)
 	return -1;
 }
 
-uint8_t eth_udp_peek(udp_socket_t s)
+uint8_t eth_udp_peek(udp_socket_t *s)
 {
 	// Unlike recv, peek doesn't check to see if there's any data available, so we must.
 	// If the user hasn't called parsePacket yet then return nothing otherwise they

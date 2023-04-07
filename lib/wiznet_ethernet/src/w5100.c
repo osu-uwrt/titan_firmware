@@ -9,22 +9,17 @@
  * published by the Free Software Foundation.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "w5100.h"
-#include "random.h"
 
-uint8_t w5100_init(w5k_data_t c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset)
+uint8_t w5100_init(w5k_data_t *c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset)
 {
-	seed_random_from_rosc();
-
 	c->spi_port = spi;
 	c->ss_pin = ss_pin;
 	c->reset_line = reset;
 	c->SSIZE = 2048;
 	c->SMASK = 0x07FF;
 	c->chip = 0;
-	c->local_port = random_range(49152, 65535);
+	c->local_port = 49152;
 	for (int i = 0; i < MAX_SOCK_NUM; i++){
 		c->socket_state[i].state_ref = NULL;
 	}
@@ -129,7 +124,7 @@ uint8_t w5100_init(w5k_data_t c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset)
 }
 
 // Soft reset the WIZnet chip, by writing to its MR register reset bit
-uint8_t w5100_softReset(w5k_data_t c)
+uint8_t w5100_softReset(w5k_data_t *c)
 {
 	uint16_t count=0;
 
@@ -147,7 +142,7 @@ uint8_t w5100_softReset(w5k_data_t c)
     		gpio_put(c->reset_line, 0);
     		busy_wait_ms(1500);
     		gpio_put(c->reset_line, 1);
-    		busy_wait_ms(100);
+    		busy_wait_ms(150);
 			w5100_writeMR(c, 0x80);
 		}
 		busy_wait_ms(5);
@@ -155,7 +150,7 @@ uint8_t w5100_softReset(w5k_data_t c)
 	return 0;
 }
 
-uint8_t w5100_isW5100(w5k_data_t c)
+uint8_t w5100_isW5100(w5k_data_t *c)
 {
 	c->chip = 51;
 	//puts("w5100.cpp: detect W5100 chip");
@@ -170,7 +165,7 @@ uint8_t w5100_isW5100(w5k_data_t c)
 	return 1;
 }
 
-uint8_t w5100_isW5200(w5k_data_t c)
+uint8_t w5100_isW5200(w5k_data_t *c)
 {
 	c->chip = 52;
 	//puts("w5100.cpp: detect W5200 chip");
@@ -188,7 +183,7 @@ uint8_t w5100_isW5200(w5k_data_t c)
 	return 1;
 }
 
-uint8_t w5100_isW5500(w5k_data_t c)
+uint8_t w5100_isW5500(w5k_data_t *c)
 {
 	c->chip = 55;
 	//puts("w5100.cpp: detect W5500 chip");
@@ -206,7 +201,7 @@ uint8_t w5100_isW5500(w5k_data_t c)
 	return 1;
 }
 
-enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t c)
+enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t *c)
 {
 	uint8_t phystatus;
 
@@ -225,7 +220,7 @@ enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t c)
 	}
 }
 
-uint16_t w5100_read(w5k_data_t c, uint16_t addr, uint8_t *buf, uint16_t len)
+uint16_t w5100_read(w5k_data_t *c, uint16_t addr, uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[4];
 
@@ -297,7 +292,7 @@ uint16_t w5100_read(w5k_data_t c, uint16_t addr, uint8_t *buf, uint16_t len)
 	return len;
 }
 
-uint16_t w5100_write(w5k_data_t c, uint16_t addr, const uint8_t *buf, uint16_t len)
+uint16_t w5100_write(w5k_data_t *c, uint16_t addr, const uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[8];
 
@@ -377,7 +372,7 @@ uint16_t w5100_write(w5k_data_t c, uint16_t addr, const uint8_t *buf, uint16_t l
 	return len;
 }
 
-void w5100_execCmdSn(w5k_data_t c, SOCKET s, uint8_t _cmd)
+void w5100_execCmdSn(w5k_data_t *c, SOCKET s, uint8_t _cmd)
 {
 	// Send command to socket
 	w5100_writeSnCR(c, s, _cmd);
