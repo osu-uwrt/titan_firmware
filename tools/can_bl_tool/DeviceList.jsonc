@@ -19,6 +19,21 @@
         "boardType": "mk2_camera_cage_bb",
         "serial": "E66214550758B927"
     },
+    {
+        "name": "Mark 2 ESC Board 1",
+        "boardType": "mk2_esc_board",
+        "serial": "E66214550761C327"
+    },
+    {
+        "name": "Mark 2 Actuator Board",
+        "boardType": "mk2_actuator_board",
+        "serial": "E662145507614B27"
+    },
+    {
+        "name": "Mark 2 Power Board",
+        "boardType": "mk2_power_board",
+        "serial": "E662145507404F27"
+    },
 
 
 

@@ -349,7 +349,7 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
     }
 
     // Cancel pending dshot transmission alarm
-    cancel_alarm(dshot_hardware_alarm_num);
+    hardware_alarm_cancel(dshot_hardware_alarm_num);
 
     // Clear the thrusters on
     dshot_thrusters_on = false;
