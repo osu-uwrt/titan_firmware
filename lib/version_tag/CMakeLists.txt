@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.13)
-
 set(_script_dir ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "")
 
 function(generate_version_tag target major_version minor_version release_type)

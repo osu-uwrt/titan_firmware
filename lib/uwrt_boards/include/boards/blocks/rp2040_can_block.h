@@ -18,4 +18,6 @@
 #define MCP2517FD_CANCLK_PIN    21
 #define MCP2517FD_INT_PIN       22
 
+#define MCP2517FD_TERM_SENSE_ON_INT0 1
+
 #endif

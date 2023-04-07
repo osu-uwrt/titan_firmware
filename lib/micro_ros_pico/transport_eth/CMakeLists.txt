@@ -8,6 +8,7 @@ target_sources(micro_ros_eth INTERFACE
 
 target_link_libraries(micro_ros_eth INTERFACE
     pico_stdlib
+    pico_unique_id
     wiznet_ethernet
     hardware_flash
 

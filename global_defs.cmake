@@ -7,9 +7,6 @@ include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 # Add uwrt custom boards
 include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 
-# Add versioning commands
-include(${REPO_DIR}/lib/version_tag/version_tag.cmake)
-
 # Make relwithdebuginfo actually like Release
 set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
 
@@ -38,12 +35,7 @@ function(uwrt_use_upload_tool target)
     endif()
 endfunction()
 
+include(${REPO_DIR}/bootloader/enable_bootloader.cmake)
+
 # Define all custom libraries
-add_subdirectory(${REPO_DIR}/lib/async_i2c/ async_i2c)
-add_subdirectory(${REPO_DIR}/lib/basic_logger/ basic_logger)
-add_subdirectory(${REPO_DIR}/lib/basic_queue/ basic_queue)
-add_subdirectory(${REPO_DIR}/lib/can_bus/ can_bus)
-add_subdirectory(${REPO_DIR}/lib/dual_serial_stdio_usb/ dual_serial_stdio_usb_build)
-add_subdirectory(${REPO_DIR}/lib/micro_ros_pico/ micro_ros_pico)
-add_subdirectory(${REPO_DIR}/lib/safety/ safety)
-add_subdirectory(${REPO_DIR}/lib/wiznet_ethernet/ wiznet_ethernet)
+add_subdirectory(${REPO_DIR}/lib/ titan_lib)

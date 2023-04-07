@@ -51,6 +51,7 @@ pico_set_program_name(power_board "Power Board FW")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(power_board)
+uwrt_enable_bootloader(power_board can)
 
 # Define linking and targets
 pico_add_extra_outputs(power_board)

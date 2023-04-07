@@ -15,7 +15,6 @@
 #ifndef	W5100_H_INCLUDED
 #define	W5100_H_INCLUDED
 
-#include <stdio.h>
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
 
@@ -118,45 +117,45 @@ typedef struct w5k_data {
         uint16_t TX_FSR;    // Free space ready for transmit
         uint8_t  RX_inc;    // how much have we advanced RX_RD
     } socket_state[MAX_SOCK_NUM];
-} *w5k_data_t;
+} w5k_data_t;
 
 // W5100 Registers
 // ---------------
-uint16_t w5100_write(w5k_data_t c, uint16_t addr, const uint8_t *buf, uint16_t len);
-static inline uint8_t w5100_write_single(w5k_data_t c, uint16_t addr, uint8_t data) {
+uint16_t w5100_write(w5k_data_t *c, uint16_t addr, const uint8_t *buf, uint16_t len);
+static inline uint8_t w5100_write_single(w5k_data_t *c, uint16_t addr, uint8_t data) {
     return w5100_write(c, addr, &data, 1);
 }
-uint16_t w5100_read(w5k_data_t c, uint16_t addr, uint8_t *buf, uint16_t len);
-static inline uint8_t w5100_read_single(w5k_data_t c, uint16_t addr) {
+uint16_t w5100_read(w5k_data_t *c, uint16_t addr, uint8_t *buf, uint16_t len);
+static inline uint8_t w5100_read_single(w5k_data_t *c, uint16_t addr) {
     uint8_t data;
     w5100_read(c, addr, &data, 1);
     return data;
 }
 
 #define __GP_REGISTER8(name, address)                                            \
-static inline void w5100_write##name(w5k_data_t _c, uint8_t _data) {             \
+static inline void w5100_write##name(w5k_data_t *_c, uint8_t _data) {            \
     w5100_write_single(_c, address, _data);                                      \
   }                                                                              \
-static inline uint8_t w5100_read##name(w5k_data_t _c) {                          \
+static inline uint8_t w5100_read##name(w5k_data_t *_c) {                         \
     return w5100_read_single(_c, address);                                       \
 }
 #define __GP_REGISTER16(name, address)                                           \
-static inline void w5100_write##name(w5k_data_t _c, uint16_t _data) {            \
+static inline void w5100_write##name(w5k_data_t *_c, uint16_t _data) {           \
     uint8_t buf[2];                                                              \
     buf[0] = _data >> 8;                                                         \
     buf[1] = _data & 0xFF;                                                       \
     w5100_write(_c, address, buf, 2);                                            \
 }                                                                                \
-static inline uint16_t w5100_read##name(w5k_data_t _c) {                         \
+static inline uint16_t w5100_read##name(w5k_data_t *_c) {                        \
     uint8_t buf[2];                                                              \
     w5100_read(_c, address, buf, 2);                                             \
     return (buf[0] << 8) | buf[1];                                               \
 }
 #define __GP_REGISTER_N(name, address, size)                                     \
-static inline uint16_t w5100_write##name(w5k_data_t _c, const uint8_t *_buff) {  \
+static inline uint16_t w5100_write##name(w5k_data_t *_c, const uint8_t *_buff) { \
     return w5100_write(_c, address, _buff, size);                                \
 }                                                                                \
-static inline uint16_t w5100_read##name(w5k_data_t _c, uint8_t *_buff) {         \
+static inline uint16_t w5100_read##name(w5k_data_t *_c, uint8_t *_buff) {        \
     return w5100_read(_c, address, _buff, size);                                 \
 }
 
@@ -188,7 +187,7 @@ __GP_REGISTER8 (PHYCFGR_W5500,     0x002E);    // PHY Configuration register, de
 
 // W5100 Socket registers
 // ----------------------
-static inline uint16_t W5100_CH_BASE(w5k_data_t c) {
+static inline uint16_t W5100_CH_BASE(w5k_data_t *c) {
     //if (chip == 55) return 0x1000;
     //if (chip == 52) return 0x4000;
     //return 0x0400;
@@ -196,43 +195,43 @@ static inline uint16_t W5100_CH_BASE(w5k_data_t c) {
 }
 static const uint16_t CH_SIZE = 0x0100;
 
-static inline uint8_t w5100_readSn_single(w5k_data_t c, SOCKET s, uint16_t addr) {
+static inline uint8_t w5100_readSn_single(w5k_data_t *c, SOCKET s, uint16_t addr) {
     return w5100_read_single(c, W5100_CH_BASE(c) + s * CH_SIZE + addr);
 }
-static inline uint8_t w5100_writeSn_single(w5k_data_t c, SOCKET s, uint16_t addr, uint8_t data) {
+static inline uint8_t w5100_writeSn_single(w5k_data_t *c, SOCKET s, uint16_t addr, uint8_t data) {
     return w5100_write_single(c, W5100_CH_BASE(c) + s * CH_SIZE + addr, data);
 }
-static inline uint16_t w5100_readSn(w5k_data_t c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
+static inline uint16_t w5100_readSn(w5k_data_t *c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
     return w5100_read(c, W5100_CH_BASE(c) + s * CH_SIZE + addr, buf, len);
 }
-static inline uint16_t w5100_writeSn(w5k_data_t c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
+static inline uint16_t w5100_writeSn(w5k_data_t *c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
     return w5100_write(c, W5100_CH_BASE(c) + s * CH_SIZE + addr, buf, len);
 }
 
 #define __SOCKET_REGISTER8(name, address)                                 \
-static inline void w5100_write##name(w5k_data_t _c, SOCKET _s, uint8_t _data) {  \
+static inline void w5100_write##name(w5k_data_t *_c, SOCKET _s, uint8_t _data) {  \
     w5100_writeSn_single(_c, _s, address, _data);                         \
 }                                                                         \
-static inline uint8_t w5100_read##name(w5k_data_t _c, SOCKET _s) {               \
+static inline uint8_t w5100_read##name(w5k_data_t *_c, SOCKET _s) {               \
     return w5100_readSn_single(_c, _s, address);                          \
 }
 #define __SOCKET_REGISTER16(name, address)                                \
-static inline void w5100_write##name(w5k_data_t _c, SOCKET _s, uint16_t _data) {        \
+static inline void w5100_write##name(w5k_data_t *_c, SOCKET _s, uint16_t _data) {        \
     uint8_t buf[2];                                                       \
     buf[0] = _data >> 8;                                                  \
     buf[1] = _data & 0xFF;                                                \
     w5100_writeSn(_c, _s, address, buf, 2);                               \
 }                                                                         \
-static inline uint16_t w5100_read##name(w5k_data_t _c, SOCKET _s) {                     \
+static inline uint16_t w5100_read##name(w5k_data_t *_c, SOCKET _s) {                     \
     uint8_t buf[2];                                                       \
     w5100_readSn(_c, _s, address, buf, 2);                                \
     return (buf[0] << 8) | buf[1];                                        \
 }
 #define __SOCKET_REGISTER_N(name, address, size)                          \
-static inline uint16_t w5100_write##name(w5k_data_t _c, SOCKET _s, uint8_t *_buff) {    \
+static inline uint16_t w5100_write##name(w5k_data_t *_c, SOCKET _s, uint8_t *_buff) {    \
     return w5100_writeSn(_c, _s, address, _buff, size);                   \
 }                                                                         \
-static inline uint16_t w5100_read##name(w5k_data_t _c, SOCKET _s, uint8_t *_buff) {     \
+static inline uint16_t w5100_read##name(w5k_data_t *_c, SOCKET _s, uint8_t *_buff) {     \
     return w5100_readSn(_c, _s, address, _buff, size);                    \
 }
 
@@ -261,41 +260,41 @@ __SOCKET_REGISTER16(SnRX_WR,    0x002A)        // RX Write Pointer (supported?)
 #undef __SOCKET_REGISTER16
 #undef __SOCKET_REGISTER_N
 
-uint8_t w5100_init(w5k_data_t c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset);
+uint8_t w5100_init(w5k_data_t *c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset);
 
-static inline void w5100_setGatewayIp(w5k_data_t c, const uint8_t * addr) { w5100_writeGAR(c, addr); }
-static inline void w5100_getGatewayIp(w5k_data_t c, uint8_t * addr) { w5100_readGAR(c, addr); }
+static inline void w5100_setGatewayIp(w5k_data_t *c, const uint8_t * addr) { w5100_writeGAR(c, addr); }
+static inline void w5100_getGatewayIp(w5k_data_t *c, uint8_t * addr) { w5100_readGAR(c, addr); }
 
-static inline void w5100_setSubnetMask(w5k_data_t c, const uint8_t * addr) { w5100_writeSUBR(c, addr); }
-static inline void w5100_getSubnetMask(w5k_data_t c, uint8_t * addr) { w5100_readSUBR(c, addr); }
+static inline void w5100_setSubnetMask(w5k_data_t *c, const uint8_t * addr) { w5100_writeSUBR(c, addr); }
+static inline void w5100_getSubnetMask(w5k_data_t *c, uint8_t * addr) { w5100_readSUBR(c, addr); }
 
-static inline void w5100_setMACAddress(w5k_data_t c, const uint8_t * addr) { w5100_writeSHAR(c, addr); }
-static inline void w5100_getMACAddress(w5k_data_t c, uint8_t * addr) { w5100_readSHAR(c, addr); }
+static inline void w5100_setMACAddress(w5k_data_t *c, const uint8_t * addr) { w5100_writeSHAR(c, addr); }
+static inline void w5100_getMACAddress(w5k_data_t *c, uint8_t * addr) { w5100_readSHAR(c, addr); }
 
-static inline void w5100_setIPAddress(w5k_data_t c, const uint8_t * addr) { w5100_writeSIPR(c, addr); }
-static inline void w5100_getIPAddress(w5k_data_t c, uint8_t * addr) { w5100_readSIPR(c, addr); }
+static inline void w5100_setIPAddress(w5k_data_t *c, const uint8_t * addr) { w5100_writeSIPR(c, addr); }
+static inline void w5100_getIPAddress(w5k_data_t *c, uint8_t * addr) { w5100_readSIPR(c, addr); }
 
-static inline void w5100_setRetransmissionTime(w5k_data_t c, uint16_t timeout) { w5100_writeRTR(c, timeout); }
-static inline void w5100_setRetransmissionCount(w5k_data_t c, uint8_t retry) { w5100_writeRCR(c, retry); }
+static inline void w5100_setRetransmissionTime(w5k_data_t *c, uint16_t timeout) { w5100_writeRTR(c, timeout); }
+static inline void w5100_setRetransmissionCount(w5k_data_t *c, uint8_t retry) { w5100_writeRCR(c, retry); }
 
-enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t c);
+enum W5100Linkstatus w5100_getLinkStatus(w5k_data_t *c);
 
-void w5100_execCmdSn(w5k_data_t c, SOCKET s, uint8_t _cmd);
+void w5100_execCmdSn(w5k_data_t *c, SOCKET s, uint8_t _cmd);
 
-uint8_t w5100_softReset(w5k_data_t c);
-uint8_t w5100_isW5100(w5k_data_t c);
-uint8_t w5100_isW5200(w5k_data_t c);
-uint8_t w5100_isW5500(w5k_data_t c);
+uint8_t w5100_softReset(w5k_data_t *c);
+uint8_t w5100_isW5100(w5k_data_t *c);
+uint8_t w5100_isW5200(w5k_data_t *c);
+uint8_t w5100_isW5500(w5k_data_t *c);
 
-static inline uint8_t w5100_getChip(w5k_data_t c) { return c->chip; }
-static inline uint16_t W5100_SBASE(w5k_data_t c, uint8_t socknum) {
+static inline uint8_t w5100_getChip(w5k_data_t *c) { return c->chip; }
+static inline uint16_t W5100_SBASE(w5k_data_t *c, uint8_t socknum) {
     if (c->chip == 51) {
         return socknum * c->SSIZE + 0x4000;
     } else {
         return socknum * c->SSIZE + 0x8000;
     }
 }
-static inline uint16_t W5100_RBASE(w5k_data_t c, uint8_t socknum) {
+static inline uint16_t W5100_RBASE(w5k_data_t *c, uint8_t socknum) {
     if (c->chip == 51) {
           return socknum * c->SSIZE + 0x6000;
     } else {
@@ -303,22 +302,22 @@ static inline uint16_t W5100_RBASE(w5k_data_t c, uint8_t socknum) {
     }
 }
 
-static inline bool w5100_hasOffsetAddressMapping(w5k_data_t c) {
+static inline bool w5100_hasOffsetAddressMapping(w5k_data_t *c) {
     if (c->chip == 55) return true;
     return false;
 }
 
-inline static void w5100_initSS(w5k_data_t c) {
+inline static void w5100_initSS(w5k_data_t *c) {
     gpio_set_function(c->ss_pin, GPIO_FUNC_SIO);
     gpio_set_dir(c->ss_pin, GPIO_OUT);
     gpio_put(c->ss_pin, 1);
 }
-inline static void w5100_setSS(w5k_data_t c) {
+inline static void w5100_setSS(w5k_data_t *c) {
     asm volatile("nop \n nop \n nop");
     gpio_put(c->ss_pin, 0);  // Active low
     asm volatile("nop \n nop \n nop");
 }
-inline static void w5100_resetSS(w5k_data_t c) {
+inline static void w5100_resetSS(w5k_data_t *c) {
     asm volatile("nop \n nop \n nop");
     gpio_put(c->ss_pin, 1);
     asm volatile("nop \n nop \n nop");

@@ -43,6 +43,7 @@ extern "C" {
  * Message: A single DDS-XRCE packet. This can be spread over several CAN frames
  * Message (Type) Frame: A CANmore frame type designed to carry fragmented messages
  * NOC: Number or Channel, This field represents the message sequence number or utility frame channel, depending on frame type
+ * RFU: Reserved for Future Use. This field does not curerntly have a defined value, but could be defined in the future. Should be set to 0
  * Sequence Number:
  *
  *
@@ -125,14 +126,14 @@ extern "C" {
  * client requests. The interval for this heartbeat is up to the implementer.
  *
  * Heartbeat frames have a DLC of 1, with the following format:
- *   +-*-*-*-*-+-*-+-*-*-*-+
- *   |  EXTRA  | E |  CNT  |
- *   +-*-*-*-*-+-*-+-*-*-*-+
- *     7     4   3   2   0
+ *   +-*-*-*-*-*-+-*-+-*-*-+
+ *   |   EXTRA   | E | CNT |
+ *   +-*-*-*-*-*-+-*-+-*-*-+
+ *     7       3   2   1 0
  *
- * CNT: An increasing mod-8 counter incremented for each packet sent. This can be use to detect dropped packets
+ * CNT: An increasing mod-4 counter incremented for each packet sent. This can be use to detect dropped packets
  * E (ERROR): A single bit representing the status of the client (0 for normal, 1 for error-state)
- * EXTRA: 4 bits of extra data available to the implementer
+ * EXTRA: 5 bits of extra data available to the implementer
 */
 
 
@@ -174,9 +175,9 @@ extern "C" {
 
 // Heartbeat field lengths
 #define CANMORE_CHAN_HEARTBEAT          15
-#define CANMORE_HEARTBEAT_CNT_LENGTH    3
+#define CANMORE_HEARTBEAT_CNT_LENGTH    2
 #define CANMORE_HEARTBEAT_ERROR_LENGTH  1
-#define CANMORE_HEARTBEAT_EXTRA_LENGTH  4
+#define CANMORE_HEARTBEAT_EXTRA_LENGTH  5
 
 // Heartbeat offsets
 #define CANMORE_HEARTBEAT_CNT_OFFSET    0
@@ -220,19 +221,19 @@ typedef union __attribute__((__packed__)) canmore_heartbeat {
 
 #define CANMORE_CALC_STD_ID(client_id, type, direction, noc) \
     ( \
-        (((client_id) & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_STD_CLIENT_ID_OFFSET) | \
-        (((type) & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_STD_TYPE_OFFSET) | \
-        (((direction) & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_STD_DIRECTION_OFFSET) | \
-        (((noc) & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_STD_NOC_OFFSET) \
+        (((client_id) & ((1u<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_STD_CLIENT_ID_OFFSET) | \
+        (((type) & ((1u<<CANMORE_TYPE_LENGTH) - 1u)) << CANMORE_STD_TYPE_OFFSET) | \
+        (((direction) & ((1u<<CANMORE_DIRECTION_LENGTH) - 1u)) << CANMORE_STD_DIRECTION_OFFSET) | \
+        (((noc) & ((1u<<CANMORE_NOC_LENGTH) - 1u)) << CANMORE_STD_NOC_OFFSET) \
     )
 
 #define CANMORE_CALC_EXT_ID(client_id, type, direction, noc, crc) \
     ( \
-        (((client_id) & ((1<<CANMORE_CLIENT_ID_LENGTH) - 1)) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
-        (((type) & ((1<<CANMORE_TYPE_LENGTH) - 1)) << CANMORE_CRC_TYPE_OFFSET) | \
-        (((direction) & ((1<<CANMORE_DIRECTION_LENGTH) - 1)) << CANMORE_CRC_DIRECTION_OFFSET) | \
-        (((noc) & ((1<<CANMORE_NOC_LENGTH) - 1)) << CANMORE_CRC_NOC_OFFSET) | \
-        (((crc) & ((1<<CANMORE_CRC_LENGTH) - 1)) << CANMORE_CRC_CRC_OFFSET) \
+        (((client_id) & ((1u<<CANMORE_CLIENT_ID_LENGTH) - 1u)) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
+        (((type) & ((1u<<CANMORE_TYPE_LENGTH) - 1u)) << CANMORE_CRC_TYPE_OFFSET) | \
+        (((direction) & ((1u<<CANMORE_DIRECTION_LENGTH) - 1u)) << CANMORE_CRC_DIRECTION_OFFSET) | \
+        (((noc) & ((1u<<CANMORE_NOC_LENGTH) - 1u)) << CANMORE_CRC_NOC_OFFSET) | \
+        (((crc) & ((1u<<CANMORE_CRC_LENGTH) - 1u)) << CANMORE_CRC_CRC_OFFSET) \
     )
 
 // Message standard ID
@@ -253,9 +254,9 @@ typedef union __attribute__((__packed__)) canmore_heartbeat {
 // Heartbeat Message
 #define CANMORE_CALC_HEARTBEAT_DATA(cnt, error, extra) \
     ( \
-        (((cnt) & ((1<<CANMORE_HEARTBEAT_CNT_LENGTH) - 1)) << CANMORE_HEARTBEAT_CNT_OFFSET) | \
-        (((error) & ((1<<CANMORE_HEARTBEAT_ERROR_LENGTH) - 1)) << CANMORE_HEARTBEAT_ERROR_OFFSET) | \
-        (((extra) & ((1<<CANMORE_HEARTBEAT_EXTRA_LENGTH) - 1)) << CANMORE_HEARTBEAT_EXTRA_OFFSET) \
+        (((cnt) & ((1u<<CANMORE_HEARTBEAT_CNT_LENGTH) - 1u)) << CANMORE_HEARTBEAT_CNT_OFFSET) | \
+        (((error) & ((1u<<CANMORE_HEARTBEAT_ERROR_LENGTH) - 1u)) << CANMORE_HEARTBEAT_ERROR_OFFSET) | \
+        (((extra) & ((1u<<CANMORE_HEARTBEAT_EXTRA_LENGTH) - 1u)) << CANMORE_HEARTBEAT_EXTRA_OFFSET) \
     )
 
 
@@ -265,20 +266,20 @@ typedef union __attribute__((__packed__)) canmore_heartbeat {
 // Filter mask for standard ID frames
 #define CANMORE_CALC_FILTER_MASK(match_client_id, match_type, match_direction, match_noc) \
     ( \
-        ((match_client_id ? (1<<CANMORE_CLIENT_ID_LENGTH) - 1 : 0) << CANMORE_STD_CLIENT_ID_OFFSET) | \
-        ((match_type ? (1<<CANMORE_TYPE_LENGTH) - 1 : 0) << CANMORE_STD_TYPE_OFFSET) | \
-        ((match_direction ? (1<<CANMORE_DIRECTION_LENGTH) - 1 : 0) << CANMORE_STD_DIRECTION_OFFSET) | \
-        ((match_noc ? (1<<CANMORE_NOC_LENGTH) - 1 : 0) << CANMORE_STD_NOC_OFFSET) \
+        ((match_client_id ? (1u<<CANMORE_CLIENT_ID_LENGTH) - 1u : 0u) << CANMORE_STD_CLIENT_ID_OFFSET) | \
+        ((match_type ? (1u<<CANMORE_TYPE_LENGTH) - 1u : 0u) << CANMORE_STD_TYPE_OFFSET) | \
+        ((match_direction ? (1u<<CANMORE_DIRECTION_LENGTH) - 1u : 0u) << CANMORE_STD_DIRECTION_OFFSET) | \
+        ((match_noc ? (1u<<CANMORE_NOC_LENGTH) - 1u : 0u) << CANMORE_STD_NOC_OFFSET) \
     )
 
 // Filter mask for extended ID message type frames
 #define CANMORE_CALC_EXT_FILTER_MASK(match_client_id, match_type, match_direction, match_noc, match_crc) \
     ( \
-        ((match_client_id ? (1<<CANMORE_CLIENT_ID_LENGTH) - 1 : 0) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
-        ((match_type ? (1<<CANMORE_TYPE_LENGTH) - 1 : 0) << CANMORE_CRC_TYPE_OFFSET) | \
-        ((match_direction ? (1<<CANMORE_DIRECTION_LENGTH) - 1 : 0) << CANMORE_CRC_DIRECTION_OFFSET) | \
-        ((match_noc ? (1<<CANMORE_NOC_LENGTH) - 1 : 0) << CANMORE_CRC_NOC_OFFSET) | \
-        ((match_crc ? (1<<CANMORE_CRC_LENGTH) - 1 : 0) << CANMORE_CRC_CRC_OFFSET) \
+        ((match_client_id ? (1u<<CANMORE_CLIENT_ID_LENGTH) - 1u : 0u) << CANMORE_CRC_CLIENT_ID_OFFSET) | \
+        ((match_type ? (1u<<CANMORE_TYPE_LENGTH) - 1u : 0u) << CANMORE_CRC_TYPE_OFFSET) | \
+        ((match_direction ? (1u<<CANMORE_DIRECTION_LENGTH) - 1u : 0u) << CANMORE_CRC_DIRECTION_OFFSET) | \
+        ((match_noc ? (1u<<CANMORE_NOC_LENGTH) - 1u : 0u) << CANMORE_CRC_NOC_OFFSET) | \
+        ((match_crc ? (1u<<CANMORE_CRC_LENGTH) - 1u : 0u) << CANMORE_CRC_CRC_OFFSET) \
     )
 
 #ifdef __cplusplus

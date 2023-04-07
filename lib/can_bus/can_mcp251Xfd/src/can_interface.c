@@ -8,14 +8,14 @@
 #include "can_mcp251Xfd/canbus.h"
 
 #include "canmore/msg_encoding.h"
-#include "canmore/protocol.h"
+#include "canmore_titan/protocol.h"
 
 #include "can_mcp251XFD_bridge.h"
 
 
 // PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=can_mcp251Xfd
 #ifndef CAN_HEARTBEAT_INTERVAL_MS
-#define CAN_HEARTBEAT_INTERVAL_MS 1000
+#define CAN_HEARTBEAT_INTERVAL_MS 500
 #endif
 
 // TODO: Figure heartbeat timeout stuff
@@ -260,6 +260,8 @@ bool canbus_init(unsigned int client_id) {
         return false;
     }
 
+    can_debug_init();
+
     canbus_initialized = true;
     return true;
 }
@@ -268,13 +270,34 @@ bool canbus_init(unsigned int client_id) {
 bool canbus_check_online(void) {
     assert(canbus_initialized);
 
-    // TODO: Update to new algorithm
-
-    return true; //return !time_reached(canbus_heartbeat_timeout);
+    return !can_mcp251xfd_get_in_error();
 }
 
+absolute_time_t canbus_next_heartbeat = {0};
 void canbus_tick(void) {
     assert(canbus_initialized);
 
-    // TODO: Fill out stuff here
+    can_debug_tick();
+
+    // Heartbeat scheduling
+    if (time_reached(canbus_next_heartbeat) && canbus_utility_frame_write_available()) {
+        canbus_next_heartbeat = make_timeout_time_ms(CAN_HEARTBEAT_INTERVAL_MS);
+
+        static canmore_titan_heartbeat_t heartbeat = {.data = 0};
+
+        heartbeat.pkt.cnt += 1;
+        heartbeat.pkt.error = 0;
+        heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
+
+        bool term_enabled;
+        if (can_mcp251x_get_term_state(&term_enabled)) {
+            heartbeat.pkt.term_valid = 1;
+            heartbeat.pkt.term_enabled = (term_enabled ? 1 : 0);
+        } else {
+            heartbeat.pkt.term_valid = 0;
+            heartbeat.pkt.term_enabled = 0;
+        }
+
+        canbus_utility_frame_write(CANMORE_CHAN_HEARTBEAT, &heartbeat.data, sizeof(heartbeat));
+    }
 }

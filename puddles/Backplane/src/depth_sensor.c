@@ -16,7 +16,7 @@
 
 bool depth_initialized = false;
 bool depth_set_on_read = false;
-static bool in_transaction = false;
+static volatile bool in_transaction = false;
 
 static void depth_begin_zero_depth(void);
 

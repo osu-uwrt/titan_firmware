@@ -9,7 +9,6 @@ target_sources(wiznet_ethernet INTERFACE
 )
 
 target_link_libraries(wiznet_ethernet INTERFACE
-    hardware_gpio
     hardware_regs
     hardware_spi
 )

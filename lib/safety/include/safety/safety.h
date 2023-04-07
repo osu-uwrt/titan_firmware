@@ -153,6 +153,13 @@ extern volatile uint32_t * const depth_cal_reg;
 void safety_notify_software_reset(void);
 
 /**
+ * @brief Resets into bootloader mode.
+ * This issues a watchdog reset with the proper flags set to enter bootloader mode.
+ * This function does not return
+ */
+void safety_enter_bootloader(void);
+
+/**
  * @brief Prints the full watchdog crash log to the system log
  *
  * safety_setup must be called before this function can be used
