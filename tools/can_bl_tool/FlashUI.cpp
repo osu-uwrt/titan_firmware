@@ -110,7 +110,7 @@ void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2) {
         // So in the event the sdk calls boot2 (and it typically always does), it won't break things
         auto appBoot2 = uf2.getAddress(appBoot2Addr);
 
-        if (!interface.verifyBytes(appBoot2Addr, appBoot2)) {
+        if (!interface.verifyBytes(FLASH_BASE, appBoot2)) {
             if (!showConfirmation("[WARNING] The boot2 used by this application does not match the bootloader boot2. This may cause performance or other stability issues. Continue with flashing?")) {
                 std::cout << "Flash aborted." << std::endl;
                 return;

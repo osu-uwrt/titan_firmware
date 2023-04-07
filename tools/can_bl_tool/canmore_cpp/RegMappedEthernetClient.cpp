@@ -46,7 +46,7 @@ RegMappedEthernetClient::RegMappedEthernetClient(struct in_addr ipAddr, uint16_t
     clientCfg.tx_func = &clientTxCB;
     clientCfg.clear_rx_func = &clearRxCB;
     clientCfg.rx_func = &clientRxCB;
-    clientCfg.transfer_mode = TRNASFER_MODE_BULK;
+    clientCfg.transfer_mode = TRANSFER_MODE_SINGLE; // TODO: Switch to multiword when implemented
     clientCfg.arg = this;
     clientCfg.timeout_ms = REG_MAPPED_TIMEOUT_MS;
 }

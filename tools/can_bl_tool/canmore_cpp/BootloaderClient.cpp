@@ -2,7 +2,6 @@
 #include <iostream>
 
 #include "BootloaderClient.hpp"
-#include "CRC32.hpp"
 #include "canmore_titan/protocol.h"
 #include "canmore_titan/bootloader_interface.h"
 
@@ -15,6 +14,24 @@ using namespace Canmore;
 #define VERSION_PROTO 0
 #define VERSION_DEV 1
 #define VERSION_STABLE 2
+
+#define CRC32_POLYNOMIAL 0x04C11DB7
+
+uint32_t crc32_compute(const uint8_t *data, size_t len) {
+    uint32_t crc32 = 0xFFFFFFFF;
+
+    while(len--)
+    {
+        crc32 = crc32 ^ ((*data++) << 24);
+        for(int i = 0; i < 8; i++ )
+        {
+            if(crc32 & (1L << 31)) crc32 = (crc32 << 1) ^ CRC32_POLYNOMIAL;
+            else                   crc32 = (crc32 << 1);
+        }
+    }
+
+    return crc32;
+}
 
 BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): client(client), erasedSectors(0), writtenPages(0) {
     RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
@@ -104,7 +121,7 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
     size_t bytesSize = bytes.size();
     for (size_t word = 0; (word * 4) < bytesSize; word++) {
         uint32_t value = 0;
-        for (int byteOff = 0; byteOff + (word * 4) < bytesSize; byteOff++) {
+        for (int byteOff = 0; byteOff + (word * 4) < bytesSize && byteOff < 4; byteOff++) {
             value |= bytes.at(byteOff + (word * 4)) << (8 * byteOff);
         }
 
@@ -114,7 +131,7 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
     // First erase if needed
     if (!erasedSectors.test(sectorNum)) {
         erasedSectors.flip(sectorNum);
-        flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
+        flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr & (~CANMORE_BL_FLASH_ERASE_ADDR_ALIGN_MASK));
         flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_ERASE);
     }
 
@@ -135,7 +152,7 @@ bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_S
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     // Compute CRC
-    uint32_t crcExpected = crcdetail::compute(bytes.data(), bytes.size());
+    uint32_t crcExpected = crc32_compute(bytes.data(), bytes.size());
 
     // Read CRC from device
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);

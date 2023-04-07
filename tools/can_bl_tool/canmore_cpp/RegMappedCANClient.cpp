@@ -50,7 +50,7 @@ RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t ch
     clientCfg.tx_func = &clientTxCB;
     clientCfg.clear_rx_func = &clearRxCB;
     clientCfg.rx_func = &clientRxCB;
-    clientCfg.transfer_mode = TRNASFER_MODE_BULK;
+    clientCfg.transfer_mode = TRANSFER_MODE_BULK;
     clientCfg.arg = this;
     clientCfg.timeout_ms = REG_MAPPED_TIMEOUT_MS;
 }

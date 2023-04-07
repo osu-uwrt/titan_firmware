@@ -65,7 +65,7 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
         return REG_MAPPED_CLIENT_RESULT_RX_CLEAR_FAIL;
     }
 
-    if (cfg->transfer_mode == TRNASFER_MODE_BULK) {
+    if (cfg->transfer_mode == TRANSFER_MODE_BULK) {
         reg_mapped_request_t req = {.write_pkt = {
             .flags = {.f = {.write = true, .bulk_req = true, .mode = cfg->control_interface_mode}},
             .count = 0,
@@ -101,7 +101,7 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
             return resp.write_bulk_pkt.result;
         }
 
-        if (resp.write_bulk_pkt.seq_no != (req.write_pkt.count - 1)) {
+        if ((resp.write_bulk_pkt.seq_no + 1) != req.write_pkt.count) {
             return REG_MAPPED_CLIENT_RESULT_INVALID_BULK_COUNT;
         }
     }

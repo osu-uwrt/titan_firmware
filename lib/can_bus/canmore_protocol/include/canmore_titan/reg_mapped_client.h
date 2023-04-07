@@ -22,7 +22,7 @@ enum reg_mapped_client_transfer_mode {
     /**
      * @brief Perform bulk transfers during array writes
      */
-    TRNASFER_MODE_BULK,
+    TRANSFER_MODE_BULK,
     /**
      * @brief Perform multiword transfers during array read/writes
      */

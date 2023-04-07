@@ -277,10 +277,10 @@ finish_request:
         if (request_type_bulk_end) {
             if (inst->bulk_error_code != 0) {
                 response.write_bulk_pkt.result = inst->bulk_error_code;
-                response.write_bulk_pkt.seq_no = inst->bulk_last_seq_num;
             } else {
                 response.write_bulk_pkt.result = result_code;
             }
+            response.write_bulk_pkt.seq_no = inst->bulk_last_seq_num;
             response_size = sizeof(response.write_bulk_pkt);
 
             // Send response and exit bulk request mode
