@@ -89,6 +89,7 @@ static void pio_i2c_wait_idle(PIO pio, uint sm) {
 int pio_i2c_write_blocking(PIO pio, uint sm, uint8_t addr, uint8_t *txbuf, uint len) {
     int err = 0;
     pio_sm_clear_fifos(pio, sm);
+    pio_sm_restart(pio, sm);
     pio_i2c_start(pio, sm);
     pio_i2c_rx_enable(pio, sm, false);
     pio_i2c_put16(pio, sm, (addr << 2) | 1u);
@@ -111,6 +112,7 @@ int pio_i2c_write_blocking(PIO pio, uint sm, uint8_t addr, uint8_t *txbuf, uint 
 int pio_i2c_read_blocking(PIO pio, uint sm, uint8_t addr, uint8_t *rxbuf, uint len) {
     int err = 0;
     pio_sm_clear_fifos(pio, sm);
+    pio_sm_restart(pio, sm);
     pio_i2c_start(pio, sm);
     pio_i2c_rx_enable(pio, sm, true);
     while (!pio_sm_is_rx_fifo_empty(pio, sm))
