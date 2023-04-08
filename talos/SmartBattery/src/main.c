@@ -5,7 +5,7 @@
 #include "basic_logger/logging.h"
 #include "build_version.h"
 
-#include "BQ40Z80.h"
+#include "bq40z80.h"
 
 // time in seconds for pack to not be present before sleeping
 #define NOT_PRESENT_THRESH 10
@@ -31,25 +31,27 @@ int main(){
     }
     printf("BQ init success!\n");
 
+    struct bq_pack_info_t bq_info = bq_pack_mfg_info();
+
 
     //try to contact the chip
     while(true){
         // update pack SOC
         bq_update_soc_leds();
 
-        // try to init the chip and read a serial#
+        // read pack status
+        uint16_t voltage = bq_pack_voltage();
         uint8_t present = bq_pack_present();
+
+        printf("Present: %02x, voltage: %d\n", present, voltage);
+
+        // detect presence for shutdown
         if(present == 0){
-            printf("Pack not present!\n");
-
             not_present_count ++;
-
             if(not_present_count > NOT_PRESENT_THRESH){
                 printf("No presence detected. Shutting down!\n");
                 gpio_put(PWR_CTRL_PIN, 0);
             }
-        } else {
-            printf("Pack present!\n");
         }
         sleep_ms(1000);
     }

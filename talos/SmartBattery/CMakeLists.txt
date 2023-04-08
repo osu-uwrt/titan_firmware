@@ -15,7 +15,7 @@ set(UWRT_ROBOT talos)
 # Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
+	set(CMAKE_BUILD_TYPE DEBUG)
 endif()
 
 # Include global definitions
