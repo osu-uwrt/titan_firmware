@@ -50,14 +50,14 @@ do_byte:
 bitloop:
     out pindirs, 1         [7] ; Serialise write data (all-ones if reading)
     nop             side 1 [2] ; SCL rising edge
-    wait 1 pin, 1          [4] ; Allow clock to be stretched
+    wait 1 pin, 31         [4] ; Allow clock to be stretched
     in pins, 1             [7] ; Sample read data in middle of SCL pulse
     jmp x-- bitloop side 0 [7] ; SCL falling edge
 
     ; Handle ACK pulse
     out pindirs, 1         [7] ; On reads, we provide the ACK.
     nop             side 1 [7] ; SCL rising edge
-    wait 1 pin, 1          [7] ; Allow clock to be stretched
+    wait 1 pin, 31         [7] ; Allow clock to be stretched
     jmp pin do_nack side 0 [2] ; Test SDA for ACK/NAK, fall through if ACK
 
 public entry_point:
@@ -78,7 +78,7 @@ do_exec:
 
 
 static inline void i2c_program_init(PIO pio, uint sm, uint offset, uint pin_sda, uint pin_scl) {
-    assert(pin_scl == pin_sda + 1);
+    assert(pin_sda - 1 == pin_scl);
     pio_sm_config c = i2c_program_get_default_config(offset);
 
     // IO mapping

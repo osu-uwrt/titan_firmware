@@ -50,7 +50,7 @@ pico_set_program_name(smart_battery "Smart Battery Firmware")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(smart_battery)
-uwrt_enable_bootloader(smart_battery can)
+# uwrt_enable_bootloader(smart_battery can)
 
 # Define linking and targets
 pico_add_extra_outputs(smart_battery)
@@ -59,6 +59,7 @@ target_link_libraries(smart_battery
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 	hardware_pio
+	hardware_i2c
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
 	# Add any additional hardware here (ex. hardware_i2c)
