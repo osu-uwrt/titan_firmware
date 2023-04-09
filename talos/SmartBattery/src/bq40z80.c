@@ -83,8 +83,7 @@ uint8_t bq_init() {
     }
     if(retries == 3)
         return retries;
-    // bq_update_soc_leds();
-    // finish chip init
+
     return 0;
 }
 
