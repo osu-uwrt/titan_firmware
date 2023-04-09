@@ -9,18 +9,24 @@ uint8_t BQ_LEDS[3] = {LED_R_PIN, LED_Y_PIN, LED_G_PIN};
 uint pio_12c_program;
 
 static uint8_t bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len){
-    int ret_code = 0;
+    int ret_code = -1; // if you set this to zero, the compiler *will delete* this function
     uint retries = 0;
 
-    while(ret_code || retries < RETRANSMIT_COUNT){
+    // slow down the transfers, smbus and pio no likey :/
+    sleep_ms(1);
+
+    while(ret_code && retries < RETRANSMIT_COUNT){
         // this is a bug in the SM
         i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
         // send the request to the chip
+        ret_code = 0;
         ret_code |= pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, bq_reg, 1);
         ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, rx_buf, len);
 
         if(ret_code){
+            // let i2c relax a sec, something with smbus and the chip being busy
+            sleep_ms(3);
             retries ++;
         }
     }
@@ -53,7 +59,7 @@ uint8_t bq_init() {
     i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
     // make the request for the serial #
-    uint8_t data[4] = {BQ_READ_CELL_SERI, 0x00};
+    uint8_t data[2] = {BQ_READ_CELL_SERI, 0x00};
 
     // Start the I2C to the chip
     while((data[1] == 0x00 || data[1] == 0xFF) && retries < 3) {
@@ -86,8 +92,8 @@ uint8_t bq_pack_present(){
     // read the operationstatus register (32 bits)
     uint8_t data[4] = {0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
-    uint8_t retcode = bq_handle_i2c_transfer(reg_addr, data, 4);
-    printf("retcode %d", retcode);
+    bq_handle_i2c_transfer(reg_addr, data, 4);
+    
 
     //remake the 32 bit value
     uint32_t oper_data = 0;

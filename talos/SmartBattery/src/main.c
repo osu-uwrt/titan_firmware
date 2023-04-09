@@ -32,6 +32,7 @@ int main(){
     printf("BQ init success!\n");
 
     struct bq_pack_info_t bq_info = bq_pack_mfg_info();
+    printf("pack %s, mfg %d/%d/%d, SER# %d\n", bq_info.name, bq_info.mfg_mo, bq_info.mfg_day, bq_info.mfg_year, bq_info.serial);
 
 
     //try to contact the chip
