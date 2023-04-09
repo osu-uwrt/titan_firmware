@@ -195,7 +195,7 @@ struct bq_pack_info_t bq_pack_mfg_info(){
     bq_handle_i2c_transfer(reg_addr, data, 21);
 
     // move the info from the pack read back into the mfg data
-    for(uint8_t i = 1; i < 21; i++){
+    for(uint8_t i = 1; i < data[0]+1; i++){
         pack_info.name[i-1] = data[i];
     }
     
