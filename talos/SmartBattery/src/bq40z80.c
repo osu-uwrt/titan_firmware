@@ -8,24 +8,30 @@
 uint8_t BQ_LEDS[3] = {LED_R_PIN, LED_Y_PIN, LED_G_PIN};
 uint pio_12c_program;
 
-void  __attribute__ ((noinline)) bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len){
+static uint8_t bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len){
     int ret_code = 0;
     uint retries = 0;
 
-    while(ret_code && retries < RETRANSMIT_COUNT){
+    while(ret_code || retries < RETRANSMIT_COUNT){
         // this is a bug in the SM
         i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
         // send the request to the chip
         ret_code |= pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, bq_reg, 1);
         ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, rx_buf, len);
+
+        if(ret_code){
+            retries ++;
+        }
     }
 
-    if(ret_code != 0){
+    if(ret_code){
         //something bad happened to the i2c, panic
         printf("%d", ret_code);
         panic("PIO I2C NACK during transfer %d times", RETRANSMIT_COUNT);
     }
+
+    return retries;
 }
 
 uint8_t bq_init() {
@@ -80,7 +86,8 @@ uint8_t bq_pack_present(){
     // read the operationstatus register (32 bits)
     uint8_t data[4] = {0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
-    bq_handle_i2c_transfer(reg_addr, data, 4);
+    uint8_t retcode = bq_handle_i2c_transfer(reg_addr, data, 4);
+    printf("retcode %d", retcode);
 
     //remake the 32 bit value
     uint32_t oper_data = 0;

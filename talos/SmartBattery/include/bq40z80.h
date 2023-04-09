@@ -15,7 +15,7 @@ typedef struct bq_pack_info_t {
     uint8_t mfg_day, mfg_mo;
     uint16_t mfg_year;
     char name[21];
-};
+} bq_pack_info_t;
 
 enum bq_reg_map {
     BQ_READ_PACK_VOLT = 0x09,
@@ -33,7 +33,7 @@ enum bq_reg_map {
 };
 
 //handler for the bq i2c transactions
-void bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len);
+// static void bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len);
 
 uint8_t bq_init();
 
@@ -62,7 +62,5 @@ uint16_t bq_time_to_empty();
 
 // get the manufacturing info from the pack
 struct bq_pack_info_t bq_pack_mfg_info();
-
-
 
 #endif
