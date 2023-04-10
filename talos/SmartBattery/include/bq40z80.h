@@ -34,9 +34,11 @@ enum bq_reg_map {
 };
 
 enum bq_mac_cmds {
+    BQ_MAC_REG_ADDR = 0x0000,
     BQ_MAC_RESET_CMD = 0x0041,
-    BQ_MAC_FETCL_CMD = 0x0022,
-    BQ_MAC_DSCHG_CMD = 0x0020,
+    BQ_MAC_EMG_FET_CTRL_CMD = 0x270C,
+    BQ_MAC_EMG_FET_OFF_CMD = 0x043D,
+    BQ_MAC_EMG_FET_ON_CMD = 0x23A7,
     BQ_MAC_SHTDN_CMD = 0x0010,
 };
 

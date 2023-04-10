@@ -101,7 +101,7 @@ uint8_t bq_init() {
         ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, data, 2);
 
         // Check for valid data
-        if(ret_code != 0 || data[1] == 0x00 || data[1] == 0xFF) {
+        if(ret_code != 0 || data[0] == 0x00 || data[0] == 0xFF) {
             gpio_put(BMS_WAKE_PIN, 1);
             sleep_ms(1000);
             gpio_put(BMS_WAKE_PIN, 0);
@@ -120,12 +120,13 @@ uint8_t bq_init() {
 
 uint8_t bq_pack_present(){
     // read the operationstatus register (32 bits)
-    uint8_t data[4] = {0, 0, 0, 0};
+    uint8_t data[5] = {0, 0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
-    bq_handle_i2c_transfer(reg_addr, data, 4);
+    bq_handle_i2c_transfer(reg_addr, data, 5);
 
-    // test the presence bit (bit 0)
-    return (uint8_t)(data[0] & 0b00000001);
+    // the zeroth byte is the length of the field for some reason...
+    // test the presence bit (bit 0 of byte 1)
+    return (uint8_t)(data[1] & 0b00000001);
 }
 
 uint8_t bq_pack_discharging(){
@@ -134,8 +135,9 @@ uint8_t bq_pack_discharging(){
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
     bq_handle_i2c_transfer(reg_addr, data, 4);
 
+    // the zeroth byte is the length of the field for some reason...
     // test the discharge bit (bit 1)
-    return (uint8_t)(data[0] & 0b00000010);
+    return (uint8_t)(data[1] & 0b00000010);
 }
 
 uint8_t bq_pack_soc() {
@@ -238,11 +240,15 @@ struct bq_pack_info_t bq_pack_mfg_info(){
 }
 
 void bq_send_mac_command(const uint16_t command){
-    uint8_t data[2] = {0, 0};
+    // pack the MAC command
+    uint8_t data[3] = {
+        BQ_MAC_REG_ADDR & 0xFF, // MAC register address (actually 1 byte not 2 so cut off the upper byte)
+        command >> 8,           // now take the high byte of the command
+        command & 0xFF          // finish with the low byte of the command
+    };
 
-    data[0] = command & 0xFF;
-    data[1] = command >> 8;
-    bq_write_only_transfer(data, 2);
+    // send the MAC register command
+    bq_write_only_transfer(data, 3);
 }
 
 // WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the 
@@ -255,20 +261,11 @@ void bq_open_dschg_temp(const int64_t open_time_ms){
         return;
     }
 
-    // read manufacturing status
-    uint8_t data[2] = {0, 0};
-    uint8_t reg_addr[1] = {BQ_READ_MFG_STATS};
-    bq_handle_i2c_transfer(reg_addr, data, 2);
+    // send Emergency FET override command to take manual control
+    bq_send_mac_command(BQ_MAC_EMG_FET_CTRL_CMD);
 
-    // determine if discharge test is set
-    // test bit 2 of lower byte is not set
-    if(! (data[0] & 0b00000100)){
-        // if it is set, deactivate dschg fet
-        bq_send_mac_command(BQ_MAC_DSCHG_CMD);
-    }
-
-    // send FET override command to take manual control
-    bq_send_mac_command(BQ_MAC_FETCL_CMD);
+    // send emergency fet off command
+    bq_send_mac_command(BQ_MAC_EMG_FET_OFF_CMD);
 
     // verify fet is actually open via operation status
     if(bq_pack_discharging()){
@@ -287,5 +284,5 @@ void bq_open_dschg_temp(const int64_t open_time_ms){
     }    
 
     // send a cleanup reset command
-    bq_send_mac_command(BQ_MAC_RESET_CMD);
+    bq_send_mac_command(BQ_MAC_EMG_FET_ON_CMD);
 }

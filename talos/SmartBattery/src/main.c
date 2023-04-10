@@ -178,7 +178,6 @@ int main() {
         panic("Failed to initialize CAN bus hardware!");
     }
 
-
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
