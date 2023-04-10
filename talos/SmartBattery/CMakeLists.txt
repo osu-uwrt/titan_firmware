@@ -15,7 +15,7 @@ set(UWRT_ROBOT talos)
 # Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE DEBUG)
+	set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
 # Include global definitions
@@ -50,7 +50,7 @@ pico_set_program_name(smart_battery "Smart Battery Firmware")
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(smart_battery)
-# uwrt_enable_bootloader(smart_battery can)
+uwrt_enable_bootloader(smart_battery can)
 
 # Define linking and targets
 pico_add_extra_outputs(smart_battery)
