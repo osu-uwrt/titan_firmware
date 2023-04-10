@@ -1,5 +1,6 @@
 #include "bq40z80.h"
 #include "hardware/gpio.h"
+#include "hardware/watchdog.h"
 #include "pio_i2c.h"
 #include <stdio.h>
 
@@ -35,6 +36,36 @@ static uint8_t bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len
         //something bad happened to the i2c, panic
         printf("%d", ret_code);
         panic("PIO I2C NACK during transfer %d times", RETRANSMIT_COUNT);
+    }
+
+    return retries;
+}
+
+uint8_t bq_write_only_transfer(uint8_t* tx_buf, uint len){
+    int ret_code = -1; // if you set this to zero, the compiler *will delete* this function
+    uint retries = 0;
+
+    // slow down the transfers, smbus and pio no likey :/
+    sleep_ms(1);
+
+    while(ret_code && retries < RETRANSMIT_COUNT){
+        // this is a bug in the SM
+        i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
+
+        // send the request to the chip
+        ret_code = pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, tx_buf, len);
+
+        if(ret_code){
+            // let i2c relax a sec, something with smbus and the chip being busy
+            sleep_ms(3);
+            retries ++;
+        }
+    }
+
+    if(ret_code){
+        //something bad happened to the i2c, panic
+        printf("%d", ret_code);
+        panic("PIO I2C NACK during MAC_WRITE %d times", RETRANSMIT_COUNT);
     }
 
     return retries;
@@ -92,16 +123,19 @@ uint8_t bq_pack_present(){
     uint8_t data[4] = {0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
     bq_handle_i2c_transfer(reg_addr, data, 4);
-    
 
-    //remake the 32 bit value
-    uint32_t oper_data = 0;
-    for(uint8_t i = 0; i < 4; i++){
-        oper_data |= (data[i] << (8 * i));
-    }
+    // test the presence bit (bit 0)
+    return (uint8_t)(data[0] & 0b00000001);
+}
 
-    // test the presence bit (bit 1)
-    return (uint8_t)(oper_data & 0x01);
+uint8_t bq_pack_discharging(){
+    // read the operationstatus register (32 bits)
+    uint8_t data[4] = {0, 0, 0, 0};
+    uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
+    bq_handle_i2c_transfer(reg_addr, data, 4);
+
+    // test the discharge bit (bit 1)
+    return (uint8_t)(data[0] & 0b00000010);
 }
 
 uint8_t bq_pack_soc() {
@@ -147,7 +181,7 @@ int16_t bq_pack_current(){
     bq_handle_i2c_transfer(reg_addr, data, 2);
 
     int16_t current_ma = data[0] | data[1] << 8;
-    return current_ma;
+    return current_ma * 4; //mutliply by 4 to true reading
 }
 
 int16_t bq_avg_current(){
@@ -157,7 +191,7 @@ int16_t bq_avg_current(){
     bq_handle_i2c_transfer(reg_addr, data, 2);
 
     int16_t current_ma = data[0] | data[1] << 8;
-    return current_ma;
+    return current_ma * 4; // have to * 4 to get true value
 }
 
 uint16_t bq_time_to_empty(){
@@ -201,4 +235,57 @@ struct bq_pack_info_t bq_pack_mfg_info(){
     
     // now kick it all out
     return pack_info;
+}
+
+void bq_send_mac_command(const uint16_t command){
+    uint8_t data[2] = {0, 0};
+
+    data[0] = command & 0xFF;
+    data[1] = command >> 8;
+    bq_write_only_transfer(data, 2);
+}
+
+// WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the 
+// watchdog during execution as to not time the system out. This must be done to maintain MAC synchronicity
+// with the BQ chip during manual fet control
+void bq_open_dschg_temp(const int64_t open_time_ms){
+    // test operation status to determine if output is not on
+    if(! bq_pack_discharging()){
+        // bail, dont want to tun on the output manually
+        return;
+    }
+
+    // read manufacturing status
+    uint8_t data[2] = {0, 0};
+    uint8_t reg_addr[1] = {BQ_READ_MFG_STATS};
+    bq_handle_i2c_transfer(reg_addr, data, 2);
+
+    // determine if discharge test is set
+    // test bit 2 of lower byte is not set
+    if(! (data[0] & 0b00000100)){
+        // if it is set, deactivate dschg fet
+        bq_send_mac_command(BQ_MAC_DSCHG_CMD);
+    }
+
+    // send FET override command to take manual control
+    bq_send_mac_command(BQ_MAC_FETCL_CMD);
+
+    // verify fet is actually open via operation status
+    if(bq_pack_discharging()){
+        // this is a bad state. we requested fet open and it didnt happen
+        bq_send_mac_command(BQ_MAC_RESET_CMD);
+        panic("Failed to open DSCHG FET during power cycle cmd");
+    } 
+
+    // now we wait a bit to let the rest of the system shut down
+    absolute_time_t start = get_absolute_time();
+    while(absolute_time_diff_us(start, get_absolute_time()) < 1000 * open_time_ms){
+        sleep_us(100);
+
+        // also feed the watchdog so we dont reset
+        watchdog_update();
+    }    
+
+    // send a cleanup reset command
+    bq_send_mac_command(BQ_MAC_RESET_CMD);
 }

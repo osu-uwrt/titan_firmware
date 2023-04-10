@@ -145,7 +145,7 @@ static void dshot_subscription_callback(const void * msgin) {
 static void elec_command_subscription_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
-        puts("Commanded robot reset, Engaging intentional WDR");
+        LOG_INFO("Commanded robot reset, Engaging intentional WDR");
         safety_notify_software_reset();
         watchdog_reboot(0, 0, 0);
     }

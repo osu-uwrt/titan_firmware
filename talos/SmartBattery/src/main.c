@@ -17,9 +17,12 @@
 #define UROS_CONNECT_PING_TIME_MS 1000
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
+#define BATTERY_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define PRESENCE_CHECK_INTERVAL_MS 1000
 #define PRESENCE_TIMEOUT_COUNT 10
+#define PWRCYCL_CHECK_INTERVAL_MS 250
+#define PWR_CYCLE_DURATION_MS 10000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -29,8 +32,11 @@ absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
 absolute_time_t next_pack_present_update = {0};
+absolute_time_t next_battery_status_update = {0};
+absolute_time_t next_pwrcycl_update = {0};
 
 uint8_t presence_fail_count = 0;
+bq_pack_info_t bq_pack_info;
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -96,11 +102,15 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
     }
 
+    // send the firmware status updates
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    // TODO: Put any additional ROS tasks added here
+    // send the battery status updates
+    if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+    }
 }
 
 static void tick_background_tasks() {
@@ -152,15 +162,14 @@ int main() {
     // start the bq40z80
     int err = bq_init();
     if(err > 0) {
-        led_fault_set(true);
         LOG_ERROR("Failed to initialize the bq40z80 after %d attempts", err);
         panic("BQ40Z80 Init failed!");
     }
 
     // grab the pack info from the bq40z80
-    struct bq_pack_info_t bq_info = bq_pack_mfg_info();
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_info.name, bq_info.mfg_mo, 
-            bq_info.mfg_day, bq_info.mfg_year, bq_info.serial);
+    bq_pack_info = bq_pack_mfg_info();
+    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo, 
+            bq_pack_info.mfg_day, bq_pack_info.mfg_year, bq_pack_info.serial);
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_PORT_CLIENT_ID;
@@ -189,7 +198,7 @@ int main() {
                 if(ros_init() == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
-                    //safety_init();
+                    safety_init();
                     start_ros_timers();
                 } else {
                     LOG_ERROR("ROS failed to initialize.");
@@ -210,6 +219,12 @@ int main() {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }
+        }
+
+        // handle the power cycle outside of the timer environment as its a bit sensitive
+        // this will block but also feed the watchdog. this will skew timing when called
+        if(power_cycle_requested()){
+            bq_open_dschg_temp(PWR_CYCLE_DURATION_MS);
         }
 
         // Tick safety

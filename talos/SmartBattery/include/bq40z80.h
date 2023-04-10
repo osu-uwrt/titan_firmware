@@ -30,6 +30,14 @@ enum bq_reg_map {
     BQ_READ_SAFE_ALRT = 0x50,
     BQ_READ_OPER_STAT = 0x54,
     BQ_READ_CHRG_STAT = 0x55,
+    BQ_READ_MFG_STATS = 0x57,
+};
+
+enum bq_mac_cmds {
+    BQ_MAC_RESET_CMD = 0x0041,
+    BQ_MAC_FETCL_CMD = 0x0022,
+    BQ_MAC_DSCHG_CMD = 0x0020,
+    BQ_MAC_SHTDN_CMD = 0x0010,
 };
 
 //handler for the bq i2c transactions
@@ -39,6 +47,9 @@ uint8_t bq_init();
 
 // function for reading pack presence of the SBH
 uint8_t bq_pack_present();
+
+// function for determining if the discharge fet is closed
+uint8_t bq_pack_discharging();
 
 // function for updating the SOC LEDS on the front of the SBH
 void bq_update_soc_leds();
@@ -62,5 +73,13 @@ uint16_t bq_time_to_empty();
 
 // get the manufacturing info from the pack
 struct bq_pack_info_t bq_pack_mfg_info();
+
+// used for sending the MAC commands from the mac command enum
+void bq_send_mac_command(const uint16_t command);
+
+// used for opening the discharge fets for a specified amount of time
+// WARNING THIS WILL BLOCK FOR THE SPECIFIED DURATION as there is a lot of
+// important communication with the BQ40z80 during this
+void bq_open_dschg_temp(const int64_t open_time_ms);
 
 #endif

@@ -7,6 +7,7 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include "safety_interface.h"
+#include "bq40z80.h"
 
 #define RCRETCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){LOG_ERROR("Failed status on in " __FILE__ ":%d : %d. Aborting.",__LINE__,(int)temp_rc); safety_raise_fault(FAULT_ROS_ERROR); return temp_rc;}}
 #define RCSOFTRETCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){return temp_rc;}}
@@ -59,6 +60,14 @@ bool is_ros_connected(void);
  */
 bool ros_ping(void);
 
+/**
+ * @brief Determine if a power cycle has been requested
+ * 
+ * if this function returns true, it will clear the internal flag and determine the request as serviced
+ * 
+ * @return true if power cycle event has been requested
+*/
+bool power_cycle_requested(void);
 
 // ========================================
 // ROS Task Functions
@@ -67,6 +76,8 @@ bool ros_ping(void);
 rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
+
+rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info);
 
 // TODO: Add in any additional ROS tasks here
 

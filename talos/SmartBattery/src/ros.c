@@ -6,11 +6,14 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/battery_status.h>
+#include <riptide_msgs2/msg/electrical_command.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
 #include "build_version.h"
 #include "basic_logger/logging.h"
+#include "hardware/watchdog.h"
 
 #include "ros.h"
 
@@ -64,9 +67,12 @@ void ros_rmw_init_error_handling(void)  {
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
+#define BATTERY_STATUS_PUBLISHER_NAME "state/battery"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
 bool ros_connected = false;
+bool request_powercycle = false;
 
 // Core Variables
 rcl_node_t node;
@@ -77,9 +83,10 @@ rcl_publisher_t heartbeat_publisher;
 int failed_heartbeats = 0;
 
 // Node specific Variables
-rcl_publisher_t firmware_status_publisher;
-rcl_subscription_t killswtich_subscriber;
+rcl_publisher_t firmware_status_publisher, battery_status_publisher;
+rcl_subscription_t killswtich_subscriber, electrical_command_subscriber;
 std_msgs__msg__Bool killswitch_msg;
+riptide_msgs2__msg__ElectricalCommand electrical_command_msg;
 // TODO: Add node specific items here
 
 // ========================================
@@ -92,7 +99,22 @@ static void killswitch_subscription_callback(const void * msgin)
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-// TODO: Add in node specific tasks here
+static void electrical_command_callback(const void * msgin){
+    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+
+    // check if the command was a power cycle
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+        request_powercycle = true;
+    }
+
+    // also check for a reset
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+        LOG_INFO("Commanded robot reset, Engaging intentional WDR");
+        safety_notify_software_reset();
+        watchdog_reboot(0, 0, 0);
+    }
+}
+
 
 // ========================================
 // Public Task Methods (called in main tick)
@@ -156,7 +178,35 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-// TODO: Add in node specific tasks here
+rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info){
+    riptide_msgs2__msg__BatteryStatus status;
+
+    // push in the common cell info
+    status.cell_name.data = bq_pack_info.name;
+    status.cell_name.size = strlen(bq_pack_info.name);
+    status.serial = bq_pack_info.serial;
+
+    // test for port and stbd
+    status.detect = 0;
+    if(bq_pack_present()){
+        // TODO determine which side from BQ GPIO
+        status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
+    }
+
+    // read cell info
+    status.pack_voltage = ((float)bq_pack_voltage()) / 1000.0;
+    status.pack_current = ((float)bq_pack_current()) / 1000.0;
+    status.average_current = ((float)bq_avg_current()) / 1000.0;
+    status.time_to_dischg = bq_time_to_empty();
+    status.soc = bq_pack_soc();
+
+    // send out the ros message
+    rcl_ret_t ret = rcl_publish(&battery_status_publisher, &status, NULL);
+
+    RCSOFTRETCHECK(ret);
+
+    return RCL_RET_OK;
+}
 
 // ========================================
 // ROS Core
@@ -181,18 +231,29 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
         FIRMWARE_STATUS_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(
+        &battery_status_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, BatteryStatus),
+        BATTERY_STATUS_PUBLISHER_NAME));
+
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         KILLSWITCH_SUBCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &electrical_command_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
-
-    // TODO: Modify this method with node specific objects
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &electrical_command_subscriber, &electrical_command_msg, &electrical_command_callback, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -226,5 +287,15 @@ bool is_ros_connected(void) {
 bool ros_ping(void) {
     ros_connected = rmw_uros_ping_agent(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT, 1) == RCL_RET_OK;
     return ros_connected;
+}
+
+bool power_cycle_requested(void){
+    // clear the request as we are going to service it
+    if(request_powercycle){
+        request_powercycle = false;
+        return true;
+    }
+
+    return false;
 }
 
