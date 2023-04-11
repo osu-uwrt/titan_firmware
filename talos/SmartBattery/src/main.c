@@ -95,7 +95,8 @@ static void tick_ros_tasks() {
     // that only 1 timeout occurs per safety tick.
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
-    uint8_t client_id = CAN_BUS_PORT_CLIENT_ID;
+    uint8_t *sbh_mcu_serial_num_ptr = (uint8_t*)(0x101FF000);
+    uint8_t client_id = 8 + *sbh_mcu_serial_num_ptr;
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -139,7 +140,7 @@ static void tick_background_tasks() {
         }
     }
 
-    
+
 }
 
 
@@ -168,7 +169,7 @@ int main() {
 
     // grab the pack info from the bq40z80
     bq_pack_info = bq_pack_mfg_info();
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo, 
+    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo,
             bq_pack_info.mfg_day, bq_pack_info.mfg_year, bq_pack_info.serial);
 
     // Initialize ROS Transports
