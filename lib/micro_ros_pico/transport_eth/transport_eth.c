@@ -71,13 +71,13 @@ bool transport_eth_close(__unused struct uxrCustomTransport * transport)
 size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const uint8_t *buf, size_t len, uint8_t *errcode)
 {
 
-    if (!eth_udp_beginPacket(ros_socket, dest_ip, dest_port)) {
+    if (!eth_udp_beginPacket(&ros_socket, dest_ip, dest_port)) {
 		// TODO: Raise Error
         *errcode = 1;
 		return 0;
 	}
 
-	int snd_len = eth_udp_write(ros_socket, buf, len);
+	int snd_len = eth_udp_write(&ros_socket, buf, len);
 	if (snd_len != len) {
 		// TODO: Raise Error
         *errcode = 3;
