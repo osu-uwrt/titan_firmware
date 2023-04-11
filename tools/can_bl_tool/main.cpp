@@ -75,15 +75,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    UploadTool::RP2040UF2 uf2(argv[2]);
+
     unsigned int ifIndex = if_nametoindex(argv[1]);
     if (!ifIndex) {
         perror("if_nametoindex");
         return 1;
     }
-
-    UploadTool::RP2040UF2 uf2(argv[2], true);
-    // std::string imageType = UploadTool::getBoardType(uf2);
-    // std::cout << "Image Type: " << imageType << std::endl;
 
     auto discovery = Canmore::CANDiscovery::create(ifIndex);
     std::cout << "Waiting for devices..." << std::endl;
@@ -95,23 +93,18 @@ int main(int argc, char** argv) {
         std::cout << "No devices to select" << std::endl;
         auto interface = discovery->catchDeviceInBootDelay(4);
 
-        std::string version;
-        interface->getVersion(version);
-        std::cout << "Version: " << version << std::endl;
+        std::cout << "Version: " << interface->getVersion() << std::endl;
         return 0;
     }
 
-    auto interface = UploadTool::selectInterface(discovered, devMap);
-
-    // std::string version;
-    // interface->getVersion(version);
-    // std::cout << "Version: " << version << std::endl;
+    auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, true);
 
     // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
     // interface->readBytes(0x10000000, my_page);
     // DumpHex(my_page.data(), my_page.size());
 
-    UploadTool::flashImage(*interface, uf2);
+    auto interface = dev->getFlashInterface();
+    UploadTool::flashImage(interface, uf2, true);
 
     return 0;
 }

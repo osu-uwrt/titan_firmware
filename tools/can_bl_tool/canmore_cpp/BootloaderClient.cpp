@@ -66,13 +66,14 @@ BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): cli
     cachedFlashID.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
     cachedFlashID.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
     cachedFlashSize = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET);
+    cachedBootloaderSize = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_APP_BASE_OFFSET);
 
     // Disable bootloader overwrite in case it was enabled previously
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_OFFSET, 0);
 }
 
-void BootloaderClient::getVersion(std::string &versionOut) {
-    client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM, versionOut);
+std::string BootloaderClient::getVersion() {
+    return client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM);
 }
 
 void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {

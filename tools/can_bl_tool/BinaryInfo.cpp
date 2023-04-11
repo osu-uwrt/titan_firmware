@@ -18,6 +18,7 @@
 #include "RP2040FlashInterface.hpp"
 #include "boot/uf2.h"
 #include "pico/binary_info.h"
+#include "bl_binary_info/defs.h"
 
 using namespace UploadTool;
 
@@ -220,21 +221,23 @@ struct memory_access {
     }
 };
 
-struct uf2_memory_access : public memory_access {
-    uf2_memory_access(RP2040UF2 &uf2) : uf2(uf2) {}
-
+struct aligned_memory_access : public memory_access {
     uint32_t get_binary_start() override {
-        return uf2.getBaseAddress();
+        return getBaseAddress();
     }
+
+    virtual uint32_t getBaseAddress() = 0;
+    virtual uint32_t getSize() = 0;
+    virtual std::array<uint8_t, UF2_PAGE_SIZE>& readBlock(uint32_t address) = 0;
 
     void read(uint32_t address, uint8_t *buffer, uint32_t size, bool zero_fill) override {
         while (size) {
             uint32_t this_size = std::min(UF2_PAGE_SIZE, size);
             uint32_t page_off = address % UF2_PAGE_SIZE;
             uint32_t page_addr = address - page_off;
-            if (page_addr >= uf2.getBaseAddress() && page_addr < uf2.getBaseAddress() + uf2.getSize()) {
-                auto block = uf2.getAddress(page_addr);
-                this_size = UF2_PAGE_SIZE - page_off;
+            if (page_addr >= getBaseAddress() && page_addr < getBaseAddress() + getSize()) {
+                auto block = readBlock(page_addr);
+                this_size = std::min(UF2_PAGE_SIZE - page_off, size);
                 std::copy_n(&block.at(page_off), this_size, buffer);
             } else {
                 if (zero_fill) {
@@ -249,8 +252,43 @@ struct uf2_memory_access : public memory_access {
             size -= this_size;
         }
     }
+};
+
+struct uf2_memory_access : public aligned_memory_access {
+    uf2_memory_access(RP2040UF2 &uf2) : uf2(uf2) {}
+
+    uint32_t getBaseAddress() override {return uf2.getBaseAddress();}
+    uint32_t getSize() override {return uf2.getSize();}
+    std::array<uint8_t, UF2_PAGE_SIZE>& readBlock(uint32_t address) override {return uf2.getAddress(address);}
+
 private:
     RP2040UF2 &uf2;
+};
+
+struct device_memory_access : public aligned_memory_access {
+    device_memory_access(std::shared_ptr<RP2040FlashInterface> dev, uint32_t offset = 0) :
+        dev(dev), baseAddr(FLASH_BASE + offset) {}
+
+    uint32_t getBaseAddress() override {return baseAddr;}
+    uint32_t getSize() override {return dev->getFlashSize();}
+
+    std::array<uint8_t, UF2_PAGE_SIZE>& readBlock(uint32_t address) override {
+        auto it = readCache.find(address);
+        if (it == readCache.end()) {
+            std::array<uint8_t, UF2_PAGE_SIZE> block;
+            dev->readBytes(address, block);
+            readCache.insert({address, block});
+
+            return readCache.at(address);
+        } else {
+            return it->second;
+        }
+    }
+
+private:
+    std::shared_ptr<RP2040FlashInterface> dev;
+    uint32_t baseAddr;
+    std::map<uint32_t, std::array<uint8_t, UF2_PAGE_SIZE>> readCache;
 };
 
 struct remapped_memory_access : public memory_access {
@@ -556,10 +594,66 @@ std::string getBoardType(RP2040UF2 &uf2) {
         }
     }
     catch (not_mapped_exception&) {
-        std::cout << "\nfailed to read memory\n";
+        // Ignore memory read failure, just return the empty boardType
     }
 
     return boardType;
+}
+
+uint32_t getBootloaderAppBase(std::shared_ptr<RP2040FlashInterface> itf) {
+    bool bootloaderFound = false;
+    uint32_t appImageBase = 0;
+    auto raw_access = device_memory_access(itf);
+    try {
+        binary_info_header hdr;
+        if (find_binary_info(raw_access, hdr)) {
+            auto access = remapped_memory_access(raw_access, hdr.reverse_copy_mapping);
+            auto visitor = bi_visitor{};
+            visitor.id_and_int([&](int tag, uint32_t id, uint32_t value) {
+                if (tag != BINARY_INFO_TAG_UWRT)
+                    return;
+                if (id == BINARY_INFO_ID_UW_BOOTLOADER_ENABLED) bootloaderFound = !!value;
+                if (id == BINARY_INFO_ID_UW_APPLICATION_BASE) appImageBase = value;
+            });
+            visitor.visit(access, hdr);
+        }
+    }
+    catch (not_mapped_exception&) {
+        // Ignore memory read failure, just return that no bootloader was found
+    }
+
+    if (bootloaderFound) {
+        return appImageBase;
+    } else {
+        return 0;
+    }
+}
+
+std::string getOTAVersionString(std::shared_ptr<RP2040FlashInterface> itf) {
+    std::string version;
+    uint32_t appBase = getBootloaderAppBase(itf);
+
+    if (appBase != 0) {
+        auto raw_access = device_memory_access(itf);
+        try {
+            binary_info_header hdr;
+            if (find_binary_info(raw_access, hdr)) {
+                auto access = remapped_memory_access(raw_access, hdr.reverse_copy_mapping);
+                auto visitor = bi_visitor{};
+                visitor.id_and_string([&](int tag, uint32_t id, std::string value) {
+                    if (tag == BINARY_INFO_TAG_RASPBERRY_PI &&
+                        id == BINARY_INFO_ID_RP_PROGRAM_VERSION_STRING)
+                        version = value;
+                });
+                visitor.visit(access, hdr);
+            }
+        }
+        catch (not_mapped_exception&) {
+            // Ignore memory read failure, just return that no bootloader was found
+        }
+    }
+
+    return version;
 }
 
 }

@@ -25,7 +25,7 @@ class BootloaderError : public std::runtime_error {
 class BootloaderClient: public UploadTool::RP2040FlashInterface {
     public:
         BootloaderClient(std::shared_ptr<RegMappedClient> client);
-        void getVersion(std::string &versionOut);
+        std::string getVersion();
 
         // Overidden Functions
         void readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) override;
@@ -35,13 +35,15 @@ class BootloaderClient: public UploadTool::RP2040FlashInterface {
         void reboot() override;
 
         bool shouldWarnOnBootloaderOverwrite() override {return true;}
-        uint64_t getFlashId() override {return cachedFlashID.doubleword;}
-        uint32_t getFlashSize() override {return cachedFlashSize;}
+        uint64_t getFlashId() const override {return cachedFlashID.doubleword;}
+        uint32_t getFlashSize() const override {return cachedFlashSize;}
+        uint32_t tryGetBootloaderSize() const override {return cachedBootloaderSize;}
 
     private:
         std::shared_ptr<RegMappedClient> client;
         union flash_id cachedFlashID;
         uint32_t cachedFlashSize;
+        uint32_t cachedBootloaderSize;
         std::bitset<MAX_FLASH_SIZE/CANMORE_BL_FLASH_ERASE_SIZE> erasedSectors;
         std::bitset<MAX_FLASH_SIZE/CANMORE_BL_FLASH_BUFFER_SIZE> writtenPages;
 };

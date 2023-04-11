@@ -90,7 +90,7 @@ class BootDelayDevice: public Device {
 
         // RP2040Discovery overrides
         std::string getMode() const override {return "Boot Delay";}
-        bool supportsFlashInterface() const override {return true;}
+        bool supportsFlashInterface() const override {return true;} // TODO: Mark this is as not connectable unless in waiting
         std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
             {return std::static_pointer_cast<UploadTool::RP2040FlashInterface>(enterBootloader());}
 };

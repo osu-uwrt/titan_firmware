@@ -8,19 +8,23 @@
 
 #include "DeviceMap.hpp"
 
-#define BOOTLOADER_SIZE 0x4000  // TODO: Read this from the binary info
 #define FLASH_BASE 0x10000000
 #define MAX_FLASH_SIZE (16*1024*1024) // 16 MB Flash size
 #define UF2_PAGE_SIZE 256u       // All RP2040 UF2 files are have 256 bytes of data for flashing
 
 namespace UploadTool {
 
+class RP2040UF2Error : public std::runtime_error {
+    public:
+        RP2040UF2Error(std::string error): std::runtime_error(error) {};
+};
+
 class RP2040UF2 {
     public:
-        RP2040UF2(std::ifstream &stream, bool isOTA);
-        RP2040UF2(const char *filename, bool isOTA);
+        RP2040UF2(std::ifstream &stream);
+        RP2040UF2(const char *filename);
 
-        const bool isOTA;
+        std::string boardType;
 
         std::array<uint8_t, 256>& getBlock(uint32_t blockNum);
         std::array<uint8_t, 256>& getAddress(uint32_t flashAddress);
@@ -37,7 +41,7 @@ class RP2040UF2 {
         std::vector<std::array<uint8_t, 256>> uf2Array;
 
     private:
-        void initFromStream(std::ifstream &stream, bool isOTA);
+        void initFromStream(std::ifstream &stream);
 };
 
 class RP2040FlashInterface {
@@ -45,8 +49,9 @@ class RP2040FlashInterface {
         virtual void readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) = 0;
         virtual void writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) = 0;
         virtual bool verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) = 0;
-        virtual uint64_t getFlashId() = 0;
-        virtual uint32_t getFlashSize() = 0;
+        virtual uint32_t tryGetBootloaderSize() const = 0;
+        virtual uint64_t getFlashId() const = 0;
+        virtual uint32_t getFlashSize() const = 0;
         virtual void reboot() = 0;
 
         // Bootloader overwrite features
@@ -76,10 +81,11 @@ class RP2040Discovery {
 // Flash UI
 // ========================================
 
-std::shared_ptr<RP2040FlashInterface> selectInterface(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap);
-void flashImage(RP2040FlashInterface &interface, RP2040UF2 &uf2);
+std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect);
+void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA);
 
-// Binary Image
+// Binary Info
 std::string getBoardType(RP2040UF2 &uf2);
+uint32_t getBootloaderAppBase(std::shared_ptr<RP2040FlashInterface> itf);
 
 };

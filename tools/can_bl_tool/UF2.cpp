@@ -7,86 +7,74 @@
 
 using namespace UploadTool;
 
-// #define DEBUG_VERIFY(...) do {} while(0)
-#define DEBUG_VERIFY(...) printf(__VA_ARGS__)
+std::string hexWord(uint32_t word) {
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::setw(8) << std::setfill('0') << word;
+    return ss.str();
+}
 
-bool is_block_valid(struct uf2_block *block, bool is_ota, uint32_t expected_num_blocks, bool verify_num_blocks) {
+void assertBlockValid(struct uf2_block *block, uint32_t expected_num_blocks, bool verify_num_blocks) {
     // Make sure UF2 magics are valid
     if (block->magic_start0 != UF2_MAGIC_START0) {
-        DEBUG_VERIFY("Invalid magic start0: 0x%08x\n", block->magic_start0);
-        return false;
+        throw RP2040UF2Error("Invalid UF2 magic start0: " + hexWord(block->magic_start0));
     }
     if (block->magic_start1 != UF2_MAGIC_START1) {
-        DEBUG_VERIFY("Invalid magic start1: 0x%08x\n", block->magic_start1);
-        return false;
+        throw RP2040UF2Error("Invalid UF2 magic start1: " + hexWord(block->magic_start1));
     }
     if (block->magic_end != UF2_MAGIC_END) {
-        DEBUG_VERIFY("Invalid magic end: 0x%08x\n", block->magic_end);
-        return false;
+        throw RP2040UF2Error("Invalid UF2 magic end: " + hexWord(block->magic_end));
     }
 
     // Ensure that the only flag that is present is the one marking that file_size is family id
     if (block->flags != UF2_FLAG_FAMILY_ID_PRESENT) {
-        DEBUG_VERIFY("Unexpected flags: 0x%08x\n", block->flags);
-        return false;
+        throw RP2040UF2Error("Unexpected flags: " + hexWord(block->flags));
     }
 
     // Make sure family ID matches
     if (block->file_size != RP2040_FAMILY_ID) {
-        DEBUG_VERIFY("Invalid family id: 0x%08x\n", block->file_size);
-        return false;
+        throw RP2040UF2Error("Invalid family id: " + hexWord(block->file_size));
     }
 
     // Ensure page is expected size
     if (block->payload_size != UF2_PAGE_SIZE) {
-        DEBUG_VERIFY("Invalid payload size: 0x%08x\n", block->payload_size);
-        return false;
+        throw RP2040UF2Error("Invalid payload size: " + hexWord(block->payload_size));
     }
 
     // Check address is page aligned
     if (block->target_addr % UF2_PAGE_SIZE != 0) {
-        DEBUG_VERIFY("Invalid address: 0x%08x unaligned\n", block->target_addr);
-        return false;
+        throw RP2040UF2Error("Invalid address: " + hexWord(block->target_addr) + " unaligned");
     }
 
     // Compute valid address range
     // Note max address is the end address minus page size
-    uint32_t min_addr = (is_ota ? FLASH_BASE + BOOTLOADER_SIZE : FLASH_BASE);
+    uint32_t min_addr = FLASH_BASE;
     uint32_t max_addr = (FLASH_BASE + MAX_FLASH_SIZE) - UF2_PAGE_SIZE;
 
     // Check address is valid within flash
     if (block->target_addr < min_addr || block->target_addr > max_addr) {
-        DEBUG_VERIFY("Invalid address: 0x%08x out of range (0x%08x - 0x%08x)\n", block->target_addr, min_addr, max_addr);
-        return false;
+        throw RP2040UF2Error("Invalid address: " + hexWord(block->target_addr) + " out of range of flash");
     }
 
     // Check block number makes sense
     if (block->block_no >= block->num_blocks) {
-        DEBUG_VERIFY("Invalid block no: 0x%08x >= num blocks 0x%08x\n", block->block_no, block->num_blocks);
-        return false;
+        throw RP2040UF2Error("Invalid block no: " + hexWord(block->block_no) + " >= num blocks " + hexWord(block->num_blocks));
     }
 
     // Verify total block count if provided
     if (verify_num_blocks && expected_num_blocks != block->num_blocks) {
-        DEBUG_VERIFY("Invalid num blocks: 0x%08x != expected 0x%08x\n", block->num_blocks, expected_num_blocks);
-        return false;
+        throw RP2040UF2Error("Invalid num blocks: " + hexWord(block->num_blocks) + " != expected " + hexWord(expected_num_blocks));
     }
-
-    return true;
 }
 
-RP2040UF2::RP2040UF2(std::ifstream &stream, bool isOTA): isOTA(isOTA) {
-    initFromStream(stream, isOTA);
+RP2040UF2::RP2040UF2(std::ifstream &stream) {
+    initFromStream(stream);
 }
-RP2040UF2::RP2040UF2(const char *filename, bool isOTA): isOTA(isOTA) {
+RP2040UF2::RP2040UF2(const char *filename) {
     std::ifstream stream(filename, std::ifstream::binary);
-    initFromStream(stream, isOTA);
+    initFromStream(stream);
 }
 
-void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
-    // Raise exceptions if it tries to incomplete read
-    stream.exceptions(stream.exceptions() | std::ios::failbit | std::ifstream::badbit);
-
+void RP2040UF2::initFromStream(std::ifstream &stream) {
     uint32_t expected_block_no = 0;
     uint32_t expected_num_blocks = 0;
     uint32_t expected_addr = 0;
@@ -96,13 +84,22 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
         struct uf2_block block;
         stream.read((char*) &block, sizeof(block));
 
-        if (!is_block_valid(&block, isOTA, expected_num_blocks, !first_block)) {
-            throw std::runtime_error("Invalid UF2 block");
+        // First check if the read didn't fully complete
+        if (stream.eof()) {
+            throw RP2040UF2Error("Unexpected end of UF2 file");
         }
+
+        // Catch any other errors
+        if (stream.fail()) {
+            throw RP2040UF2Error("Unexpected IO Error");
+        }
+
+        // Perform checks on UF2 block
+        assertBlockValid(&block, expected_num_blocks, !first_block);
 
         // Make sure block numbers are in order
         if (expected_block_no != block.block_no) {
-            throw std::runtime_error("Out of order UF2 block");
+            throw RP2040UF2Error("Out of order UF2 block");
         }
         expected_block_no++;
 
@@ -115,7 +112,7 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
 
         // Ensure that target address is in-order and contiguous
         if (expected_addr != block.target_addr) {
-            throw std::runtime_error("Non-contiguous UF2 address");
+            throw RP2040UF2Error("Non-contiguous UF2 address");
         }
         expected_addr += UF2_PAGE_SIZE;
 
@@ -123,12 +120,17 @@ void RP2040UF2::initFromStream(std::ifstream &stream, bool isOTA) {
         std::copy_n(block.data, UF2_PAGE_SIZE, uf2Data.begin());
         uf2Array.push_back(uf2Data);
 
+        // Quit now if we don't have any data left
+        // That means we've read the last block and no data remains after
         stream.peek();
     } while(!stream.eof());
 
     if (expected_block_no != expected_num_blocks) {
-        throw std::runtime_error("Expected additional UF2 blocks");
+        throw RP2040UF2Error("Expected additional UF2 blocks");
     }
+
+    // Now that we have loaded, try to fetch the board type
+    boardType = getBoardType(*this);
 }
 
 std::array<uint8_t, 256>& RP2040UF2::getBlock(uint32_t blockNum) {
