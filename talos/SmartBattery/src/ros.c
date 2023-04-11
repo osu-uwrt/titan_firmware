@@ -103,7 +103,7 @@ static void electrical_command_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
 
     // check if the command was a power cycle
-    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER){
         request_powercycle = true;
     }
 

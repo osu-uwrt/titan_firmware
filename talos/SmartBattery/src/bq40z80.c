@@ -131,9 +131,9 @@ uint8_t bq_pack_present(){
 
 uint8_t bq_pack_discharging(){
     // read the operationstatus register (32 bits)
-    uint8_t data[4] = {0, 0, 0, 0};
+    uint8_t data[5] = {0, 0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
-    bq_handle_i2c_transfer(reg_addr, data, 4);
+    bq_handle_i2c_transfer(reg_addr, data, 5);
 
     // the zeroth byte is the length of the field for some reason...
     // test the discharge bit (bit 1)
@@ -234,6 +234,7 @@ struct bq_pack_info_t bq_pack_mfg_info(){
     for(uint8_t i = 1; i < data[0]+1; i++){
         pack_info.name[i-1] = data[i];
     }
+    pack_info.name[data[0]+1] = 0;
     
     // now kick it all out
     return pack_info;
@@ -242,9 +243,9 @@ struct bq_pack_info_t bq_pack_mfg_info(){
 void bq_send_mac_command(const uint16_t command){
     // pack the MAC command
     uint8_t data[3] = {
-        BQ_MAC_REG_ADDR & 0xFF, // MAC register address (actually 1 byte not 2 so cut off the upper byte)
-        command >> 8,           // now take the high byte of the command
-        command & 0xFF          // finish with the low byte of the command
+        0x00, // MAC register address (actually 1 byte not 2 so cut off the upper byte)
+        (uint8_t)(command >> 8),           // the high byte of the command
+        (uint8_t)(command & 0xFF),         // the low byte of the command
     };
 
     // send the MAC register command
@@ -267,21 +268,30 @@ void bq_open_dschg_temp(const int64_t open_time_ms){
     // send emergency fet off command
     bq_send_mac_command(BQ_MAC_EMG_FET_OFF_CMD);
 
+    absolute_time_t start = get_absolute_time();
+    while(bq_pack_discharging() && absolute_time_diff_us(start, get_absolute_time()) < 1000 * open_time_ms){
+        sleep_us(100);
+        // also feed the watchdog so we dont reset
+        watchdog_update();
+    }   
+
+    uint8_t data[2] = {0, 0};
+    uint8_t reg_addr[1] = {0x16};
+    bq_handle_i2c_transfer(reg_addr, data, 2);
+    if(data[0] & 0x7) {
+        char err[9] = "ERROR:#|#";
+        itoa(data[0] & 0x7, err + 6, 10);
+        *(err + 7) = '|';
+        itoa(data[1] & 0x7, err + 8, 10);
+        panic(err);
+    }
+
     // verify fet is actually open via operation status
     if(bq_pack_discharging()){
         // this is a bad state. we requested fet open and it didnt happen
         bq_send_mac_command(BQ_MAC_RESET_CMD);
         panic("Failed to open DSCHG FET during power cycle cmd");
     } 
-
-    // now we wait a bit to let the rest of the system shut down
-    absolute_time_t start = get_absolute_time();
-    while(absolute_time_diff_us(start, get_absolute_time()) < 1000 * open_time_ms){
-        sleep_us(100);
-
-        // also feed the watchdog so we dont reset
-        watchdog_update();
-    }    
 
     // send a cleanup reset command
     bq_send_mac_command(BQ_MAC_EMG_FET_ON_CMD);

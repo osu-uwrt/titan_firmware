@@ -109,7 +109,7 @@ static void tick_ros_tasks() {
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_pack_info));
     }
 }
 
