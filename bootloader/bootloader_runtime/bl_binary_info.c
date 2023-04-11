@@ -6,6 +6,7 @@
 
 #if !PICO_NO_BINARY_INFO && !PICO_NO_PROGRAM_INFO
 #include "pico/binary_info.h"
+#include "bl_binary_info/defs.h"
 
 #if !PICO_NO_FLASH
 #include "boot_stage2/config.h"
@@ -92,16 +93,9 @@ bi_decl(bi_program_build_attribute("All optimization disabled"))
 #endif
 #endif
 
-// Custom binary info tag for storing UWRT specific tags
-// This allows identifying bootloader info
-#define BINARY_INFO_TAG_UWRT BINARY_INFO_MAKE_TAG('U','W')
-#define BINARY_INFO_TAG_BOOTLOADER_ENABLED 0xa4ae7ab0
-#define BINARY_INFO_APPLICATION_BASE 0x80244d0f
-
-
 // Report that this is a bootloader and where the base is (so OTAs can be flashed)
-bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_TAG_BOOTLOADER_ENABLED, 1));
+bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_BOOTLOADER_ENABLED, 1));
 extern char __flash_app;
-bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_APPLICATION_BASE, (intptr_t)&__flash_app))
+bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_APPLICATION_BASE, (intptr_t)&__flash_app))
 
 #endif

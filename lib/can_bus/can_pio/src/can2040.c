@@ -1297,5 +1297,5 @@ can2040_start(struct can2040 *cd, uint32_t sys_clock, uint32_t bitrate
 void
 can2040_shutdown(struct can2040 *cd)
 {
-    // XXX
+
 }
