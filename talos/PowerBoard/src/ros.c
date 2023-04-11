@@ -166,7 +166,7 @@ rcl_ret_t ros_publish_electrical_readings() {
 
     size_t esc_current_length = sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
     for(size_t i = 0; i < esc_current_length; i++) {
-        electrical_reading_msg.esc_current[i] = 0;
+        electrical_reading_msg.esc_current[i] = NAN;
     }
 
     RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
