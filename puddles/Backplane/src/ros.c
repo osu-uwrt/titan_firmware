@@ -1,4 +1,5 @@
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 
 #include <rmw_microros/rmw_microros.h>
 
@@ -244,11 +245,23 @@ rcl_ret_t ros_publish_killswitch(void) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t adc_update(uint8_t client_id) {
-    status_msg.three_volt_voltage = (mcp3426_query(0) * .0033067);
-    status_msg.five_volt_voltage = (mcp3426_query(1) * .00333556);
-    status_msg.twelve_volt_voltage = (mcp3426_query(2) * .01100897);
-    status_msg.balanced_voltage = (mcp3426_query(3) * .01099898);
+static float calc_actual_voltage(float adc_voltage, bool is_small) {
+    float top;
+    float bottom = 10000.0;
+
+    if (is_small) {
+        top = 23200.0;
+    } else {
+        top = 100000.0;
+    }
+    return adc_voltage * 1.0 / (bottom / (bottom + top));
+}
+
+rcl_ret_t adc_update(void) {
+    status_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
+    status_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), true);
+    status_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
+    status_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
     for(int i = 0; i < 8; i++) {
         status_msg.esc_current[i] = D818_query(i);
     }

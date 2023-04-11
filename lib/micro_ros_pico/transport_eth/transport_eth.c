@@ -77,7 +77,7 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
 		return 0;
 	}
 
-	int snd_len = eth_udp_write(&ros_socket, buf, len);
+	size_t snd_len = eth_udp_write(&ros_socket, buf, len);
 	if (snd_len != len) {
 		// TODO: Raise Error
         *errcode = 3;

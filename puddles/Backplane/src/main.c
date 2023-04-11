@@ -132,7 +132,7 @@ static void tick_ros_tasks() {
     }
 
     if (timer_ready(&next_adc, ADC_TIME_MS, false)) {
-        RCSOFTRETVCHECK(adc_update(client_id));
+        RCSOFTRETVCHECK(adc_update());
     }
 
     // Send Dshot telemetry response after a dshot command is sent
@@ -148,13 +148,8 @@ static void tick_background_tasks() {
         led_network_online_set(ethernet_check_online());
     }
 
-
-    // TODO: Put any code that should periodically occur here
-    // read the aux switch state
-    // bool aux_state = gpio_get(AUX_SW_SENSE);
-
-    mcp3426_read();
-    D818_read();
+    // TODO: Make not kill depth sensor
+    // D818_read();
 }
 
 

@@ -18,6 +18,7 @@
 #define FAULT_THRUSTER_TIMEOUT    7
 #define FAULT_DEPTH_INIT_ERROR    8
 #define FAULT_DEPTH_ERROR         9
+#define FAULT_ADC_ERROR          10
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
@@ -30,6 +31,7 @@ static const char * const fault_string_list[] = {
     "FAULT_THRUSTER_TIMEOUT",
     "FAULT_DEPTH_INIT_ERROR",
     "FAULT_DEPTH_ERROR",
+    "FAULT_ADC_ERROR"
 };
 
 extern bool safety_interface_kill_switch_refreshed;
