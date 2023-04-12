@@ -143,6 +143,16 @@ static void dshot_subscription_callback(const void * msgin) {
     dshot_command_received = true;
 }
 
+static int64_t set_accoustic_power(alarm_id_t alarm, void * data){
+    gpio_put(PWR_CTL_ACC, (bool) data);
+    return 0; // return 0 to not reschedule this event
+}
+
+static int64_t set_computer_power(alarm_id_t alarm, void * data){
+    gpio_put(PWR_CTL_CPU, (bool) data);
+    return 0; // return 0 to not reschedule this event
+}
+
 static void elec_command_subscription_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
@@ -166,16 +176,6 @@ static void elec_command_subscription_callback(const void * msgin){
     } else {
         LOG_WARN("Unsupported electrical command used %d", msg->command);
     }
-}
-
-static int64_t set_accoustic_power(alarm_id_t alarm, void * data){
-    gpio_put(PWR_CTL_ACC, (bool) data);
-    return 0; // return 0 to not reschedule this event
-}
-
-static int64_t set_computer_power(alarm_id_t alarm, void * data){
-    gpio_put(PWR_CTL_CPU, (bool) data);
-    return 0; // return 0 to not reschedule this event
 }
 
 static void software_kill_subscription_callback(const void * msgin)
