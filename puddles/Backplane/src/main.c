@@ -179,7 +179,7 @@ int main() {
     // init the acoustic pwr ctrl system off
     gpio_init(PWR_CTL_ACC);
     gpio_set_dir(PWR_CTL_ACC, GPIO_OUT);
-    gpio_put(PWR_CTL_ACC, 0);
+    gpio_put(PWR_CTL_ACC, 1);
 
     // init the aux switches as input
     gpio_init(AUX_SW_SENSE);

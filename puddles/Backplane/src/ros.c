@@ -149,7 +149,33 @@ static void elec_command_subscription_callback(const void * msgin){
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
         safety_notify_software_reset();
         watchdog_reboot(0, 0, 0);
+    } else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
+        // turn off the computer
+        bool success = add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
+
+        // turn the power back on
+        if(success)
+            add_alarm_in_ms(1010, &set_computer_power, (void *) true,  true);
+    } else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
+        // turn off the accoustics
+        bool success = add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
+
+        // turn the power back on
+        if(success)
+            add_alarm_in_ms(1010, &set_accoustic_power, (void *) true,  true);
+    } else {
+        LOG_WARN("Unsupported electrical command used %d", msg->command);
     }
+}
+
+static int64_t set_accoustic_power(alarm_id_t alarm, void * data){
+    gpio_put(PWR_CTL_ACC, (bool) data);
+    return 0; // return 0 to not reschedule this event
+}
+
+static int64_t set_computer_power(alarm_id_t alarm, void * data){
+    gpio_put(PWR_CTL_CPU, (bool) data);
+    return 0; // return 0 to not reschedule this event
 }
 
 static void software_kill_subscription_callback(const void * msgin)
