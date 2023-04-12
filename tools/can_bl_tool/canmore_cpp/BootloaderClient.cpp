@@ -66,7 +66,7 @@ BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): cli
     cachedFlashID.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
     cachedFlashID.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
     cachedFlashSize = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_FLASH_SIZE_OFFSET);
-    cachedBootloaderSize = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_APP_BASE_OFFSET);
+    cachedBootloaderSize = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_APP_BASE_OFFSET) - FLASH_BASE;
 
     // Disable bootloader overwrite in case it was enabled previously
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_OFFSET, 0);
