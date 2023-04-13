@@ -3,10 +3,16 @@
     // Mark 2 Era Boards
     // ========================================
     {
-        // The first puddles backplane assembled
-        "name": "Puddles Backplane",
+        // The first puddles backplane assembled (dev board)
+        "name": "Puddles Dev Backplane",
         "boardType": "puddles_backplane",
         "serial": "E462288893572D28"
+    },
+    {
+        // The official puddles backplane
+        "name": "Puddles Backplane",
+        "boardType": "puddles_backplane",
+        "serial": "E462288893573D28"
     },
     // All these boards were part of the Mark 2 design
     {

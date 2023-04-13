@@ -92,6 +92,8 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
         // Note that we check for the supporting flash interface here, so that if a device is present but in an invalid
         // mode, it won't hide it from the user
         if (matchingDevice != nullptr && matchingDevice->supportsFlashInterface()) {
+            std::cout << COLOR_TITLE "Auto Selecting Device:" COLOR_RESET << std::endl;
+            printDevice(0, matchingDevice, deviceMap);
             return matchingDevice;
         }
     }

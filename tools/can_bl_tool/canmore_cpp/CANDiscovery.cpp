@@ -107,11 +107,14 @@ void CANDiscovery::handleSocketData(int socketFd) {
 
 uint64_t CANNormalDevice::getFlashId() {
     if (!isFlashIdCached) {
-        auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
-        auto debugClient = DebugClient(interface);
-        cachedFlashId.doubleword = debugClient.getFlashId();
-
-        isFlashIdCached = true;
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            auto debugClient = DebugClient(interface);
+            cachedFlashId.doubleword = debugClient.getFlashId();
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
+        }
     }
 
     return cachedFlashId.doubleword;
@@ -134,17 +137,21 @@ std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
 
 uint64_t CANBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
-        auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
-        RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
-        uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
-        if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
-            throw BootloaderError("Unexpected bootloader magic");
+            uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
+            if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
+                throw BootloaderError("Unexpected bootloader magic");
+            }
+
+            cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
+            cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
         }
-
-        cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
-        cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
-        isFlashIdCached = true;
     }
 
     return cachedFlashId.doubleword;

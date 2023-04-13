@@ -380,7 +380,7 @@ static void safety_process_last_reset_cause(void) {
 
         // Decode the clean boot reset cause and write to log
         next_entry->reset_reason = CLEAN_BOOT;
-        if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_SOFTWARE) {
+        if (*reset_reason_reg == CLEAN_BOOT) {
             next_entry->scratch_1 = watchdog_hw->scratch[1];
             watchdog_hw->scratch[1] = 0;
         } else {

@@ -93,17 +93,21 @@ std::shared_ptr<BootloaderClient> EthernetNormalDevice::switchToBootloaderMode()
 
 uint64_t EthernetBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
-        auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
-        RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+        try {
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
-        uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
-        if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
-            throw BootloaderError("Unexpected bootloader magic");
+            uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
+            if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
+                throw BootloaderError("Unexpected bootloader magic");
+            }
+
+            cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
+            cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
         }
-
-        cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
-        cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
-        isFlashIdCached = true;
     }
 
     return cachedFlashId.doubleword;

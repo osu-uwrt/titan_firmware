@@ -358,6 +358,11 @@ void bl_interface_notify_boot(void) {
     can_mcp251x_send_heartbeat(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY);
 }
 
+bool bl_interface_check_online(void){
+    // CAN bus can be considered always online
+    return true;
+}
+
 bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out) {
     // First check if a message is pending
     if (gpio_get(MCP2517FD_INT_PIN)) {

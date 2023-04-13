@@ -52,7 +52,7 @@ target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT
 
 # Enable the 'make upload' and 'make serial' commands for project
 uwrt_use_upload_tool(backplane_firmware)
-#uwrt_enable_bootloader(backplane_firmware eth)
+uwrt_enable_bootloader(backplane_firmware eth)
 
 # Compile Definitions
 target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
