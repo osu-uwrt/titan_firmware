@@ -27,7 +27,7 @@
 //       - 0x7193002: Reset from RUN pin
 //       - 0x7193003: Reset from debug emergency reset
 //       - 0x7193004: Reset from software requested reset
-//       - 0x7193005: Reset from USB interface request
+//       - 0x7193005: Reset from unknown (non-timeout) watchdog reset: watchdog reporting a reset, but pico sdk didn't see WATCHDOG_NON_REBOOT_MAGIC
 //       - 0x7193006: Reset from bootloader mode
 //  - UNKNOWN_SAFETY_PREINIT: Unknown, crashed after safety_setup
 //  - UNKNOWN_SAFETY_ACTIVE: Unknown, crashed after safety_init
@@ -39,6 +39,7 @@
 //     scratch[1]: Faulting File String Address
 //     scratch[2]: Faulting File Line
 //  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
+// scratch[4]: Reserved for Pico SDK watchdog use
 // scratch[5]: Uptime since safety init (hundreds of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[6]: Bitwise Fault List
@@ -58,7 +59,7 @@
 #define CLEAN_RESET_TYPE_RUN         0x7193002
 #define CLEAN_RESET_TYPE_PSM         0x7193003
 #define CLEAN_RESET_TYPE_SOFTWARE    0x7193004
-#define CLEAN_RESET_TYPE_USB         0x7193005
+#define CLEAN_RESET_TYPE_UNK_WDG     0x7193005
 #define CLEAN_RESET_TYPE_BOOTLOADER  0x7193006
 
 
@@ -198,6 +199,15 @@ void safety_systick_handler(void) {
     *uptime_reg += 1;
 }
 
+// Watchdog reboot handling
+extern void __real_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms);
+
+void __wrap_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
+    *reset_reason_reg = CLEAN_BOOT;
+    watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
+
+    __real_watchdog_reboot(pc, sp, delay_ms);
+}
 
 // ========================================
 // Crash Log Parsing
@@ -229,8 +239,8 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
             reset_type = "PSM Debug Request";
         } else if (entry->scratch_1 == CLEAN_RESET_TYPE_SOFTWARE) {
             reset_type = "Software Request";
-        } else if (entry->scratch_1 == CLEAN_RESET_TYPE_USB) {
-            reset_type = "USB Interface Request";
+        } else if (entry->scratch_1 == CLEAN_RESET_TYPE_UNK_WDG) {
+            reset_type = "Unknown Watchdog Request";
         } else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTLOADER) {
             reset_type = "Bootloader";
         }
@@ -371,24 +381,22 @@ static void safety_process_last_reset_cause(void) {
         // Decode the clean boot reset cause and write to log
         next_entry->reset_reason = CLEAN_BOOT;
         if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_SOFTWARE) {
-            next_entry->scratch_1 = CLEAN_RESET_TYPE_SOFTWARE;
-            watchdog_hw->scratch[1] = 0;
-        } else if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_USB) {
-            next_entry->scratch_1 = CLEAN_RESET_TYPE_USB;
-            watchdog_hw->scratch[1] = 0;
-        } else if (*reset_reason_reg == CLEAN_BOOT && watchdog_hw->scratch[1] == CLEAN_RESET_TYPE_BOOTLOADER) {
-            next_entry->scratch_1 = CLEAN_RESET_TYPE_BOOTLOADER;
+            next_entry->scratch_1 = watchdog_hw->scratch[1];
             watchdog_hw->scratch[1] = 0;
         } else {
             next_entry->scratch_1 = 0;
-            if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_POR_BITS) {
-                next_entry->scratch_1 = CLEAN_RESET_TYPE_POR;
-            }
-            if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_RUN_BITS) {
-                next_entry->scratch_1 = CLEAN_RESET_TYPE_RUN;
-            }
-            if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_PSM_RESTART_BITS) {
-                next_entry->scratch_1 = CLEAN_RESET_TYPE_PSM;
+            if (watchdog_caused_reboot()) {
+                next_entry->scratch_1 = CLEAN_RESET_TYPE_UNK_WDG;
+            } else {
+                if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_POR_BITS) {
+                    next_entry->scratch_1 = CLEAN_RESET_TYPE_POR;
+                }
+                if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_RUN_BITS) {
+                    next_entry->scratch_1 = CLEAN_RESET_TYPE_RUN;
+                }
+                if (vreg_and_chip_reset_hw->chip_reset & VREG_AND_CHIP_RESET_CHIP_RESET_HAD_PSM_RESTART_BITS) {
+                    next_entry->scratch_1 = CLEAN_RESET_TYPE_PSM;
+                }
             }
         }
     }
@@ -488,11 +496,6 @@ void safety_print_crash_log(void) {
     } while(i != crash_data.header.next_entry);
 
     LOG_INFO("========================================");
-}
-
-void safety_notify_software_reset(void) {
-    *reset_reason_reg = CLEAN_BOOT;
-    watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
 }
 
 void safety_enter_bootloader(void) {

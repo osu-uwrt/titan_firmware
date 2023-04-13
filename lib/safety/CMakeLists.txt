@@ -18,7 +18,7 @@ target_link_libraries(safety INTERFACE
     hardware_exception
 
     # Hook required functions for safety watchdog reporting
-	"-Wl,--wrap=__assert_func,--wrap=panic,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session"
+	"-Wl,--wrap=__assert_func,--wrap=panic,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session,--wrap=watchdog_reboot"
 )
 
 target_include_directories(safety INTERFACE
