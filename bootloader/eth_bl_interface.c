@@ -63,6 +63,10 @@ bool bl_interface_init(void) {
         return false;
     }
 
+    // Configure RTR and RCR to not insane values
+    w5100_setRetransmissionTime(&eth_device, 300);	// 30ms timeout
+	w5100_setRetransmissionCount(&eth_device, 1);
+
     // start the Ethernet
     eth_ifconfig(&eth_device, device_ip, gateway, subnet);
 

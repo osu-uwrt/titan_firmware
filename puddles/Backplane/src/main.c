@@ -37,6 +37,7 @@
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
+#define SUPRESS_BOOTUP_TIMER_MISS 1
 absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
@@ -58,6 +59,8 @@ absolute_time_t next_adc = {0};
 static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
+        bool supress_error = (SUPRESS_BOOTUP_TIMER_MISS && to_us_since_boot(time_tmp) == 0);
+
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0; \
@@ -65,9 +68,11 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault(FAULT_TIMER_MISSED);
+            if (!supress_error) {
+                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+                if (error_on_miss)
+                    safety_raise_fault(FAULT_TIMER_MISSED);
+            }
         }
         *next_fire_ptr = time_tmp;
         return true;

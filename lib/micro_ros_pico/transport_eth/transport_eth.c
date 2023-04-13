@@ -37,7 +37,6 @@ static IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static udp_socket_t ros_socket;
 static w5k_data_t eth_device;
-static bool showed_closed = false;
 
 
 void usleep(uint64_t us)
@@ -72,20 +71,19 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
 {
 
     if (!eth_udp_beginPacket(&ros_socket, dest_ip, dest_port)) {
-		// TODO: Raise Error
         *errcode = 1;
 		return 0;
 	}
 
 	size_t snd_len = eth_udp_write(&ros_socket, buf, len);
 	if (snd_len != len) {
-		// TODO: Raise Error
-        *errcode = 3;
+        *errcode = 2;
         return snd_len;
 	}
 
 	if(!eth_udp_endPacket(&ros_socket)){
-		// panic("UDP_XMIT fail");
+		*errcode = 3;
+		return 0;
 	}
 
 	return snd_len;
@@ -95,31 +93,26 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 {
     // make sure the socket is still open
     if (!eth_udp_isopen(&ros_socket)){
-		if (!showed_closed){
-			puts("UDP Server Closed");
-			showed_closed = true;
-		}
-
-        *errcode = 2; // TODO: figure out the right error code
+        *errcode = 1;
 		return 0;
 	}
 
     // need to parse the packet first and see if we have data
     size_t packetSize = eth_udp_parsePacket(&ros_socket);
 	if (!packetSize){
-        *errcode = 2; // TODO: figure out the right error code
+        *errcode = 2;
 		return 0;
 	}
 
     // make sure the packet isnt too big
 	if (len < packetSize){
-		*errcode = 2; // TODO: figure out the right error code
-		return -1;
+		*errcode = 3;
+		return 0;
 	}
 
     // now we can attempt the socket reads
 	if (packetSize > 0 && eth_udp_read(&ros_socket, buf, packetSize) != packetSize) {
-		*errcode = 2;
+		*errcode = 4;
 		return 0;
 	}
 
@@ -129,8 +122,6 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
 
 bool transport_eth_init(){
-    puts("Initializing W5200");
-
 	// Initialize MAC address with lower values in Flash ID to *randomize* it sort of
 	pico_unique_board_id_t uniqueId;
 	pico_get_unique_board_id(&uniqueId);
@@ -170,6 +161,14 @@ bool transport_eth_init(){
 		return false;
 	}
 
+	// Configure timeouts
+	// Note that we don't use TCP, so this really only affects the ARP request
+	// Since udp inherently faults, we can drop this down to 1 retry attempt, and cut timeout to 30ms
+	// If we don't get a response (within the network mind you, since its ARP), it'll just fail as though the packet
+	// transmit failed. And then micro-ROS will either reattempt or just drop the message
+	w5100_setRetransmissionTime(&eth_device, 300);	// 30ms timeout
+	w5100_setRetransmissionCount(&eth_device, 1);
+
 	// start the Ethernet
   	eth_ifconfig(&eth_device, source_ip, gateway, subnet);
 
@@ -177,16 +176,12 @@ bool transport_eth_init(){
 	bool mismatch = false;
 
 	w5100_getIPAddress(&eth_device, tmp);
-	puts("Configured IP address:");
 	for(size_t i = 0; i < 4; i++){
 		if(tmp[i] != source_ip[i]){
 			printf("IP mismatch after configure byte %d: %d, %d\n", i, tmp[i], source_ip[i]);
 			mismatch = true;
-		} else {
-			printf("%d ", tmp[i]);
 		}
 	}
-	puts("");
 	if(mismatch) return false;
 
 

@@ -110,7 +110,6 @@ static void electrical_command_callback(const void * msgin){
     // also check for a reset
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
-        safety_notify_software_reset();
         watchdog_reboot(0, 0, 0);
     }
 }
