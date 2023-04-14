@@ -137,7 +137,5 @@ int main(int argc, char** argv) {
 
     UploadTool::flashImage(interface, uf2, true);
 
-    interface->reboot();
-
     return 0;
 }
