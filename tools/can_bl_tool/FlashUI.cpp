@@ -193,6 +193,7 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
         // Device Name
         std::cout << "Name:\t";
         std::cout << COLOR_NAME << canmoreItf->getInterfaceName() << COLOR_RESET << std::endl;
+        validInterfaces.push_back(canmoreItf);
     }
 
     std::shared_ptr<Canmore::Discovery> selectedInterface = nullptr;
@@ -222,7 +223,7 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
     }
 
     while (1) {
-        std::cout << std::endl << "Enter client id to wait for: ";
+        std::cout << "Enter client id to wait for: ";
 
         unsigned int userChoice;
         std::cin >> userChoice;
@@ -244,6 +245,7 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
         break;
     }
 
+    std::cout << "Waiting for device..." << std::endl;
     auto dev = selectedInterface->catchDeviceInBootDelay(clientId);
     auto devDescr = deviceMap.lookupSerial(dev->getFlashId());
 
