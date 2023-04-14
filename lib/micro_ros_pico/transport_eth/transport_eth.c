@@ -11,6 +11,9 @@
 #include "eth_networking.h"
 
 #include "micro_ros_pico/transport_eth.h"
+#include "canmore_titan/protocol.h"
+#include "canmore_titan/ethernet_defs.h"
+#include "canmore_titan/debug.h"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -19,6 +22,7 @@
  */
 
 typedef uint8_t IPAddress[4];
+void ethernet_control_interface_transmit(uint8_t *msg, size_t len);
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -35,9 +39,12 @@ static uint16_t source_port = ETHERNET_PORT;
 static IPAddress gateway = ETHERNET_GATEWAY;
 static IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
-static udp_socket_t ros_socket;
+static udp_socket_t ros_socket, control_interface_socket;
 static w5k_data_t eth_device;
 
+static IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
+static uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
+static uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
 
 void usleep(uint64_t us)
 {
@@ -78,7 +85,7 @@ size_t transport_eth_write(__unused struct uxrCustomTransport* transport, const 
 	size_t snd_len = eth_udp_write(&ros_socket, buf, len);
 	if (snd_len != len) {
         *errcode = 2;
-        return snd_len;
+        return 0;
 	}
 
 	if(!eth_udp_endPacket(&ros_socket)){
@@ -190,6 +197,11 @@ bool transport_eth_init(){
 		return false;
 	}
 
+	if (!eth_udp_begin(&control_interface_socket, &eth_device, control_port)) {
+		puts("Failed to initialize control interface");
+		return false;
+	}
+
     rmw_uros_set_custom_transport(
 		false,
 		NULL,
@@ -199,9 +211,68 @@ bool transport_eth_init(){
 		transport_eth_read
 	);
 
+	canmore_debug_init(&ethernet_control_interface_transmit);
+
 	return true;
 }
 
 bool ethernet_check_online(){
 	return w5100_getLinkStatus(&eth_device) == LINK_ON;
+}
+
+// ========================================
+// Heartbeat/Debug Interface
+// ========================================
+
+absolute_time_t ethernet_next_heartbeat = {0};
+static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
+
+void ethernet_control_interface_transmit(uint8_t *msg, size_t len) {
+	// This will respond to the last parsed packet
+	// So this should respond to the appropriate device
+	if (!eth_udp_beginPacket(&control_interface_socket, control_interface_socket.remoteIP, control_interface_socket.remotePort)) {
+		return;
+	}
+
+	size_t snd_len = eth_udp_write(&control_interface_socket, msg, len);
+	if (snd_len != len) {
+        return;
+	}
+
+	if(!eth_udp_endPacket(&control_interface_socket)){
+		return;
+	}
+}
+
+void ethernet_tick(void) {
+    // Heartbeat scheduling
+    if (time_reached(ethernet_next_heartbeat)) {
+        ethernet_next_heartbeat = make_timeout_time_ms(ETH_HEARTBEAT_INTERVAL_MS);
+
+        static canmore_titan_heartbeat_t heartbeat = {.data = 0};
+
+        heartbeat.pkt.cnt += 1;
+        heartbeat.pkt.error = (*fault_list_reg) != 0;
+        heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
+        heartbeat.pkt.term_enabled = 0;
+		heartbeat.pkt.term_valid = 0;
+
+        if (eth_udp_beginPacket(&control_interface_socket, heartbeat_broadcast, heartbeat_port)) {
+			if (eth_udp_write(&control_interface_socket, &heartbeat.data, sizeof(heartbeat)) == sizeof(heartbeat)) {
+				eth_udp_endPacket(&control_interface_socket);
+			}
+		}
+    }
+
+    // Handle pending requests on control interface
+	size_t packetSize;
+	do {
+		packetSize = eth_udp_parsePacket(&control_interface_socket);
+		if (packetSize > 0 && packetSize <= sizeof(msg_buffer)) {
+			size_t len = eth_udp_read(&control_interface_socket, msg_buffer, sizeof(msg_buffer));
+			if (len == packetSize) {
+				canmore_debug_process_message(msg_buffer, len);
+			}
+		}
+	} while (packetSize > 0);
 }

@@ -103,9 +103,9 @@ int main(int argc, char** argv) {
     auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, true);
     auto interface = dev->getFlashInterface();
 
-    std::array<uint8_t, UF2_PAGE_SIZE> my_page;
-    interface->readBytes(0x10000000, my_page);
-    DumpHex(my_page.data(), my_page.size());
+    // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
+    // interface->readBytes(0x10000000, my_page);
+    // DumpHex(my_page.data(), my_page.size());
 
     UploadTool::flashImage(interface, uf2, true);
 

@@ -153,6 +153,9 @@ static void tick_background_tasks() {
         led_network_online_set(ethernet_check_online());
     }
 
+    // Tick any ethernet tasks
+    ethernet_tick();
+
     // TODO: Make not kill depth sensor
     // D818_read();
 }

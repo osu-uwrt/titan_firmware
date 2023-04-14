@@ -1,3 +1,4 @@
+#include <math.h>
 #include "pico/stdlib.h"
 
 #include <rmw_microros/rmw_microros.h>

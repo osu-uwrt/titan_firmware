@@ -143,14 +143,26 @@ static void dshot_subscription_callback(const void * msgin) {
     dshot_command_received = true;
 }
 
-static int64_t set_accoustic_power(alarm_id_t alarm, void * data){
-    gpio_put(PWR_CTL_ACC, (bool) data);
-    return 0; // return 0 to not reschedule this event
+static int64_t set_accoustic_power(__unused alarm_id_t alarm, void * data){
+    bool state = (bool) data;
+    gpio_put(PWR_CTL_ACC, state);
+
+    if (state) {
+        return 0; // Don't reschedule if turning on
+    } else {
+        return 1000 * 1000;   // Turn off for 1 second
+    }
 }
 
-static int64_t set_computer_power(alarm_id_t alarm, void * data){
-    gpio_put(PWR_CTL_CPU, (bool) data);
-    return 0; // return 0 to not reschedule this event
+static int64_t set_computer_power(__unused alarm_id_t alarm, void * data){
+    bool state = (bool) data;
+    gpio_put(PWR_CTL_CPU, state);
+
+    if (state) {
+        return 0; // Don't reschedule if turning on
+    } else {
+        return 1000 * 1000;   // Turn off for 1 second
+    }
 }
 
 static void elec_command_subscription_callback(const void * msgin){
@@ -158,21 +170,16 @@ static void elec_command_subscription_callback(const void * msgin){
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
         watchdog_reboot(0, 0, 0);
-    } else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
-        // turn off the computer
-        bool success = add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
-
-        // turn the power back on
-        if(success)
-            add_alarm_in_ms(1010, &set_computer_power, (void *) true,  true);
-    } else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
+    }
+    else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
+        // turn off the computer (it will reschedule itself to turn back on)
+        add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
+    }
+    else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
         // turn off the accoustics
-        bool success = add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
-
-        // turn the power back on
-        if(success)
-            add_alarm_in_ms(1010, &set_accoustic_power, (void *) true,  true);
-    } else {
+        add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
+    }
+    else {
         LOG_WARN("Unsupported electrical command used %d", msg->command);
     }
 }

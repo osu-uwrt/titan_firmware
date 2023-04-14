@@ -20,7 +20,8 @@
 namespace Canmore {
 
 // Timeout to use when switching between modes for discovery
-#define MODE_SWITCH_TIMEOUT_MS 500
+#define CAN_MODE_SWITCH_TIMEOUT_MS 500
+#define ETH_MODE_SWITCH_TIMEOUT_MS 5000
 
 // ========================================
 // Interface Definitions

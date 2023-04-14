@@ -127,7 +127,7 @@ std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
 
     // Get a discovery context to wait for bootloader
     auto discovery = CANDiscovery::create(ifIndex);
-    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, CAN_MODE_SWITCH_TIMEOUT_MS);
 
     if (!dev) {
         throw BootloaderError("Failed to reconnect to device in bootloader mode");
@@ -170,7 +170,7 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
 
     // Get a discovery context to wait for bootloader
     auto discovery = CANDiscovery::create(ifIndex);
-    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, CAN_MODE_SWITCH_TIMEOUT_MS);
 
     if (!dev) {
         throw BootloaderError("Failed to reconnect to device in bootloader mode");
