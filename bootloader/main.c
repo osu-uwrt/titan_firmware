@@ -42,7 +42,7 @@ void run_bootloader(void) {
     gpio_put(STATUS_LEDR_PIN, 1);
     gpio_put(STATUS_LEDB_PIN, 0);
 
-    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000 * 3600);
+    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
 
     while (!time_reached(bootloader_timeout) && !bl_server_should_reboot()) {
         watchdog_update();

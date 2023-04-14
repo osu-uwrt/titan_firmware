@@ -254,12 +254,13 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
 // ROS Core
 // ========================================
 
-rcl_ret_t ros_init() {
+rcl_ret_t ros_init(uint8_t board_id) {
     // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    // TODO: Update to use ESC board number
-    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
+
+    const char *node_name = (board_id == 0 ? PICO_BOARD "_0_firmware" : PICO_BOARD "_1_firmware")
+    RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
     RCRETCHECK(rclc_publisher_init_default(

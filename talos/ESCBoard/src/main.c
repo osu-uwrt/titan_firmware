@@ -148,7 +148,7 @@ int main() {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
 
-                if(ros_init() == RCL_RET_OK) {
+                if(ros_init(esc_board_num) == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
                     safety_init();

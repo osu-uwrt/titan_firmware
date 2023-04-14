@@ -173,8 +173,8 @@ int main() {
             bq_pack_info.mfg_day, bq_pack_info.mfg_year, bq_pack_info.serial);
 
     // Initialize ROS Transports
-    uint8_t *sbh_mcu_serial_num_ptr = (uint8_t*)(0x101FF000);
-    can_id = 8 + *sbh_mcu_serial_num_ptr;
+    uint8_t sbh_mcu_serial_num = *(uint8_t*)(0x101FF000);
+    can_id = 8 + sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
@@ -196,7 +196,7 @@ int main() {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
 
-                if(ros_init() == RCL_RET_OK) {
+                if(ros_init(sbh_mcu_serial_num) == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
                     safety_init();

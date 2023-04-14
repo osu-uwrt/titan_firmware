@@ -20,11 +20,6 @@
 #define CAN_HEARTBEAT_INTERVAL_MS 500
 #endif
 
-// PICO_CONFIG: CAN_HEARTBEAT_TIMEOUT_MS, Timeout since last successful ACK of heartbeat frame in milliseconds before CAN bus is considered lost. Must be greater than CAN_HEARTBEAT_INTERVAL_MS, type=int, default=1500, group=can_mcp251Xfd
-#ifndef CAN_HEARTBEAT_TIMEOUT_MS
-#define CAN_HEARTBEAT_TIMEOUT_MS 1500
-#endif
-
 
 // TODO: Figure out if this can be moved with preprocessor when FD support is added to CANMore
 // Right now separated to allow setting FD support in this file without needing preprocessor to set in canbus.h
