@@ -82,6 +82,7 @@ class RP2040Discovery {
 // ========================================
 
 std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect);
+std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, std::string &boardType);
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA);
 
 // Binary Info

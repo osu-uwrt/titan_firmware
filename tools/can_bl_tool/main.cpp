@@ -48,20 +48,12 @@ void DumpHex(const void* data, size_t size) {
 	}
 }
 
+bool isValidCANDevice(const char *name) {
+    return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' &&
+            (name[3] >= '0' && name[3] <= '9'));
+}
+
 int main(int argc, char** argv) {
-    // struct if_nameindex *if_nidxs, *intf;
-
-    // if_nidxs = if_nameindex();
-    // if ( if_nidxs != NULL )
-    // {
-    //     for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++)
-    //     {
-    //         printf("%s\n", intf->if_name);
-    //     }
-
-    //     if_freenameindex(if_nidxs);
-    // }
-
     // Load in device map
     fs::path applicationPath = argv[0];
     auto deviceDefinitionPath = applicationPath.parent_path().append(DEVICE_DEFINITIONS_FILE);
@@ -70,38 +62,74 @@ int main(int argc, char** argv) {
     }
     UploadTool::DeviceMap devMap(deviceDefinitionPath);
 
-    if (argc != 3) {
-        printf("Usage: %s [interface] [filename]\n", argv[0]);
+    // Check arguments
+    if ((argc != 2 && argc != 3) || (argc == 3 && argv[1][0] != '-')) {
+        printf("Usage: %s (-w) [filename]\n", argv[0]);
+        printf("\t-w: Wait for device in boot delay\n");
         return 1;
     }
 
-    UploadTool::RP2040UF2 uf2(argv[2]);
-
-    // unsigned int ifIndex = if_nametoindex(argv[1]);
-    // if (!ifIndex) {
-    //     perror("if_nametoindex");
-    //     return 1;
-    // }
-
-    // auto discovery = Canmore::CANDiscovery::create(ifIndex);
-
-    auto discovery = Canmore::EthernetDiscovery::create();
-
-    std::cout << "Waiting for devices..." << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-    std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
-    discovery->discoverDevices(discovered);
-    if (discovered.size() == 0) {
-        std::cout << "No devices to select" << std::endl;
-        auto interface = discovery->catchDeviceInBootDelay(42);
-
-        std::cout << "Version: " << interface->getVersion() << std::endl;
-        return 0;
+    // Parse arguments
+    bool waitInBootDelay = false;
+    const char *filename;
+    if (argc == 3) {
+        if (!strncmp(argv[1], "-w", 3)) {
+            waitInBootDelay = true;
+        } else {
+            printf("Invalid flag: '%s'\n", argv[1]);
+            return 1;
+        }
+        filename = argv[2];
+    } else {
+        filename = argv[1];
     }
 
-    auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, true);
-    auto interface = dev->getFlashInterface();
+    // Load in file
+    UploadTool::RP2040UF2 uf2(filename);
+
+    // ===== Discover devices =====
+    std::vector<std::shared_ptr<UploadTool::RP2040Discovery>> discoverySources;
+    discoverySources.push_back(Canmore::EthernetDiscovery::create());
+
+    // Discover all CAN interfaces
+    struct if_nameindex *if_nidxs, *intf;
+    if_nidxs = if_nameindex();
+    if (if_nidxs != NULL)
+    {
+        for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++)
+        {
+            if (isValidCANDevice(intf->if_name)) {
+                discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
+            }
+        }
+        if_freenameindex(if_nidxs);
+    }
+
+    std::shared_ptr<UploadTool::RP2040FlashInterface> interface;
+    if (waitInBootDelay) {
+        interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2.boardType);
+    }
+    else {
+        // Wait for devices to appear
+        std::cout << "Waiting for devices..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Find all discovered devices
+        std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
+        for (auto discovery : discoverySources) {
+            std::vector<std::shared_ptr<UploadTool::RP2040Device>> interfaceDiscovered;
+            discovery->discoverDevices(interfaceDiscovered);
+            discovered.insert(std::end(discovered), std::begin(interfaceDiscovered), std::end(interfaceDiscovered));
+        }
+
+        if (discovered.size() == 0) {
+            std::cout << "No devices to select" << std::endl;
+            return 0;
+        }
+
+        auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, true);
+        interface = dev->getFlashInterface();
+    }
 
     // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
     // interface->readBytes(0x10000000, my_page);

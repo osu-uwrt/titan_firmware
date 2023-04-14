@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <iostream>
 #include "RP2040FlashInterface.hpp"
+#include "canmore_cpp/Discovery.hpp"
 
 namespace UploadTool {
 
@@ -167,9 +168,109 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
         if (userChoice < goodMatches.size()) {
             return goodMatches.at(userChoice);
         } else {
+            std::cout << "[WARNING] The selected board does not match the expected type '" << boardType << "'. ";
+            if (!showConfirmation("Continue?")) {
+                continue;
+            }
             return otherMatches.at(userChoice - goodMatches.size());
         }
     }
+}
+
+std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, std::string &boardType) {
+    std::cout << COLOR_TITLE "===========Available Interfaces===========" COLOR_RESET << std::endl;
+    unsigned int index = 1;
+    std::vector<std::shared_ptr<Canmore::Discovery>> validInterfaces;
+    for (auto discovery : discoverySources) {
+        std::shared_ptr<Canmore::Discovery> canmoreItf = std::dynamic_pointer_cast<Canmore::Discovery>(discovery);
+        if (canmoreItf == nullptr) {
+            continue;
+        }
+
+        // Device ID
+        std::cout << "Itf " << index++ << ":\t";
+
+        // Device Name
+        std::cout << "Name:\t";
+        std::cout << COLOR_NAME << canmoreItf->getInterfaceName() << COLOR_RESET << std::endl;
+    }
+
+    std::shared_ptr<Canmore::Discovery> selectedInterface = nullptr;
+    uint8_t clientId = 0;
+
+    while (1) {
+        std::cout << std::endl << "Please Select a Interface: ";
+
+        unsigned int userChoice;
+        std::cin >> userChoice;
+
+        if(std::cin.fail()) {
+            std::cout << "Invalid input!" << std::endl;
+            std::cin.clear();
+            std::cin.ignore(256,'\n');
+            continue;
+        }
+
+        if (userChoice < 1 || userChoice >= index) {
+            std::cout << "Invalid input!" << std::endl;
+            continue;
+        }
+
+        // Switch choice to index
+        selectedInterface = validInterfaces.at(userChoice - 1);
+        break;
+    }
+
+    while (1) {
+        std::cout << std::endl << "Enter client id to wait for: ";
+
+        unsigned int userChoice;
+        std::cin >> userChoice;
+
+        if(std::cin.fail()) {
+            std::cout << "Invalid input!" << std::endl;
+            std::cin.clear();
+            std::cin.ignore(256,'\n');
+            continue;
+        }
+
+        if (userChoice < 1 || userChoice >= 255) {
+            std::cout << "Invalid input!" << std::endl;
+            continue;
+        }
+
+        // Switch choice to index
+        clientId = userChoice;
+        break;
+    }
+
+    auto dev = selectedInterface->catchDeviceInBootDelay(clientId);
+    auto devDescr = deviceMap.lookupSerial(dev->getFlashId());
+
+    // Device Name
+    std::cout << COLOR_TITLE "Found Device:" COLOR_RESET << std::endl;
+    std::cout << COLOR_HEADER "\tName:\t\t";
+    std::cout << COLOR_NAME << devDescr.name << COLOR_RESET << std::endl;
+
+    std::cout << COLOR_HEADER "\tInterface:\t";
+    std::cout << COLOR_BODY << selectedInterface->getInterfaceName() << COLOR_RESET << std::endl;
+
+    std::cout << COLOR_HEADER "\tBoard Type:\t";
+    std::cout << COLOR_BODY << devDescr.boardType << COLOR_RESET << std::endl;
+
+    std::cout << COLOR_HEADER "\tUnique ID:\t";
+    std::cout << COLOR_BODY << devDescr.hexSerialNum() << COLOR_RESET << std::endl;
+
+    std::cout << std::endl;
+
+    if (devDescr.boardType != boardType) {
+        std::cout << "[WARNING] The discovered board does not match the expected type '" << boardType << "'. ";
+        if (!showConfirmation("Continue?")) {
+            throw std::runtime_error("Flash Aborted");
+        }
+    }
+
+    return dev;
 }
 
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {

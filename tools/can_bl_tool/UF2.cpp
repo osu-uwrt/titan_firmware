@@ -91,7 +91,7 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
 
         // Catch any other errors
         if (stream.fail()) {
-            throw RP2040UF2Error("Unexpected IO Error");
+            throw RP2040UF2Error(std::string("Unexpected IO Error - ") + std::strerror(errno));
         }
 
         // Perform checks on UF2 block
