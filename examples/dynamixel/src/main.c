@@ -7,6 +7,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
+#include "dynamixel.h"
+
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
 #endif

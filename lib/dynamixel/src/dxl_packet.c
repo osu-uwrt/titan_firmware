@@ -1,4 +1,5 @@
-#include "protocol.h"
+#include "dxl_packet.h"
+#include <stdlib.h>
 
 #if !defined(PROGMEM)
   #define PROGMEM
