@@ -32,9 +32,8 @@
 #define DSHOT_RATE 600
 
 // The conversion factor from the raw adc value to the vcc in millivolts
-// TODO: Calculate these values
-#define VCC_CONVERSION_MULT_MV 10
-#define VCC_CONVERSION_DIV_MV  1
+#define VCC_CONVERSION_MULT_MV 36300 // (3300 * (10000 + 1000))
+#define VCC_CONVERSION_DIV_MV  4096 // (4096 * 1000)
 
 // The voltage threshold upon which passing the ESCs will be considered powered
 #define ESC_POWER_THRESHOLD_MV 9000
