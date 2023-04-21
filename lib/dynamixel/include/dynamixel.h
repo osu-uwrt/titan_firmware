@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define DYNAMIXEL_PACKET_BUFFER_SIZE 128
+
 enum dynamixel_error { 
     DYNAMIXEL_ERROR_NONE = 0,
     /* An internal error in the driver */

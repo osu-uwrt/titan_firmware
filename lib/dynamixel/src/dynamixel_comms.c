@@ -3,6 +3,7 @@
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
 #include "async_rs485.h"
+#include "string.h"
 #include <assert.h> // TODO: remove
 
 #define PROTOCOL 2
@@ -20,13 +21,11 @@ struct current_request {
 };
 
 static bool packet_in_flight = false;
-static InfoToMakeDXLPacket_t tx_packet;
 static InfoToParseDXLPacket_t rx_packet;
 
 /** Stores the current internal request that is happening. */
 static struct current_request req;
-
-static uint8_t packet_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
+/** Used internally as the read/write buffer. */
 static uint8_t rs485_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 
 static void on_receive_reply_body(uint8_t error, uint8_t *data, uint16_t data_len) { 
@@ -51,7 +50,7 @@ static void on_receive_reply_body(uint8_t error, uint8_t *data, uint16_t data_le
 }
 
 static void on_receive_reply_header(uint8_t error, uint8_t *data, uint16_t data_len) { 
-    begin_parse_dxl_packet(&rx_packet, PROTOCOL, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE);
+    begin_parse_dxl_packet(&rx_packet, PROTOCOL, rs485_buf, DYNAMIXEL_PACKET_BUF_SIZE);
     uint16_t body_length = 0;
 
     if(error) {
@@ -88,47 +87,17 @@ void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t 
     assert(!packet_in_flight);
     packet_in_flight = true;
 
-    uint8_t *bytes = packet->p_packet_buf;
     uint16_t length = packet->generated_packet_length;
+    memcpy(rs485_buf, packet->p_packet_buf, length);
     req.user_cb = callback;
     req.instr = packet->inst_idx;
 
-    async_rs485_write(bytes, length, on_packet_sent);    
+    async_rs485_write(rs485_buf, length, on_packet_sent);    
 }
 
-enum DXLLibErrorCode dynamixel_send_ping(int id, dynamixel_request_cb cb) {
-    assert(!packet_in_flight);
-
-    DXL_RETCHECK(begin_make_dxl_packet(&tx_packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
-    DXL_RETCHECK(end_make_dxl_packet(&tx_packet));
-    dynamixel_send_packet(cb, &tx_packet);
+enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id) {
+    DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
+    DXL_RETCHECK(end_make_dxl_packet(packet));
 
     return DXL_LIB_OK;
 }
-
-void dynamixel_send_factory_reset() { 
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_reboot() { 
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_write_table() { 
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_read_table() { 
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_get_response() { 
-    assert(!packet_in_flight);
-
-}
-
-
