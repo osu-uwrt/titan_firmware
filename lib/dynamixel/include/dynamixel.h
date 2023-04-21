@@ -2,6 +2,7 @@
 #define DYNAMIXEL_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #define DYNAMIXEL_PACKET_BUFFER_SIZE 128
@@ -26,7 +27,7 @@ typedef void (*dynamixel_error_cb)(enum dynamixel_error error_code);
 
 void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb error_cb);
 
-void dynamixel_set_id();
+bool dynamixel_set_id(dynamixel_id old, dynamixel_id new);
 
 void dynamixel_ping();
 

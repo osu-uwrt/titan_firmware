@@ -17,4 +17,6 @@ void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t 
 
 enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id);
 
+enum DXLLibErrorCode dynamixel_create_write_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len); 
+
 #endif
