@@ -9,7 +9,6 @@
 #define DYNAMIXEL_CTRL_TABLE_MODEL_SIZE 2 
 
 #define DYNAMIXEL_CTRL_TABLE_ID_ADDR 7
-#define DYNAMIXEL_CTRL_TABLE_ID_SIZE 1
 
 #else
 #error Need to define dynamixel servo (XL430, ...)

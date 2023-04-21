@@ -151,6 +151,7 @@ int main() {
     // TODO: Put any additional hardware initialization code here
     uint8_t servos[] = {1};
     dynamixel_init(servos, 1, on_dynamixel_error);
+    dynamixel_set_id(1, 3); // Change ID from 1 to 3
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
