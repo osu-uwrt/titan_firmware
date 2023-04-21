@@ -129,7 +129,7 @@ static void tick_background_tasks() {
 }
 
 void on_dynamixel_error(uint8_t error) {
-    panic("Dynamixel error."); // TODO: raise safety fault
+    panic("Dynamixel error: %d", error); // TODO: raise safety fault
 }
 
 int main() {
@@ -149,7 +149,7 @@ int main() {
     led_init();
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
-    int servos[] = {1};
+    uint8_t servos[] = {1};
     dynamixel_init(servos, 1, on_dynamixel_error);
 
     // Initialize ROS Transports

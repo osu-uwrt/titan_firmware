@@ -1,3 +1,4 @@
+#include "dynamixel.h"
 #include "dxl_packet.h"
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
@@ -28,33 +29,33 @@ static struct current_request req;
 static uint8_t packet_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 static uint8_t rs485_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 
-static void on_receive_reply_body(uint8_t *data, uint16_t data_len) { 
-    if(data_len == 0) {
-        req.user_cb(1, NULL);
+static void on_receive_reply_body(uint8_t error, uint8_t *data, uint16_t data_len) { 
+    if(error) {
+        req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
     }
 
     for(int i = 0; i < data_len - 1; i++) {
         if(parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
-            req.user_cb(1, NULL);
+            req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
         }
     }
 
     if(parse_dxl_packet(&rx_packet, data[data_len - 1]) != DXL_LIB_OK) {
-        req.user_cb(1, NULL);
+        req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
     }
 
     struct dynamixel_req_result result;
     result.instr = req.instr;
-    result.packet = &tx_packet;
+    result.packet = &rx_packet;
     req.user_cb(0, &result);
 }
 
-static void on_receive_reply_header(uint8_t error, uint8_t *data, uint8_t *data_len) { 
+static void on_receive_reply_header(uint8_t error, uint8_t *data, uint16_t data_len) { 
     begin_parse_dxl_packet(&rx_packet, PROTOCOL, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE);
     uint16_t body_length = 0;
 
     if(error) {
-        req.user_cb(error, NULL);
+        req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
         return;
     }
 
@@ -67,7 +68,8 @@ static void on_receive_reply_header(uint8_t error, uint8_t *data, uint8_t *data_
     // give the data to the parser.
     for(size_t i = 0; i < data_len; i++) { 
         if(parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
-            
+            req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
+            return; 
         }
     }
 
@@ -82,16 +84,7 @@ static void on_packet_sent(uint8_t error) {
     }
 }
 
-/**
- * Sends a packet and recieves a reply. 
- * 
- * The process is as follows: 
- * 
- * 1. A Packet is written
- * 2. The header of the reply is read (fixed amount of bytes). This is used to determine the length of the rest of the packet. 
- * 3. The rest of packet is read and parsed. 
-*/
-static enum DXLLibErrorCode dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t *packet) { 
+void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t *packet) { 
     assert(!packet_in_flight);
     packet_in_flight = true;
 
@@ -100,9 +93,7 @@ static enum DXLLibErrorCode dynamixel_send_packet(dynamixel_request_cb callback,
     req.user_cb = callback;
     req.instr = packet->inst_idx;
 
-    async_rs485_write(bytes, length, on_packet_sent);
-    
-    return DXL_LIB_OK;
+    async_rs485_write(bytes, length, on_packet_sent);    
 }
 
 enum DXLLibErrorCode dynamixel_send_ping(int id, dynamixel_request_cb cb) {
@@ -110,7 +101,7 @@ enum DXLLibErrorCode dynamixel_send_ping(int id, dynamixel_request_cb cb) {
 
     DXL_RETCHECK(begin_make_dxl_packet(&tx_packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
     DXL_RETCHECK(end_make_dxl_packet(&tx_packet));
-    DXL_RETCHECK(dynamixel_send_packet(cb, &tx_packet));
+    dynamixel_send_packet(cb, &tx_packet);
 
     return DXL_LIB_OK;
 }

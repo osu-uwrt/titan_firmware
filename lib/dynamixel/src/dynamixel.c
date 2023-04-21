@@ -5,11 +5,12 @@
 #include "dynamixel_comms.h"
 
 #define MAX_SERVO_CNT 8
+#define MAX_CMDS 32
 
 enum internal_state {
     UNINITIALIZED,
-    /* On startup we want to ping all of the servos */
-    STATE_PINGING,
+    /* On setup, reads the configuration of each servo. */
+    STATE_CONFIG_READ,
     /** Reading all of the servo positions */
     STATE_READING,
     /** Sending commands to the servos */
@@ -27,9 +28,11 @@ int current_servo_idx;
 
 static void start_reading() {
     current_servo_idx = 0;
+
+    // scan through the 
 }
 
-static void on_dynamixel_ping(uint8_t error, struct dynamixel_req_result *result) {
+static void on_dynamixel_config_read(enum dynamixel_error error, struct dynamixel_req_result *result) {
     if(error) {
         state = STATE_FAILED;
         error_cb(error);
@@ -39,7 +42,7 @@ static void on_dynamixel_ping(uint8_t error, struct dynamixel_req_result *result
     current_servo_idx++;
     
     if(current_servo_idx < servo_cnt) {
-        dynamixel_ping(servos[0], on_dynamixel_ping);
+        // dynamixel_send_ping(servos[0], on_dynamixel_ping);
     } else {
         start_reading();
     }
@@ -56,7 +59,7 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb _er
         servos[i] = id_list[i];
     }
 
-    state = STATE_PINGING;
+    state = STATE_CONFIG_READ;
     current_servo_idx = 0;
-    dynamixel_ping(servos[0], on_dynamixel_ping);
+    // dynamixel_send_ping(servos[0], on_dynamixel_ping);
 }

@@ -2,14 +2,19 @@
 #define DYNAMIXEL_COMM_H
 
 #include <stdint.h>
+#include "dynamixel.h"
 #include "dxl_packet.h"
 
 struct dynamixel_req_result { 
     enum DXLInstruction instr;
-    struct InfoToParseDXLPacket *packet;
+    InfoToParseDXLPacket_t *packet;
 };
 
-typedef void (*dynamixel_request_cb)(uint8_t error_code, struct dynamixel_req_result *result);
+typedef void (*dynamixel_request_cb)(enum dynamixel_error ec, struct dynamixel_req_result *result);
+
+void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t *packet);
+
+enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet);
 
 enum DXLLibErrorCode dynamixel_send_ping(); 
 
