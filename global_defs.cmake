@@ -7,9 +7,6 @@ include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 # Add uwrt custom boards
 include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 
-# Make relwithdebuginfo actually like Release
-set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
-
 # Define custom functions for assorted features
 function(uwrt_use_upload_tool target)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/upload_tool)
@@ -35,11 +32,16 @@ function(uwrt_use_upload_tool target)
     endif()
 endfunction()
 
-# Setup sdk
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+function(titan_firmware_init)
+    # Make relwithdebuginfo actually like Release
+    set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
 
-# Define all custom libraries
-include(${REPO_DIR}/bootloader/enable_bootloader.cmake)
-add_subdirectory(${REPO_DIR}/lib/ titan_lib)
+    # Setup sdk
+    set(CMAKE_C_STANDARD 11)
+    set(CMAKE_CXX_STANDARD 17)
+    pico_sdk_init()
+
+    # Define all custom libraries
+    include(${REPO_DIR}/bootloader/enable_bootloader.cmake)
+    add_subdirectory(${REPO_DIR}/lib/ titan_lib)
+endfunction()
