@@ -1,27 +1,26 @@
 /*******************************************************************************
-* Copyright 2016 ROBOTIS CO., LTD.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2016 ROBOTIS CO., LTD.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 #ifndef DYNAMIXEL_PROTOCOL_H_
 #define DYNAMIXEL_PROTOCOL_H_
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-#define DXL_BROADCAST_ID        0xFE
-
+#define DXL_BROADCAST_ID 0xFE
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +28,7 @@ extern "C" {
 
 // http://emanual.robotis.com/docs/en/dxl/protocol1/#instruction
 // http://emanual.robotis.com/docs/en/dxl/protocol2/#instruction
-enum DXLInstruction{
+enum DXLInstruction {
   DXL_INST_PING = 0x01,
   DXL_INST_READ = 0x02,
   DXL_INST_WRITE = 0x03,
@@ -37,16 +36,16 @@ enum DXLInstruction{
   DXL_INST_ACTION = 0x05,
   DXL_INST_FACTORY_RESET = 0x06,
   DXL_INST_REBOOT = 0x08,
-  DXL_INST_CLEAR = 0x10, //ONLY Protocol2.0
-  DXL_INST_STATUS = 0x55, //ONLY Protocol2.0
-  DXL_INST_SYNC_READ = 0x82, //ONLY Protocol2.0
-  DXL_INST_FAST_SYNC_READ = 0x8A, //ONLY Protocol2.0
+  DXL_INST_CLEAR = 0x10,          // ONLY Protocol2.0
+  DXL_INST_STATUS = 0x55,         // ONLY Protocol2.0
+  DXL_INST_SYNC_READ = 0x82,      // ONLY Protocol2.0
+  DXL_INST_FAST_SYNC_READ = 0x8A, // ONLY Protocol2.0
   DXL_INST_SYNC_WRITE = 0x83,
   DXL_INST_BULK_READ = 0x92,
-  DXL_INST_BULK_WRITE = 0x93 //ONLY Protocol2.0
+  DXL_INST_BULK_WRITE = 0x93 // ONLY Protocol2.0
 };
 
-enum DXL1_0PacketError{
+enum DXL1_0PacketError {
   DXL1_0_ERR_INPUT_VOLTAGE_BIT = 0,
   DXL1_0_ERR_ANGLE_LIMIT_BIT,
   DXL1_0_ERR_OVERHEATING_BIT,
@@ -56,7 +55,7 @@ enum DXL1_0PacketError{
   DXL1_0_ERR_INSTRUCTION_BIT
 };
 
-enum DXL2_0PacketError{
+enum DXL2_0PacketError {
   DXL2_0_ERR_NONE = 0x00,
   DXL2_0_ERR_RESULT_FAIL,
   DXL2_0_ERR_INST_ERROR,
@@ -70,7 +69,7 @@ enum DXL2_0PacketError{
 // To support legacy
 #define DXL_ERR_ACCESS DXL2_0_ERR_ACCESS
 
-enum DXL1_0PacketState{
+enum DXL1_0PacketState {
   DXL1_0_PACKET_PARSING_STATE_IDLE = 0,
   DXL1_0_PACKET_PARSING_STATE_ID,
   DXL1_0_PACKET_PARSING_STATE_LENGTH,
@@ -79,21 +78,20 @@ enum DXL1_0PacketState{
   DXL1_0_PACKET_PARSING_STATE_CHECK_SUM
 };
 
-enum DXL2_0PacketState{
-   DXL2_0_PACKET_PARSING_STATE_IDLE = 0,
-   DXL2_0_PACKET_PARSING_STATE_RESERVED,
-   DXL2_0_PACKET_PARSING_STATE_ID,
-   DXL2_0_PACKET_PARSING_STATE_LENGTH_L,
-   DXL2_0_PACKET_PARSING_STATE_LENGTH_H,
-   DXL2_0_PACKET_PARSING_STATE_INST,
-   DXL2_0_PACKET_PARSING_STATE_ERROR,
-   DXL2_0_PACKET_PARSING_STATE_PARAM,
-   DXL2_0_PACKET_PARSING_STATE_CRC_L,
-   DXL2_0_PACKET_PARSING_STATE_CRC_H
+enum DXL2_0PacketState {
+  DXL2_0_PACKET_PARSING_STATE_IDLE = 0,
+  DXL2_0_PACKET_PARSING_STATE_RESERVED,
+  DXL2_0_PACKET_PARSING_STATE_ID,
+  DXL2_0_PACKET_PARSING_STATE_LENGTH_L,
+  DXL2_0_PACKET_PARSING_STATE_LENGTH_H,
+  DXL2_0_PACKET_PARSING_STATE_INST,
+  DXL2_0_PACKET_PARSING_STATE_ERROR,
+  DXL2_0_PACKET_PARSING_STATE_PARAM,
+  DXL2_0_PACKET_PARSING_STATE_CRC_L,
+  DXL2_0_PACKET_PARSING_STATE_CRC_H
 };
 
-enum DXLLibErrorCode
-{
+enum DXLLibErrorCode {
   DXL_LIB_OK = 0,
   DXL_LIB_PROCEEDING,
 
@@ -118,7 +116,7 @@ enum DXLLibErrorCode
   DXL_LIB_ERROR_PORT_WRITE
 };
 
-typedef struct InfoToParseDXLPacket{
+typedef struct InfoToParseDXLPacket {
   uint8_t header[3];
   uint8_t header_cnt;
   uint8_t id;
@@ -139,9 +137,9 @@ typedef struct InfoToParseDXLPacket{
   uint8_t xel_count;
   uint8_t check_xel_count;
   bool is_init;
-}InfoToParseDXLPacket_t;
+} InfoToParseDXLPacket_t;
 
-typedef struct InfoToMakeDXLPacket{
+typedef struct InfoToMakeDXLPacket {
   uint8_t id;
   uint8_t protocol_ver;
   uint8_t inst_idx;
@@ -151,25 +149,31 @@ typedef struct InfoToMakeDXLPacket{
   uint16_t param_length;
   uint16_t generated_packet_length;
   bool is_init;
-}InfoToMakeDXLPacket_t;
-
+} InfoToMakeDXLPacket_t;
 
 typedef int32_t DXLLibErrorCode_t;
 
-DXLLibErrorCode_t begin_make_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet, 
-  uint8_t id, uint8_t protocol_ver, uint8_t inst_idx, uint8_t err_idx, 
-  uint8_t* p_packet_buf, uint16_t packet_buf_capacity);
-DXLLibErrorCode_t add_param_to_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet,
-  uint8_t *p_param, uint16_t param_len);
-DXLLibErrorCode_t end_make_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet);
+DXLLibErrorCode_t begin_make_dxl_packet(InfoToMakeDXLPacket_t *p_make_packet,
+                                        uint8_t id, uint8_t protocol_ver,
+                                        uint8_t inst_idx, uint8_t err_idx,
+                                        uint8_t *p_packet_buf,
+                                        uint16_t packet_buf_capacity);
+DXLLibErrorCode_t add_param_to_dxl_packet(InfoToMakeDXLPacket_t *p_make_packet,
+                                          uint8_t *p_param, uint16_t param_len);
+DXLLibErrorCode_t end_make_dxl_packet(InfoToMakeDXLPacket_t *p_make_packet);
 
-
-DXLLibErrorCode_t begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, 
-  uint8_t protocol_ver, uint8_t* p_param_buf, uint16_t param_buf_cap);
-DXLLibErrorCode_t fast_begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, 
-  uint8_t protocol_ver, uint8_t* p_param_buf, uint16_t param_buf_cap, uint8_t xel_count);
-DXLLibErrorCode_t parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, uint8_t recv_data);
-DXLLibErrorCode_t fast_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, uint8_t recv_data);
+DXLLibErrorCode_t begin_parse_dxl_packet(InfoToParseDXLPacket_t *p_parse_packet,
+                                         uint8_t protocol_ver,
+                                         uint8_t *p_param_buf,
+                                         uint16_t param_buf_cap);
+DXLLibErrorCode_t
+fast_begin_parse_dxl_packet(InfoToParseDXLPacket_t *p_parse_packet,
+                            uint8_t protocol_ver, uint8_t *p_param_buf,
+                            uint16_t param_buf_cap, uint8_t xel_count);
+DXLLibErrorCode_t parse_dxl_packet(InfoToParseDXLPacket_t *p_parse_packet,
+                                   uint8_t recv_data);
+DXLLibErrorCode_t fast_parse_dxl_packet(InfoToParseDXLPacket_t *p_parse_packet,
+                                        uint8_t recv_data);
 
 #ifdef __cplusplus
 }
