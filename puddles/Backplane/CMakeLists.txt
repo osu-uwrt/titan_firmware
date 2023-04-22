@@ -18,17 +18,15 @@ if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+# Define Project
+project(backplane_test C CXX ASM)
+
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
-
-project(backplane_test C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")

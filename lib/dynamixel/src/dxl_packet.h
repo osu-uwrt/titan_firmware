@@ -156,20 +156,20 @@ typedef struct InfoToMakeDXLPacket{
 
 typedef int32_t DXLLibErrorCode_t;
 
-DXLLibErrorCode_t begin_make_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet, 
-  uint8_t id, uint8_t protocol_ver, uint8_t inst_idx, uint8_t err_idx, 
+DXLLibErrorCode_t begin_make_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet,
+  uint8_t id, uint8_t protocol_ver, uint8_t inst_idx, uint8_t err_idx,
   uint8_t* p_packet_buf, uint16_t packet_buf_capacity);
 DXLLibErrorCode_t add_param_to_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet,
   uint8_t *p_param, uint16_t param_len);
 DXLLibErrorCode_t end_make_dxl_packet(InfoToMakeDXLPacket_t* p_make_packet);
 
 
-DXLLibErrorCode_t begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, 
+DXLLibErrorCode_t begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet,
   uint8_t protocol_ver, uint8_t* p_param_buf, uint16_t param_buf_cap);
-DXLLibErrorCode_t fast_begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, 
-  uint8_t protocol_ver, uint8_t* p_param_buf, uint16_t param_buf_cap, uint8_t xel_count);
+/*DXLLibErrorCode_t fast_begin_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet,
+  uint8_t protocol_ver, uint8_t* p_param_buf, uint16_t param_buf_cap, uint8_t xel_count);*/
 DXLLibErrorCode_t parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, uint8_t recv_data);
-DXLLibErrorCode_t fast_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, uint8_t recv_data);
+//DXLLibErrorCode_t fast_parse_dxl_packet(InfoToParseDXLPacket_t* p_parse_packet, uint8_t recv_data);
 
 #ifdef __cplusplus
 }

@@ -7,7 +7,7 @@
 #include "safety_interface.h"
 #include "led.h"
 
-#include "dynamixel.h"
+#include "async_uart.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -17,6 +17,8 @@
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
 #endif
+
+#define is_receiver 0
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -33,6 +35,44 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
+
+uint8_t data_buf[8] = "Hello 0";
+uint8_t recv_buf[8];
+
+void my_write_cb(enum async_uart_tx_err error);
+
+void my_read_cb(enum async_uart_rx_err error, uint8_t *data, size_t len) {
+    if (!error) {
+        if (is_receiver) {
+            async_uart_write(data, len, false, my_write_cb);
+        } else {
+            printf("Received: \"%.8s\"\n", data);
+        }
+    } else {
+        printf("ERR: %d\n", error);
+        async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+    }
+}
+
+void __time_critical_func(my_write_cb)(enum async_uart_tx_err error) {
+    if (!error) {
+        printf("Tx done!\n");
+        async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+    }
+    else {
+        printf("TX Busy?\n");
+    }
+}
+
+int64_t transmit_pacer(__unused alarm_id_t id, __unused void *user_data) {
+    printf("Transmit: \"%.8s\"\n", data_buf);
+    async_uart_write(data_buf, sizeof(data_buf), false, my_write_cb);
+    data_buf[6]++;
+    if (data_buf[6] > '9') {
+        data_buf[6] = '0';
+    }
+    return 500 * 1000;
+}
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -128,9 +168,9 @@ static void tick_background_tasks() {
     // TODO: Put any code that should periodically occur here
 }
 
-void on_dynamixel_error(uint8_t error) {
+/*void on_dynamixel_error(uint8_t error) {
     panic("Dynamixel error."); // TODO: raise safety fault
-}
+}*/
 
 int main() {
     // Initialize stdio
@@ -149,8 +189,13 @@ int main() {
     led_init();
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
-    int servos[] = {1};
-    dynamixel_init(servos, 1, on_dynamixel_error);
+    //int servos[] = {1};
+    //dynamixel_init(servos, 1, on_dynamixel_error);
+    async_uart_init(pio0, 0, 4, 57600, (is_receiver ? 1000 : 100));
+    if (!is_receiver) {
+        add_alarm_in_ms(50, transmit_pacer, NULL, true);
+    }
+
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

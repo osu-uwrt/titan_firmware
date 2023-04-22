@@ -35,7 +35,11 @@ function(uwrt_use_upload_tool target)
     endif()
 endfunction()
 
-include(${REPO_DIR}/bootloader/enable_bootloader.cmake)
+# Setup sdk
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+pico_sdk_init()
 
 # Define all custom libraries
+include(${REPO_DIR}/bootloader/enable_bootloader.cmake)
 add_subdirectory(${REPO_DIR}/lib/ titan_lib)
