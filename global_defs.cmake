@@ -4,11 +4,15 @@ cmake_minimum_required(VERSION 3.13)
 set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-# Add uwrt custom boards
+# Add uwrt custom boards (required before SDK init)
 include(${REPO_DIR}/lib/uwrt_boards/uwrt_boards.cmake)
 
-# Define custom functions for assorted features
-function(uwrt_use_upload_tool target)
+function(titan_firmware_init)
+    # Make relwithdebuginfo actually like Release
+    set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
+
+    # Define custom functions for assorted features
+    function(titan_use_upload_tool target)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/upload_tool)
     find_package(UploadTool)
     if (UPLOADTOOL_FOUND)
@@ -30,11 +34,7 @@ function(uwrt_use_upload_tool target)
     else()
         message( WARNING "Could not find upload tool. Custom make targets will not be available" )
     endif()
-endfunction()
-
-function(titan_firmware_init)
-    # Make relwithdebuginfo actually like Release
-    set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
+    endfunction()
 
     # Setup sdk
     set(CMAKE_C_STANDARD 11)

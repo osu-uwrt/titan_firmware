@@ -48,8 +48,8 @@ pico_enable_stdio_uart(esc_board 1)
 pico_set_program_name(esc_board "ESC Board Firmware")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(esc_board)
-uwrt_enable_bootloader(esc_board can)
+titan_use_upload_tool(esc_board)
+titan_enable_bootloader(esc_board can)
 
 # Define linking and targets
 pico_add_extra_outputs(esc_board)

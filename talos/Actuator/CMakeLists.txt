@@ -50,7 +50,7 @@ pico_enable_stdio_uart(actuator_mk2 1)
 pico_set_program_name(actuator_mk2 "Template Project")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(actuator_mk2)
+titan_use_upload_tool(actuator_mk2)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_mk2)

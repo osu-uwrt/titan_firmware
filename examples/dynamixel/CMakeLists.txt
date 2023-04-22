@@ -46,7 +46,7 @@ pico_enable_stdio_uart(dynamixel_example 1)
 pico_set_program_name(dynamixel_example "Template Project")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(dynamixel_example)
+titan_use_upload_tool(dynamixel_example)
 
 # Define linking and targets
 pico_add_extra_outputs(dynamixel_example)

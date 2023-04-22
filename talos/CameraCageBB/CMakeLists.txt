@@ -46,8 +46,8 @@ pico_enable_stdio_uart(camera_cage_bb 1)
 pico_set_program_name(camera_cage_bb "Camera Cage BB Firmware")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(camera_cage_bb)
-uwrt_enable_bootloader(camera_cage_bb can)
+titan_use_upload_tool(camera_cage_bb)
+titan_enable_bootloader(camera_cage_bb can)
 
 # Define linking and targets
 pico_add_extra_outputs(camera_cage_bb)

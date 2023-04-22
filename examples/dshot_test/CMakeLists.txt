@@ -43,7 +43,7 @@ pico_set_program_name(dshot_test "DShot Test")
 target_compile_definitions(dshot_test PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(dshot_test)
+titan_use_upload_tool(dshot_test)
 
 # Define linking and targets
 pico_add_extra_outputs(dshot_test)

@@ -50,8 +50,8 @@ pico_set_program_name(backplane_firmware "Backplane Test")
 target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(backplane_firmware)
-uwrt_enable_bootloader(backplane_firmware eth)
+titan_use_upload_tool(backplane_firmware)
+titan_enable_bootloader(backplane_firmware eth)
 
 # Compile Definitions
 target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)

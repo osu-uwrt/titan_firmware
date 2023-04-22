@@ -44,8 +44,8 @@ pico_set_program_name(pico_sdk_example "Pico SDK Example")
 target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(pico_sdk_example)
-uwrt_enable_bootloader(pico_sdk_example can)
+titan_use_upload_tool(pico_sdk_example)
+titan_enable_bootloader(pico_sdk_example can)
 
 # Define linking and targets
 pico_add_extra_outputs(pico_sdk_example)

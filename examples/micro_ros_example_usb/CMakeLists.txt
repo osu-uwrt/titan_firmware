@@ -38,7 +38,7 @@ pico_enable_stdio_uart(micro_ros_example 0)
 pico_set_program_name(micro_ros_example "Micro-ROS Example")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(micro_ros_example)
+titan_use_upload_tool(micro_ros_example)
 
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)

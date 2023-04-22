@@ -2,7 +2,7 @@ if (NOT DEFINED REPO_DIR)
     message(FATAL_ERROR "Required variable REPO_DIR not set")
 endif()
 
-function(uwrt_enable_bootloader TARGET TYPE)
+function(titan_enable_bootloader TARGET TYPE)
 	set(BOOTLOADER_INTERFACE ${TYPE})
     set(BOOTLOADER_DIR titan_bootloader)
 
@@ -21,7 +21,7 @@ function(uwrt_enable_bootloader TARGET TYPE)
     # Note if PICO_NO_TARGET_NAME is set, this check won't work, but there isn't really a better way to catch the extra outputs call
     get_target_property(BOOTLOADER_TARGET_DEFS ${TARGET} COMPILE_DEFINITIONS)
     if(BOOTLOADER_TARGET_DEFS MATCHES "^PICO_TARGET_NAME=" OR BOOTLOADER_TARGET_DEFS MATCHES ";PICO_TARGET_NAME=")
-        MESSAGE(FATAL_ERROR "pico_add_extra_outputs must be called after uwrt_enable_bootloader" )
+        MESSAGE(FATAL_ERROR "pico_add_extra_outputs must be called after titan_enable_bootloader" )
     endif()
 
     # Now that we've checked that the target doesn't have extra outputs generated yet, and we've generated the bootloader
