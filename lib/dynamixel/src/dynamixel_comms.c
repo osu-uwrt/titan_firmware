@@ -1,8 +1,8 @@
-#include "dynamixel.h"
+#include "dynamixel/dynamixel.h"
 #include "dxl_packet.h"
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
-#include "async_uart.h"
+#include "dynamixel/async_uart.h"
 #include <string.h>
 #include <assert.h> // TODO: remove
 

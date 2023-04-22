@@ -7,8 +7,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
-#include "dynamixel.h"
-#include "async_uart.h"
+#include "dynamixel/dynamixel.h"
+#include "dynamixel/async_uart.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"

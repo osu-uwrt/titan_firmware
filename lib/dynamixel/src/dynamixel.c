@@ -1,5 +1,5 @@
 
-#include "dynamixel.h"
+#include "dynamixel/dynamixel.h"
 #include <assert.h>
 #include "basic_queue/queue.h"
 #include "dynamixel_controls.h"
@@ -23,7 +23,7 @@ enum internal_state {
     STATE_FAILED,
 };
 
-struct internal_cmd { 
+struct internal_cmd {
     InfoToMakeDXLPacket_t packet;
     uint8_t packet_buf[DYNAMIXEL_PACKET_BUFFER_SIZE];
 };
@@ -81,7 +81,7 @@ static void start_reading() {
     state = STATE_READING;
     current_servo_idx = 0;
 
-    // TODO: actually read here lol 
+    // TODO: actually read here lol
     hard_assert(add_alarm_in_ms(10, alarm_send_cmds, NULL, true) > 0);
 }
 
@@ -93,7 +93,7 @@ static void on_dynamixel_config_read(enum dynamixel_error error, struct dynamixe
     }
 
     current_servo_idx++;
-    
+
     if(current_servo_idx < servo_cnt) {
         // dynamixel_send_ping(servos[0], on_dynamixel_ping);
     } else {
@@ -114,19 +114,19 @@ static void on_dynamixel_ping(enum dynamixel_error error, struct dynamixel_req_r
      if(current_servo_idx < servo_cnt) {
         if(dynamixel_create_ping_packet(&internal_packet, internal_packet_buf, servos[current_servo_idx]) == DXL_LIB_OK){
             dynamixel_send_packet(on_dynamixel_ping, &internal_packet);
-        }        
+        }
     } else {
         current_servo_idx = 0;
         // send configure request
     }
 }
 
-/* ======================== 
+/* ========================
 *  USER FUNCTIONS BELOW
 *  ========================
 */
 
-void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb _error_cb) { 
+void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb _error_cb) {
     assert(state == UNINITIALIZED);
     assert(id_cnt < MAX_SERVO_CNT);
     error_cb = _error_cb;
@@ -153,6 +153,6 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new) {
     struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
     dynamixel_create_write_packet(&entry->packet, entry->packet_buf, old, DYNAMIXEL_CTRL_TABLE_ID_ADDR, &new, 1);
     QUEUE_MARK_WRITE_DONE(&cmd_queue);
-    
+
     return true;
 }
