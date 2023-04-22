@@ -18,4 +18,5 @@ target_link_libraries(dynamixel INTERFACE
     pico_stdlib
     hardware_pio
     hardware_dma
+    basic_queue
 )

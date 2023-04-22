@@ -168,9 +168,9 @@ static void tick_background_tasks() {
     // TODO: Put any code that should periodically occur here
 }
 
-/*void on_dynamixel_error(uint8_t error) {
-    panic("Dynamixel error."); // TODO: raise safety fault
-}*/
+void on_dynamixel_error(uint8_t error) {
+    panic("Dynamixel error: %d", error); // TODO: raise safety fault
+}
 
 int main() {
     // Initialize stdio
@@ -189,13 +189,9 @@ int main() {
     led_init();
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
-    //int servos[] = {1};
-    //dynamixel_init(servos, 1, on_dynamixel_error);
-    async_uart_init(pio0, 0, 4, 57600, (is_receiver ? 1000 : 100));
-    if (!is_receiver) {
-        add_alarm_in_ms(50, transmit_pacer, NULL, true);
-    }
-
+    uint8_t servos[] = {1};
+    dynamixel_init(servos, 1, on_dynamixel_error);
+    dynamixel_set_id(1, 3); // Change ID from 1 to 3
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

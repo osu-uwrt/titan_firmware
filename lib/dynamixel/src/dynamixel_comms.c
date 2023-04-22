@@ -1,7 +1,9 @@
+#include "dynamixel.h"
 #include "dxl_packet.h"
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
 #include "async_uart.h"
+#include <string.h>
 #include <assert.h> // TODO: remove
 
 #define PROTOCOL 2
@@ -19,28 +21,26 @@ struct current_request {
 };
 
 static bool packet_in_flight = false;
-static InfoToMakeDXLPacket_t tx_packet;
 static InfoToParseDXLPacket_t rx_packet;
 
 /** Stores the current internal request that is happening. */
 static struct current_request req;
-
-static uint8_t packet_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
+/** Used internally as the read/write buffer. */
 static uint8_t rs485_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 
 static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
-    if(data_len == 0) {
-        req.user_cb(1, NULL);
+    if(error) {
+        req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
     }
 
     for(uint i = 0; i < data_len - 1; i++) {
         if(parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
-            req.user_cb(1, NULL);
+            req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
         }
     }
 
     if(parse_dxl_packet(&rx_packet, data[data_len - 1]) != DXL_LIB_OK) {
-        req.user_cb(1, NULL);
+        req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
     }
 
     struct dynamixel_req_result result;
@@ -50,11 +50,11 @@ static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, s
 }
 
 static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
-    begin_parse_dxl_packet(&rx_packet, PROTOCOL, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE);
-    uint16_t body_length = 0;
+    begin_parse_dxl_packet(&rx_packet, PROTOCOL, rs485_buf, DYNAMIXEL_PACKET_BUF_SIZE);
+    size_t body_length = 0;
 
     if(error) {
-        req.user_cb(error, NULL);
+        req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
         return;
     }
 
@@ -67,7 +67,8 @@ static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data,
     // give the data to the parser.
     for(size_t i = 0; i < data_len; i++) {
         if(parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
-
+            req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
+            return;
         }
     }
 
@@ -82,62 +83,34 @@ static void on_packet_sent(enum async_uart_tx_err error) {
     }
 }
 
-/**
- * Sends a packet and recieves a reply.
- *
- * The process is as follows:
- *
- * 1. A Packet is written
- * 2. The header of the reply is read (fixed amount of bytes). This is used to determine the length of the rest of the packet.
- * 3. The rest of packet is read and parsed.
-*/
-static enum DXLLibErrorCode dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t *packet) {
+void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t *packet) {
     assert(!packet_in_flight);
     packet_in_flight = true;
 
-    uint8_t *bytes = packet->p_packet_buf;
     uint16_t length = packet->generated_packet_length;
+    memcpy(rs485_buf, packet->p_packet_buf, length);
     req.user_cb = callback;
     req.instr = packet->inst_idx;
 
-    async_uart_write(bytes, length, false, on_packet_sent);
+    async_uart_write(rs485_buf, length, false, on_packet_sent);
+}
+
+enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id) {
+    DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
+    DXL_RETCHECK(end_make_dxl_packet(packet));
 
     return DXL_LIB_OK;
 }
 
-enum DXLLibErrorCode dynamixel_send_ping(int id, dynamixel_request_cb cb) {
-    assert(!packet_in_flight);
-
-    DXL_RETCHECK(begin_make_dxl_packet(&tx_packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
-    DXL_RETCHECK(end_make_dxl_packet(&tx_packet));
-    DXL_RETCHECK(dynamixel_send_packet(cb, &tx_packet));
+enum DXLLibErrorCode dynamixel_create_write_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len) {
+    // https://emanual.robotis.com/docs/en/dxl/protocol2/#write-0x03
+    DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
+    uint8_t byte1 = start_address & 0xFF;
+    uint8_t byte2 = (start_address >> 8) & 0xFF;
+    DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte1, 1));
+    DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte2, 1));
+    DXL_RETCHECK(add_param_to_dxl_packet(packet, data, data_len));
+    DXL_RETCHECK(end_make_dxl_packet(packet));
 
     return DXL_LIB_OK;
 }
-
-void dynamixel_send_factory_reset() {
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_reboot() {
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_write_table() {
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_send_read_table() {
-    assert(!packet_in_flight);
-
-}
-
-void dynamixel_get_response() {
-    assert(!packet_in_flight);
-
-}
-
-
