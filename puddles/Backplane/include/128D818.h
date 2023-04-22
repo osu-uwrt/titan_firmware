@@ -12,4 +12,4 @@
 
 void D818_init();
 void D818_read();
-uint16_t D818_query(uint8_t chan);
+float D818_query(uint8_t chan);

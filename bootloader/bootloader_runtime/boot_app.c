@@ -3,7 +3,9 @@
 #include "pico.h"
 #include "hardware/flash.h"
 #include "hardware/regs/addressmap.h"
+#include "hardware/structs/watchdog.h"
 
+#include "boot_app.h"
 #include "crc32.h"
 
 extern void __boot2_start__(void);
@@ -15,7 +17,7 @@ extern const void __flash_app;
 
 uint8_t app_boot2_copyout[FLASH_PAGE_SIZE] __attribute__((aligned(FLASH_PAGE_SIZE)));
 
-void boot_app_attempt(void) {
+void boot_app_attempt(bool mark_watchdog_reset) {
     uint32_t flash_app_offset = ((uintptr_t)&__flash_app) - XIP_BASE;
     size_t boot2_crc_offset = sizeof(app_boot2_copyout) - sizeof(uint32_t);
 
@@ -37,6 +39,15 @@ void boot_app_attempt(void) {
         hard_assert(boot_trampoline_offset % FLASH_PAGE_SIZE == 0);
         hard_assert(boot_trampoline_size <= FLASH_PAGE_SIZE);
         flash_read(boot_trampoline_offset, (uint8_t*)&__boot_trampoline_entry__, FLASH_PAGE_SIZE);
+
+        // Fill up the watchdog registers if we shouldn't be reporting a watchdog reset
+        // Note that if it should, we already have the NON_REBOOT_MAGIC present since a watchdog is already running
+        if (!mark_watchdog_reset) {
+            // We'll still put a magic value, so in the event the watchdog we still have running fires, it can be
+            // detected and the next time it enters it'll be marked as a watchdog reset
+            watchdog_hw->scratch[4] = WATCHDOG_BOOTLOADER_NON_REBOOT_MAGIC;
+
+        }
 
         // Call the trampoline. This shouldn't return
         __boot_trampoline_entry__();

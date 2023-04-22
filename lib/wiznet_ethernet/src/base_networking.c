@@ -118,7 +118,6 @@ closemakesocket:
     }
 makesocket:
 	//printf("W5000socket %d\n", s);
-	busy_wait_ms(250); // TODO: is this needed??
 	w5100_writeSnMR(c, s, protocol);
 	w5100_writeSnIR(c, s, 0xFF);
 	if (port > 0) {

@@ -37,6 +37,7 @@ absolute_time_t next_pwrcycl_update = {0};
 
 uint8_t presence_fail_count = 0;
 bq_pack_info_t bq_pack_info;
+uint can_id;
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -95,7 +96,7 @@ static void tick_ros_tasks() {
     // that only 1 timeout occurs per safety tick.
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
-    uint8_t client_id = CAN_BUS_PORT_CLIENT_ID;
+    uint8_t client_id = can_id;
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -109,7 +110,7 @@ static void tick_ros_tasks() {
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_pack_info));
     }
 }
 
@@ -139,7 +140,7 @@ static void tick_background_tasks() {
         }
     }
 
-    
+
 }
 
 
@@ -168,11 +169,12 @@ int main() {
 
     // grab the pack info from the bq40z80
     bq_pack_info = bq_pack_mfg_info();
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo, 
+    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo,
             bq_pack_info.mfg_day, bq_pack_info.mfg_year, bq_pack_info.serial);
 
     // Initialize ROS Transports
-    uint can_id = CAN_BUS_PORT_CLIENT_ID;
+    uint8_t sbh_mcu_serial_num = *(uint8_t*)(0x101FF000);
+    can_id = 8 + sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
@@ -194,7 +196,7 @@ int main() {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
 
-                if(ros_init() == RCL_RET_OK) {
+                if(ros_init(sbh_mcu_serial_num) == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
                     safety_init();

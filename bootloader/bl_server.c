@@ -19,6 +19,8 @@
 
 static bool mcu_control_should_reboot = false;
 static uint32_t mcu_control_magic_value = CANMORE_BL_MCU_CONTROL_MAGIC_VALUE;
+static uint32_t mcu_control_major_version;
+static uint32_t mcu_control_minor_version;
 static uint32_t mcu_control_release_type;
 
 static union {
@@ -113,9 +115,9 @@ static bool flash_control_command_cb(__unused const struct reg_mapped_server_reg
 
 static reg_mapped_server_register_def_t bl_server_mcu_control_regs[] = {
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET, &mcu_control_magic_value, REGISTER_PERM_READ_ONLY),
-    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_MAJOR_VERSION_OFFSET, (uint32_t*)(&MAJOR_VERSION), REGISTER_PERM_READ_ONLY),
-    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_MINOR_VERSION_OFFSET, (uint32_t*)(&MINOR_VERSION), REGISTER_PERM_READ_ONLY),
-    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_RELEASE_TYPE_OFFSET, (uint32_t*)(&mcu_control_release_type), REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_MAJOR_VERSION_OFFSET, &mcu_control_major_version, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_MINOR_VERSION_OFFSET, &mcu_control_minor_version, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_RELEASE_TYPE_OFFSET, &mcu_control_release_type, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID, &mcu_control_flash_id.id_word[0], REGISTER_PERM_READ_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID, &mcu_control_flash_id.id_word[1], REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_BL_MCU_CONTROL_REBOOT_MCU_OFFSET, reboot_mcu_cb, REGISTER_PERM_WRITE_ONLY),
@@ -155,6 +157,8 @@ static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
 
 void bl_server_init(void) {
     // Fill out version
+    mcu_control_major_version = MAJOR_VERSION;
+    mcu_control_minor_version = MINOR_VERSION;
     mcu_control_release_type = RELEASE_TYPE;
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].page_type = PAGE_TYPE_MEMORY_MAPPED_BYTE;
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.perm = REGISTER_PERM_READ_ONLY;

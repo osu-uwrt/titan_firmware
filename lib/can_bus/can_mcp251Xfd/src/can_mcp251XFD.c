@@ -55,6 +55,11 @@
 #define MCP2517FD_SPI_INST  __CONCAT(spi, MCP2517FD_SPI)
 
 #define UTILITY_MSG_PAYLOAD_SIZE_ENUM MCP251XFD_PAYLOAD_8BYTE
+static_assert(CANMORE_FRAME_SIZE == 8, "Utility payload size enum does not match configured Utility Frame Size");
+// Note if the static assert above fails, this requires a few things to be changed
+//  1. The UTILITY_MSG_PAYLOAD_SIZE_ENUM so it is the right size
+//  2. The DLC calculations when constructing a utility frame, as they assume 8 byte max (since DLC gets more complicated above 8)
+//  3. The utility message frame type, as it currently sends as a CAN 2.0 frame, not CAN FD frame which is needed when size > 8
 
 uint32_t saved_client_id;
 
@@ -464,10 +469,12 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 bool is_extended;
                 MCP251XFD_CANMessage msg;
 
-                // TODO: Fix this DLC to follow proper format
+                // If this assert no longer holds true, then the DLC must be looked up by the eMCP251XFD_DataLength enum
+                // This is because CAN FD compresses the DLC by only allowing specific sizes above 8 bytes
+                // The canmore encoding must be modified to account for this, as canmore messages support arbitrary lengths
+                static_assert(CANMORE_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
                 canmore_msg_encode_next(&encoding_buffer, buffer, &msg.DLC, &msg.MessageID, &is_extended);
 
-                // TODO: Configure to allow FD support
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;
 
                 if (is_extended) {
@@ -489,7 +496,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
             if (utility_tx_buf.waiting) {
                 MCP251XFD_CANMessage msg;
 
-                // TODO: Fix this DLC to follow proper format
+                // Note this only holds when max utility_tx_buf.length is 8
                 msg.DLC = utility_tx_buf.length;
                 msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, utility_tx_buf.channel);
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;
@@ -588,7 +595,7 @@ bool can_mcp251xfd_get_in_error(void) {
     uint8_t txErrCnt, rxErrCnt;
     eMCP251XFD_TXRXErrorStatus statusOut;
     eERRORRESULT result = MCP251XFD_GetTransmitReceiveErrorCountAndStatus(&mcp251xfd_device, &txErrCnt, &rxErrCnt, &statusOut);
-    return result == ERR_OK && statusOut != MCP251XFD_TX_NO_ERROR;
+    return result != ERR_OK || statusOut != MCP251XFD_TX_NO_ERROR;  // TODO: Update to proper check
 }
 
 bool can_mcp251xfd_configure(unsigned int client_id)

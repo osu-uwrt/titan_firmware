@@ -37,6 +37,7 @@
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
+#define SUPRESS_BOOTUP_TIMER_MISS 1
 absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
@@ -58,6 +59,8 @@ absolute_time_t next_adc = {0};
 static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
+        bool supress_error = (SUPRESS_BOOTUP_TIMER_MISS && to_us_since_boot(time_tmp) == 0);
+
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0; \
@@ -65,9 +68,11 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault(FAULT_TIMER_MISSED);
+            if (!supress_error) {
+                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+                if (error_on_miss)
+                    safety_raise_fault(FAULT_TIMER_MISSED);
+            }
         }
         *next_fire_ptr = time_tmp;
         return true;
@@ -132,7 +137,7 @@ static void tick_ros_tasks() {
     }
 
     if (timer_ready(&next_adc, ADC_TIME_MS, false)) {
-        RCSOFTRETVCHECK(adc_update(client_id));
+        RCSOFTRETVCHECK(adc_update());
     }
 
     // Send Dshot telemetry response after a dshot command is sent
@@ -148,13 +153,11 @@ static void tick_background_tasks() {
         led_network_online_set(ethernet_check_online());
     }
 
+    // Tick any ethernet tasks
+    ethernet_tick();
 
-    // TODO: Put any code that should periodically occur here
-    // read the aux switch state
-    // bool aux_state = gpio_get(AUX_SW_SENSE);
-
-    mcp3426_read();
-    D818_read();
+    // TODO: Make not kill depth sensor
+    // D818_read();
 }
 
 
@@ -184,7 +187,7 @@ int main() {
     // init the acoustic pwr ctrl system off
     gpio_init(PWR_CTL_ACC);
     gpio_set_dir(PWR_CTL_ACC, GPIO_OUT);
-    gpio_put(PWR_CTL_ACC, 0);
+    gpio_put(PWR_CTL_ACC, 1);
 
     // init the aux switches as input
     gpio_init(AUX_SW_SENSE);

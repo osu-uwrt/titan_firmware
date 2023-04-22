@@ -12,6 +12,7 @@
 #include "canmore_titan/protocol.h"
 #include "canmore_titan/ethernet_defs.h"
 #include "Discovery.hpp"
+#include "DebugClient.hpp"
 
 using namespace Canmore;
 
@@ -82,28 +83,52 @@ void EthernetDiscovery::handleSocketData(int socketFd) {
 // ========================================
 
 uint64_t EthernetNormalDevice::getFlashId() {
-    // TODO: Implement me
-    return 0;
+    if (!isFlashIdCached) {
+        try {
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            auto debugClient = DebugClient(interface);
+            cachedFlashId.doubleword = debugClient.getFlashId();
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
+        }
+    }
+
+    return cachedFlashId.doubleword;
 }
 
 std::shared_ptr<BootloaderClient> EthernetNormalDevice::switchToBootloaderMode() {
-    // TODO: Implement me
-    return nullptr;
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto debugClient = DebugClient(interface);
+    debugClient.enterBootloader();
+
+    // Get a discovery context to wait for bootloader
+    auto discovery = EthernetDiscovery::create();
+    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, ETH_MODE_SWITCH_TIMEOUT_MS);
+
+    if (!dev) {
+        throw BootloaderError("Failed to reconnect to device in bootloader mode");
+    }
+    return dev->getClient();
 }
 
 uint64_t EthernetBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
-        auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
-        RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+        try {
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
-        uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
-        if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
-            throw BootloaderError("Unexpected bootloader magic");
+            uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
+            if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
+                throw BootloaderError("Unexpected bootloader magic");
+            }
+
+            cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
+            cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
         }
-
-        cachedFlashId.word[0] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_LOWER_FLASH_ID);
-        cachedFlashId.word[1] = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_UPPER_FLASH_ID);
-        isFlashIdCached = true;
     }
 
     return cachedFlashId.doubleword;
@@ -123,7 +148,7 @@ std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::enterBootloader() {
     // Get a discovery context to wait for bootloader
     auto discovery = EthernetDiscovery::create();
     // TODO: Fix this so clientId can't have colissions
-    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, MODE_SWITCH_TIMEOUT_MS);
+    std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, ETH_MODE_SWITCH_TIMEOUT_MS);
     if (!dev) {
         throw BootloaderError("Failed to reconnect to device in bootloader mode");
     }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <map>
 #include <memory>
 #include <vector>
 #include <stdexcept>
@@ -9,15 +10,69 @@
 #include <arpa/inet.h>
 
 #include "SocketSingleton.hpp"
+#include "canmore_titan/protocol.h"
+#include "canmore_titan/reg_mapped_client.h"
 
 namespace Canmore {
-
-#include "canmore_titan/reg_mapped_client.h"
 
 class RegMappedClientError : public std::runtime_error
 {
     public:
-        RegMappedClientError(int error_code): runtime_error("Register Mapped Client Error: " + std::to_string(error_code)) {}
+        RegMappedClientError(int errorCode, uint8_t mode, uint8_t page, uint8_t offset, bool isWrite):
+            runtime_error(std::string("Register Mapped Access Error (Register Direct ") + (isWrite ? "Write" : "Read") + " - mode: " + lookupMode(mode) +
+                          ", page: " + std::to_string(page) + ", offset: " + std::to_string(offset) +
+                          "): " + lookupError(errorCode)),
+            errorCode(errorCode) {}
+
+        RegMappedClientError(int errorCode, uint8_t mode, uint8_t page, uint8_t offset, uint8_t length, bool isWrite):
+            runtime_error(std::string("Register Mapped Access Error (Array ") + (isWrite ? "Write" : "Read") + " - mode: " + lookupMode(mode) +
+                          ", page: " + std::to_string(page) + ", offset: " + std::to_string(offset) + ", length: " + std::to_string(length) +
+                          "): " + lookupError(errorCode)),
+            errorCode(errorCode) {}
+
+        RegMappedClientError(int errorCode, uint8_t mode, uint8_t page):
+            runtime_error("Register Mapped Access Error (String Access - mode: " + lookupMode(mode) +
+                          "page: " + std::to_string(page) +
+                          "): " + lookupError(errorCode)),
+            errorCode(errorCode) {}
+
+        RegMappedClientError(int errorCode, size_t length):
+            runtime_error("Raw Access Error (length: " + std::to_string(length) +
+                          "): " + lookupError(errorCode)),
+            errorCode(errorCode) {}
+
+        const int errorCode;
+        static const std::map<int, std::string> errorMap;
+
+    private:
+        static const std::string lookupError(int errorCode) {
+
+            #define REG_MAPPED_ERR_DEF(name) if (errorCode == name) return #name; else
+
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_SUCCESSFUL)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_MALFORMED_REQUEST)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_BULK_REQUEST_SEQ_ERROR)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_INVALID_REGISTER_MODE)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_INVALID_DATA)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_RESULT_INVALID_MODE)
+
+            REG_MAPPED_ERR_DEF(REG_MAPPED_CLIENT_RESULT_TX_FAIL)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_CLIENT_RESULT_RX_FAIL)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_CLIENT_RESULT_RX_CLEAR_FAIL)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_CLIENT_RESULT_INVALID_ARG)
+            REG_MAPPED_ERR_DEF(REG_MAPPED_CLIENT_RESULT_INVALID_BULK_COUNT)
+
+            // Fallthrough to this error if none of the other if statements catch it
+            return "Unknown Error " + std::to_string(errorCode);
+        }
+
+        static const std::string lookupMode(uint8_t mode) {
+            if (mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL) return "Normal";
+            else if (mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY) return "Boot Delay";
+            else if (mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER) return "Bootloader";
+            else return "Unknown Mode " + std::to_string(mode);
+        }
 };
 
 class RegMappedClient {
@@ -28,7 +83,7 @@ class RegMappedClient {
         void writeRegister(uint8_t mode, uint8_t page, uint8_t offset, uint32_t data);
         void readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst, uint8_t numWords);
         void writeArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &data);
-        void readStringPage(uint8_t mode, uint8_t page, std::string &strOut);
+        std::string readStringPage(uint8_t mode, uint8_t page);
 
     protected:
         reg_mapped_client_cfg_t clientCfg;

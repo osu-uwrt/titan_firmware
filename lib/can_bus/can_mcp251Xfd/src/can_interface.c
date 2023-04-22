@@ -9,19 +9,15 @@
 
 #include "canmore/msg_encoding.h"
 #include "canmore_titan/protocol.h"
+#include "canmore_titan/debug.h"
 
 #include "can_mcp251XFD_bridge.h"
 
+#include "safety/safety.h"
 
 // PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=can_mcp251Xfd
 #ifndef CAN_HEARTBEAT_INTERVAL_MS
 #define CAN_HEARTBEAT_INTERVAL_MS 500
-#endif
-
-// TODO: Figure heartbeat timeout stuff
-// PICO_CONFIG: CAN_HEARTBEAT_TIMEOUT_MS, Timeout since last successful ACK of heartbeat frame in milliseconds before CAN bus is considered lost. Must be greater than CAN_HEARTBEAT_INTERVAL_MS, type=int, default=1500, group=can_mcp251Xfd
-#ifndef CAN_HEARTBEAT_TIMEOUT_MS
-#define CAN_HEARTBEAT_TIMEOUT_MS 1500
 #endif
 
 
@@ -243,6 +239,32 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     return len;
 }
 
+// ========================================
+// Utility Function Callbacks
+// ========================================
+
+#define CANBUS_NUM_CHANNELS (1<<CANMORE_NOC_LENGTH)
+canbus_utility_chan_cb_t callbacks[CANBUS_NUM_CHANNELS] = {0};
+
+void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t cb) {
+    assert(canbus_initialized);
+    hard_assert(channel < CANBUS_NUM_CHANNELS && callbacks[channel] == NULL);
+
+    callbacks[channel] = cb;
+}
+
+void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
+    if (channel != CANMORE_TITAN_CHAN_CONTROL_INTERFACE) {
+        return;
+    }
+
+    canmore_debug_process_message(buf, len);
+}
+
+void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
+    canbus_utility_frame_write(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, msg, len);
+}
+
 
 // ========================================
 // Initialization Functions
@@ -260,7 +282,8 @@ bool canbus_init(unsigned int client_id) {
         return false;
     }
 
-    can_debug_init();
+    canmore_debug_init(&canbus_control_interface_transmit);
+    canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
 
     canbus_initialized = true;
     return true;
@@ -274,10 +297,10 @@ bool canbus_check_online(void) {
 }
 
 absolute_time_t canbus_next_heartbeat = {0};
+static uint8_t msg_buffer[CANMORE_FRAME_SIZE];
+
 void canbus_tick(void) {
     assert(canbus_initialized);
-
-    can_debug_tick();
 
     // Heartbeat scheduling
     if (time_reached(canbus_next_heartbeat) && canbus_utility_frame_write_available()) {
@@ -286,7 +309,7 @@ void canbus_tick(void) {
         static canmore_titan_heartbeat_t heartbeat = {.data = 0};
 
         heartbeat.pkt.cnt += 1;
-        heartbeat.pkt.error = 0;
+        heartbeat.pkt.error = (*fault_list_reg) != 0;
         heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
 
         bool term_enabled;
@@ -299,5 +322,14 @@ void canbus_tick(void) {
         }
 
         canbus_utility_frame_write(CANMORE_CHAN_HEARTBEAT, &heartbeat.data, sizeof(heartbeat));
+    }
+
+    // Handle any utility frames
+    if (canbus_utility_frame_read_available()) {
+        uint32_t channel;
+        size_t len = canbus_utility_frame_read(&channel, msg_buffer, sizeof(msg_buffer));
+        if (channel < CANBUS_NUM_CHANNELS && callbacks[channel] != NULL) {
+            callbacks[channel](channel, msg_buffer, len);
+        }
     }
 }

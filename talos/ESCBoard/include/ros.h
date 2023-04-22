@@ -26,9 +26,10 @@ void ros_rmw_init_error_handling(void);
 /**
  * @brief Attempt to initialize ROS after a successful ping from the agent
  *
+ * @param board_id The ID of the ESC board (must be 0 or 1)
  * @return rcl_ret_t Return error code
  */
-rcl_ret_t ros_init(void);
+rcl_ret_t ros_init(uint8_t board_id);
 
 /**
  * @brief Clean up a previously initialized or attempted initialized ROS connection

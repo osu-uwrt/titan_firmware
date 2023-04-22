@@ -27,9 +27,10 @@ void ros_rmw_init_error_handling(void);
 /**
  * @brief Attempt to initialize ROS after a successful ping from the agent
  *
+ * @param board_id The ID for the board
  * @return rcl_ret_t Return error code
  */
-rcl_ret_t ros_init();
+rcl_ret_t ros_init(uint8_t board_id);
 
 /**
  * @brief Clean up a previously initialized or attempted initialized ROS connection
@@ -62,9 +63,9 @@ bool ros_ping(void);
 
 /**
  * @brief Determine if a power cycle has been requested
- * 
+ *
  * if this function returns true, it will clear the internal flag and determine the request as serviced
- * 
+ *
  * @return true if power cycle event has been requested
 */
 bool power_cycle_requested(void);

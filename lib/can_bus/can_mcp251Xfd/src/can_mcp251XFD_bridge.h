@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "canmore_titan/reg_mapped_server.h"
 #include "canmore/msg_encoding.h"
 #include "can_mcp251Xfd/canbus.h"
 
@@ -62,12 +63,5 @@ void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code);
 
 #define canbus_report_driver_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, true)
 #define canbus_report_library_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, false)
-
-// ========================================
-// CAN Debug Interface Exports
-// ========================================
-
-void can_debug_init(void);
-void can_debug_tick(void);
 
 #endif

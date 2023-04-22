@@ -1,4 +1,5 @@
 add_subdirectory(can_mcp251Xfd)
 add_subdirectory(can_mcp2515)
 add_subdirectory(can_pio)
+add_subdirectory(canmore_debug_interface)
 add_subdirectory(canmore_protocol)
