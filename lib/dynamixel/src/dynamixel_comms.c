@@ -121,13 +121,34 @@ enum DXLLibErrorCode dynamixel_create_write_packet(
     InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id,
     uint16_t start_address, uint8_t *data, size_t data_len) {
   // https://emanual.robotis.com/docs/en/dxl/protocol2/#write-0x03
-  DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0,
+  DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_WRITE, 0,
                                      packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
   uint8_t byte1 = start_address & 0xFF;
   uint8_t byte2 = (start_address >> 8) & 0xFF;
   DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte1, 1));
   DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte2, 1));
   DXL_RETCHECK(add_param_to_dxl_packet(packet, data, data_len));
+  DXL_RETCHECK(end_make_dxl_packet(packet));
+
+  return DXL_LIB_OK;
+}
+
+enum DXLLibErrorCode dynamixel_create_read_packet(InfoToMakeDXLPacket_t *packet,
+                                                  uint8_t *packet_buf,
+                                                  dynamixel_id id,
+                                                  uint16_t start_address,
+                                                  uint16_t length) {
+  // https://emanual.robotis.com/docs/en/dxl/protocol2/#read-0x02
+  DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_READ, 0,
+                                     packet_buf, DYNAMIXEL_PACKET_BUF_SIZE));
+  uint8_t byte1 = start_address & 0xFF;
+  uint8_t byte2 = (start_address >> 8) & 0xFF;
+  uint8_t byte3 = length & 0xFF;
+  uint8_t byte4 = (length >> 8) & 0xFF;
+  DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte1, 1));
+  DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte2, 1));
+  DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte3, 1));
+  DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte4, 1));
   DXL_RETCHECK(end_make_dxl_packet(packet));
 
   return DXL_LIB_OK;

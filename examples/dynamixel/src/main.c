@@ -132,6 +132,42 @@ void on_dynamixel_error(uint8_t error) {
     panic("Dynamixel error: %d", error); // TODO: raise safety fault
 }
 
+void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
+    switch (event) {
+        case DYNAMIXEL_EVENT_EEPROM_READ: {
+            struct dynamixel_eeprom eeprom;
+            dynamixel_get_eeprom(id, &eeprom);
+
+            printf("--- Servo %d EEPROM ---\n", id);
+            printf("  Model Number: %d\n", eeprom.model_num);
+            printf("  Model Info: %d\n", eeprom.model_info);
+            printf("  Firmware Version: %d\n", eeprom.firmware_version);
+            printf("  ID: %d\n", eeprom.id);
+            printf("  Baud Rate: %d\n", eeprom.baud_rate);
+            printf("  Return Delay Time: %d\n", eeprom.return_delay_time);
+            printf("  Drive Mode: %d\n", eeprom.drive_mode);
+            printf("  Operating Mode: %d\n", eeprom.operating_mode);
+            printf("  Secondary ID: %d\n", eeprom.secondary_id);
+            printf("  Protocol: %d\n", eeprom.protocol_type);
+            printf("  Homing Offset: %d\n", eeprom.homing_offset);
+            printf("  Temperature Limit: %d\n", eeprom.temperature_limit);
+            printf("  Min Voltage Limit: %d\n", eeprom.min_voltage_limit);
+            printf("  Max Voltage Limit: %d\n", eeprom.max_voltage_limit);
+            printf("  PWM Limit: %d\n", eeprom.pwm_limit);
+            printf("  Velocity Limit: %d\n", eeprom.velocity_limit);
+            printf("  Min Position Limit: %d\n", eeprom.min_position_limit);
+            printf("  Max Position Limit: %d\n", eeprom.max_position_limit);
+            printf("  Startup Config: %d\n", eeprom.startup_config);
+            printf("-------------------\n");
+
+            break;
+        }   
+        default:
+            printf("Receieved unknown dynamixel event %d for ID %d\n", event, id);
+            break;
+    }
+}
+
 int main() {
     // Initialize stdio
     #ifdef MICRO_ROS_TRANSPORT_USB
@@ -150,8 +186,11 @@ int main() {
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
     uint8_t servos[] = {1};
-    dynamixel_init(servos, 1, on_dynamixel_error);
+    dynamixel_init(servos, 1, on_dynamixel_error, on_dynamixel_event);
     dynamixel_set_id(1, 3); // Change ID from 1 to 3
+
+    dynamixel_set_target_position(1, 500);
+    dynamixel_enable_torque(1, true);
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
