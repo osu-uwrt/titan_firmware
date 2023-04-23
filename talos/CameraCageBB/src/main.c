@@ -10,6 +10,7 @@
 #include "led.h"
 #include "ros.h"
 #include "safety_interface.h"
+#include "status_strip.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -124,7 +125,8 @@ int main() {
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
     depth_init();
-
+    status_strip_init(pio0, 0, RGB_DATA_PIN, true);
+    status_strip_clear();
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_CLIENT_ID;
@@ -167,6 +169,7 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
+            status_strip_clear();   // Clear status strip on teardown of ROS
             ros_initialized = false;
         } else {
             if (time_reached(next_connect_ping)) {
