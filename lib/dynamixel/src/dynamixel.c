@@ -10,7 +10,7 @@
 
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8
-#define WAIT_FOR_CMD_TIME_MS 5
+#define READ_INTERVAL_MS 100
 
 #define PacketGetU16(array, idx) \
   (((uint16_t)array[idx]) | (((uint16_t)array[idx + 1]) << 8))
@@ -18,24 +18,11 @@
   (((uint32_t)array[idx]) | (((uint32_t)array[idx + 1]) << 8) | \
    (((uint32_t)array[idx + 2]) << 16) | (((uint32_t)array[idx + 3]) << 24))
 
-enum internal_state
-{
-  UNINITIALIZED,
-  STATE_PING,
-  /* On setup, reads the configuration of each servo. */
-  STATE_EEPROM_READ,
-  /** Reading all of the servo positions */
-  STATE_RAM_READ,
-  /** Sending commands to the servos */
-  STATE_SEND_CMD,
-  /** Dynamixel driver failed */
-  STATE_FAILED,
-};
-
 enum internal_cmd_type { 
+  CMD_TYPE_NONE = 0,
   /* No extra processing needs to be completed */
-  CMD_TYPE_GENERAL = 0,
-  CMD_TYPE_EEPROM_READ = 0,
+  CMD_TYPE_GENERAL = 1,
+  CMD_TYPE_EEPROM_READ = 2,
 };
 
 struct internal_cmd
@@ -46,12 +33,11 @@ struct internal_cmd
 };
 
 static struct QUEUE_DEFINE(struct internal_cmd, MAX_CMDS) cmd_queue = {0};
-enum internal_cmd_type current_cmd_type = CMD_TYPE_GENERAL;
+enum internal_cmd_type current_cmd_type = CMD_TYPE_NONE;
+bool ram_read_flag = false;
 
 static uint8_t internal_packet_buf[DYNAMIXEL_PACKET_BUFFER_SIZE];
 static InfoToMakeDXLPacket_t internal_packet;
-
-enum internal_state state = UNINITIALIZED;
 
 dynamixel_error_cb error_cb;
 dynamixel_event_cb event_cb;
@@ -96,7 +82,6 @@ static void on_internal_cmd_complete(enum dynamixel_error error,
 {
   if (error)
   {
-    state = STATE_FAILED;
     error_cb(error);
     return;
   }
@@ -114,16 +99,23 @@ static void on_internal_cmd_complete(enum dynamixel_error error,
   }
   (void)result;
 
+  current_cmd_type = CMD_TYPE_NONE;
   send_next_cmd();
 }
 
 static void send_next_cmd()
 {
+  assert(current_cmd_type == CMD_TYPE_NONE); // TODO: convert this to an error callback
+
+  if(ram_read_flag) {
+    current_servo_idx = 0;
+    send_ram_read();
+    return;
+  }
+
   if (QUEUE_EMPTY(&cmd_queue))
   {
-    current_servo_idx = 0;
-    state = STATE_RAM_READ;
-    send_ram_read();
+    current_cmd_type = CMD_TYPE_NONE;
     return;
   }
 
@@ -133,11 +125,17 @@ static void send_next_cmd()
   QUEUE_MARK_READ_DONE(&cmd_queue);
 }
 
-static int64_t on_send_cmds_alarm(alarm_id_t id, void *user_data) {
+static int64_t on_ram_read_alarm(alarm_id_t id, void *user_data) {
   (void) id;
   (void) user_data;
 
-  send_next_cmd();
+  ram_read_flag = true;
+
+  if (current_cmd_type == CMD_TYPE_NONE) {
+    current_servo_idx = 0;
+    send_ram_read();
+  }
+
   return 0;
 }
 
@@ -149,9 +147,10 @@ static int64_t on_send_cmds_alarm(alarm_id_t id, void *user_data) {
 static void on_dynamixel_ram_read(enum dynamixel_error error,
                                   struct dynamixel_req_result *result)
 {
+  assert(ram_read_flag);
+
   if (error)
   {
-    state = STATE_FAILED;
     error_cb(error);
     return;
   }
@@ -210,26 +209,21 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
   }
   else
   {
-    state = STATE_SEND_CMD;
-    current_servo_idx = 0;
-
-    if(QUEUE_EMPTY(&cmd_queue)) {
-      // No cmds have been queued up yet, so we will 5ms and then send any commands in the queue. 
-      add_alarm_in_ms(WAIT_FOR_CMD_TIME_MS, on_send_cmds_alarm, NULL, true);
-    } else {
-      send_next_cmd();
-    }
+    ram_read_flag = false;
+    add_alarm_in_ms(READ_INTERVAL_MS, on_ram_read_alarm, NULL, true);
+    send_next_cmd();
   }
 }
 
 static void send_ram_read()
 {
+  assert(ram_read_flag);
+
   if (dynamixel_create_read_packet(
           &internal_packet, internal_packet_buf, servos[current_servo_idx],
           DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR,
           DYNAMIXEL_CTRL_TABLE_RAM_LENGTH) != DXL_LIB_OK)
   {
-    state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
   }
@@ -276,7 +270,6 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
 {
   if (error)
   {
-    state = STATE_FAILED;
     error_cb(error);
     return;
   }
@@ -292,8 +285,8 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
   }
   else
   {
-    state = STATE_RAM_READ;
     current_servo_idx = 0;
+    ram_read_flag = true;
     send_ram_read();
   }
 }
@@ -305,7 +298,6 @@ static void send_eeprom_read()
           DYNAMIXEL_CTRL_TABLE_EEPROM_START_ADDR,
           DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH) != DXL_LIB_OK)
   {
-    state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
   }
 
@@ -322,7 +314,6 @@ static void on_dynamixel_ping(enum dynamixel_error error,
 {
   if (error)
   {
-    state = STATE_FAILED;
     error_cb(error);
     return;
   }
@@ -337,7 +328,6 @@ static void on_dynamixel_ping(enum dynamixel_error error,
   }
   else
   {
-    state = STATE_EEPROM_READ;
     current_servo_idx = 0;
     send_eeprom_read();
   }
@@ -348,7 +338,6 @@ static void send_ping()
   if (dynamixel_create_ping_packet(&internal_packet, internal_packet_buf,
                                    servos[current_servo_idx]) != DXL_LIB_OK)
   {
-    state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
   }
@@ -365,7 +354,6 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
                     dynamixel_error_cb _error_cb,
                     dynamixel_event_cb _event_cb)
 {
-  assert(state == UNINITIALIZED);
   assert(id_cnt < MAX_SERVO_CNT);
   error_cb = _error_cb;
   event_cb = _event_cb;
@@ -377,7 +365,6 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
     servos[i] = id_list[i];
   }
 
-  state = STATE_PING;
   current_servo_idx = 0;
   send_ping();
 }
@@ -396,6 +383,10 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new)
                                 DYNAMIXEL_CTRL_TABLE_ID_ADDR, &new, 1);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
 
+  if(!ram_read_flag && current_cmd_type == CMD_TYPE_NONE) {
+    send_next_cmd();
+  }
+
   return true;
 }
 
@@ -413,6 +404,10 @@ bool dynamixel_enable_torque(dynamixel_id id, bool enabled)
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, id,
                                 DYNAMIXEL_CTRL_TABLE_ID_ADDR, &data, 1);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
+
+  if(!ram_read_flag && current_cmd_type == CMD_TYPE_NONE) {
+    send_next_cmd();
+  }
 
   return true;
 }
@@ -437,6 +432,10 @@ bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos)
                                 DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR, data, 4);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
 
+  if(!ram_read_flag && current_cmd_type == CMD_TYPE_NONE) {
+    send_next_cmd();
+  }
+
   return true;
 }
 
@@ -454,13 +453,17 @@ bool dynamixel_read_eeprom(dynamixel_id id) {
           DYNAMIXEL_CTRL_TABLE_EEPROM_START_ADDR,
           DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH) != DXL_LIB_OK)
   {
-    state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     QUEUE_MARK_WRITE_DONE(&cmd_queue);
     return false;
   }
 
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
+
+  if(!ram_read_flag && current_cmd_type == CMD_TYPE_NONE) {
+    send_next_cmd();
+  }
+
   return true;
 }
 

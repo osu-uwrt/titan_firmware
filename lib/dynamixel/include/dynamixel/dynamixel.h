@@ -10,7 +10,7 @@
 // TODO: add more specific errors
 enum dynamixel_error { 
     DYNAMIXEL_ERROR_NONE = 0,
-    /* An internal error in the driver */
+    /* An internal error: if this is reported it is a bug in the driver. */
     DYNAMIXEL_DRIVER_ERROR,
     /* An internal error in the TTL driver */
     DYNAMIXEL_TTL_ERROR,
@@ -93,6 +93,8 @@ struct dynamixel_ram {
 
 typedef uint8_t dynamixel_id;
 
+
+// TODO: add cause string
 typedef void (*dynamixel_error_cb)(enum dynamixel_error error_code);
 
 typedef void (*dynamixel_event_cb)(enum dynamixel_event, dynamixel_id id);
