@@ -169,6 +169,7 @@ void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
             printf("--- Servo %d RAM ---\n", id);
             printf("  Torque Enable: %d\n", ram.torque_enable);
             printf("  Hardware Error Status: %d\n", ram.hardware_error_status);
+            printf("  Goal Position: %d\n", ram.goal_position);
             printf("  Present Position: %d\n", ram.present_position);
             printf("  Present Velocity: %d\n", ram.present_velocity);
             printf("-------------------\n");

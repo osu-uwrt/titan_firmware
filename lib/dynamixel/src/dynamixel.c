@@ -11,13 +11,14 @@
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8
 
-#define PacketGetU16(array, idx)                                               \
+#define PacketGetU16(array, idx) \
   (((uint16_t)array[idx]) | (((uint16_t)array[idx + 1]) << 8))
-#define PacketGetU32(array, idx)                                               \
-  (((uint32_t)array[idx]) | (((uint32_t)array[idx + 1]) << 8) |                \
+#define PacketGetU32(array, idx)                                \
+  (((uint32_t)array[idx]) | (((uint32_t)array[idx + 1]) << 8) | \
    (((uint32_t)array[idx + 2]) << 16) | (((uint32_t)array[idx + 3]) << 24))
 
-enum internal_state {
+enum internal_state
+{
   UNINITIALIZED,
   STATE_PING,
   /* On setup, reads the configuration of each servo. */
@@ -30,7 +31,8 @@ enum internal_state {
   STATE_FAILED,
 };
 
-struct internal_cmd {
+struct internal_cmd
+{
   InfoToMakeDXLPacket_t packet;
   uint8_t packet_buf[DYNAMIXEL_PACKET_BUFFER_SIZE];
 };
@@ -61,9 +63,12 @@ static void send_ram_read();
  *  ========================
  */
 
-static int servo_id_to_index(dynamixel_id id) {
-  for (int i = 0; i < servo_cnt; i++) {
-    if (servos[i] == id) {
+static int servo_id_to_index(dynamixel_id id)
+{
+  for (int i = 0; i < servo_cnt; i++)
+  {
+    if (servos[i] == id)
+    {
       return i;
     }
   }
@@ -77,8 +82,10 @@ static int servo_id_to_index(dynamixel_id id) {
  */
 
 static void on_internal_cmd_complete(enum dynamixel_error error,
-                                     struct dynamixel_req_result *result) {
-  if (error) {
+                                     struct dynamixel_req_result *result)
+{
+  if (error)
+  {
     state = STATE_FAILED;
     error_cb(error);
     return;
@@ -89,8 +96,10 @@ static void on_internal_cmd_complete(enum dynamixel_error error,
   send_next_cmd();
 }
 
-static void send_next_cmd() {
-  if (QUEUE_EMPTY(&cmd_queue)) {
+static void send_next_cmd()
+{
+  if (QUEUE_EMPTY(&cmd_queue))
+  {
     current_servo_idx = 0;
     // send_ram_read(); TODO: Read RAM after like 5 ms
     return;
@@ -109,8 +118,10 @@ static void send_next_cmd() {
  */
 
 static void on_dynamixel_ram_read(enum dynamixel_error error,
-                                  struct dynamixel_req_result *result) {
-  if (error) {
+                                  struct dynamixel_req_result *result)
+{
+  if (error)
+  {
     state = STATE_FAILED;
     error_cb(error);
     return;
@@ -129,6 +140,7 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
   ram->present_velocity =
       PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_VELOCITY_ADDR -
                                   DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
+  ram->goal_position = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
   // ram-> = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR -
   // DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR] bool torque_enable; uint8_t led;
   // uint8_t status_return_level;
@@ -163,19 +175,24 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
   event_cb(DYNAMIXEL_EVENT_RAM_READ, current_servo_idx);
   current_servo_idx++;
 
-  if (current_servo_idx < servo_cnt) {
+  if (current_servo_idx < servo_cnt)
+  {
     send_ram_read();
-  } else {
+  }
+  else
+  {
     current_servo_idx = 0;
     send_next_cmd();
   }
 }
 
-static void send_ram_read() {
+static void send_ram_read()
+{
   if (dynamixel_create_read_packet(
           &internal_packet, internal_packet_buf, servos[current_servo_idx],
           DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR,
-          DYNAMIXEL_CTRL_TABLE_RAM_LENGTH) != DXL_LIB_OK) {
+          DYNAMIXEL_CTRL_TABLE_RAM_LENGTH) != DXL_LIB_OK)
+  {
     state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
@@ -190,8 +207,10 @@ static void send_ram_read() {
  */
 
 static void on_dynamixel_eeprom_read(enum dynamixel_error error,
-                                     struct dynamixel_req_result *result) {
-  if (error) {
+                                     struct dynamixel_req_result *result)
+{
+  if (error)
+  {
     state = STATE_FAILED;
     error_cb(error);
     return;
@@ -229,19 +248,24 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
   event_cb(DYNAMIXEL_EVENT_EEPROM_READ, servos[current_servo_idx]);
   current_servo_idx++;
 
-  if (current_servo_idx < servo_cnt) {
+  if (current_servo_idx < servo_cnt)
+  {
     send_eeprom_read();
-  } else {
+  }
+  else
+  {
     current_servo_idx = 0;
     send_eeprom_read();
   }
 }
 
-static void send_eeprom_read() {
+static void send_eeprom_read()
+{
   if (dynamixel_create_read_packet(
           &internal_packet, internal_packet_buf, servos[current_servo_idx],
           DYNAMIXEL_CTRL_TABLE_EEPROM_START_ADDR,
-          DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH) != DXL_LIB_OK) {
+          DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH) != DXL_LIB_OK)
+  {
     state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
@@ -256,8 +280,10 @@ static void send_eeprom_read() {
  */
 
 static void on_dynamixel_ping(enum dynamixel_error error,
-                              struct dynamixel_req_result *result) {
-  if (error) {
+                              struct dynamixel_req_result *result)
+{
+  if (error)
+  {
     state = STATE_FAILED;
     error_cb(error);
     return;
@@ -267,17 +293,22 @@ static void on_dynamixel_ping(enum dynamixel_error error,
   (void)result;
   current_servo_idx++;
 
-  if (current_servo_idx < servo_cnt) {
+  if (current_servo_idx < servo_cnt)
+  {
     send_ping();
-  } else {
+  }
+  else
+  {
     current_servo_idx = 0;
     send_eeprom_read();
   }
 }
 
-static void send_ping() {
+static void send_ping()
+{
   if (dynamixel_create_ping_packet(&internal_packet, internal_packet_buf,
-                                   servos[current_servo_idx]) != DXL_LIB_OK) {
+                                   servos[current_servo_idx]) != DXL_LIB_OK)
+  {
     state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
@@ -293,7 +324,8 @@ static void send_ping() {
 
 void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
                     dynamixel_error_cb _error_cb,
-                    dynamixel_event_cb _event_cb) {
+                    dynamixel_event_cb _event_cb)
+{
   assert(state == UNINITIALIZED);
   assert(id_cnt < MAX_SERVO_CNT);
   error_cb = _error_cb;
@@ -301,7 +333,8 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
   servo_cnt = id_cnt;
 
   // copy the list of IDs
-  for (size_t i = 0; i < id_cnt; i++) {
+  for (size_t i = 0; i < id_cnt; i++)
+  {
     servos[i] = id_list[i];
   }
 
@@ -310,8 +343,10 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
   send_ping();
 }
 
-bool dynamixel_set_id(dynamixel_id old, dynamixel_id new) {
-  if (QUEUE_FULL(&cmd_queue)) {
+bool dynamixel_set_id(dynamixel_id old, dynamixel_id new)
+{
+  if (QUEUE_FULL(&cmd_queue))
+  {
     error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
     return false;
   }
@@ -324,8 +359,10 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new) {
   return true;
 }
 
-bool dynamixel_enable_torque(dynamixel_id id, bool enabled) {
-  if (QUEUE_FULL(&cmd_queue)) {
+bool dynamixel_enable_torque(dynamixel_id id, bool enabled)
+{
+  if (QUEUE_FULL(&cmd_queue))
+  {
     error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
     return false;
   }
@@ -339,19 +376,38 @@ bool dynamixel_enable_torque(dynamixel_id id, bool enabled) {
   return true;
 }
 
-bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos) {
-  assert(false);
-  return false;
+bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos)
+{
+  if (QUEUE_FULL(&cmd_queue))
+  {
+    error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
+    return false;
+  }
+
+  uint8_t byte1 = pos & 0xFF;
+  uint8_t byte2 = (pos >> 8) & 0xFF;
+  uint8_t byte3 = (pos >> 16) & 0xFF;
+  uint8_t byte4 = (pos >> 24) & 0xFF;
+  uint8_t data[] = {byte1, byte2, byte3, byte4};
+  // TODO: create functions called dynamixel_create_writeu32_packet and other variants
+  struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
+  dynamixel_create_write_packet(&entry->packet, entry->packet_buf, id,
+                                DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR, data, 4);
+  QUEUE_MARK_WRITE_DONE(&cmd_queue);
+
+  return true;
 }
 
-void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom) {
+void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom)
+{
   int idx = servo_id_to_index(id);
   assert(idx >= 0); // TODO: what to do in this case?
 
   memcpy(eeprom, &servo_eeproms[idx], sizeof(struct dynamixel_eeprom));
 }
 
-void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram) {
+void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram)
+{
   int idx = servo_id_to_index(id);
   assert(idx >= 0); // TODO: what to do in this case?
 
