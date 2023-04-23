@@ -10,6 +10,7 @@
 
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8
+#define WAIT_FOR_CMD_TIME_MS 5
 
 #define PacketGetU16(array, idx) \
   (((uint16_t)array[idx]) | (((uint16_t)array[idx + 1]) << 8))
@@ -24,20 +25,28 @@ enum internal_state
   /* On setup, reads the configuration of each servo. */
   STATE_EEPROM_READ,
   /** Reading all of the servo positions */
-  STATE_READING,
+  STATE_RAM_READ,
   /** Sending commands to the servos */
-  STATE_WRITING,
+  STATE_SEND_CMD,
   /** Dynamixel driver failed */
   STATE_FAILED,
+};
+
+enum internal_cmd_type { 
+  /* No extra processing needs to be completed */
+  CMD_TYPE_GENERAL = 0,
+  CMD_TYPE_EEPROM_READ = 0,
 };
 
 struct internal_cmd
 {
   InfoToMakeDXLPacket_t packet;
   uint8_t packet_buf[DYNAMIXEL_PACKET_BUFFER_SIZE];
+  enum internal_cmd_type cmd_type;
 };
 
 static struct QUEUE_DEFINE(struct internal_cmd, MAX_CMDS) cmd_queue = {0};
+enum internal_cmd_type current_cmd_type = CMD_TYPE_GENERAL;
 
 static uint8_t internal_packet_buf[DYNAMIXEL_PACKET_BUFFER_SIZE];
 static InfoToMakeDXLPacket_t internal_packet;
@@ -55,6 +64,7 @@ int current_servo_idx;
 
 static void send_next_cmd();
 static void send_ping();
+static void parse_eeprom_read(struct dynamixel_eeprom *eeprom, uint8_t *param_buf);
 static void send_eeprom_read();
 static void send_ram_read();
 
@@ -91,6 +101,17 @@ static void on_internal_cmd_complete(enum dynamixel_error error,
     return;
   }
 
+  dynamixel_id id = result->packet->id;
+  if (current_cmd_type == CMD_TYPE_EEPROM_READ) {
+    int index = servo_id_to_index(id);
+    if (index < 0) {
+      error_cb(DYNAMIXEL_INVALID_ID);
+    } else {
+      struct dynamixel_eeprom *eeprom = &servo_eeproms[index];
+      parse_eeprom_read(eeprom, result->packet->p_param_buf);
+      event_cb(DYNAMIXEL_EVENT_EEPROM_READ, id);
+    }
+  }
   (void)result;
 
   send_next_cmd();
@@ -101,15 +122,23 @@ static void send_next_cmd()
   if (QUEUE_EMPTY(&cmd_queue))
   {
     current_servo_idx = 0;
-    // send_ram_read(); TODO: Read RAM after like 5 ms
+    state = STATE_RAM_READ;
+    send_ram_read();
     return;
   }
 
-  state = STATE_WRITING;
-
   struct internal_cmd *entry = QUEUE_CUR_READ_ENTRY(&cmd_queue);
+  current_cmd_type = entry->cmd_type;
   dynamixel_send_packet(on_internal_cmd_complete, &entry->packet);
   QUEUE_MARK_READ_DONE(&cmd_queue);
+}
+
+static int64_t on_send_cmds_alarm(alarm_id_t id, void *user_data) {
+  (void) id;
+  (void) user_data;
+
+  send_next_cmd();
+  return 0;
 }
 
 /* ========================
@@ -181,8 +210,15 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
   }
   else
   {
+    state = STATE_SEND_CMD;
     current_servo_idx = 0;
-    send_next_cmd();
+
+    if(QUEUE_EMPTY(&cmd_queue)) {
+      // No cmds have been queued up yet, so we will 5ms and then send any commands in the queue. 
+      add_alarm_in_ms(WAIT_FOR_CMD_TIME_MS, on_send_cmds_alarm, NULL, true);
+    } else {
+      send_next_cmd();
+    }
   }
 }
 
@@ -206,18 +242,7 @@ static void send_ram_read()
  *  ========================
  */
 
-static void on_dynamixel_eeprom_read(enum dynamixel_error error,
-                                     struct dynamixel_req_result *result)
-{
-  if (error)
-  {
-    state = STATE_FAILED;
-    error_cb(error);
-    return;
-  }
-
-  uint8_t *param_buf = result->packet->p_param_buf;
-  struct dynamixel_eeprom *eeprom = &servo_eeproms[current_servo_idx];
+static void parse_eeprom_read(struct dynamixel_eeprom *eeprom, uint8_t *param_buf) {
   // TODO: need to subtract the eeprom start address in case it does not start
   // at zero
   eeprom->model_num =
@@ -244,7 +269,20 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
   // uint32_t velocity_limit;
   // uint32_t max_position_limit;
   // uint32_t min_position_limit;
+}
 
+static void on_dynamixel_eeprom_read(enum dynamixel_error error,
+                                     struct dynamixel_req_result *result)
+{
+  if (error)
+  {
+    state = STATE_FAILED;
+    error_cb(error);
+    return;
+  }
+
+  struct dynamixel_eeprom *eeprom = &servo_eeproms[current_servo_idx];
+  parse_eeprom_read(eeprom, result->packet->p_param_buf);
   event_cb(DYNAMIXEL_EVENT_EEPROM_READ, servos[current_servo_idx]);
   current_servo_idx++;
 
@@ -254,8 +292,9 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
   }
   else
   {
+    state = STATE_RAM_READ;
     current_servo_idx = 0;
-    send_eeprom_read();
+    send_ram_read();
   }
 }
 
@@ -268,7 +307,6 @@ static void send_eeprom_read()
   {
     state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
-    return;
   }
 
   dynamixel_send_packet(on_dynamixel_eeprom_read, &internal_packet);
@@ -299,6 +337,7 @@ static void on_dynamixel_ping(enum dynamixel_error error,
   }
   else
   {
+    state = STATE_EEPROM_READ;
     current_servo_idx = 0;
     send_eeprom_read();
   }
@@ -350,8 +389,9 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new)
     error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
     return false;
   }
-
+  
   struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
+  entry->cmd_type = CMD_TYPE_GENERAL;
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, old,
                                 DYNAMIXEL_CTRL_TABLE_ID_ADDR, &new, 1);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
@@ -369,6 +409,7 @@ bool dynamixel_enable_torque(dynamixel_id id, bool enabled)
 
   uint8_t data = enabled ? 1 : 0;
   struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
+  entry->cmd_type = CMD_TYPE_GENERAL;
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, id,
                                 DYNAMIXEL_CTRL_TABLE_ID_ADDR, &data, 1);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
@@ -391,10 +432,35 @@ bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos)
   uint8_t data[] = {byte1, byte2, byte3, byte4};
   // TODO: create functions called dynamixel_create_writeu32_packet and other variants
   struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
+  entry->cmd_type = CMD_TYPE_GENERAL;
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, id,
                                 DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR, data, 4);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
 
+  return true;
+}
+
+bool dynamixel_read_eeprom(dynamixel_id id) {
+  if (QUEUE_FULL(&cmd_queue))
+  {
+    error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
+    return false;
+  }
+
+  struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
+  entry->cmd_type = CMD_TYPE_EEPROM_READ;
+  if (dynamixel_create_read_packet(
+          &entry->packet, entry->packet_buf, id,
+          DYNAMIXEL_CTRL_TABLE_EEPROM_START_ADDR,
+          DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH) != DXL_LIB_OK)
+  {
+    state = STATE_FAILED;
+    error_cb(DYNAMIXEL_DRIVER_ERROR);
+    QUEUE_MARK_WRITE_DONE(&cmd_queue);
+    return false;
+  }
+
+  QUEUE_MARK_WRITE_DONE(&cmd_queue);
   return true;
 }
 
