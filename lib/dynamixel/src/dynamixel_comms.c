@@ -55,6 +55,7 @@ static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, s
   result.instr = req.instr;
   result.packet = &rx_packet;
   req.user_cb(0, &result);
+  packet_in_flight = false;
 }
 
 static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
