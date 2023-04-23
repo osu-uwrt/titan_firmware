@@ -7,6 +7,7 @@
 #include "dynamixel/async_uart.h"
 #include <string.h>
 #include <assert.h> // TODO: remove
+#include <stdio.h>
 
 #define PROTOCOL 2
 
@@ -35,10 +36,12 @@ static InfoToParseDXLPacket_t rx_packet;
 static struct current_request req;
 /** Used internally as the read/write buffer. */
 static uint8_t rs485_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
+static uint8_t rx_packet_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 
 static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
   if (error != ASYNC_UART_RX_OK) {
     req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
+    return;
   }
 
   for (size_t i = 0; i < data_len - 1; i++) {
@@ -59,7 +62,7 @@ static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, s
 }
 
 static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
-  begin_parse_dxl_packet(&rx_packet, PROTOCOL, rs485_buf,
+  begin_parse_dxl_packet(&rx_packet, PROTOCOL, rx_packet_buf,
                          DYNAMIXEL_PACKET_BUF_SIZE);
   uint16_t body_length = 0;
 
@@ -68,12 +71,8 @@ static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data,
     return;
   }
 
-  // TODO: Check header
-  // TODO: check instruction
-
   body_length = (data[5] | (data[6] << 8));
   assert(body_length + DYNAMIXEL_REPLY_HEADER_SIZE < DYNAMIXEL_PACKET_BUF_SIZE);
-
   // give the data to the parser.
   for (size_t i = 0; i < data_len; i++) {
     if (parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
@@ -82,13 +81,14 @@ static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data,
     }
   }
 
-  async_uart_read(rs485_buf + DYNAMIXEL_REPLY_HEADER_SIZE, body_length,
+  // The length includes the last byte of the header (instruction byte)
+  async_uart_read(rs485_buf, body_length - 1,
                    on_receive_reply_body);
 }
 
 static void on_packet_sent(enum async_uart_tx_err error) {
   if (error != ASYNC_UART_TX_OK) {
-    req.user_cb(error, NULL);
+    req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
   } else {
     async_uart_read(rs485_buf, DYNAMIXEL_REPLY_HEADER_SIZE,
                      on_receive_reply_header);

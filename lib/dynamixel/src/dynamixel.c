@@ -4,13 +4,14 @@
 #include "pico/time.h"
 #include "basic_queue/queue.h"
 
+#include "dynamixel/async_uart.h"
 #include "dynamixel/dynamixel.h"
 #include "dynamixel_controls.h"
 #include "dynamixel_comms.h"
 
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8
-#define READ_INTERVAL_MS 100
+#define READ_INTERVAL_MS 4000
 
 #define PacketGetU16(array, idx) \
   (((uint16_t)array[idx]) | (((uint16_t)array[idx + 1]) << 8))
@@ -18,7 +19,7 @@
   (((uint32_t)array[idx]) | (((uint32_t)array[idx + 1]) << 8) | \
    (((uint32_t)array[idx + 2]) << 16) | (((uint32_t)array[idx + 3]) << 24))
 
-enum internal_cmd_type { 
+enum internal_cmd_type {
   CMD_TYPE_NONE = 0,
   /* No extra processing needs to be completed */
   CMD_TYPE_GENERAL = 1,
@@ -200,7 +201,7 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
   // uint16_t present_temperature;
   // uint8_t backup_ready;
 
-  event_cb(DYNAMIXEL_EVENT_RAM_READ, current_servo_idx);
+  event_cb(DYNAMIXEL_EVENT_RAM_READ, servos[current_servo_idx]);
   current_servo_idx++;
 
   if (current_servo_idx < servo_cnt)
@@ -250,6 +251,8 @@ static void parse_eeprom_read(struct dynamixel_eeprom *eeprom, uint8_t *param_bu
   eeprom->drive_mode = param_buf[DYNAMIXEL_CTRL_TABLE_DRIVE_MODE_ADDR];
   eeprom->operating_mode = param_buf[DYNAMIXEL_CTRL_TABLE_OPERATE_MODE_ADDR];
   eeprom->startup_config = param_buf[DYNAMIXEL_CTRL_TABLE_STARTUP_CONFIG_ADDR];
+  eeprom->min_position_limit = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_MIN_POSITION_LIMIT_ADDR);
+  eeprom->max_position_limit = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_MAX_POSITION_LIMIT_ADDR);
 
   // TODO: Read these
   // uint8_t return_delay_time;
@@ -355,6 +358,8 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
                     dynamixel_event_cb _event_cb)
 {
   assert(id_cnt < MAX_SERVO_CNT);
+  async_uart_init(pio0, 0, 4, 57600, 100);
+  sleep_ms(5);  // Give time for line to settle
   error_cb = _error_cb;
   event_cb = _event_cb;
   servo_cnt = id_cnt;
@@ -376,7 +381,7 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new)
     error_cb(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
     return false;
   }
-  
+
   struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
   entry->cmd_type = CMD_TYPE_GENERAL;
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, old,
@@ -402,7 +407,7 @@ bool dynamixel_enable_torque(dynamixel_id id, bool enabled)
   struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&cmd_queue);
   entry->cmd_type = CMD_TYPE_GENERAL;
   dynamixel_create_write_packet(&entry->packet, entry->packet_buf, id,
-                                DYNAMIXEL_CTRL_TABLE_ID_ADDR, &data, 1);
+                                DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR, &data, 1);
   QUEUE_MARK_WRITE_DONE(&cmd_queue);
 
   if(!ram_read_flag && current_cmd_type == CMD_TYPE_NONE) {

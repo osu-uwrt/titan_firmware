@@ -6,6 +6,8 @@
 #include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
+#include "hardware/structs/ioqspi.h"
+#include "pico/sync.h"
 
 #include "dynamixel/dynamixel.h"
 #include "dynamixel/async_uart.h"
@@ -152,6 +154,36 @@ static void tick_ros_tasks() {
     // TODO: Put any additional ROS tasks added here
 }
 
+bool __no_inline_not_in_flash_func(get_bootsel_button)() {
+    const uint CS_PIN_INDEX = 1;
+
+    // Must disable interrupts, as interrupt handlers may be in flash, and we
+    // are about to temporarily disable flash access!
+    uint32_t flags = save_and_disable_interrupts();
+
+    // Set chip select to Hi-Z
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_LOW << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+
+    // Note we can't call into any sleep functions in flash right now
+    for (volatile int i = 0; i < 1000; ++i);
+
+    // The HI GPIO registers in SIO can observe and control the 6 QSPI pins.
+    // Note the button pulls the pin *low* when pressed.
+    bool button_state = !(sio_hw->gpio_hi_in & (1u << CS_PIN_INDEX));
+
+    // Need to restore the state of chip select, else we are going to have a
+    // bad time when we return to code in flash!
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+
+    restore_interrupts(flags);
+
+    return button_state;
+}
+
 static void tick_background_tasks() {
     #if MICRO_ROS_TRANSPORT_CAN
     canbus_tick();
@@ -164,6 +196,12 @@ static void tick_background_tasks() {
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_update_pins();
+
+        if (get_bootsel_button()) {
+            dynamixel_set_target_position(1, 500);
+        } else {
+            dynamixel_set_target_position(1, 2048);
+        }
     }
     #endif
 
@@ -171,11 +209,15 @@ static void tick_background_tasks() {
 }
 
 void on_dynamixel_error(uint8_t error) {
-    panic("Dynamixel error: %d", error); // TODO: raise safety fault
+    printf("ERROR CALLBACK: %d\n", error);
+    return;
 }
 
 void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
     switch (event) {
+        case DYNAMIXEL_EVENT_PING:
+            printf("Received ping from %d\n", id);
+            break;
         case DYNAMIXEL_EVENT_EEPROM_READ: {
             struct dynamixel_eeprom eeprom;
             dynamixel_get_eeprom(id, &eeprom);
@@ -203,7 +245,7 @@ void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
             printf("-------------------\n");
 
             break;
-        }   
+        }
         case DYNAMIXEL_EVENT_RAM_READ: {
             struct dynamixel_ram ram;
             dynamixel_get_ram(id, &ram);
@@ -233,18 +275,21 @@ int main() {
     #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
 
-
+    sleep_ms(2000);
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
+    printf("Stuff setup... initializing servo\n");
+    sleep_ms(100);
     uint8_t servos[] = {1};
     dynamixel_init(servos, 1, on_dynamixel_error, on_dynamixel_event);
-    dynamixel_set_id(1, 3); // Change ID from 1 to 3
+    printf("Dynamixel init complete\n");
+    sleep_ms(100);
+    // dynamixel_set_id(1, 3); // Change ID from 1 to 3
 
-    dynamixel_set_target_position(1, 500);
     dynamixel_enable_torque(1, true);
 
     // Initialize ROS Transports
