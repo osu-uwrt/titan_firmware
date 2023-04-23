@@ -115,6 +115,41 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
 
   uint8_t *param_buf = result->packet->p_param_buf;
   struct dynamixel_ram *ram = &servo_ram[current_servo_idx];
+  ram->torque_enable = param_buf[DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
+  ram->hardware_error_status = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
+  ram->present_position = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_POSITION_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
+  ram->present_velocity = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_VELOCITY_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
+  // ram-> = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR]
+  // bool torque_enable;
+  // uint8_t led;
+  // uint8_t status_return_level;
+  // uint8_t registered_instruction;
+  // uint8_t hardware_error_status;
+  // uint16_t velocity_i_gain;
+  // uint16_t velocity_p_gain;
+  // uint16_t position_d_gain;
+  // uint16_t position_i_gain;
+  // uint16_t position_p_gain;
+  // uint16_t feedforward_2nd_gain;
+  // uint16_t feedforward_1st_gain;
+  // uint8_t bus_watchdog;
+  // uint16_t goal_pwm;
+  // uint32_t goal_velocity;
+  // uint32_t profile_accel;
+  // uint32_t profile_vel;
+  // uint32_t goal_position;
+  // uint16_t realtime_tick;
+  // uint8_t moving;
+  // uint8_t moving_status;
+  // uint16_t present_pwm;
+  // uint16_t present_load;
+  // uint32_t present_velocity;
+  // uint32_t present_position;
+  // uint32_t velocity_trajectory;
+  // uint32_t position_trajectory;
+  // uint16_t present_input_voltage;
+  // uint16_t present_temperature;
+  // uint8_t backup_ready;
 
   event_cb(DYNAMIXEL_EVENT_RAM_READ, current_servo_idx);
   current_servo_idx++;
@@ -155,6 +190,7 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
 
   uint8_t *param_buf = result->packet->p_param_buf;
   struct dynamixel_eeprom *eeprom = &servo_eeproms[current_servo_idx];
+  // TODO: need to subtract the eeprom start address in case it does not start at zero
   eeprom->model_num = PacketGetU16(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_NUM_ADDR);
   eeprom->model_info = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_INFO_ADDR);
   eeprom->firmware_version = param_buf[DYNAMIXEL_CTRL_TABLE_FIRMWARE_VERSION_ADDR];
@@ -289,6 +325,7 @@ bool dynamixel_enable_torque(dynamixel_id id, bool enabled) {
 }
 
 bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos) {
+  assert(false);
   return false;
 }
 
@@ -298,3 +335,11 @@ void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom) {
 
   memcpy(eeprom, &servo_eeproms[idx], sizeof(struct dynamixel_eeprom));
 }
+
+void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram) {
+  int idx = servo_id_to_index(id);
+  assert(idx >= 0); // TODO: what to do in this case? 
+
+  memcpy(ram, &servo_ram[idx], sizeof(struct dynamixel_ram));
+}
+

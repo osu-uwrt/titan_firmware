@@ -105,6 +105,8 @@ bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos);
 
 void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom);
 
+void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram);
+
 /* How control servo (?) */
 
 #endif

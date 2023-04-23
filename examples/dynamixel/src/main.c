@@ -162,6 +162,18 @@ void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
 
             break;
         }   
+        case DYNAMIXEL_EVENT_RAM_READ: {
+            struct dynamixel_ram ram;
+            dynamixel_get_ram(id, &ram);
+
+            printf("--- Servo %d RAM ---\n", id);
+            printf("  Torque Enable: %d\n", ram.torque_enable);
+            printf("  Hardware Error Status: %d\n", ram.hardware_error_status);
+            printf("  Present Position: %d\n", ram.present_position);
+            printf("  Present Velocity: %d\n", ram.present_velocity);
+            printf("-------------------\n");
+            break;
+        }
         default:
             printf("Receieved unknown dynamixel event %d for ID %d\n", event, id);
             break;
