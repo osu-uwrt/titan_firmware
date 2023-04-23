@@ -9,7 +9,7 @@
 
 public rxdata:
     set pindirs, 0
-.wrap
+.wrap_target
 rxcontinue:
     wait 0 pin 0  [3]            ; Stall until start bit is asserted
     set x, 7   [7]               ; Preload bit counter, then delay until halfway through
@@ -24,7 +24,7 @@ rxloop:                          ; the first data bit (12 cycles incl wait, set)
 
 good_stop:                       ; No delay before returning to start; a little slack is
     push noblock                 ; important in case the TX clock is slightly too fast.
-.wrap_target
+.wrap
 
 ; Entry point to begin data transmission
 ; x must be loaded with the number of bytes to transmit
@@ -55,6 +55,7 @@ static inline void uart_multidrop_program_init(PIO pio, uint sm, uint offset, ui
     sm_config_set_in_pins(&c, pin); // for WAIT, IN
     sm_config_set_jmp_pin(&c, pin); // for JMP
     sm_config_set_out_pins(&c, pin, 1);  // For out on transmit
+    sm_config_set_set_pins(&c, pin, 1);  // For set pindirs
     sm_config_set_sideset_pins(&c, pin);  // For side set on transmit
 
     // Configure shift
@@ -68,7 +69,6 @@ static inline void uart_multidrop_program_init(PIO pio, uint sm, uint offset, ui
 
     // Start state machine
     pio_sm_init(pio, sm, offset + uart_multidrop_offset_rxdata, &c);
-    pio_sm_exec(pio, sm, pio_encode_jmp(offset + uart_multidrop_offset_rxdata));
     pio_sm_set_enabled(pio, sm, true);
 }
 

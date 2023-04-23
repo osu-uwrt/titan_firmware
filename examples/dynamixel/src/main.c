@@ -51,13 +51,14 @@ void my_read_cb(enum async_uart_rx_err error, uint8_t *data, size_t len) {
         }
     } else {
         printf("ERR: %d\n", error);
-        async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+        if (is_receiver && error != ASYNC_UART_RX_BUSY) {
+            async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+        }
     }
 }
 
 void __time_critical_func(my_write_cb)(enum async_uart_tx_err error) {
     if (!error) {
-        printf("Tx done!\n");
         async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
     }
     else {
@@ -66,12 +67,12 @@ void __time_critical_func(my_write_cb)(enum async_uart_tx_err error) {
 }
 
 int64_t transmit_pacer(__unused alarm_id_t id, __unused void *user_data) {
-    printf("Transmit: \"%.8s\"\n", data_buf);
-    async_uart_write(data_buf, sizeof(data_buf), false, my_write_cb);
     data_buf[6]++;
     if (data_buf[6] > '9') {
         data_buf[6] = '0';
     }
+    printf("Transmit: \"%.8s\"\n", data_buf);
+    async_uart_write(data_buf, sizeof(data_buf), false, my_write_cb);
     return 500 * 1000;
 }
 
@@ -193,6 +194,12 @@ int main() {
     uint8_t servos[] = {1};
     dynamixel_init(servos, 1, on_dynamixel_error);
     dynamixel_set_id(1, 3); // Change ID from 1 to 3
+    // async_uart_init(pio0, 0, 4, 57600, (is_receiver ? 1000 : 100));
+    // if (is_receiver) {
+    //     async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+    // } else {
+    //     add_alarm_in_ms(50, transmit_pacer, NULL, true);
+    // }
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
