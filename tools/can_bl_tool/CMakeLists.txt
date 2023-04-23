@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_subdirectory(${PICO_SDK_PATH}/src/common/pico_binary_info pico_binary_info)
 add_subdirectory(${PICO_SDK_PATH}/src/common/boot_uf2 boot_uf2_headers)
+add_subdirectory(${REPO_DIR}/bootloader/bl_binary_info bl_binary_info)
 add_subdirectory(${REPO_DIR}/lib/can_bus/canmore_protocol canmore_protocol)
 
 add_executable(can_bl_tool
@@ -41,4 +42,7 @@ target_link_libraries(can_bl_tool
     canmore_protocol
 	boot_uf2_headers
 	pico_binary_info
+	bl_binary_info
+
+	pthread
 )

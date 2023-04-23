@@ -9,6 +9,7 @@
 #define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
 
 #define WATCHDOG_TIMEOUT_MS 3000
+#define LINK_DELAY_MS 5000
 #define BOOT_DELAY_MS 500
 #define BOOTLOADER_TIMEOUT_SEC 30
 
@@ -41,7 +42,7 @@ void run_bootloader(void) {
     gpio_put(STATUS_LEDR_PIN, 1);
     gpio_put(STATUS_LEDB_PIN, 0);
 
-    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000 * 3600);
+    absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
 
     while (!time_reached(bootloader_timeout) && !bl_server_should_reboot()) {
         watchdog_update();
@@ -55,15 +56,23 @@ void run_bootloader(void) {
 
     // Don't try to return after exiting bootloader, just exit
     // This is so that in the event the device was reflashed, it'll get a clean start
+    watchdog_hw->scratch[0] = 0x1035000;
+    watchdog_hw->scratch[1] = 0x7193006;
     watchdog_reboot(0, 0, 0);
 }
 
 int main(void) {
     // First step, before enabling the watchdog (which clears scratch[4]), check if bootloader magic set
     bool enter_bootloader = false;
+    bool notify_watchdog_reset = false;
     if (watchdog_hw->scratch[4] == 0xb00710ad) {
         enter_bootloader = true;
         watchdog_hw->scratch[4] = 0;
+    }
+    else if ((watchdog_caused_reboot() &&
+                watchdog_hw->scratch[4] == WATCHDOG_BOOTLOADER_NON_REBOOT_MAGIC) ||
+            watchdog_enable_caused_reboot()) {
+        notify_watchdog_reset = true;
     }
 
     // Next enable watchdog before anything else
@@ -85,23 +94,37 @@ int main(void) {
         busy_wait_ms(BOOT_DELAY_MS);
 
         // Try to boot an image, if this fails, just exit
-        boot_app_attempt();
+        boot_app_attempt(notify_watchdog_reset);
         return 0;
     }
 
     bl_server_init();
+
+    // Wait for link before doing anything else
+    uint64_t poll_start = time_us_64();
+    while (((time_us_64() - poll_start) < LINK_DELAY_MS * 1000)) {
+        if (bl_interface_check_online()) {
+            break;
+        }
+        watchdog_update();
+    }
     bl_interface_notify_boot();
 
-    while ((time_us_64() < BOOT_DELAY_MS * 1000) && !enter_bootloader) {
-        if (bl_server_check_for_magic_packet()) {
-            enter_bootloader = true;
+    // Then check if we should enter bootloader
+    if (bl_interface_check_online()) {
+        poll_start = time_us_64();
+        while (((time_us_64() - poll_start) < BOOT_DELAY_MS * 1000) && !enter_bootloader) {
+            if (bl_server_check_for_magic_packet()) {
+                enter_bootloader = true;
+            }
+            watchdog_update();
         }
     }
 
     // If we aren't supposed to enter bootloader, try to boot the application image
     if (!enter_bootloader) {
         watchdog_update();
-        boot_app_attempt();
+        boot_app_attempt(notify_watchdog_reset);
     }
 
     // Fallthrough into bootloader

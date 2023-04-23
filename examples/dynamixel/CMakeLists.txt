@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_power_board)
+set(PICO_BOARD pico)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -27,9 +27,7 @@ include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
 project(dynamixel_example C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
@@ -48,14 +46,14 @@ pico_enable_stdio_uart(dynamixel_example 1)
 pico_set_program_name(dynamixel_example "Template Project")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(dynamixel_example)
+titan_use_upload_tool(dynamixel_example)
 
 # Define linking and targets
 pico_add_extra_outputs(dynamixel_example)
 target_link_libraries(dynamixel_example
 	basic_logger	# A nice little logging library
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
+	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support

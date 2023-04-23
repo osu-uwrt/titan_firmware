@@ -5,6 +5,7 @@ if (NOT DEFINED BOOTLOADER_INTERFACE)
 endif()
 
 # Include the runtime subdirectory
+add_subdirectory(bl_binary_info)
 add_subdirectory(bootloader_runtime)
 
 # Define common bootloader base

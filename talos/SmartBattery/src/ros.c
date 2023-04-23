@@ -103,14 +103,13 @@ static void electrical_command_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
 
     // check if the command was a power cycle
-    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER){
         request_powercycle = true;
     }
 
     // also check for a reset
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
-        safety_notify_software_reset();
         watchdog_reboot(0, 0, 0);
     }
 }
@@ -212,11 +211,16 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info){
 // ROS Core
 // ========================================
 
-rcl_ret_t ros_init() {
+#define NODE_SUFFIX "_firmware"
+char node_name[sizeof(PICO_BOARD) + 6 + sizeof(NODE_SUFFIX)];
+
+rcl_ret_t ros_init(uint8_t board_id) {
     // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
+
+    snprintf(node_name, sizeof(node_name), PICO_BOARD "_%d" NODE_SUFFIX, board_id);
+    RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
     RCRETCHECK(rclc_publisher_init_default(

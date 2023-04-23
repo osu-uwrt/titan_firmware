@@ -32,19 +32,16 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
-        // If the request is completely inside the region, just return the word
+        // Write the word
+        // Note that this is done to ensure that it can be written if byte buffer length isn't divisible by 4
+        // Also necessary in the event the buffer is not word aligned
         int extra_bytes = ((req->offset * word_size) + word_size) - page->type.mem_mapped_byte.size;
-        if (extra_bytes <= 0) {
-            ((uint32_t*)page->type.mem_mapped_byte.base_addr)[req->offset] = req->data;
-        }
-        // If its a partial read, grab the bytes that exist then fill the rest with 0s
-        else {
-            uint32_t write_word = req->data;
-            size_t write_offset = req->offset * word_size;
-            for (unsigned int i = 0; i < (word_size - extra_bytes); i++) {
-                page->type.mem_mapped_byte.base_addr[write_offset++] = write_word;
-                write_word >>= 8;
-            }
+        if (extra_bytes < 0) extra_bytes = 0;
+        uint32_t write_word = req->data;
+        size_t write_offset = req->offset * word_size;
+        for (unsigned int i = 0; i < (word_size - extra_bytes); i++) {
+            page->type.mem_mapped_byte.base_addr[write_offset++] = write_word;
+            write_word >>= 8;
         }
 
         return REG_MAPPED_RESULT_SUCCESSFUL;
@@ -120,21 +117,16 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
-        // If the request is completely inside the region, just return the word
+        // Handle unaligned buffers or reads at the end of the buffer
         int required_padding = ((req->offset * word_size) + word_size) - page->type.mem_mapped_byte.size;
-        if (required_padding <= 0) {
-            *data_out = ((uint32_t*)page->type.mem_mapped_byte.base_addr)[req->offset];
+        if (required_padding < 0) required_padding = 0;
+        uint32_t partial_read = 0;
+        size_t read_offset = req->offset * word_size;
+        for (unsigned int i = 0; i < (word_size - required_padding); i++) {
+            partial_read |= page->type.mem_mapped_byte.base_addr[read_offset++] << (8*i);
         }
-        // If its a partial read, grab the bytes that exist then fill the rest with 0s
-        else {
-            uint32_t partial_read = 0;
-            size_t read_offset = req->offset * word_size;
-            for (unsigned int i = 0; i < (word_size - required_padding); i++) {
-                partial_read |= page->type.mem_mapped_byte.base_addr[read_offset++] << (8*i);
-            }
 
-            *data_out = partial_read;
-        }
+        *data_out = partial_read;
 
         return REG_MAPPED_RESULT_SUCCESSFUL;
     }

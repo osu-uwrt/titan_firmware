@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include "boot/uf2.h"
 
-#define BOOTLOADER_SIZE 0x4000  // TODO: Grab this from the binary info
+#define BOOTLOADER_SIZE 0x4000
 #define FLASH_BASE 0x10000000
 #define FLASH_SIZE (16*1024*1024) // 16 MB Flash size
 #define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing

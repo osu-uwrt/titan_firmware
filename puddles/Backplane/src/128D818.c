@@ -1,4 +1,5 @@
 #include <async_i2c.h>
+#include <math.h>
 #include <128D818.h>
 
 uint16_t D818_value_array[D818_CHANNEL_NUM] = {0, 0, 0, 0};
@@ -31,7 +32,7 @@ void D818_read() {
     data[0] = D818_REG_BUSY_ADDR;
     async_i2c_write_blocking_until(i2c1, D818_ADDR, data, 1, 1, make_timeout_time_ms(5));
     do {
-        async_i2c_read_blocking_until(i2c1, D818_ADDR, data, 1, 0, make_timeout_time_ms(5)); 
+        async_i2c_read_blocking_until(i2c1, D818_ADDR, data, 1, 0, make_timeout_time_ms(5));
     } while((*data & 0x01) != 0);
     for(uint8_t chan = 0; chan < D818_CHANNEL_NUM; chan++) {
         if(!D818_valid_array[chan]) {
@@ -46,10 +47,10 @@ void D818_read() {
     }
 }
 
-uint16_t D818_query(uint8_t chan) {
+float D818_query(uint8_t chan) {
     if(D818_valid_array[chan]) {
         D818_valid_array[chan] = 0;
         return D818_value_array[chan];
     }
-    return 0;
+    return NAN;
 }

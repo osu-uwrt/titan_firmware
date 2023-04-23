@@ -20,10 +20,9 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
+# Define project
 project(micro_ros_example C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+titan_firmware_init()
 
 # Define executable
 add_executable(micro_ros_example
@@ -39,7 +38,7 @@ pico_enable_stdio_uart(micro_ros_example 0)
 pico_set_program_name(micro_ros_example "Micro-ROS Example")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(micro_ros_example)
+titan_use_upload_tool(micro_ros_example)
 
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)

@@ -63,7 +63,7 @@ RegMappedCANClient::~RegMappedCANClient() {
 
 void RegMappedCANClient::sendRaw(const std::vector<uint8_t> data) {
     if (!clientTx(data.data(), data.size())) {
-        throw RegMappedClientError(REG_MAPPED_CLIENT_RESULT_TX_FAIL);
+        throw RegMappedClientError(REG_MAPPED_CLIENT_RESULT_TX_FAIL, data.size());
     }
 }
 

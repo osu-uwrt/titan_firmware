@@ -12,6 +12,9 @@ target_link_libraries(micro_ros_eth INTERFACE
     wiznet_ethernet
     hardware_flash
 
+    canmore_protocol
+    canmore_debug_interface
+
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )
 

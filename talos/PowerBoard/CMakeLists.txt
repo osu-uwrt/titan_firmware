@@ -27,9 +27,7 @@ include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
 project(power_board C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
@@ -50,8 +48,8 @@ pico_enable_stdio_uart(power_board 1)
 pico_set_program_name(power_board "Power Board FW")
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(power_board)
-uwrt_enable_bootloader(power_board can)
+titan_use_upload_tool(power_board)
+titan_enable_bootloader(power_board can)
 
 # Define linking and targets
 pico_add_extra_outputs(power_board)
@@ -62,7 +60,7 @@ target_link_libraries(power_board
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
-	hardware_adc	
+	hardware_adc
 	async_i2c		# used for MCP34326
 	# Add any additional hardware here (ex. hardware_i2c)
 )

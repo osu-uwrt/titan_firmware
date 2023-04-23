@@ -99,7 +99,7 @@ void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb err
 
 bool dynamixel_set_id(dynamixel_id old, dynamixel_id new);
 
-bool dynamixel_enable_torque(dynamixel_id id, bool enabled);
+bool dynamixel_set_id(dynamixel_id old, dynamixel_id new);
 
 bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos);
 

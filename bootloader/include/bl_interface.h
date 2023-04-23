@@ -35,6 +35,11 @@ bool bl_interface_init(void);
 void bl_interface_heartbeat(void);
 
 /**
+ * @brief Check if the given interface is online
+ */
+bool bl_interface_check_online(void);
+
+/**
  * @brief Attempt to notify that the device has booted over the heartbeat channel
  */
 void bl_interface_notify_boot(void);

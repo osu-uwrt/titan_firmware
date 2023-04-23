@@ -1,9 +1,11 @@
 #include "dynamixel_comms.h"
-#include "async_rs485.h"
 #include "dxl_packet.h"
-#include "dynamixel.h"
 #include "dynamixel_controls.h"
 #include "string.h"
+#include "dynamixel/dynamixel.h"
+#include "dxl_packet.h"
+#include "dynamixel/async_uart.h"
+#include <string.h>
 #include <assert.h> // TODO: remove
 
 #define PROTOCOL 2
@@ -34,13 +36,12 @@ static struct current_request req;
 /** Used internally as the read/write buffer. */
 static uint8_t rs485_buf[DYNAMIXEL_PACKET_BUF_SIZE] = {0};
 
-static void on_receive_reply_body(uint8_t error, uint8_t *data,
-                                  uint16_t data_len) {
-  if (error) {
+static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
+  if (error != ASYNC_UART_RX_OK) {
     req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
   }
 
-  for (int i = 0; i < data_len - 1; i++) {
+  for (size_t i = 0; i < data_len - 1; i++) {
     if (parse_dxl_packet(&rx_packet, data[i]) != DXL_LIB_PROCEEDING) {
       req.user_cb(DYNAMIXEL_PACKET_ERROR, NULL);
     }
@@ -56,13 +57,12 @@ static void on_receive_reply_body(uint8_t error, uint8_t *data,
   req.user_cb(0, &result);
 }
 
-static void on_receive_reply_header(uint8_t error, uint8_t *data,
-                                    uint16_t data_len) {
+static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data, size_t data_len) {
   begin_parse_dxl_packet(&rx_packet, PROTOCOL, rs485_buf,
                          DYNAMIXEL_PACKET_BUF_SIZE);
   uint16_t body_length = 0;
 
-  if (error) {
+  if (error != ASYNC_UART_RX_OK) {
     req.user_cb(DYNAMIXEL_TTL_ERROR, NULL);
     return;
   }
@@ -81,15 +81,15 @@ static void on_receive_reply_header(uint8_t error, uint8_t *data,
     }
   }
 
-  async_rs485_read(rs485_buf + DYNAMIXEL_REPLY_HEADER_SIZE, body_length,
+  async_uart_read(rs485_buf + DYNAMIXEL_REPLY_HEADER_SIZE, body_length,
                    on_receive_reply_body);
 }
 
-static void on_packet_sent(uint8_t error) {
-  if (error) {
+static void on_packet_sent(enum async_uart_tx_err error) {
+  if (error != ASYNC_UART_TX_OK) {
     req.user_cb(error, NULL);
   } else {
-    async_rs485_read(rs485_buf, DYNAMIXEL_REPLY_HEADER_SIZE,
+    async_uart_read(rs485_buf, DYNAMIXEL_REPLY_HEADER_SIZE,
                      on_receive_reply_header);
   }
 }
@@ -104,7 +104,7 @@ void dynamixel_send_packet(dynamixel_request_cb callback,
   req.user_cb = callback;
   req.instr = packet->inst_idx;
 
-  async_rs485_write(rs485_buf, length, on_packet_sent);
+  async_uart_write(rs485_buf, length, false, on_packet_sent);
 }
 
 enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet,

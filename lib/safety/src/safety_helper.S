@@ -108,12 +108,16 @@ __wrap_panic:
     // Restore the hardfault handler so when bkpt #0 is called it doesn't overwrite the values just set
     bl safety_restore_hardfault
 
+    // Load r12 with the real panic address
+    // Need to use b so we don't nuke the stack trace
+    // But b won't relocate long enough, so we need to do register addressing
+    ldr r0, =__real_panic
+    mov r12, r0
+
     pop {r0-r3}
 
     // Call the true panic
-    bl __real_panic
-    bkpt #0
-    b .
+    bx r12
 
 
 #define HARD_FAULT_DATA 0x1035004

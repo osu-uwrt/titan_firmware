@@ -63,6 +63,10 @@ bool bl_interface_init(void) {
         return false;
     }
 
+    // Configure RTR and RCR to not insane values
+    w5100_setRetransmissionTime(&eth_device, 300);	// 30ms timeout
+	w5100_setRetransmissionCount(&eth_device, 1);
+
     // start the Ethernet
     eth_ifconfig(&eth_device, device_ip, gateway, subnet);
 
@@ -97,14 +101,18 @@ static void bl_interface_send_heartbeat_byte(uint8_t mode) {
     }
 
     if (!eth_udp_beginPacket(&heartbeat_socket, heartbeat_broadcast, heartbeat_port)) {
+        __breakpoint();
 		return;
 	}
 
 	if (eth_udp_write(&heartbeat_socket, &byte, 1) != 1) {
+        __breakpoint();
         return;
 	}
 
-	eth_udp_endPacket(&heartbeat_socket);
+	if (!eth_udp_endPacket(&heartbeat_socket)) {
+        __breakpoint();
+    }
 }
 
 void bl_interface_heartbeat(void) {
@@ -112,7 +120,12 @@ void bl_interface_heartbeat(void) {
 }
 
 void bl_interface_notify_boot(void) {
+    busy_wait_ms(1000);
     bl_interface_send_heartbeat_byte(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY);
+}
+
+bool bl_interface_check_online(void){
+    return w5100_getLinkStatus(&eth_device) == LINK_ON;
 }
 
 bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out) {
@@ -133,7 +146,7 @@ bool bl_interface_try_receive(uint8_t *msg_out, size_t *len_out) {
 	}
 
     // now we can attempt the socket reads
-	if (eth_udp_read(&control_socket, msg_out, BL_INTERFACE_MAX_PACKET_LEN) != BL_INTERFACE_MAX_PACKET_LEN) {
+	if (eth_udp_read(&control_socket, msg_out, BL_INTERFACE_MAX_PACKET_LEN) != packetSize) {
 		return false;
 	}
 

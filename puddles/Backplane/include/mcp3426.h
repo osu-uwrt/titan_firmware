@@ -1,16 +1,34 @@
-#ifndef MCP3426_H
-#define MCP3426_H
+#ifndef MCP3426
+#define MCP3426
 
-#include "hardware/i2c.h"
-#include "pico/stdlib.h"
+enum mcp3426_gain {
+    MCP3426_GAIN_X1 = 0,
+    MCP3426_GAIN_X2 = 1,
+    MCP3426_GAIN_X4 = 2,
+    MCP3426_GAIN_X8 = 3,
+};
 
-#define MCP3426_CHANNEL_NUM 4
+enum mcp3426_channel {
+    MCP3426_CHANNEL_1 = 0,
+    MCP3426_CHANNEL_2 = 1,
+    MCP3426_CHANNEL_3 = 2,
+    MCP3426_CHANNEL_4 = 3,
+    MCP3426_CHANNEL_COUNT,
+};
 
-#define MCP3426_ADDR 0x68
-#define mcp3426_config_reg(chan, rate, gain) 0x90 | (chan << 5) | (rate << 2) | (gain)
+enum mcp3426_sample_rate {
+    MCP3426_SAMPLE_RATE_12_BIT = 0,
+    MCP3426_SAMPLE_RATE_14_BIT = 1,
+    MCP3426_SAMPLE_RATE_16_BIT = 2,
+};
+
+enum mcp3426_mode {
+    MCP3426_MODE_ONE_SHOT = 0,
+    MCP3426_MODE_CONTINOUS = 1,
+};
 
 void mcp3426_init();
-void mcp3426_read();
-uint16_t mcp3426_query(uint8_t chan);
+
+float mcp3426_read_voltage(enum mcp3426_channel channel);
 
 #endif

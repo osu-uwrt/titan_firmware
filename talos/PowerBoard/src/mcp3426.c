@@ -25,7 +25,7 @@
 /// Creates a MCP3426 configuration byte.
 #define mcp3426_config_reg(read, chan, mode, rate, gain) (read << 7) | (chan << 5) | (mode << 4) | (rate << 2) | (gain)
 
-static float adc_values[MCP3426_CHANNEL_COUNT] = {0};
+static float adc_values[MCP3426_CHANNEL_COUNT] = {[0 ... MCP3426_CHANNEL_COUNT-1] = NAN};
 static int mode = MCP3426_MODE_UNINITIALIZED;
 static bool msg_in_progress = false;
 
@@ -33,11 +33,15 @@ static void mcp3426_on_read(const struct async_i2c_request *req);
 static void mcp3426_on_write(const struct async_i2c_request *req);
 static void mcp3426_on_setup_complete(const struct async_i2c_request *req);
 
-static void mcp3426_on_error(const struct async_i2c_request *req, uint32_t error_code) {
+static int err_count = 2;  // Start where 1 error will cause fault, cleared to 0 on first successful read
+
+static void mcp3426_on_error(const struct async_i2c_request *req, __unused uint32_t error_code) {
     (void) req;
 
-    LOG_WARN("ADC failure: ", error_code);
-    safety_raise_fault(FAULT_ADC_ERROR);
+    err_count++;
+    if (err_count >= 3) {
+        safety_raise_fault(FAULT_ADC_ERROR);
+    }
 
     for (size_t i = 0; i < MCP3426_CHANNEL_COUNT; i++)  {
         adc_values[i] = NAN;
@@ -68,7 +72,7 @@ static struct async_i2c_request general_call_reset_req = {
     .bytes_to_send = 1,
     .bytes_to_receive = 0,
     .completed_callback = &mcp3426_on_setup_complete,
-    .failed_callback = &mcp3426_on_error, // TODO
+    .failed_callback = &mcp3426_on_error,
     .next_req_on_success = NULL,
 };
 
@@ -122,6 +126,8 @@ static void mcp3426_on_read(const struct async_i2c_request *req)
     uint8_t config = rx_buffer[2];
     uint8_t channel = (config >> 5) & 0x03;
     bool ready = !(config & 0x80);
+
+    err_count = 0;
 
     if(ready) {
         float voltage = (float) data;

@@ -3,10 +3,16 @@
     // Mark 2 Era Boards
     // ========================================
     {
-        // The first puddles backplane assembled
-        "name": "Puddles Backplane",
+        // The first puddles backplane assembled (dev board)
+        "name": "Puddles Dev Backplane",
         "boardType": "puddles_backplane",
         "serial": "E462288893572D28"
+    },
+    {
+        // The official puddles backplane
+        "name": "Puddles Backplane",
+        "boardType": "puddles_backplane",
+        "serial": "E462288893573D28"
     },
     // All these boards were part of the Mark 2 design
     {
@@ -33,6 +39,16 @@
         "name": "Mark 2 Power Board",
         "boardType": "mk2_power_board",
         "serial": "E662145507404F27"
+    },
+    {
+        "name": "Smart Battery Housing #1",
+        "boardType": "sbh_mcu",
+        "serial": "E662145507405727"
+    },
+    {
+        "name": "Smart Battery Housing #2",
+        "boardType": "sbh_mcu",
+        "serial": "E66214550761C627"
     },
 
 

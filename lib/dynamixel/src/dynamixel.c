@@ -1,12 +1,12 @@
 
-#include "dynamixel.h"
-#include "basic_queue/queue.h"
-#include "dynamixel_comms.h"
-#include "dynamixel_controls.h"
 #include <assert.h>
-
-#include "pico/time.h"
 #include <string.h>
+#include "pico/time.h"
+#include "basic_queue/queue.h"
+
+#include "dynamixel/dynamixel.h"
+#include "dynamixel_controls.h"
+#include "dynamixel_comms.h"
 
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8

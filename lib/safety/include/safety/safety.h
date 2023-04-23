@@ -146,13 +146,6 @@ extern volatile uint32_t * const depth_cal_reg;
 #define DEPTH_CALIBRATION_INVALID 0xFFFFFFFF
 
 /**
- * @brief Notify safety that a software reset is ocurring.
- * This sets the required watchdog scratch registers to notify of a clean boot via a watchdog reset.
- * If this is not called, it will instead report the source of the clean boot as whatever the vreg peripherial's RESET_CAUSE is.
- */
-void safety_notify_software_reset(void);
-
-/**
  * @brief Resets into bootloader mode.
  * This issues a watchdog reset with the proper flags set to enter bootloader mode.
  * This function does not return

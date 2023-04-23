@@ -182,25 +182,6 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len);
 extern const size_t canbus_utility_frame_max_length;
 
 /**
- * @brief Returns if a CANmore utility frame is availble to be read.
- * @attention Requires `canbus_init` to be called
- * @attention Can not be used in interrupts
-*/
-bool canbus_utility_frame_read_available(void);
-
-/**
- * @brief Reads the next available CANmore utility frame in the buffer.
- * @attention Requires `canbus_init` to be called
- * @attention Can not be used in interrupts
- *
- * @param channel_out A pointer to write the channel this frame was received on
- * @param buf The buffer for the received frame data
- * @param len The buffer size, if the received frame is longer than this value it will be truncated
- * @return The length of data copied into the buffer
-*/
-size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len);
-
-/**
  * @brief Returns if space is available to write another CANmore utility frame in the transmit buffer.
  * @attention Requires `canbus_init` to be called
  * @attention Can not be used in interrupts
@@ -218,5 +199,17 @@ bool canbus_utility_frame_write_available(void);
  * @return The number of bytes transmitted (either `len` or `canbus_utility_frame_max_length` if truncated)
 */
 size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len);
+
+typedef void (*canbus_utility_chan_cb_t)(uint32_t channel, uint8_t *buf, size_t len);
+
+/**
+ * @brief Register utility frame callback
+ *
+ * Note that this is called during canbus_tick
+ *
+ * @param channel The channel to receive messages for
+ * @param cb The function to receive callbacks for
+ */
+void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t cb);
 
 #endif

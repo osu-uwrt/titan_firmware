@@ -7,7 +7,8 @@
 #include "safety_interface.h"
 #include "led.h"
 
-#include "dynamixel.h"
+#include "dynamixel/dynamixel.h"
+#include "dynamixel/async_uart.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -17,6 +18,8 @@
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
 #endif
+
+#define is_receiver 0
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -33,6 +36,45 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
+
+uint8_t data_buf[8] = "Hello 0";
+uint8_t recv_buf[8];
+
+void my_write_cb(enum async_uart_tx_err error);
+
+void my_read_cb(enum async_uart_rx_err error, uint8_t *data, size_t len) {
+    if (!error) {
+        if (is_receiver) {
+            async_uart_write(data, len, false, my_write_cb);
+        } else {
+            printf("Received: \"%.8s\"\n", data);
+        }
+    } else {
+        printf("ERR: %d\n", error);
+        if (is_receiver && error != ASYNC_UART_RX_BUSY) {
+            async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+        }
+    }
+}
+
+void __time_critical_func(my_write_cb)(enum async_uart_tx_err error) {
+    if (!error) {
+        async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
+    }
+    else {
+        printf("TX Busy?\n");
+    }
+}
+
+int64_t transmit_pacer(__unused alarm_id_t id, __unused void *user_data) {
+    data_buf[6]++;
+    if (data_buf[6] > '9') {
+        data_buf[6] = '0';
+    }
+    printf("Transmit: \"%.8s\"\n", data_buf);
+    async_uart_write(data_buf, sizeof(data_buf), false, my_write_cb);
+    return 500 * 1000;
+}
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.

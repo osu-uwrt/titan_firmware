@@ -25,10 +25,9 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
+# Define Project
 project(backplane_test C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
@@ -51,8 +50,8 @@ pico_set_program_name(backplane_firmware "Backplane Test")
 target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(backplane_firmware)
-uwrt_enable_bootloader(backplane_firmware eth)
+titan_use_upload_tool(backplane_firmware)
+titan_enable_bootloader(backplane_firmware eth)
 
 # Compile Definitions
 target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
