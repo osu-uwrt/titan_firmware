@@ -5,14 +5,17 @@
 #include "dynamixel_controls.h"
 #include <assert.h>
 
-#include <string.h>
 #include "pico/time.h"
+#include <string.h>
 
 #define MAX_SERVO_CNT 8
 #define MAX_CMDS 8
 
-#define PacketGetU16(array, idx) (((uint16_t) array[idx]) | (((uint16_t) array[idx + 1]) << 8))
-#define PacketGetU32(array, idx) (((uint32_t) array[idx]) | (((uint32_t) array[idx + 1]) << 8) | (((uint32_t) array[idx + 2]) << 16) | (((uint32_t) array[idx + 3]) << 24))
+#define PacketGetU16(array, idx)                                               \
+  (((uint16_t)array[idx]) | (((uint16_t)array[idx + 1]) << 8))
+#define PacketGetU32(array, idx)                                               \
+  (((uint32_t)array[idx]) | (((uint32_t)array[idx + 1]) << 8) |                \
+   (((uint32_t)array[idx + 2]) << 16) | (((uint32_t)array[idx + 3]) << 24))
 
 enum internal_state {
   UNINITIALIZED,
@@ -106,7 +109,7 @@ static void send_next_cmd() {
  */
 
 static void on_dynamixel_ram_read(enum dynamixel_error error,
-                                     struct dynamixel_req_result *result) {
+                                  struct dynamixel_req_result *result) {
   if (error) {
     state = STATE_FAILED;
     error_cb(error);
@@ -115,13 +118,19 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
 
   uint8_t *param_buf = result->packet->p_param_buf;
   struct dynamixel_ram *ram = &servo_ram[current_servo_idx];
-  ram->torque_enable = param_buf[DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
-  ram->hardware_error_status = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
-  ram->present_position = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_POSITION_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
-  ram->present_velocity = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_VELOCITY_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
-  // ram-> = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR]
-  // bool torque_enable;
-  // uint8_t led;
+  ram->torque_enable = param_buf[DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR -
+                                 DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
+  ram->hardware_error_status =
+      param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR -
+                DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR];
+  ram->present_position =
+      PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_POSITION_ADDR -
+                                  DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
+  ram->present_velocity =
+      PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_PRESENT_VELOCITY_ADDR -
+                                  DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
+  // ram-> = param_buf[DYNAMIXEL_CTRL_TABLE_HARDWARE_ERROR_STATUS_ADDR -
+  // DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR] bool torque_enable; uint8_t led;
   // uint8_t status_return_level;
   // uint8_t registered_instruction;
   // uint8_t hardware_error_status;
@@ -160,7 +169,7 @@ static void on_dynamixel_ram_read(enum dynamixel_error error,
     current_servo_idx = 0;
     send_next_cmd();
   }
-} 
+}
 
 static void send_ram_read() {
   if (dynamixel_create_read_packet(
@@ -190,28 +199,32 @@ static void on_dynamixel_eeprom_read(enum dynamixel_error error,
 
   uint8_t *param_buf = result->packet->p_param_buf;
   struct dynamixel_eeprom *eeprom = &servo_eeproms[current_servo_idx];
-  // TODO: need to subtract the eeprom start address in case it does not start at zero
-  eeprom->model_num = PacketGetU16(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_NUM_ADDR);
-  eeprom->model_info = PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_INFO_ADDR);
-  eeprom->firmware_version = param_buf[DYNAMIXEL_CTRL_TABLE_FIRMWARE_VERSION_ADDR];
+  // TODO: need to subtract the eeprom start address in case it does not start
+  // at zero
+  eeprom->model_num =
+      PacketGetU16(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_NUM_ADDR);
+  eeprom->model_info =
+      PacketGetU32(param_buf, DYNAMIXEL_CTRL_TABLE_MODEL_INFO_ADDR);
+  eeprom->firmware_version =
+      param_buf[DYNAMIXEL_CTRL_TABLE_FIRMWARE_VERSION_ADDR];
   eeprom->id = param_buf[DYNAMIXEL_CTRL_TABLE_ID_ADDR];
   eeprom->baud_rate = param_buf[DYNAMIXEL_CTRL_TABLE_BAUD_RATE_ADDR];
   eeprom->drive_mode = param_buf[DYNAMIXEL_CTRL_TABLE_DRIVE_MODE_ADDR];
   eeprom->operating_mode = param_buf[DYNAMIXEL_CTRL_TABLE_OPERATE_MODE_ADDR];
   eeprom->startup_config = param_buf[DYNAMIXEL_CTRL_TABLE_STARTUP_CONFIG_ADDR];
-    
-    // TODO: Read these 
-    // uint8_t return_delay_time;
-    // uint8_t secondary_id;
-    // uint8_t protocol_type;
-    // uint32_t homing_offset;
-    // uint8_t temperature_limit;
-    // uint16_t max_voltage_limit;
-    // uint16_t min_voltage_limit;
-    // uint16_t pwm_limit;
-    // uint32_t velocity_limit;
-    // uint32_t max_position_limit;
-    // uint32_t min_position_limit;
+
+  // TODO: Read these
+  // uint8_t return_delay_time;
+  // uint8_t secondary_id;
+  // uint8_t protocol_type;
+  // uint32_t homing_offset;
+  // uint8_t temperature_limit;
+  // uint16_t max_voltage_limit;
+  // uint16_t min_voltage_limit;
+  // uint16_t pwm_limit;
+  // uint32_t velocity_limit;
+  // uint32_t max_position_limit;
+  // uint32_t min_position_limit;
 
   event_cb(DYNAMIXEL_EVENT_EEPROM_READ, servos[current_servo_idx]);
   current_servo_idx++;
@@ -264,7 +277,7 @@ static void on_dynamixel_ping(enum dynamixel_error error,
 
 static void send_ping() {
   if (dynamixel_create_ping_packet(&internal_packet, internal_packet_buf,
-                                     servos[current_servo_idx]) != DXL_LIB_OK) {
+                                   servos[current_servo_idx]) != DXL_LIB_OK) {
     state = STATE_FAILED;
     error_cb(DYNAMIXEL_DRIVER_ERROR);
     return;
@@ -278,7 +291,9 @@ static void send_ping() {
  *  ========================
  */
 
-void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb _error_cb, dynamixel_event_cb _event_cb) {
+void dynamixel_init(dynamixel_id *id_list, size_t id_cnt,
+                    dynamixel_error_cb _error_cb,
+                    dynamixel_event_cb _event_cb) {
   assert(state == UNINITIALIZED);
   assert(id_cnt < MAX_SERVO_CNT);
   error_cb = _error_cb;
@@ -331,15 +346,14 @@ bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos) {
 
 void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom) {
   int idx = servo_id_to_index(id);
-  assert(idx >= 0); // TODO: what to do in this case? 
+  assert(idx >= 0); // TODO: what to do in this case?
 
   memcpy(eeprom, &servo_eeproms[idx], sizeof(struct dynamixel_eeprom));
 }
 
 void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram) {
   int idx = servo_id_to_index(id);
-  assert(idx >= 0); // TODO: what to do in this case? 
+  assert(idx >= 0); // TODO: what to do in this case?
 
   memcpy(ram, &servo_ram[idx], sizeof(struct dynamixel_ram));
 }
-
