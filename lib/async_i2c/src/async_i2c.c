@@ -444,6 +444,7 @@ bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *i
 
     // Disable interrupts during operation to prevent corruption
     uint32_t prev_interrupt = save_and_disable_interrupts();
+    __compiler_memory_barrier();
 
     if (async_i2c_queue_full()) {
         restore_interrupts(prev_interrupt);
@@ -466,6 +467,7 @@ bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *i
         request_queue_next_space = (request_queue_next_space + 1) % I2C_REQ_QUEUE_SIZE;
     }
 
+    __compiler_memory_barrier();
     restore_interrupts(prev_interrupt);
 
     if (can_transfer_immediately) {

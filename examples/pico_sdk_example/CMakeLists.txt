@@ -22,10 +22,9 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
+# Define project
 project(pico_sdk_example C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-pico_sdk_init()
+titan_firmware_init()
 
 # Define executable
 add_executable(pico_sdk_example
@@ -45,8 +44,8 @@ pico_set_program_name(pico_sdk_example "Pico SDK Example")
 target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
 # Enable the 'make upload' and 'make serial' commands for project
-uwrt_use_upload_tool(pico_sdk_example)
-uwrt_enable_bootloader(pico_sdk_example can)
+titan_use_upload_tool(pico_sdk_example)
+titan_enable_bootloader(pico_sdk_example can)
 
 # Define linking and targets
 pico_add_extra_outputs(pico_sdk_example)

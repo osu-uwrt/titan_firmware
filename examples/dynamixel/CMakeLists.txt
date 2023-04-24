@@ -6,8 +6,13 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD pico)
 
+# The Target Robot
+# These can be found in lib/uwrt_boards/include/robots
+# Store any robot dependent configuration values in these files
+set(UWRT_ROBOT talos)
+
 # Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
+# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
 # Overriding Debug increases size and slows down code, but gives more useful information during debugging
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -20,26 +25,39 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
-# Define project
-project(micro_ros_example C CXX ASM)
+# Define Project
+project(dynamixel_example C CXX ASM)
 titan_firmware_init()
 
 # Define executable
-add_executable(micro_ros_example
-	main.c
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
+add_executable(dynamixel_example
+	${SOURCES}
 )
+target_compile_options(dynamixel_example PRIVATE -Wall -Wextra -Wno-format)
+target_include_directories(dynamixel_example PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
 # Release Types: PROTO, DEV, STABLE
-generate_version_tag(micro_ros_example 1 0 PROTO)
+generate_version_tag(dynamixel_example 1 0 PROTO)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(micro_ros_example 0)
-pico_set_program_name(micro_ros_example "Micro-ROS Example")
+pico_enable_stdio_uart(dynamixel_example 1)
+pico_set_program_name(dynamixel_example "Template Project")
 
 # Enable the 'make upload' and 'make serial' commands for project
-titan_use_upload_tool(micro_ros_example)
+titan_use_upload_tool(dynamixel_example)
 
 # Define linking and targets
-pico_add_extra_outputs(micro_ros_example)
-target_link_libraries(micro_ros_example pico_stdlib micro_ros_usb)
+pico_add_extra_outputs(dynamixel_example)
+target_link_libraries(dynamixel_example
+	basic_logger	# A nice little logging library
+	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
+
+	pico_stdlib		# Pico SDK Standard Library
+	hardware_pwm	# LED PWM Support
+	dynamixel
+	# Add any additional hardware here (ex. hardware_i2c)
+)
+
