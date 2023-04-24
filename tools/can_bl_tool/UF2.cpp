@@ -7,12 +7,6 @@
 
 using namespace UploadTool;
 
-std::string hexWord(uint32_t word) {
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::setw(8) << std::setfill('0') << word;
-    return ss.str();
-}
-
 void assertBlockValid(struct uf2_block *block, uint32_t expected_num_blocks, bool verify_num_blocks) {
     // Make sure UF2 magics are valid
     if (block->magic_start0 != UF2_MAGIC_START0) {
@@ -129,8 +123,24 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
         throw RP2040UF2Error("Expected additional UF2 blocks");
     }
 
-    // Now that we have loaded, try to fetch the board type
-    boardType = getBoardType(*this);
+    // Now that we have loaded, fetch all the binary info
+    uint32_t searchBase = 0;
+    do {
+        RP2040Application app = {};
+        app.binaryStart = (searchBase == 0 ? getBaseAddress() : searchBase);
+        extractBinaryInfo(*this, app, searchBase);
+        searchBase = app.blAppBase;
+        if (boardType != "" && app.boardType != "") {
+            if (boardType != app.boardType) {
+                throw RP2040UF2Error("Mismatched board types");
+            }
+        }
+        else if (boardType == "") {
+            boardType = app.boardType;
+        }
+
+        apps.push_back(std::move(app));
+    } while (searchBase != 0);
 }
 
 std::array<uint8_t, 256>& RP2040UF2::getBlock(uint32_t blockNum) {

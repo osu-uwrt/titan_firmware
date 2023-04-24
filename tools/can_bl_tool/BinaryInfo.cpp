@@ -22,6 +22,7 @@
 
 using namespace UploadTool;
 
+namespace BinaryInfo {
 using std::string;
 using std::vector;
 using std::pair;
@@ -332,8 +333,12 @@ struct binary_info_header {
     range_map<uint32_t> reverse_copy_mapping;
 };
 
-bool find_binary_info(memory_access& access, binary_info_header &hdr) {
-    uint32_t base = access.get_binary_start();
+bool find_binary_info(memory_access& access, binary_info_header &hdr, uint32_t base = 0, uint32_t search_size = 128) {
+    // If no base passed, get it from the binary start
+    if (!base) {
+        base = access.get_binary_start();
+    }
+
     if (!base) {
         return false;
     }
@@ -341,10 +346,10 @@ bool find_binary_info(memory_access& access, binary_info_header &hdr) {
     // In the event boot2 isn't present, it'll be in the first page
     // However if boot2 is present, we need to search the second page
     vector<uint32_t> buffer = access.read_vector<uint32_t>(base, 128);
-    for(uint i=0;i<128;i++) {
+    for(uint i=0;i<search_size;i++) {
         if (buffer[i] == BINARY_INFO_MARKER_START) {
             try {
-                if (i + 4 < 128 && buffer[i+4] == BINARY_INFO_MARKER_END) {
+                if (i + 4 < search_size && buffer[i+4] == BINARY_INFO_MARKER_END) {
                     uint32_t from = buffer[i+1];
                     uint32_t to = buffer[i+2];
                     if (to > from &&
@@ -574,30 +579,73 @@ protected:
 };
 
 #pragma GCC diagnostic pop
+}
 
 // Exported binary info functions
 namespace UploadTool {
-std::string getBoardType(RP2040UF2 &uf2) {
-    std::string boardType;
+using namespace BinaryInfo;
+
+void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, uint32_t base) {
     auto raw_access = uf2_memory_access(uf2);
     try {
         binary_info_header hdr;
-        if (find_binary_info(raw_access, hdr)) {
+        if (find_binary_info(raw_access, hdr, base)) {
             auto access = remapped_memory_access(raw_access, hdr.reverse_copy_mapping);
             auto visitor = bi_visitor{};
-            visitor.id_and_string([&](int tag, uint32_t id, const string& value) {
+
+            // do a pass first to find named groups
+            visitor.named_group([&](int parent_tag, uint32_t parent_id, int group_tag, uint32_t group_id, const string& label, uint flags) {
+                if (parent_tag != BINARY_INFO_TAG_RASPBERRY_PI)
+                    return;
+                if (parent_id != BINARY_INFO_ID_RP_PROGRAM_FEATURE)
+                    return;
+                appData.namedFeatureGroups[std::make_pair(group_tag, group_id)] = std::make_pair(label, flags);
+            });
+
+            visitor.visit(access, hdr);
+
+            // Do full pass
+            visitor = bi_visitor{};
+            visitor.id_and_int([&](int tag, uint32_t id, uint32_t value) {
+                if (tag == BINARY_INFO_TAG_UWRT) {
+                    if (id == BINARY_INFO_ID_UW_BOOTLOADER_ENABLED) appData.isBootloader = !!value;
+                    if (id == BINARY_INFO_ID_UW_APPLICATION_BASE) appData.blAppBase = value;
+                }
+
                 if (tag != BINARY_INFO_TAG_RASPBERRY_PI)
                     return;
-                if (id == BINARY_INFO_ID_RP_PICO_BOARD) boardType = value;
+                if (id == BINARY_INFO_ID_RP_BINARY_END) appData.binaryEnd = value;
             });
+            visitor.id_and_string([&](int tag, uint32_t id, const string& value) {
+                const auto &nfg = appData.namedFeatureGroups.find(std::make_pair(tag, id));
+                if (nfg != appData.namedFeatureGroups.end()) {
+                    appData.namedFeatureGroupValues[nfg->second.first].push_back(value);
+                    return;
+                }
+
+                if (tag != BINARY_INFO_TAG_RASPBERRY_PI)
+                    return;
+                if (id == BINARY_INFO_ID_RP_PROGRAM_NAME) appData.programName = value;
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_VERSION_STRING) appData.programVersion = value;
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_BUILD_DATE_STRING) appData.programBuildDate = value;
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_URL) appData.programUrl = value;
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_DESCRIPTION) appData.programDescription = value;
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_FEATURE) appData.programFeatures.push_back(value);
+                else if (id == BINARY_INFO_ID_RP_PROGRAM_BUILD_ATTRIBUTE) appData.buildAttributes.push_back(value);
+                else if (id == BINARY_INFO_ID_RP_PICO_BOARD) appData.boardType = value;
+                else if (id == BINARY_INFO_ID_RP_SDK_VERSION) appData.sdkVersion = value;
+                else if (id == BINARY_INFO_ID_RP_BOOT2_NAME) appData.boot2Name = value;
+            });
+            visitor.pin([&](uint pin, const string &name) {
+                appData.pins[pin].push_back(name);
+            });
+
             visitor.visit(access, hdr);
         }
     }
     catch (not_mapped_exception&) {
-        // Ignore memory read failure, just return the empty boardType
+        // Ignore memory read failure, just let whatever is found return
     }
-
-    return boardType;
 }
 
 uint32_t getBootloaderAppBase(std::shared_ptr<RP2040FlashInterface> itf) {

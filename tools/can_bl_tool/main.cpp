@@ -53,6 +53,95 @@ bool isValidCANDevice(const char *name) {
             (name[3] >= '0' && name[3] <= '9'));
 }
 
+class CANBlToolArgs {
+public:
+    // Arguments
+    bool waitInBootDelay;
+    bool justPullInfo;
+    bool allowBootloaderOverwrite;
+    const char *filename;
+
+    bool parseSuccessful;
+
+    CANBlToolArgs(int argc, char** argv):
+            // Define default args
+            waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), filename(""),
+
+            // Private Attributes
+            parseSuccessful(false), progname("[???]"), argc(argc), argv(argv) {
+
+        // Do parse
+        parseSuccessful = tryParse();
+
+        if (!parseSuccessful) {
+            std::cout << std::endl;
+            printHelp();
+        }
+    }
+
+private:
+    const char *progname;
+    int argc;
+    char** argv;
+
+    void printHelp() {
+        std::cout << "Usage: " << progname << " [-fiw] [filename]" << std::endl;
+        std::cout << "\t-f: Full Image Flash" << std::endl;
+        std::cout << "\t\tAllows flashing of images containing a bootloader rather than restring to OTA" << std::endl;
+        std::cout << "\t-i: Print Info" << std::endl;
+        std::cout << "\t\tPrints information from the passed file and quits" << std::endl;
+        std::cout << "\t-w: Wait for Boot" << std::endl;
+        std::cout << "\t\tPrompts to wait for device in boot" << std::endl;
+        std::cout << "\tfilename: A UF2 file to flash" << std::endl;
+    }
+
+    const char* tryGetArgument(const char *argname) {
+        if (!argc) {
+            std::cout << "Error: Expected argument '" << argname << "'" << std::endl;
+            return NULL;
+        }
+        argc--;
+        return *argv++;
+    }
+
+    #define getArgumentOrReturn(variable) \
+        variable = tryGetArgument(#variable); \
+        if (!variable) {return false;}
+
+    #define defArgumentOrReturn(variable) \
+        const char* getArgumentOrReturn(variable)
+
+    bool tryParse() {
+        getArgumentOrReturn(progname);
+        while (argc > 1) {
+            defArgumentOrReturn(flag);
+            // Sanity check that its actually a flag
+            if (flag[0] != '-' || flag[2] != '\0') {
+                std::cout << "Expected flag, not '" << flag << "'" << std::endl;
+                return false;
+            }
+
+            switch (flag[1]) {
+            case 'f':
+                allowBootloaderOverwrite = true;
+                break;
+            case 'i':
+                justPullInfo = true;
+                break;
+            case 'w':
+                waitInBootDelay = true;
+                break;
+            default:
+                std::cout << "Unexpected flag: -" << flag[1] << std::endl;
+                return false;
+            }
+        }
+
+        getArgumentOrReturn(filename);
+        return true;
+    }
+};
+
 int main(int argc, char** argv) {
     // Load in device map
     fs::path applicationPath = argv[0];
@@ -62,30 +151,19 @@ int main(int argc, char** argv) {
     }
     UploadTool::DeviceMap devMap(deviceDefinitionPath);
 
-    // Check arguments
-    if ((argc != 2 && argc != 3) || (argc == 3 && argv[1][0] != '-')) {
-        printf("Usage: %s (-w) [filename]\n", argv[0]);
-        printf("\t-w: Wait for device in boot delay\n");
+    // Pull arguments
+    CANBlToolArgs blArgs(argc, argv);
+    if (!blArgs.parseSuccessful) {
         return 1;
     }
 
-    // Parse arguments
-    bool waitInBootDelay = false;
-    const char *filename;
-    if (argc == 3) {
-        if (!strncmp(argv[1], "-w", 3)) {
-            waitInBootDelay = true;
-        } else {
-            printf("Invalid flag: '%s'\n", argv[1]);
-            return 1;
-        }
-        filename = argv[2];
-    } else {
-        filename = argv[1];
-    }
-
     // Load in file
-    UploadTool::RP2040UF2 uf2(filename);
+    UploadTool::RP2040UF2 uf2(blArgs.filename);
+
+    if (blArgs.justPullInfo) {
+        UploadTool::dumpUF2(uf2);
+        return 0;
+    }
 
     // ===== Discover devices =====
     std::vector<std::shared_ptr<UploadTool::RP2040Discovery>> discoverySources;
@@ -106,7 +184,7 @@ int main(int argc, char** argv) {
     }
 
     std::shared_ptr<UploadTool::RP2040FlashInterface> interface;
-    if (waitInBootDelay) {
+    if (blArgs.waitInBootDelay) {
         interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2.boardType);
     }
     else {
@@ -135,7 +213,7 @@ int main(int argc, char** argv) {
     // interface->readBytes(0x10000000, my_page);
     // DumpHex(my_page.data(), my_page.size());
 
-    UploadTool::flashImage(interface, uf2, true);
+    UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite);
 
     return 0;
 }

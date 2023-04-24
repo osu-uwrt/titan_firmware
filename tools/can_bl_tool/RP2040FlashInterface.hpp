@@ -21,10 +21,26 @@ class RP2040UF2Error : public std::runtime_error {
 
 class RP2040UF2 {
     public:
+        struct RP2040Application {
+            bool isBootloader;
+            // blAppBase only valid if isBootloader true
+            uint32_t blAppBase;
+
+            // Pulled from RP2040 binary info
+            std::map<uint,std::vector<std::string>> pins;
+            std::map<std::pair<int, uint32_t>, std::pair<std::string, uint>> namedFeatureGroups;
+            std::map<std::string, std::vector<std::string>> namedFeatureGroupValues;
+            std::string programName, programBuildDate, programVersion, programUrl, programDescription;
+            std::string boardType, sdkVersion, boot2Name;
+            std::vector<std::string> programFeatures, buildAttributes;
+            uint32_t binaryStart, binaryEnd;
+        };
+
         RP2040UF2(std::ifstream &stream);
         RP2040UF2(const char *filename);
 
         std::string boardType;
+        std::vector<RP2040Application> apps;
 
         std::array<uint8_t, 256>& getBlock(uint32_t blockNum);
         std::array<uint8_t, 256>& getAddress(uint32_t flashAddress);
@@ -42,6 +58,7 @@ class RP2040UF2 {
 
     private:
         void initFromStream(std::ifstream &stream);
+        void populateWithBinaryInfo();
 };
 
 class RP2040FlashInterface {
@@ -81,12 +98,15 @@ class RP2040Discovery {
 // Flash UI
 // ========================================
 
+std::string hexWord(uint32_t word);
+void dumpInfo(RP2040UF2::RP2040Application &app);
+void dumpUF2(RP2040UF2 &uf2);
 std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect);
 std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, std::string &boardType);
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA);
 
 // Binary Info
-std::string getBoardType(RP2040UF2 &uf2);
+void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, uint32_t base = 0);
 uint32_t getBootloaderAppBase(std::shared_ptr<RP2040FlashInterface> itf);
 
 };

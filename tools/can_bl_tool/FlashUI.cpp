@@ -6,6 +6,12 @@
 
 namespace UploadTool {
 
+std::string hexWord(uint32_t word) {
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::setw(8) << std::setfill('0') << word;
+    return ss.str();
+}
+
 bool showConfirmation(const char *msg) {
     std::cout << msg << " [y/N]: ";
     std::flush(std::cout);
@@ -37,6 +43,83 @@ void drawProgressBar(float percentage) {
 #define COLOR_NAME "\033[0;33m"
 #define COLOR_BODY "\033[0;32m"
 #define COLOR_RESET "\033[0m"
+
+void printRow(const char* name, const char* value, bool indent = false) {
+    // Don't print empty field
+    if (*value == 0) {
+        return;
+    }
+
+    if (indent) std::cout << "\t";
+    std::cout << COLOR_HEADER << name << (strlen(name) < 7 ? ":\t" : ":");
+    if (!indent) std::cout << "\t";
+    std::cout << COLOR_NAME << value << COLOR_RESET << std::endl;
+}
+
+void printRow(const char* name, std::vector<std::string> values, bool indent = false) {
+    // Don't print empty field
+    if (values.size() == 0) {
+        return;
+    }
+    if (values.size() == 1) {
+        printRow(name, values.at(0).c_str(), indent);
+        return;
+    }
+
+    if (indent) std::cout << "\t";
+    std::cout << COLOR_HEADER << name << ":" COLOR_RESET << std::endl;
+    for (auto &value : values) {
+        std::cout << COLOR_NAME "\t\t" << value << COLOR_RESET << std::endl;
+    }
+}
+
+void printRow(const char* name, std::map<uint,std::vector<std::string>> values) {
+    if (values.size() == 0) {
+        return;
+    }
+
+    std::cout << COLOR_HEADER << name << ":" COLOR_RESET << std::endl;
+    for (auto &subval : values) {
+        auto str = std::to_string(subval.first);
+        printRow(str.c_str(), subval.second, true);
+    }
+}
+
+void printRow(const char* name, int value) {
+    auto str = hexWord(value);
+    printRow(name, str.c_str());
+}
+
+void dumpInfo(RP2040UF2::RP2040Application &app) {
+    printRow("Name", app.programName.c_str());
+    printRow("Description", app.programDescription.c_str());
+    printRow("Version", app.programVersion.c_str());
+    printRow("Board Name", app.boardType.c_str());
+    printRow("Build Date", app.programBuildDate.c_str());
+    printRow("URL", app.programUrl.c_str());
+    printRow("SDK Version", app.sdkVersion.c_str());
+    printRow("Boot 2 Name", app.boot2Name.c_str());
+
+    printRow("Binary Start", app.binaryStart);
+    if (app.binaryEnd != 0) {
+        printRow("Binary End", app.binaryEnd);
+    }
+    if (app.blAppBase != 0) {
+        printRow("Next App Addr", app.blAppBase);
+    }
+
+    printRow("Build Attrs", app.buildAttributes);
+    printRow("Features", app.programFeatures);
+    printRow("Pins", app.pins);
+}
+
+void dumpUF2(RP2040UF2 &uf2) {
+    for (auto &app : uf2.apps) {
+        std::cout << COLOR_TITLE "==========" << (app.isBootloader ? "Bootloader" : "Application") << " Image==========" COLOR_RESET << std::endl;
+        dumpInfo(app);
+        std::cout << std::endl;
+    }
+}
 
 void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMap &deviceMap) {
     auto devDescr = deviceMap.lookupSerial(dev->getFlashId());
