@@ -6,6 +6,7 @@
 #include <riptide_msgs2/action/change_claw_state.h>
 
 #include "ros/ros.h"
+#include "actuators/claw.h"
 
 #include <assert.h> // TODO remove
 
@@ -32,10 +33,10 @@ rcl_ret_t change_claw_state_goal_request(rclc_action_goal_handle_t * goal_handle
 	bool result;
 	if (claw_open_param) {
 		assert(false);
-		// result = claw_open();
+		result = claw_open();
 	} else {
 		assert(false);
-		// result = claw_close();
+		result = claw_close();
 	}
 
 	if(result)  {
@@ -78,6 +79,6 @@ rcl_ret_t ros_claw_init(rclc_executor_t *executor, rcl_node_t *node, rclc_suppor
     return RCL_RET_OK;
 }
 
-void ros_claw_fini(rcl_node_t *node) { 
+void ros_claw_fini(rcl_node_t *node) {
 	RCSOFTCHECK(rclc_action_server_fini(&change_claw_state_server, node));
 }

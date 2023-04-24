@@ -21,8 +21,6 @@
 #define TORPEDO_CHARGED_THRESHOLD 21.75
 #define TORPEDO_VDIV_CAL (160.5022)
 
-const uint CHARGED_LED_PIN = 0; // TODO
-
 static const uint discharge_pin = TORP_DRAIN_PIN;
 static const uint arm_pin = TORP_ARM_PIN;
 bi_decl(bi_1pin_with_name(TORP_ARM_PIN, "Torpedo Arm"));
@@ -43,8 +41,8 @@ bi_decl(bi_1pin_with_name(TORP_SEL_2_PIN, "Torpedo Select 2"));
 
 #define NUM_TORPEDOS (sizeof(torpedo_select_pins)/sizeof(*torpedo_select_pins))
 
-#define ARM_LEVEL_ARMED    1
-#define ARM_LEVEL_DISARMED 0
+#define ARM_LEVEL_ARMED    0
+#define ARM_LEVEL_DISARMED 1
 #define DISCHARGE_LEVEL_CHARGED 0
 #define DISCHARGE_LEVEL_DISCHARGED 1
 
@@ -87,13 +85,9 @@ static void torpedo_adc_cb(void);
 void torpedo_initialize(void) {
     hard_assert_if(LIFETIME_CHECK, torpedo_initialized);
 
-    // Charged led
-    gpio_init(CHARGED_LED_PIN);
-    gpio_set_dir(CHARGED_LED_PIN, GPIO_OUT);
-
     // Torpedo pins
     gpio_init(arm_pin);
-    gpio_put(arm_pin, TORP_SEL_LEVEL_OFF);
+    gpio_put(arm_pin, ARM_LEVEL_DISARMED);
     gpio_set_dir(arm_pin, true);
     torpedo_armed_state = ARMED_STATE_DISARMED;
 
@@ -191,7 +185,6 @@ static bool torpedo_check_charged(void) {
 
 static void torpedo_adc_cb(void) {
     torpedo_charge = (float)adc_fifo_get() / TORPEDO_VDIV_CAL;
-    gpio_put(CHARGED_LED_PIN, torpedo_check_charged());
 }
 
 // ========================================
@@ -273,10 +266,12 @@ bool torpedo_arm(void) {
 
     // Don't allow arming if killed
     if (safety_kill_get_asserting_kill()) {
+        LOG_WARN("Cannot arm torpedo when safety asserting kill");
         return false;
     }
 
-    if(torpedo_armed_state != ARM_LEVEL_DISARMED) {
+    if(torpedo_armed_state != ARMED_STATE_DISARMED) {
+        LOG_WARN("Cannot arm torpedo when already armed");
         return false;
     }
 
@@ -285,7 +280,7 @@ bool torpedo_arm(void) {
 
     gpio_put(arm_pin, ARM_LEVEL_ARMED);
 
-    return false;
+    return true;
 }
 
 bool torpedo_disarm(void) {
@@ -327,7 +322,7 @@ void torpedo_safety_disable(void) {
     torpedo_discharge();
 }
 
-void torpedo_discharge() { 
+void torpedo_discharge() {
     gpio_put(discharge_pin, DISCHARGE_LEVEL_DISCHARGED);
 }
 
