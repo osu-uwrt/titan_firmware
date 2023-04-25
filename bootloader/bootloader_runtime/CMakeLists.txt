@@ -47,7 +47,7 @@ target_link_libraries(bootloader_runtime INTERFACE
 
 	# Binary info (so we can identify if bootloader present from flashing tool)
 	pico_binary_info
-	bl_binary_info
+	titan_binary_info
 
 	# Simple libraries to make writing the bootloader not painful
 	hardware_pll

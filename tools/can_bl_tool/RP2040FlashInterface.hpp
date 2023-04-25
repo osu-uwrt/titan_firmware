@@ -28,12 +28,13 @@ class RP2040UF2 {
 
             // Pulled from RP2040 binary info
             std::map<uint,std::vector<std::string>> pins;
+            std::vector<uint32_t> clientIds;
             std::map<std::pair<int, uint32_t>, std::pair<std::string, uint>> namedFeatureGroups;
             std::map<std::string, std::vector<std::string>> namedFeatureGroupValues;
             std::string programName, programBuildDate, programVersion, programUrl, programDescription;
-            std::string boardType, sdkVersion, boot2Name;
+            std::string boardType, sdkVersion, boot2Name, deviceIpAddress, agentIpAddress;
             std::vector<std::string> programFeatures, buildAttributes;
-            uint32_t binaryStart, binaryEnd;
+            uint32_t binaryStart, binaryEnd, agentPort;
         };
 
         RP2040UF2(std::ifstream &stream);

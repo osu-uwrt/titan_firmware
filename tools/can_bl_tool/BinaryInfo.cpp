@@ -18,7 +18,7 @@
 #include "RP2040FlashInterface.hpp"
 #include "boot/uf2.h"
 #include "pico/binary_info.h"
-#include "bl_binary_info/defs.h"
+#include "titan_binary_info/defs.h"
 
 using namespace UploadTool;
 
@@ -585,6 +585,17 @@ protected:
 namespace UploadTool {
 using namespace BinaryInfo;
 
+std::string intToIp(uint32_t ipWord){
+    std::stringstream ss;
+    for (int i = 0; i < 4; i++) {
+        ss << (ipWord & 0xFF);
+        ipWord >>= 8;
+        if (i < 3)
+            ss << ".";
+    }
+    return ss.str();
+}
+
 void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, uint32_t base) {
     auto raw_access = uf2_memory_access(uf2);
     try {
@@ -610,6 +621,10 @@ void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, ui
                 if (tag == BINARY_INFO_TAG_UWRT) {
                     if (id == BINARY_INFO_ID_UW_BOOTLOADER_ENABLED) appData.isBootloader = !!value;
                     if (id == BINARY_INFO_ID_UW_APPLICATION_BASE) appData.blAppBase = value;
+                    if (id == BINARY_INFO_ID_UW_DEVICE_IP_ADDRESS) appData.deviceIpAddress = intToIp(value);
+                    if (id == BINARY_INFO_ID_UW_AGENT_IP_ADDRESS) appData.agentIpAddress = intToIp(value);
+                    if (id == BINARY_INFO_ID_UW_AGENT_PORT) appData.agentPort = value;
+                    if (id == BINARY_INFO_ID_UW_CLIENT_ID) appData.clientIds.push_back(value);
                 }
 
                 if (tag != BINARY_INFO_TAG_RASPBERRY_PI)

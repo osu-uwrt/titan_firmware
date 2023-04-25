@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #include "pico/assert.h"
+#include "pico/binary_info.h"
 #include "pico/time.h"
 #include "hardware/watchdog.h"
 
@@ -19,7 +20,7 @@ static absolute_time_t watchdog_timeout_time;
 
 void safety_setup(void) {
     hard_assert_if(SAFETY, safety_is_setup || safety_initialized);
-
+    bi_decl_if_func_used(bi_program_feature("Titan Safety"));
     safety_internal_crash_reporting_handle_reset();
     safety_interface_setup();
 

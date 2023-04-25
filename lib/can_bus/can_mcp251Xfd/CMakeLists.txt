@@ -34,4 +34,5 @@ target_link_libraries(can_mcp251Xfd INTERFACE
     basic_queue
     canmore_protocol
     canmore_debug_interface
+    titan_binary_info   # For client id reporting
 )

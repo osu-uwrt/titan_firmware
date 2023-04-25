@@ -91,10 +91,31 @@ void printRow(const char* name, int value) {
 }
 
 void dumpInfo(RP2040UF2::RP2040Application &app) {
+    // Primary Information
     printRow("Name", app.programName.c_str());
     printRow("Description", app.programDescription.c_str());
     printRow("Version", app.programVersion.c_str());
     printRow("Board Name", app.boardType.c_str());
+
+    // Device Addressing
+    printRow("Device IP Addr", app.deviceIpAddress.c_str());
+    printRow("Agent IP Addr", app.agentIpAddress.c_str());
+    if (app.agentPort != 0) {
+        auto s = std::to_string(app.agentPort);
+        printRow("Agent Port", s.c_str());
+    }
+
+    if (app.clientIds.size() == 1) {
+        auto s = std::to_string(app.clientIds.at(0));
+        printRow("Client ID", s.c_str());
+    } else if (app.clientIds.size() > 1) {
+        std::cout << COLOR_HEADER << "Client ID List:" COLOR_RESET << std::endl;
+        for (auto clientId : app.clientIds) {
+            std::cout << COLOR_NAME "\t\t" << clientId << COLOR_RESET << std::endl;
+        }
+    }
+
+    // Extra Information
     printRow("Build Date", app.programBuildDate.c_str());
     printRow("URL", app.programUrl.c_str());
     printRow("SDK Version", app.sdkVersion.c_str());

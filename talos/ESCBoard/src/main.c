@@ -5,6 +5,7 @@
 #include "build_version.h"
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
+#include "titan_binary_info/defs.h"
 
 #include "dshot.h"
 #include "ros.h"
@@ -38,6 +39,11 @@ static void load_client_id(void){
     gpio_pull_down(BOARD_DET_PIN);
     sleep_us(5);    // Give time for pull up to settle
 
+    // Report valid CAN IDs for this board
+    bi_decl_if_func_used(bi_client_id(CAN_BUS_BOARD0_CLIENT_ID));
+    bi_decl_if_func_used(bi_client_id(CAN_BUS_BOARD1_CLIENT_ID));
+
+    // Determine ID
     esc_board_num = (gpio_get(BOARD_DET_PIN) ? 1 : 0);
     client_id = (esc_board_num ? CAN_BUS_BOARD1_CLIENT_ID : CAN_BUS_BOARD0_CLIENT_ID);
 }

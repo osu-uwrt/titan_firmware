@@ -6,7 +6,7 @@
 
 #if !PICO_NO_BINARY_INFO && !PICO_NO_PROGRAM_INFO
 #include "pico/binary_info.h"
-#include "bl_binary_info/defs.h"
+#include "titan_binary_info/defs.h"
 
 #if !PICO_NO_FLASH
 #include "boot_stage2/config.h"

@@ -9,7 +9,7 @@
 // Network Card Functions
 
 bool eth_init(w5k_data_t *cOut, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset, uint8_t *mac);
-void eth_ifconfig(w5k_data_t *c, uint8_t* ip, uint8_t* gateway, uint8_t* subnet);
+void eth_ifconfig(w5k_data_t *c, const uint8_t* ip, const uint8_t* gateway, const uint8_t* subnet);
 void eth_deinit(w5k_data_t *c);
 SOCKET eth_socketBegin(w5k_data_t *c, uint8_t protocol, uint16_t port, uint8_t *state_ref);
 SOCKET eth_socketCreate(w5k_data_t *c, uint8_t* ip, uint16_t sport, uint8_t protocol, uint16_t dport, uint8_t *state_ref);
@@ -21,7 +21,7 @@ uint8_t eth_socketPeek(w5k_data_t *c, uint8_t s);
 uint16_t eth_socketSend(w5k_data_t *c, uint8_t s, const uint8_t * buf, uint16_t len);
 uint16_t eth_socketSendAvailable(w5k_data_t *c, uint8_t s);
 uint16_t eth_socketBufferData(w5k_data_t *c, uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len);
-bool eth_socketStartUDP(w5k_data_t *c, uint8_t s, uint8_t* addr, uint16_t port);
+bool eth_socketStartUDP(w5k_data_t *c, uint8_t s, const uint8_t* addr, uint16_t port);
 bool eth_socketSendUDP(w5k_data_t *c, uint8_t s);
 
 
@@ -42,7 +42,7 @@ bool eth_udp_begin(udp_socket_t *socketOut, w5k_data_t *c, uint16_t port);
 size_t eth_udp_available(udp_socket_t *s);
 void eth_udp_stop(udp_socket_t *s);
 bool eth_udp_isopen(udp_socket_t *s);
-int eth_udp_beginPacket(udp_socket_t *s, uint8_t *ip, uint16_t port);
+int eth_udp_beginPacket(udp_socket_t *s, const uint8_t *ip, uint16_t port);
 int eth_udp_endPacket(udp_socket_t *s);
 size_t eth_udp_write_single(udp_socket_t *s, uint8_t byte);
 size_t eth_udp_write(udp_socket_t *s, const uint8_t *buffer, size_t size);

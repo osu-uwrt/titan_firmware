@@ -1,3 +1,4 @@
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
 #include "async_i2c.h"
@@ -173,6 +174,8 @@ int main() {
 
     static_assert(SENSOR_I2C == 0, "Sensor i2c expected on i2c0");
     static_assert(BOARD_I2C == 1, "Board i2c expected on i2c0");
+    bi_decl_if_func_used(bi_2pins_with_func(SENSOR_SDA_PIN, SENSOR_SCL_PIN, GPIO_FUNC_I2C));
+    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 400000, 10);
     depth_init();
     dshot_init();
@@ -180,16 +183,19 @@ int main() {
     D818_init();
 
     // init the CPU pwr ctrl system
+    bi_decl_if_func_used(bi_1pin_with_name(PWR_CTL_CPU, "CPU Power Control"));
     gpio_init(PWR_CTL_CPU);
     gpio_set_dir(PWR_CTL_CPU, GPIO_OUT);
     gpio_put(PWR_CTL_CPU, 1);
 
     // init the acoustic pwr ctrl system off
+    bi_decl_if_func_used(bi_1pin_with_name(PWR_CTL_ACC, "Acoustics Power Control"));
     gpio_init(PWR_CTL_ACC);
     gpio_set_dir(PWR_CTL_ACC, GPIO_OUT);
     gpio_put(PWR_CTL_ACC, 1);
 
     // init the aux switches as input
+    bi_decl_if_func_used(bi_1pin_with_name(AUX_SW_SENSE, "Aux Switch"));
     gpio_init(AUX_SW_SENSE);
     gpio_set_dir(AUX_SW_SENSE, GPIO_IN);
 

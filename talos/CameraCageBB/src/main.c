@@ -1,3 +1,4 @@
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
 #include "async_i2c.h"
@@ -5,6 +6,7 @@
 #include "build_version.h"
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
+#include "titan_binary_info/defs.h"
 
 #include "depth_sensor.h"
 #include "led.h"
@@ -122,20 +124,28 @@ int main() {
     led_init();
     ros_rmw_init_error_handling();
 
+    // I2C Initialization
+    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+
     depth_init();
+
+    // Status Strip Initialization
     status_strip_init(pio0, 0, RGB_DATA_PIN, true);
     status_strip_clear();
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_CLIENT_ID;
+    bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
 
     // Turn on fans
+    // TODO: Move into fan controller module
+    bi_decl_if_func_used(bi_1pin_with_name(FAN_SW_PIN, "Fan Control"));
     gpio_init(FAN_SW_PIN);
     gpio_put(FAN_SW_PIN, true);
     gpio_set_dir(FAN_SW_PIN, true);

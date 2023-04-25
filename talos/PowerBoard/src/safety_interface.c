@@ -2,6 +2,7 @@
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include "can_mcp251Xfd/canbus.h"
 #include "hardware/gpio.h"
+#include "pico/binary_info.h"
 
 #include "safety_interface.h"
 #include "led.h"
@@ -16,6 +17,7 @@ static inline void safety_interface_refresh_physical_kill_switch(void) {
 }
 
 static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
+    // Required since we're taking over the GPIO interrupt (and the SDK only supports 1 interrupt callback per core)
     can_mcp251xfd_interrupt_cb(gpio, events);
     if (gpio == PHYS_KILLSWITCH_PIN) {
         safety_interface_refresh_physical_kill_switch();
@@ -63,6 +65,7 @@ void safety_handle_enable(void) {
 
 void safety_interface_setup(void) {
     // Initialize physical kill switch pin
+    bi_decl_if_func_used(bi_1pin_with_name(PHYS_KILLSWITCH_PIN, "Kill Switch"));
     gpio_init(PHYS_KILLSWITCH_PIN);
     gpio_pull_up(PHYS_KILLSWITCH_PIN);
     gpio_set_dir(PHYS_KILLSWITCH_PIN, GPIO_IN);

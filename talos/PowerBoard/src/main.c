@@ -1,7 +1,11 @@
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
 #include "basic_logger/logging.h"
 #include "build_version.h"
+#include "can_mcp251Xfd/canbus.h"
+#include "micro_ros_pico/transport_can.h"
+#include "titan_binary_info/defs.h"
 
 #include "ros.h"
 #include "safety_interface.h"
@@ -9,9 +13,6 @@
 #include "analog_io.h"
 #include "async_i2c.h"
 #include "mcp3426.h"
-
-#include "can_mcp251Xfd/canbus.h"
-#include "micro_ros_pico/transport_can.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -108,7 +109,7 @@ static void tick_ros_tasks() {
         safety_interface_kill_switch_refreshed = false;
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
-    
+
     if(timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_electrical_readings());
     }
@@ -136,15 +137,23 @@ int main() {
     ros_rmw_init_error_handling();
 
     // Turn on FAN to get cooling
+    // TODO: Move to separate directory when tachometer added
+    bi_decl_if_func_used(bi_1pin_with_name(FAN_SWITCH_PIN, "Fan Control"));
     gpio_init(FAN_SWITCH_PIN);
     gpio_put(FAN_SWITCH_PIN, true);
     gpio_set_dir(FAN_SWITCH_PIN, true);
+
     analog_io_init();
+
+    // Initialize I2C
+    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
+    static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
     mcp3426_init(MCP3426_MODE_CONTINOUS, MCP3426_SAMPLE_RATE_16_BIT, MCP3426_GAIN_X1);
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_CLIENT_ID;
+    bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");

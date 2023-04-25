@@ -204,7 +204,7 @@ static inline uint8_t w5100_writeSn_single(w5k_data_t *c, SOCKET s, uint16_t add
 static inline uint16_t w5100_readSn(w5k_data_t *c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
     return w5100_read(c, W5100_CH_BASE(c) + s * CH_SIZE + addr, buf, len);
 }
-static inline uint16_t w5100_writeSn(w5k_data_t *c, SOCKET s, uint16_t addr, uint8_t *buf, uint16_t len) {
+static inline uint16_t w5100_writeSn(w5k_data_t *c, SOCKET s, uint16_t addr, const uint8_t *buf, uint16_t len) {
     return w5100_write(c, W5100_CH_BASE(c) + s * CH_SIZE + addr, buf, len);
 }
 
@@ -228,7 +228,7 @@ static inline uint16_t w5100_read##name(w5k_data_t *_c, SOCKET _s) {            
     return (buf[0] << 8) | buf[1];                                        \
 }
 #define __SOCKET_REGISTER_N(name, address, size)                          \
-static inline uint16_t w5100_write##name(w5k_data_t *_c, SOCKET _s, uint8_t *_buff) {    \
+static inline uint16_t w5100_write##name(w5k_data_t *_c, SOCKET _s, const uint8_t *_buff) {    \
     return w5100_writeSn(_c, _s, address, _buff, size);                   \
 }                                                                         \
 static inline uint16_t w5100_read##name(w5k_data_t *_c, SOCKET _s, uint8_t *_buff) {     \

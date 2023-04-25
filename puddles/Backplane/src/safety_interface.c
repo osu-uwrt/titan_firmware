@@ -1,3 +1,4 @@
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include <assert.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
@@ -54,6 +55,7 @@ void safety_handle_enable(void) {
 
 void safety_interface_setup(void) {
     // Initialize physical kill switch pin
+    bi_decl_if_func_used(bi_1pin_with_name(KILL_SW_SENSE, "Kill Switch"));
     gpio_init(KILL_SW_SENSE);
     gpio_pull_up(KILL_SW_SENSE);
     gpio_set_dir(KILL_SW_SENSE, GPIO_IN);

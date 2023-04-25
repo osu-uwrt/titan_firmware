@@ -1,3 +1,4 @@
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "analog_io.h"
 #include "hardware/adc.h"
@@ -40,6 +41,8 @@ static int64_t adc_timer_callback(__unused alarm_id_t id, __unused void *user_da
 
 void analog_io_init() {
     adc_init();
+    bi_decl_if_func_used(bi_1pin_with_name(PORT_MEAS_PIN, "Port Voltage Measurement"));
+    bi_decl_if_func_used(bi_1pin_with_name(STBD_MEAS_PIN, "Starboard Voltage Measurement"));
     adc_gpio_init(PORT_MEAS_PIN);
     adc_gpio_init(STBD_MEAS_PIN);
 

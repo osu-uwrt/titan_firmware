@@ -51,14 +51,14 @@ pico_set_program_name(actuator_mk2 "Actuator")
 
 # Enable the 'make upload' and 'make serial' commands for project
 titan_use_upload_tool(actuator_mk2)
-titan_enable_bootloader(actuator_mk2)
+titan_enable_bootloader(actuator_mk2 can)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_mk2)
 target_link_libraries(actuator_mk2
 	basic_logger	# A nice little logging library
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
+	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_adc

@@ -44,7 +44,7 @@ bool eth_udp_isopen(udp_socket_t *s)
 	return s->socket_active;
 }
 
-int eth_udp_beginPacket(udp_socket_t *s, uint8_t *ip, uint16_t port)
+int eth_udp_beginPacket(udp_socket_t *s, const uint8_t *ip, uint16_t port)
 {
     if (!s->socket_active){
         return 0;

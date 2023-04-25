@@ -3,6 +3,7 @@
 #include <string.h>
 #include "hardware/irq.h"
 #include "hardware/sync.h"
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
 #include "can_mcp251Xfd/canbus.h"
@@ -282,8 +283,11 @@ bool canbus_init(unsigned int client_id) {
         return false;
     }
 
+    // TODO: Only initialize if safety compiled in
     canmore_debug_init(&canbus_control_interface_transmit);
     canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
+
+    bi_decl_if_func_used(bi_program_feature("MCP251XFD CAN Interface"));
 
     canbus_initialized = true;
     return true;

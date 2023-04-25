@@ -17,6 +17,7 @@
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"
+#include "titan_binary_info/defs.h"
 #endif
 
 #undef LOGGING_UNIT_NAME
@@ -160,6 +161,7 @@ int main() {
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
     #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
+    bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");

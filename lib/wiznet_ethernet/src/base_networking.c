@@ -20,6 +20,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "pico/binary_info.h"
 #include "eth_networking.h"
 
 // No yield on bare metal RP2040
@@ -29,6 +30,8 @@
 // Returns either a pointer to the w5k data struct or NULL of the initialization failed.
 bool eth_init(w5k_data_t *cOut, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset, uint8_t *mac)
 {
+	bi_decl_if_func_used(bi_program_feature("W5x00 Ethernet Interface"));
+
 	if (w5100_init(cOut, spi, ss_pin, reset) == 0) {
         return false;
     }
@@ -38,7 +41,7 @@ bool eth_init(w5k_data_t *cOut, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset, 
 
 // Configures the W5K device with the specified network configuration
 //
-void eth_ifconfig(w5k_data_t *c, uint8_t* ip, uint8_t* gateway, uint8_t* subnet)
+void eth_ifconfig(w5k_data_t *c, const uint8_t* ip, const uint8_t* gateway, const uint8_t* subnet)
 {
 	w5100_setIPAddress(c, ip);
 	w5100_setGatewayIp(c, gateway);
@@ -391,7 +394,7 @@ uint16_t eth_socketBufferData(w5k_data_t *c, uint8_t s, uint16_t offset, const u
 	return ret;
 }
 
-bool eth_socketStartUDP(w5k_data_t *c, uint8_t s, uint8_t* addr, uint16_t port)
+bool eth_socketStartUDP(w5k_data_t *c, uint8_t s, const uint8_t* addr, uint16_t port)
 {
 	if ( ((addr[0] == 0x00) && (addr[1] == 0x00) && (addr[2] == 0x00) && (addr[3] == 0x00)) ||
 	  ((port == 0x00)) ) {

@@ -258,8 +258,8 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
-    RCRETCHECK(ros_claw_init(&executor, &node, &support));
-    RCRETCHECK(ros_torpedo_dropper_init(&executor, &node, &support));
+    //RCRETCHECK(ros_claw_init(&executor, &node, &support));
+    //RCRETCHECK(ros_torpedo_dropper_init(&executor, &node, &support));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -276,8 +276,8 @@ void ros_spin_executor(void) {
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
-    ros_claw_fini(&node);
-    ros_torpedo_dropper_fini(&node);
+    //ros_claw_fini(&node);
+    //ros_torpedo_dropper_fini(&node);
 
     RCSOFTCHECK(rcl_publisher_fini(&actuator_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));

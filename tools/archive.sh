@@ -18,6 +18,11 @@ fi
 
 dest_dir=$(realpath "$1")
 
+if [ -d "$dest_dir" ]; then
+    echo "Error: Directory '$1' already exists"
+    exit 1
+fi
+
 pushd "$firmware_repo" > /dev/null
 if ! (git diff --quiet --exit-code && test -z "$(git ls-files $(git rev-parse --show-toplevel) --exclude-standard --others)"); then
     echo "Git repo has uncomitted changes"
@@ -32,7 +37,7 @@ popd > /dev/null
 
 set -e
 
-images="talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery"
+images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery"
 image_types=".elf _ota.uf2 _with_bl.uf2"
 
 for target in $images; do

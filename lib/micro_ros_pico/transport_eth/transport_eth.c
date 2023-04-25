@@ -10,6 +10,7 @@
 #include "safety/safety.h"
 #include "eth_networking.h"
 
+#include "titan_binary_info/defs.h"
 #include "micro_ros_pico/transport_eth.h"
 #include "canmore_titan/protocol.h"
 #include "canmore_titan/ethernet_defs.h"
@@ -32,12 +33,12 @@ void ethernet_control_interface_transmit(uint8_t *msg, size_t len);
 /* Communication Definitions */
 // The ROBOT_ variables are defined in the robot header file defined by UWRT_ROBOT
 // If these are giving not defined errors, ensure that UWRT_ROBOT is defined in the CMakeLists file for the project
-static uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
-static uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
-static uint8_t source_ip[] = ETHERNET_IP;
-static uint16_t source_port = ETHERNET_PORT;
-static IPAddress gateway = ETHERNET_GATEWAY;
-static IPAddress subnet = ETHERNET_MASK;
+static const uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
+static const uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
+static const uint8_t source_ip[] = ETHERNET_IP;
+static const uint16_t source_port = ETHERNET_PORT;
+static const IPAddress gateway = ETHERNET_GATEWAY;
+static const IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = {0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56};
 static udp_socket_t ros_socket, control_interface_socket;
 static w5k_data_t eth_device;
@@ -46,6 +47,13 @@ static IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
 static uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
 static uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
 
+// Binary info definitions
+bi_decl(bi_program_feature("Micro-ROS over Ethernet"));
+bi_decl(bi_device_ip_address_array(source_ip));
+bi_decl(bi_agent_ip_address_array(dest_ip));
+bi_decl(bi_agent_port(dest_port));
+
+// Micro ROS required functions
 void usleep(uint64_t us)
 {
     sleep_us(us);
@@ -126,8 +134,6 @@ size_t transport_eth_read(__unused struct uxrCustomTransport * transport, uint8_
     return packetSize;
 }
 
-bi_decl(bi_program_feature("Micro-ROS over Ethernet"))
-
 bool transport_eth_init(){
 	// Initialize MAC address with lower values in Flash ID to *randomize* it sort of
 	pico_unique_board_id_t uniqueId;
@@ -137,7 +143,8 @@ bool transport_eth_init(){
 	mac[4] = uniqueId.id[6];
 	mac[5] = uniqueId.id[7];
 
-    // SPI initialisation. This example will use SPI at 1MHz.
+    // SPI initialization. This use SPI at 30MHz.
+	bi_decl_if_func_used(bi_3pins_with_func(ETH_MISO_PIN, ETH_MOSI_PIN, ETH_CLK_PIN, GPIO_FUNC_SPI));
     spi_init(ETH_SPI ? spi1 : spi0, 30000000);
     spi_set_format( ETH_SPI ? spi1 : spi0,   // SPI instance
                     8,      // Number of bits per transfer
@@ -149,6 +156,8 @@ bool transport_eth_init(){
     gpio_set_function(ETH_MOSI_PIN, GPIO_FUNC_SPI);
 
 	// set the gpio functions for cs and rst
+	bi_decl_if_func_used(bi_1pin_with_name(ETH_CS_PIN, "W5x00 Chip Select"));
+	bi_decl_if_func_used(bi_1pin_with_name(ETH_RST_PIN, "W5x00 Reset"));
 	gpio_init(ETH_CS_PIN);
     gpio_init(ETH_RST_PIN);
 	gpio_set_dir(ETH_RST_PIN, GPIO_OUT);

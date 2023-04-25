@@ -7,6 +7,7 @@
 #include "hardware/spi.h"
 #include "pico/time.h"
 
+#include "titan_binary_info/defs.h"
 #include "canmore_titan/protocol.h"
 #include "CRC16_CMS.h"
 #include "MCP251XFD.h"
@@ -235,6 +236,8 @@ static bool can_mcp251x_get_term_state(bool *term_state_out) {
 #include TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP
 
 #else
+
+bi_decl(bi_client_id(CAN_BUS_CLIENT_ID));
 
 /*
  * Default client ID lookup function

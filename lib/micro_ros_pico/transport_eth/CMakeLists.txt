@@ -14,6 +14,7 @@ target_link_libraries(micro_ros_eth INTERFACE
 
     canmore_protocol
     canmore_debug_interface
+    titan_binary_info
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

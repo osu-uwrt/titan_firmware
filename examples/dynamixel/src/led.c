@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <rcl/rcl.h>
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
@@ -44,6 +45,9 @@ void led_init() {
     pwm_config_set_output_polarity(&config, true, true);
 
     // Configure PWM hardware
+    bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDR_PIN, "Status LED Red"));
+    bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDG_PIN, "Status LED Green"));
+    bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDB_PIN, "Status LED Blue"));
     uint led_pins[] = {STATUS_LEDR_PIN, STATUS_LEDG_PIN, STATUS_LEDB_PIN};
     uint32_t initialized_slices = 0;
 
