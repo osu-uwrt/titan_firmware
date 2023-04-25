@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
 
     std::shared_ptr<UploadTool::RP2040FlashInterface> interface;
     if (blArgs.waitInBootDelay) {
-        interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2.boardType);
+        interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2);
     }
     else {
         // Wait for devices to appear

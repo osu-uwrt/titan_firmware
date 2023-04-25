@@ -252,6 +252,15 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     while (1) {
         std::cout << "Please Select a Device: ";
 
+        if (std::cin.peek() == '\n') {
+            // Clear from buffer
+            char c;
+            std::cin.read(&c, 1);
+
+            // No default option
+            continue;
+        }
+
         unsigned int userChoice;
         std::cin >> userChoice;
 
@@ -261,6 +270,7 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
             std::cin.ignore(256,'\n');
             continue;
         }
+        std::cin.ignore(256,'\n');
 
         if (userChoice < 1 || userChoice >= index) {
             std::cout << "Invalid input!" << std::endl;
@@ -281,7 +291,7 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 }
 
-std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, std::string &boardType) {
+std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2) {
     std::cout << COLOR_TITLE "===========Available Interfaces===========" COLOR_RESET << std::endl;
     unsigned int index = 1;
     std::vector<std::shared_ptr<Canmore::Discovery>> validInterfaces;
@@ -306,6 +316,15 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
     while (1) {
         std::cout << std::endl << "Please Select a Interface: ";
 
+        if (std::cin.peek() == '\n') {
+            // Clear from buffer
+            char c;
+            std::cin.read(&c, 1);
+
+            // No default option
+            continue;
+        }
+
         unsigned int userChoice;
         std::cin >> userChoice;
 
@@ -315,6 +334,7 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
             std::cin.ignore(256,'\n');
             continue;
         }
+        std::cin.ignore(256,'\n');
 
         if (userChoice < 1 || userChoice >= index) {
             std::cout << "Invalid input!" << std::endl;
@@ -326,8 +346,47 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
         break;
     }
 
+    uint8_t defaultClientId = 0;
+    for (auto &app : uf2.apps) {
+        if (app.clientIds.size() == 1) {
+            defaultClientId = app.clientIds.at(0);
+            if (defaultClientId >= 255 || defaultClientId == 0) {
+                std::cout << "Invalid client ID decoded from image: " << std::to_string(defaultClientId) << std::endl;
+                defaultClientId = 0;
+            }
+            break;
+        }
+        else if (app.clientIds.size() > 1) {
+            std::cout << "Provided Firmware Image has multiple valid CAN IDs:" << std::endl;
+            for (auto id : app.clientIds) {
+                std::cout << "   -" << id << std::endl;
+            }
+            break;
+        }
+    }
+
     while (1) {
-        std::cout << "Enter client id to wait for: ";
+        if (defaultClientId == 0) {
+            std::cout << "Enter client id to wait for: ";
+        }
+        else {
+            std::cout << "Enter client id to wait for [Detected Default=" << std::to_string(defaultClientId) << "]: ";
+        }
+
+        if (std::cin.peek() == '\n') {
+            // Clear from buffer
+            char c;
+            std::cin.read(&c, 1);
+            if (defaultClientId == 0) {
+                continue;
+            }
+
+            // We have a valid default option, pick that one
+            // Perform defult option
+            clientId = defaultClientId;
+            std::cout << "Selecting default id " << std::to_string(defaultClientId) << std::endl;
+            break;
+        }
 
         unsigned int userChoice;
         std::cin >> userChoice;
@@ -338,6 +397,7 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
             std::cin.ignore(256,'\n');
             continue;
         }
+        std::cin.ignore(256,'\n');
 
         if (userChoice < 1 || userChoice >= 255) {
             std::cout << "Invalid input!" << std::endl;
@@ -369,8 +429,8 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
 
     std::cout << std::endl;
 
-    if (devDescr.boardType != boardType) {
-        std::cout << "[WARNING] The discovered board does not match the expected type '" << boardType << "'. ";
+    if (devDescr.boardType != uf2.boardType) {
+        std::cout << "[WARNING] The discovered board does not match the expected type '" << uf2.boardType << "'. ";
         if (!showConfirmation("Continue?")) {
             throw std::runtime_error("Flash Aborted");
         }

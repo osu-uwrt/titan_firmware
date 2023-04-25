@@ -103,7 +103,7 @@ std::string hexWord(uint32_t word);
 void dumpInfo(RP2040UF2::RP2040Application &app);
 void dumpUF2(RP2040UF2 &uf2);
 std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect);
-std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, std::string &boardType);
+std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2);
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA);
 
 // Binary Info
