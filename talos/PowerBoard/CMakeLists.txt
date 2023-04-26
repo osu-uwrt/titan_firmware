@@ -37,6 +37,7 @@ add_executable(power_board
 target_compile_options(power_board PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(power_board PUBLIC include)
 
+# Required so we can register our own gpio interrupt for the kill switch (only one gpio interrupt supported)
 target_compile_definitions(power_board PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
 
 # Set version: major minor release_type (see build_version.h for more info)

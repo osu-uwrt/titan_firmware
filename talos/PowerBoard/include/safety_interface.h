@@ -25,6 +25,16 @@ static const char * const fault_string_list[] = {
     "FAULT_ADC_ERROR",
 };
 
-extern bool safety_interface_kill_switch_refreshed;
+/**
+ * @brief The state of the physical kill switch (true if asserting kill)
+ * Can be read to report if the physical kill switch state changes
+ */
+extern volatile bool safety_interface_physical_kill_asserting_kill;
+
+/**
+ * @brief Set every time the kill switch changes
+ * Can be cleared by code monitoring for kill switch changes
+ */
+extern volatile bool safety_interface_kill_switch_refreshed;
 
 #endif

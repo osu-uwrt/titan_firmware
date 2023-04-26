@@ -73,6 +73,7 @@ void ros_rmw_init_error_handling(void)  {
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
 #define ELECTRICAL_READING_NAME "state/electrical"
+#define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 
 bool ros_connected = false;
 
@@ -91,6 +92,8 @@ riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = {0};
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
+rcl_publisher_t physkill_notify_publisher;
+static bool last_physical_kill_asserting_kill = true;
 rcl_subscription_t software_kill_subscriber;
 riptide_msgs2__msg__KillSwitchReport software_kill_msg;
 char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE+1] = {0};
@@ -179,6 +182,15 @@ rcl_ret_t ros_publish_killswitch() {
     std_msgs__msg__Bool killswitch_msg = {.data = safety_kill_get_asserting_kill()};
 
     RCSOFTRETCHECK(rcl_publish(&killswitch_publisher, &killswitch_msg, NULL));
+
+    // Notify the physical kill state
+    // This is primarily used to report to the actuator/camera cage boards to flash the LEDs on kill switch insertion/removal
+    bool value = safety_interface_physical_kill_asserting_kill;
+    if (last_physical_kill_asserting_kill != value) {
+        last_physical_kill_asserting_kill = value;
+        std_msgs__msg__Bool physkill_notify_msg = {.data = value};
+        RCSOFTRETCHECK(rcl_publish(&physkill_notify_publisher, &physkill_notify_msg, NULL));
+    }
 
     return RCL_RET_OK;
 }
@@ -271,6 +283,12 @@ rcl_ret_t ros_init() {
         KILLSWITCH_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_default(
+        &physkill_notify_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+        PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(
         &electrical_reading_publisher,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
@@ -292,6 +310,9 @@ rcl_ret_t ros_init() {
 	software_kill_msg.sender_id.capacity = sizeof(software_kill_frame_str);
 	software_kill_msg.sender_id.size = 0;
 
+    // Make sure that if the physical kill switch is enabled, a notify is sent out
+    last_physical_kill_asserting_kill = true;
+
     return RCL_RET_OK;
 }
 
@@ -303,6 +324,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));
