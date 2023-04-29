@@ -34,7 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(power_board
 	${SOURCES}
 )
-target_compile_options(power_board PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(power_board PUBLIC include)
 
 # Required so we can register our own gpio interrupt for the kill switch (only one gpio interrupt supported)

@@ -22,7 +22,6 @@ add_executable(titan_bootloader
 	main.c
 	bl_server.c
 )
-target_compile_options(titan_bootloader PUBLIC -Wall -Wextra -Wno-format)
 target_include_directories(titan_bootloader PUBLIC include)
 
 # Target minimum compile size to fit in 16K

@@ -35,8 +35,6 @@ add_executable(backplane_firmware
 	${SOURCES}
 )
 pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
-
-target_compile_options(backplane_firmware PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(backplane_firmware PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -54,13 +52,7 @@ titan_use_upload_tool(backplane_firmware)
 titan_enable_bootloader(backplane_firmware eth)
 
 # Compile Definitions
-target_compile_definitions(backplane_firmware PUBLIC PARAM_ASSERTIONS_ENABLE_ALL=1)
 target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
-# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_MIN_SEVERITY=LEVEL_DEBUG)
-# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_DEFAULT_LEVEL=LEVEL_INFO)
-# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_PRINT_SOURCE_LOCATION=0)
-# target_compile_definitions(backplane_firmware PUBLIC SAFETY_ROS_SUPPORT=1)
-# target_compile_definitions(backplane_firmware PUBLIC BASIC_LOGGER_USE_COLOR_CODES=1)
 
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)

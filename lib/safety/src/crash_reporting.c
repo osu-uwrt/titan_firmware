@@ -265,18 +265,18 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         } else if (entry->reset_reason == UNKNOWN_SAFETY_ACTIVE) {
             inc_safety_print(snprintf(msg, size, "UNKNOWN_SAFETY_ACTIVE"));
         } else if (entry->reset_reason == PANIC) {
-            inc_safety_print(snprintf(msg, size, "PANIC (Message: 0x%08X, Call Address: 0x%08X)", entry->scratch_1, entry->scratch_2));
+            inc_safety_print(snprintf(msg, size, "PANIC (Message: 0x%08lX, Call Address: 0x%08lX)", entry->scratch_1, entry->scratch_2));
         } else if (entry->reset_reason == HARD_FAULT) {
-            inc_safety_print(snprintf(msg, size, "HARD_FAULT (Fault Address: 0x%08X)", entry->scratch_1));
+            inc_safety_print(snprintf(msg, size, "HARD_FAULT (Fault Address: 0x%08lX)", entry->scratch_1));
         } else if (entry->reset_reason == ASSERT_FAIL) {
-            inc_safety_print(snprintf(msg, size, "ASSERT_FAIL (File: 0x%08X Line: %d)", entry->scratch_1, entry->scratch_2));
+            inc_safety_print(snprintf(msg, size, "ASSERT_FAIL (File: 0x%08lX Line: %ld)", entry->scratch_1, entry->scratch_2));
         } else if (entry->reset_reason == IN_ROS_TRANSPORT_LOOP) {
             inc_safety_print(snprintf(msg, size, "IN_ROS_TRANSPORT_LOOP"));
         } else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));
         }
 
-        inc_safety_print(snprintf(msg, size, " - Faults: 0x%08X - Uptime: %.2f %c", entry->faults, uptime_pretty, uptime_units));
+        inc_safety_print(snprintf(msg, size, " - Faults: 0x%08lX - Uptime: %.2f %c", entry->faults, uptime_pretty, uptime_units));
     }
 }
 

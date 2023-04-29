@@ -37,7 +37,7 @@ popd > /dev/null
 
 set -e
 
-images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery"
+images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery puddles/Backplane"
 image_types=".elf _ota.uf2 _with_bl.uf2"
 
 for target in $images; do

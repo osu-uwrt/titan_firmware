@@ -121,14 +121,14 @@ void profiler_dump(void) {
                 entry->push_printed = true;
                 int64_t time_us = absolute_time_diff_us(last_time_reset, entry->push_time);
                 if (entry->extra_calls > 0) {
-                    printf("Push %s @%lld us (Exception Level %d) - %d Additional Calls occurred (%d ms total time)",
+                    printf("Push %s @%lld us (Exception Level %ld) - %ld Additional Calls occurred (%lld ms total time)",
                         profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num,
                         entry->extra_calls,
                         entry->total_time);
                 } else {
-                    printf("Push %s @%lld us (Exception Level %d)",
+                    printf("Push %s @%lld us (Exception Level %ld)",
                         profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num);

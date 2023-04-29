@@ -34,7 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(template_project
 	${SOURCES}
 )
-target_compile_options(template_project PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(template_project PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)

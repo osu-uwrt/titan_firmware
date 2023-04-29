@@ -34,7 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(smart_battery
 	${SOURCES}
 )
-target_compile_options(smart_battery PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(smart_battery PUBLIC include)
 pico_generate_pio_header(smart_battery ${CMAKE_CURRENT_LIST_DIR}/src/i2c.pio)
 

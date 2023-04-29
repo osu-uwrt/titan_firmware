@@ -42,7 +42,7 @@ static int depth_prom_read_index;
  * @param abort_data The contents of the abort register
  */
 static void depth_init_failure(__unused const struct async_i2c_request* req, uint32_t abort_data) {
-    LOG_ERROR("Failed to init depth sensor (Tx Abort: %d, req: 0x%p)", abort_data, req);
+    LOG_ERROR("Failed to init depth sensor (Tx Abort: %lu, req: 0x%p)", abort_data, req);
     safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
 }
 
@@ -281,7 +281,7 @@ static void depth_adc_read_finished(__unused const struct async_i2c_request *req
  * @param abort_data The contents of the abort register
  */
 static void depth_read_failure(__unused const struct async_i2c_request *req, uint32_t abort_data) {
-    LOG_WARN("Failed to read depth sensor (Tx Abort: %d)", abort_data);
+    LOG_WARN("Failed to read depth sensor (Tx Abort: %lu)", abort_data);
     if (!depth_initialized) {
         // This callback could occur during calibration which would fail to initialize the sensor
         safety_raise_fault(FAULT_DEPTH_INIT_ERROR);

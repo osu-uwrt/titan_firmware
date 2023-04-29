@@ -2,12 +2,19 @@
 #include "safety_interface.h"
 #include "actuators.h"
 #include "led.h"
+#include "basic_logger/logging.h"
+
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "safety_interface"
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #endif
 
-static void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
+static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
+    LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
+                (error_data.is_driver_error ? "Internal Driver" : "Library"));
+    // TODO: Add extra logging into other programs
     safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
 }
 

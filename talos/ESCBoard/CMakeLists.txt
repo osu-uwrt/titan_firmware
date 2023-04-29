@@ -34,7 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(esc_board
 	${SOURCES}
 )
-target_compile_options(esc_board PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(esc_board PUBLIC include)
 pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/uart_rx.pio)

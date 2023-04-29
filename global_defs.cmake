@@ -11,6 +11,14 @@ function(titan_firmware_init)
     # Make relwithdebuginfo actually like Release
     set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
 
+    # Enable param asserts if in debug mode
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_definitions(PARAM_ASSERTIONS_ENABLE_ALL=1)
+    endif()
+
+    # Enable all warnings
+    add_compile_options(-Wall -Wextra)
+
     # Define custom functions for assorted features
     function(titan_use_upload_tool target)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${REPO_DIR}/upload_tool)

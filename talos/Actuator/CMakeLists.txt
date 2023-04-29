@@ -19,7 +19,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Configure whether we're using new or old actuators
-set(USE_V2_ACTUATORS 1 CACHE STRING "Enables new actuators")
+set(USE_V2_ACTUATORS 0 CACHE STRING "Enables new actuators")
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -41,7 +41,6 @@ add_executable(actuator_mk2
 	src/ros/ros.c
 	src/ros/ros_actuators.c
 )
-target_compile_options(actuator_mk2 PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(actuator_mk2 PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)
@@ -63,6 +62,7 @@ target_link_libraries(actuator_mk2
 	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 	status_strip	# Top LED stip
+	hardware_pwm	# Required for status LED
 
 	pico_stdlib		# Pico SDK Standard Library
 )
@@ -96,6 +96,5 @@ else()
 	target_link_libraries(actuator_mk2
 		hardware_adc	# Required for torpedo charge monitoring
 		hardware_pio	# Required for torpedo firing
-		hardware_pwm	# Required for status LED
 	)
 endif()

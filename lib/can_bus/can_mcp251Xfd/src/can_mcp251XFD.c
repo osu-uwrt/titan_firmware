@@ -297,7 +297,7 @@ MCP251XFD_RAMInfos mcp251xfd_utility_tx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_utility_rx_raminfo;
 
 MCP251XFD_FIFO mcp251xfd_msg_tx_fifo_config = {
-    .Name = mcp251xfd_msg_tx_fifo, .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_64BYTE,
+    .Name = mcp251xfd_msg_tx_fifo, .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_8BYTE,
     .Direction = MCP251XFD_TRANSMIT_FIFO, .Attempts = MCP251XFD_THREE_ATTEMPTS,
     .Priority = MCP251XFD_MESSAGE_TX_PRIORITY17, .ControlFlags = MCP251XFD_FIFO_NO_RTR_RESPONSE,
     .InterruptFlags = MCP251XFD_FIFO_TX_ATTEMPTS_EXHAUSTED_INT + MCP251XFD_FIFO_TRANSMIT_FIFO_NOT_FULL_INT,
@@ -305,7 +305,7 @@ MCP251XFD_FIFO mcp251xfd_msg_tx_fifo_config = {
 };
 
 MCP251XFD_FIFO mcp251xfd_msg_rx_fifo_config = {
-    .Name = mcp251xfd_msg_rx_fifo, .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_64BYTE,
+    .Name = mcp251xfd_msg_rx_fifo, .Size = MCP251XFD_FIFO_32_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_8BYTE,
     .Direction = MCP251XFD_RECEIVE_FIFO, .ControlFlags = MCP251XFD_FIFO_ADD_TIMESTAMP_ON_RX,
     .InterruptFlags = MCP251XFD_FIFO_OVERFLOW_INT + MCP251XFD_FIFO_RECEIVE_FIFO_NOT_EMPTY_INT,
     .RAMInfos = &mcp251xfd_msg_rx_raminfo,
@@ -413,12 +413,12 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 
     // Device Errors
     if (active_interrupts & MCP251XFD_INT_RX_OVERFLOW_EVENT) {
-        canbus_report_library_error(CANBUS_LIBERR_RX_OVERFLOW);
-
         if (check_and_clear_fifo_event(&mcp251xfd_device, mcp251xfd_msg_rx_fifo, MCP251XFD_RX_FIFO_OVERFLOW)){
+            canbus_report_library_error(CANBUS_LIBERR_RX_OVERFLOW);
             interrupt_cleared = true;
         }
         if (check_and_clear_fifo_event(&mcp251xfd_device, mcp251xfd_utility_rx_fifo, MCP251XFD_RX_FIFO_OVERFLOW)){
+            canbus_report_library_error(CANBUS_LIBERR_RX_OVERFLOW);
             interrupt_cleared = true;
         }
     }

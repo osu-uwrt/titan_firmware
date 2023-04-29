@@ -34,7 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(dynamixel_example
 	${SOURCES}
 )
-target_compile_options(dynamixel_example PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(dynamixel_example PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)

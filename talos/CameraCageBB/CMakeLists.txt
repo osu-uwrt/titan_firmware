@@ -34,8 +34,6 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(camera_cage_bb
 	${SOURCES}
 )
-target_compile_options(camera_cage_bb PRIVATE -Wall -Wextra -Wno-format)
-target_compile_options(camera_cage_bb PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(camera_cage_bb PUBLIC include)
 
 # Set version: major minor release_type (see build_version.h for more info)

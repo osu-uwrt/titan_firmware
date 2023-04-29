@@ -57,7 +57,10 @@
 typedef void (*custom_logger_cb_t)(void* args, const int log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, va_list argp);
 extern void basic_logger_set_global_log_level(int log_level);
 extern void basic_logger_set_custom_logger_callback(custom_logger_cb_t callback, void* args);
-extern void basic_logger_log_common(const int log_level, const int local_log_level, const char * unit, const char * filename, const int line, const char * const function, const char * const fmt, ...);
+extern void basic_logger_log_common(const int log_level, const int local_log_level, const char * unit,
+                                    const char * filename, const int line, const char * const function,
+                                    const char * const fmt, ...)
+    _ATTRIBUTE ((__format__ (__printf__, 7, 8)));
 
 
 // Logging Unit Definitions
