@@ -2,13 +2,12 @@
 
 #include "basic_logger/logging.h"
 #include "build_version.h"
+#include "status_strip.h"
 
-#include "ros/ros.h"
+#include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
-#include "actuators/torpedo.h"
-#include "actuators/claw.h"
-#include "actuators/dropper.h"
+#include "actuators.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -113,7 +112,7 @@ static void tick_ros_tasks() {
     }
 
     if(timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_actuator_status(client_id));
+        RCSOFTRETVCHECK(ros_update_actuator_status());
     }
 
     // TODO: Put any additional ROS tasks added here
@@ -121,8 +120,10 @@ static void tick_ros_tasks() {
 
 static void tick_background_tasks() {
     #if MICRO_ROS_TRANSPORT_CAN
+    // Tick canbus heartbeat/control interface
     canbus_tick();
 
+    // Update LED to report canbus status
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
@@ -156,6 +157,12 @@ int main() {
     ros_rmw_init_error_handling();
     // TODO: Put any additional hardware initialization code here
 
+    // Status Strip Initialization
+    status_strip_init(pio0, 0, RGB_DATA_PIN, false);
+    status_strip_clear();
+
+    // Actuator initialization
+    actuators_initialize();
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
@@ -171,10 +178,6 @@ int main() {
     #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
     #endif
-
-    claw_initialize();
-    dropper_initialize();
-    torpedo_initialize();
 
     // Enter main loop
     // This is split into two sections of timers
@@ -210,6 +213,7 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
+            status_strip_clear();
             ros_initialized = false;
         } else {
             if (time_reached(next_connect_ping)) {

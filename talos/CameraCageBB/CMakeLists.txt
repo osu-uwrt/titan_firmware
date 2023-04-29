@@ -34,7 +34,7 @@ file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(camera_cage_bb
 	${SOURCES}
 )
-pico_generate_pio_header(camera_cage_bb ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
+target_compile_options(camera_cage_bb PRIVATE -Wall -Wextra -Wno-format)
 target_compile_options(camera_cage_bb PRIVATE -Wall -Wextra -Wno-format)
 target_include_directories(camera_cage_bb PUBLIC include)
 
@@ -60,7 +60,6 @@ target_link_libraries(camera_cage_bb
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
 	async_i2c		# I2C support for depth sensor
-	hardware_pio	# PIO for status strip
-	hardware_dma	# DMA for status strip
+	status_strip	# Status LED strip support
 )
 

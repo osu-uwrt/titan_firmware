@@ -66,7 +66,7 @@ static int64_t depth_reset_timer_callback(__unused alarm_id_t id, __unused void 
  * @param req Request that caused the callback
  */
 static void depth_reset_finished(__unused const struct async_i2c_request *req) {
-    hard_assert(add_alarm_in_ms(10, depth_reset_timer_callback, NULL, true) > 0);
+    hard_assert(add_alarm_in_ms(10, depth_reset_timer_callback, NULL, true) >= 0);
 }
 
 /**
@@ -242,7 +242,7 @@ static int64_t depth_adc_wait_callback(__unused alarm_id_t id, __unused void *us
  * @param req The request which caused the callback
  */
 static void depth_convert_cmd_finished(__unused const struct async_i2c_request *req) {
-    hard_assert(add_alarm_in_ms((int)(2.5e-3 * (1<<(8+DEPTH_OVERSAMPLING))) + 2, &depth_adc_wait_callback, NULL, true) > 0);
+    hard_assert(add_alarm_in_ms((int)(2.5e-3 * (1<<(8+DEPTH_OVERSAMPLING))) + 2, &depth_adc_wait_callback, NULL, true) >= 0);
 }
 
 /**
@@ -366,7 +366,7 @@ static void depth_zero_depth(void) {
         *depth_cal_reg = (uint32_t)surface_pressure;
 
         depth_initialized = true;
-        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
+        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) >= 0);
     }
 }
 
@@ -384,7 +384,7 @@ static void depth_begin_zero_depth(void) {
 
         // Start depth sensor read task
         depth_initialized = true;
-        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) > 0);
+        hard_assert(add_alarm_in_ms(DEPTH_POLLING_RATE_MS, &depth_read_alarm_callback, NULL, true) >= 0);
     }
 }
 

@@ -179,7 +179,7 @@ static bool async_i2c_start_request_internal(const struct async_i2c_request *req
             return false;
         }
     }
-    hard_assert(alarm_id > 0);
+    hard_assert(alarm_id >= 0);
     active_transfer.timeout_alarm = alarm_id;
     active_transfer.alarm_active = true;
 

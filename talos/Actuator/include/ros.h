@@ -72,14 +72,6 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 // Custom Board Functions
 // ========================================
 
-rcl_ret_t ros_claw_init(rclc_executor_t *executor, rcl_node_t *node, rclc_support_t *support);
-
-void ros_claw_fini(rcl_node_t *node);
-
-rcl_ret_t ros_torpedo_dropper_init(rclc_executor_t *executor, rcl_node_t *node, rclc_support_t *support);
-
-void ros_torpedo_dropper_fini(rcl_node_t *node);
-
-rcl_ret_t ros_update_actuator_status(uint8_t client_id);
+rcl_ret_t ros_update_actuator_status(void);
 
 #endif

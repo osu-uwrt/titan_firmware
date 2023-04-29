@@ -7,7 +7,7 @@
 
 #include "basic_logger/logging.h"
 
-#include "actuators/claw.h"
+#include "actuators.h"
 #include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
@@ -19,11 +19,10 @@ static const uint enable_pin = CLAW_ENABLE_PIN;
 
 #define OPEN_DIRECTION_IS_FORWARD true
 
-bool claw_initialized = false;
 static enum claw_state local_claw_state = CLAW_STATE_UNKNOWN_POSITION;
 
 void claw_initialize(void) {
-    hard_assert_if(LIFETIME_CHECK, claw_initialized);
+    hard_assert_if(ACTUATORS, actuators_initialized);
 
     // Init GPIO
     gpio_init(enable_pin);
@@ -43,8 +42,6 @@ void claw_initialize(void) {
 
     // Set state
     local_claw_state = CLAW_STATE_UNKNOWN_POSITION;
-
-    claw_initialized = true;
 }
 
 // ========================================
@@ -56,7 +53,7 @@ static uint16_t claw_open_time_ms = 0;
 static uint16_t claw_close_time_ms = 0;
 
 bool claw_set_timings(uint16_t open_time_ms, uint16_t close_time_ms) {
-    hard_assert_if(LIFETIME_CHECK, !claw_initialized);
+    hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (open_time_ms == 0 || close_time_ms == 0) {
         return false;
@@ -104,7 +101,7 @@ static alarm_id_t scheduled_alarm_id = 0;
  *
  * @param target_state The state of the claw after stopping
  */
-void claw_stop_internal(enum claw_state target_state) {
+static void claw_stop_internal(enum claw_state target_state) {
     claw_driver_stop();
     scheduled_alarm_id = 0;
     local_claw_state = target_state;
@@ -119,7 +116,7 @@ void claw_stop_internal(enum claw_state target_state) {
  */
 static int64_t claw_finish_callback(__unused alarm_id_t id, void *user_data) {
     enum claw_state target_state = ((enum claw_state) user_data);
-    valid_params_if(CLAW, (target_state == CLAW_STATE_OPENED || target_state == CLAW_STATE_CLOSED));
+    valid_params_if(ACTUATORS, (target_state == CLAW_STATE_OPENED || target_state == CLAW_STATE_CLOSED));
 
     claw_stop_internal(target_state);
 
@@ -127,7 +124,7 @@ static int64_t claw_finish_callback(__unused alarm_id_t id, void *user_data) {
 }
 
 enum claw_state claw_get_state(void) {
-    hard_assert_if(LIFETIME_CHECK, !claw_initialized);
+    hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (claw_open_time_ms == 0 || claw_close_time_ms == 0) {
         return CLAW_STATE_UNINITIALIZED;
@@ -136,8 +133,8 @@ enum claw_state claw_get_state(void) {
     return local_claw_state;
 }
 
-bool claw_open(void) {
-    hard_assert_if(LIFETIME_CHECK, !claw_initialized);
+bool claw_open(const char **errMsgOut) {
+    hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (safety_kill_get_asserting_kill()) {
         return false;
@@ -163,8 +160,8 @@ bool claw_open(void) {
     return true;
 }
 
-bool claw_close(void) {
-    hard_assert_if(LIFETIME_CHECK, !claw_initialized);
+bool claw_close(const char **errMsgOut) {
+    hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (safety_kill_get_asserting_kill()) {
         LOG_DEBUG("Not closing claw cuz safety");
@@ -199,5 +196,9 @@ void claw_safety_disable(void) {
     if (local_claw_state == CLAW_STATE_OPENING || local_claw_state == CLAW_STATE_CLOSING) {
         cancel_alarm(scheduled_alarm_id);
         claw_stop_internal(CLAW_STATE_UNKNOWN_POSITION);
+    }
+    else {
+        // We might not be moving, but be *very* sure that we've stopped the claw
+        claw_driver_stop();
     }
 }

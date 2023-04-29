@@ -50,7 +50,7 @@ static struct status_strip_inst {
     uint timer;
 
     // Flash State Config
-    bool flash_active;
+    volatile bool flash_active; // Voltaile as this is used to protect the flashing state, rather than disabling interrupts
     uint flash_timer;
     uint flash_count;
     uint8_t red_flash_target;
@@ -232,6 +232,7 @@ void status_strip_set(enum status_strip_mode mode, uint8_t red, uint8_t green, u
 }
 
 void status_strip_flash_front(uint8_t red, uint8_t green, uint8_t blue) {
+    inst->flash_active = false;
     inst->red_flash_target = red;
     inst->green_flash_target = green;
     inst->blue_flash_target = blue;

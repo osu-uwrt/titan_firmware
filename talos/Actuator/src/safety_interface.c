@@ -1,10 +1,20 @@
 #include <assert.h>
 #include "safety_interface.h"
+#include "actuators.h"
 #include "led.h"
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #endif
+
+static void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
+    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+}
+
+static void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
+    //safety_raise_fault(FAULT_CAN_RECV_ERROR);
+    // TODO: Switch to something that is recoverable
+}
 
 // ========================================
 // Implementations for External Interface Functions
@@ -22,31 +32,26 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    // TODO: Modify this function to add callbacks when system is killed
+    actuators_disarm();
     led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
-    // TODO: Modify this function to add callbacks for when system is enabled
-
     led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {
-
+    #ifdef MICRO_ROS_TRANSPORT_CAN
+    canbus_set_receive_error_cb(safety_handle_can_receive_error);
+    canbus_set_internal_error_cb(safety_handle_can_internal_error);
+    #endif
 }
 
-void safety_interface_init(void) {
-    // TODO: Modify this function to add code to be called during safety_init
-}
+void safety_interface_init(void) {}
 
-void safety_interface_tick(void) {
+void safety_interface_tick(void) {}
 
-}
-
-void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
-}
+void safety_interface_deinit(void) {}
 
 
 // ========================================

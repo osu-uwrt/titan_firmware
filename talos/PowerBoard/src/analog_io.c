@@ -49,7 +49,7 @@ void analog_io_init() {
     current_adc_channel = STBD_MEAS_ADC_CHAN;
     adc_select_input(current_adc_channel);
 
-    hard_assert(add_alarm_in_ms(ADC_TIMER_TIME_MS, adc_timer_callback, NULL, true) > 0);
+    hard_assert(add_alarm_in_ms(ADC_TIMER_TIME_MS, adc_timer_callback, NULL, true) >= 0);
 }
 
 float analog_io_read_port_meas() {

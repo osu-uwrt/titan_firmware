@@ -4,6 +4,15 @@
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
+
+static void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
+    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+}
+
+static void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
+    //safety_raise_fault(FAULT_CAN_RECV_ERROR);
+    // TODO: Switch to something that is recoverable
+}
 #endif
 
 // ========================================
@@ -33,7 +42,10 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-
+    #ifdef MICRO_ROS_TRANSPORT_CAN
+    canbus_set_receive_error_cb(safety_handle_can_receive_error);
+    canbus_set_internal_error_cb(safety_handle_can_internal_error);
+    #endif
 }
 
 void safety_interface_init(void) {

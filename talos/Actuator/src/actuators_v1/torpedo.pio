@@ -83,11 +83,16 @@ static inline void torpedo_program_init(PIO pio, uint sm, uint offset, uint firs
     pio_gpio_init(pio, first_pin+2);
 }
 
-static inline void torpedo_fire_sequence(PIO pio, uint sm, uint16_t *timings) {
+static inline bool torpedo_fire_sequence(PIO pio, uint sm, uint16_t *timings) {
+    if ((pio->ctrl & (1u<<sm)) || pio_sm_get_tx_fifo_level(pio, sm) != 0) {
+        // Make sure the PIO isn't in an unexpected state
+        return false;
+    }
     for (int i = 0; i < torpedo_num_timings; i++) {
-        pio_sm_put_blocking(pio, sm, timings[i]);
+        pio_sm_put(pio, sm, timings[i]);
     }
     pio_sm_set_enabled(pio, sm, true);
+    return true;
 }
 
 static inline void torpedo_reset(PIO pio, uint sm, uint offset, uint first_pin) {
