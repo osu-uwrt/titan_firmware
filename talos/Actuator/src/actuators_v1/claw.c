@@ -64,7 +64,7 @@ bool claw_set_timings(uint16_t open_time_ms, uint16_t close_time_ms) {
     claw_open_time_ms = open_time_ms;
     claw_close_time_ms = close_time_ms;
 
-    return false;
+    return true;
 }
 
 

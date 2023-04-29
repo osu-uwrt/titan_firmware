@@ -203,6 +203,8 @@ bool dropper_notify_reload(const char **errMsgOut) {
         return false;
     }
 
+    LOG_INFO("Resetting Dropper Fire Count");
+
     next_dropper_index = 0;
     return true;
 }

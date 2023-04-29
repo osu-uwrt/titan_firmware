@@ -20,6 +20,8 @@ void actuators_initialize(void) {
     torpedo_initialize();
     dropper_initialize();
     claw_initialize();
+
+    actuators_initialized = true;
 }
 
 bool actuators_arm(const char **errMsgOut) {
@@ -47,6 +49,9 @@ bool actuators_arm(const char **errMsgOut) {
     restore_interrupts(prev_interrupts);
 
     torpedo_arm(errMsgOut);
+
+    LOG_INFO("Arming Actuators");
+
     return true;
 }
 

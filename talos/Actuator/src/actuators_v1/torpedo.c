@@ -407,6 +407,8 @@ bool torpedo_notify_reload(const char **errMsgOut) {
         return false;
     }
 
+    LOG_INFO("Resetting Torpedo Fire Count");
+
     next_torpedo_index = 0;
     return true;
 }

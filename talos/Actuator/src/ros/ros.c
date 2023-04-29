@@ -12,15 +12,11 @@
 #include <std_msgs/msg/bool.h>
 
 #include "build_version.h"
-#include "basic_logger/logging.h"
 #include "status_strip.h"
 
 #include "actuators.h"
 #include "ros.h"
 #include "ros_internal.h"
-
-#undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code
@@ -111,7 +107,7 @@ static void led_subscription_callback(const void * msgin)
 	const riptide_msgs2__msg__LedCommand * msg = (const riptide_msgs2__msg__LedCommand *)msgin;
 
     // Ignore commands not for us
-    if ((msg->target & riptide_msgs2__msg__LedCommand__TARGET_CCB) == 0) {
+    if ((msg->target & riptide_msgs2__msg__LedCommand__TARGET_ACT) == 0) {
         return;
     }
 
@@ -281,7 +277,7 @@ rcl_ret_t ros_init() {
     // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD "_firmware", ROBOT_NAMESPACE, &support));
+    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
     RCRETCHECK(rclc_publisher_init_default(
@@ -322,7 +318,7 @@ rcl_ret_t ros_init() {
 		&rmw_qos_profile_sensor_data));
 
     // Executor Initialization
-    const int executor_num_handles = ros_actuators_num_executor_handles + 3;
+    const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback, ON_NEW_DATA));
@@ -330,6 +326,7 @@ rcl_ret_t ros_init() {
 
     // Initialize other files
     RCRETCHECK(ros_actuators_init(&executor, &node, &support));
+    RCRETCHECK(actuator_v1_parameters_init(&node, &executor));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -345,6 +342,7 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
 
+    actuator_v1_parameters_fini(&node);
     ros_actuators_fini(&node);
 
     RCSOFTCHECK(rcl_publisher_fini(&actuator_status_publisher, &node));

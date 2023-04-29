@@ -113,6 +113,11 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
     }
     state->seq_num++;
 
+    // Handle sequence number rollover
+    if (state->seq_num > CANMORE_MAX_MSG_SEQ_NUM) {
+        state->seq_num = 1;
+    }
+
     return true;
 }
 
@@ -164,7 +169,7 @@ bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uin
         return false;
     }
 
-    // Ensure that buffer overflow will not occur (it shouldn't, but just in case)
+    // Ensure that buffer overflow will not occur
     if (data_len + state->decode_len > CANMORE_MAX_MSG_LENGTH) {
         decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BUFFER_OVERFLOW);
         return false;
@@ -175,6 +180,11 @@ bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uin
     memcpy(&state->decode_buffer[state->decode_len], data, data_len);
     state->decode_len += data_len;
     state->next_seq_num++;
+
+    // Handle sequence number rollover
+    if (state->next_seq_num > CANMORE_MAX_MSG_SEQ_NUM) {
+        state->next_seq_num = 1;
+    }
 
     return true;
 }

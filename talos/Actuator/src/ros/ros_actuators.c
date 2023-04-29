@@ -4,14 +4,10 @@
 #include <rclc/executor.h>
 #include <std_srvs/srv/set_bool.h>
 #include <std_srvs/srv/trigger.h>
-#include "basic_logger/logging.h"
 
 #include "actuators.h"
 #include "ros.h"
 #include "ros_internal.h"
-
-#undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "ros_actuators"
 
 #define TORPEDO_SERVICE_NAME "command/torpedo"
 #define DROPPER_SERVICE_NAME "command/dropper"

@@ -87,6 +87,7 @@ else()
 	list(TRANSFORM ACTUATORS_V1_SPECIFIC_FILES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/src/actuators_v1/)
 	target_sources(actuator_mk2 PUBLIC
 		${ACTUATORS_V1_SPECIFIC_FILES}
+		src/ros/actuator_v1_parameters.c
 	)
 
 	# Add PIO source
