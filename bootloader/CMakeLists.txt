@@ -1,11 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Include global definitions
+execute_process(COMMAND git rev-parse --show-cdup
+	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
+include(${REPO_DIR}/global_defs.cmake)
+
 if (NOT DEFINED BOOTLOADER_INTERFACE)
 	message(FATAL_ERROR "The bootloader must be configured with the appropriate BOOTLOADER_INTERFACE")
 endif()
 
+project(titan_bootloader C CXX ASM)
+titan_firmware_init()
+
 # Include the runtime subdirectory
-add_subdirectory(titan_binary_info)
 add_subdirectory(bootloader_runtime)
 
 # Define common bootloader base

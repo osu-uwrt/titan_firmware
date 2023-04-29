@@ -3,15 +3,24 @@ if (NOT DEFINED REPO_DIR)
 endif()
 
 function(titan_enable_bootloader TARGET TYPE)
-	set(BOOTLOADER_INTERFACE ${TYPE})
-    set(BOOTLOADER_DIR titan_bootloader)
+    ExternalProject_Add (
+        titan_bootloader
+        SOURCE_DIR ${REPO_DIR}/bootloader/
+        PREFIX titan_bootloader
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DBOOTLOADER_INTERFACE=${TYPE} -DPICO_BOARD=${PICO_BOARD} -DUWRT_ROBOT=${UWRT_ROBOT}
+        INSTALL_COMMAND ""
+    )
 
-    set(BOOTLOADER_BL_UF2_FILE ${BOOTLOADER_DIR}/$<IF:$<BOOL:$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>>,$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>,$<TARGET_PROPERTY:titan_bootloader,NAME>>.uf2)
+
+    ExternalProject_Get_Property(titan_bootloader BINARY_DIR)
+    # message(FATAL_ERROR "Bootloader File: " ${BOOTLOADER_BL_UF2_FILE})
+	# set(BOOTLOADER_INTERFACE ${TYPE})
+    # set(BOOTLOADER_DIR titan_bootloader)
+
+    set(BOOTLOADER_BL_UF2_FILE ${BINARY_DIR}/titan_bootloader.uf2)
+    # set(BOOTLOADER_BL_UF2_FILE ${BOOTLOADER_DIR}/$<IF:$<BOOL:$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>>,$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>,$<TARGET_PROPERTY:titan_bootloader,NAME>>.uf2)
     set(BOOTLOADER_APP_UF2_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_ota.uf2)
     set(BOOTLOADER_COMBINED_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_with_bl.uf2)
-
-    # Add the bootloader subdirectory (before disabling uf2 so the bootloader gets one)
-    add_subdirectory(${REPO_DIR}/bootloader/ ${BOOTLOADER_DIR})
 
     # Make sure pico doesn't spit out a UF2
     # This is very cursed, where the very order of the set statement will determine whether UF2s are made
