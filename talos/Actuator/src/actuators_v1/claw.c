@@ -13,7 +13,10 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
 
-static const uint direction_pin = CLAW_PHASE_PIN; // TODO rewrite
+#warning This file must be fixed before production use
+// TODO: Fix this up to support new design of being interrupt safe and supporting checking actuator arm state
+
+static const uint direction_pin = CLAW_PHASE_PIN;
 static const uint mode2_pin = CLAW_MODE2_PIN;
 static const uint enable_pin = CLAW_ENABLE_PIN;
 

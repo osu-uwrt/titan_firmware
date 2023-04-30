@@ -42,8 +42,8 @@ bi_decl(bi_1pin_with_name(TORP_SEL_2_PIN, "Torpedo Select 2"));
 
 #define ARM_LEVEL_ARMED    0
 #define ARM_LEVEL_DISARMED 1
-#define DRAIN_LEVEL_NODRAIN 0
-#define DRAIN_LEVEL_DRAIN 1
+#define DRAIN_LEVEL_NODRAIN 1
+#define DRAIN_LEVEL_DRAIN 0
 
 #define COIL_LEVEL_ON  1
 #define COIL_LEVEL_OFF 0

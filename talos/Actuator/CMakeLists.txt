@@ -71,12 +71,30 @@ target_link_libraries(actuator_mk2
 if (USE_V2_ACTUATORS)
 	message("Building " ${PROJECT_NAME} " with Actuator V2 Support")
 	target_compile_definitions(actuator_mk2 PUBLIC ACTUATOR_V2_SUPPORT=1)
+
+	# List of sources files in mark 1 directory
+	set(ACTUATORS_V2_SPECIFIC_FILES
+		actuators.c
+		torpedo_marker.c
+		claw_disabled.c
+	)
+
+	# Append actuators v1 and target all the sources
+	list(TRANSFORM ACTUATORS_V2_SPECIFIC_FILES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/src/actuators_v2/)
+	target_sources(actuator_mk2 PUBLIC
+		${ACTUATORS_V2_SPECIFIC_FILES}
+	)
+
+	# Link the required libraries for mark 1 actuators
+	target_link_libraries(actuator_mk2
+		dynamixel
+	)
 else()
 	message("Building " ${PROJECT_NAME} " with Actuator V1 Support")
 	target_compile_definitions(actuator_mk2 PUBLIC ACTUATOR_V1_SUPPORT=1)
 
 	# List of sources files in mark 1 directory
-	SET(ACTUATORS_V1_SPECIFIC_FILES
+	set(ACTUATORS_V1_SPECIFIC_FILES
 		actuators.c
 		claw.c
 		dropper.c

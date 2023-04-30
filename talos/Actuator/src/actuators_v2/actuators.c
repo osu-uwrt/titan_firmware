@@ -15,11 +15,9 @@ volatile bool actuators_armed = false;
 // Public Functions
 void actuators_initialize(void) {
     hard_assert_if(ACTUATORS, actuators_initialized);
-    bi_decl_if_func_used(bi_program_feature("Actuators V1"));
+    bi_decl_if_func_used(bi_program_feature("Actuators V2"));
 
-    torpedo_initialize();
-    dropper_initialize();
-    claw_initialize();
+    torpedo_marker_initialize(1);
 
     actuators_initialized = true;
 }
@@ -50,12 +48,10 @@ bool actuators_arm(const char **errMsgOut) {
 
     LOG_INFO("Arming Actuators");
 
-    return torpedo_arm(errMsgOut);
+    return torpedo_marker_arm(errMsgOut);
 }
 
 void actuators_disarm(void) {
     actuators_armed = false;
-    dropper_safety_disable();
-    torpedo_safety_disable();
-    claw_safety_disable();
+    torpedo_marker_safety_disable();
 }

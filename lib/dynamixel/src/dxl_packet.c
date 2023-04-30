@@ -42,9 +42,9 @@ static DXLLibErrorCode_t
 parse_dxl1_0_packet(InfoToParseDXLPacket_t *p_parse_packet, uint8_t recv_data);
 static DXLLibErrorCode_t
 parse_dxl2_0_packet(InfoToParseDXLPacket_t *p_parse_packet, uint8_t recv_data);
-static DXLLibErrorCode_t
-fast_parse_dxl2_0_packet(InfoToParseDXLPacket_t *p_parse_packet,
-                         uint8_t recv_data);
+// static DXLLibErrorCode_t
+// fast_parse_dxl2_0_packet(InfoToParseDXLPacket_t *p_parse_packet,
+//                          uint8_t recv_data);
 
 static DXLLibErrorCode_t
 add_param_to_dxl1_0_packet(InfoToMakeDXLPacket_t *p_make_packet,

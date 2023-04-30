@@ -318,7 +318,15 @@ rcl_ret_t ros_init() {
 		&rmw_qos_profile_sensor_data));
 
     // Executor Initialization
-    const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + 3;
+    const int executor_num_local_handles = 3;
+    #if ACTUATOR_V1_SUPPORT
+    const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + executor_num_local_handles;
+    #elif ACTUATOR_V2_SUPPORT
+    const int executor_num_handles = ros_actuators_num_executor_handles + executor_num_local_handles;
+    #else
+    #error Unexpected Actuator Support
+    #endif
+
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback, ON_NEW_DATA));
@@ -326,7 +334,10 @@ rcl_ret_t ros_init() {
 
     // Initialize other files
     RCRETCHECK(ros_actuators_init(&executor, &node, &support));
+
+    #if ACTUATOR_V1_SUPPORT
     RCRETCHECK(actuator_v1_parameters_init(&node, &executor));
+    #endif
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -342,7 +353,10 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
 
+    #if ACTUATOR_V1_SUPPORT
     actuator_v1_parameters_fini(&node);
+    #endif
+
     ros_actuators_fini(&node);
 
     RCSOFTCHECK(rcl_publisher_fini(&actuator_status_publisher, &node));

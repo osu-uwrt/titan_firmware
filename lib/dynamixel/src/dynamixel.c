@@ -472,18 +472,45 @@ bool dynamixel_read_eeprom(dynamixel_id id) {
   return true;
 }
 
-void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom)
+bool dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom)
 {
   int idx = servo_id_to_index(id);
-  assert(idx >= 0); // TODO: what to do in this case?
+  if (idx < 0) {
+    return false;
+  }
+
+  // TODO: Check if was read
 
   memcpy(eeprom, &servo_eeproms[idx], sizeof(struct dynamixel_eeprom));
+  return true;
 }
 
-void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram)
+bool dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram)
 {
   int idx = servo_id_to_index(id);
-  assert(idx >= 0); // TODO: what to do in this case?
+  if(idx < 0) {
+    return false;
+  }
+
+  // TODO: Check if RAM stale
 
   memcpy(ram, &servo_ram[idx], sizeof(struct dynamixel_ram));
+  return true;
+}
+
+bool dynamixel_check_connected(dynamixel_id id) {
+  // TODO: Implement me
+  return false;
+}
+
+bool dynamixel_get_position(dynamixel_id id, int32_t *position_out) {
+  int idx = servo_id_to_index(id);
+
+  if (idx < 0) {
+    return false;
+  }
+
+  // TODO: Check if RAM stale
+  *position_out = servo_ram[idx].present_position;
+  return true;
 }

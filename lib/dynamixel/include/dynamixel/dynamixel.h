@@ -8,7 +8,7 @@
 #define DYNAMIXEL_PACKET_BUFFER_SIZE 128
 
 // TODO: add more specific errors
-enum dynamixel_error { 
+enum dynamixel_error {
     DYNAMIXEL_ERROR_NONE = 0,
     /* An internal error: if this is reported it is a bug in the driver. */
     DYNAMIXEL_DRIVER_ERROR,
@@ -25,7 +25,7 @@ enum dynamixel_error {
     DYNAMIXEL_INVALID_ID,
 };
 
-enum dynamixel_event { 
+enum dynamixel_event {
     /* This event is fired when the driver completes an EEPROM read of the servo. */
     DYNAMIXEL_EVENT_EEPROM_READ,
      /* This event is fired when the driver completes a RAM read of the servo. */
@@ -36,7 +36,7 @@ enum dynamixel_event {
 };
 
 // TODO: convert some of these to enums
-struct dynamixel_eeprom { 
+struct dynamixel_eeprom {
     uint16_t model_num;
     uint32_t model_info;
     uint8_t firmware_version;
@@ -58,7 +58,7 @@ struct dynamixel_eeprom {
     uint8_t startup_config;
 };
 
-struct dynamixel_ram { 
+struct dynamixel_ram {
     bool torque_enable;
     uint8_t led;
     uint8_t status_return_level;
@@ -83,7 +83,7 @@ struct dynamixel_ram {
     uint16_t present_pwm;
     uint16_t present_load;
     uint32_t present_velocity;
-    uint32_t present_position;
+    uint32_t present_position;  // TODO: Should this be signed?
     uint32_t velocity_trajectory;
     uint32_t position_trajectory;
     uint16_t present_input_voltage;
@@ -100,12 +100,12 @@ typedef void (*dynamixel_error_cb)(enum dynamixel_error error_code);
 typedef void (*dynamixel_event_cb)(enum dynamixel_event, dynamixel_id id);
 
 /**
- * @brief Initializes the driver the specified list of servo IDs. 
- * 
- * @param id_list a list of IDs for the servos that will be used. 
+ * @brief Initializes the driver the specified list of servo IDs.
+ *
+ * @param id_list a list of IDs for the servos that will be used.
  * @param id_cnt the number of IDs in the id_list
  * @param error_cb the error callback that will be used by the driver.
- * @param event_cb the event callback that will be used by the driver. 
+ * @param event_cb the event callback that will be used by the driver.
 */
 void dynamixel_init(dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb error_cb, dynamixel_event_cb event_cb);
 
@@ -113,47 +113,75 @@ bool dynamixel_set_id(dynamixel_id old, dynamixel_id new);
 
 bool dynamixel_set_target_position(dynamixel_id id, uint32_t pos);
 
-/** 
+/**
  * @brief Send a request to read the EEPROM off of the servo.
- * 
+ *
  * Once the EEPROM is returned from the servo, it will be cached internally in the driver. You can get
- * the EEPROM settings by calling `dynamixel_get_eeprom` or by listening for a `DYNAMIXEL_EVENT_EEPROM_READ` 
- * in the event handler. 
- * 
+ * the EEPROM settings by calling `dynamixel_get_eeprom` or by listening for a `DYNAMIXEL_EVENT_EEPROM_READ`
+ * in the event handler.
+ *
  * Note: This does not send the request immediately. Instead, this request will be placed in the
  * drivers internal command queue and will be sent at some point in the future.
- * 
+ *
  * @param id the ID of the servo
 */
 bool dynamixel_read_eeprom(dynamixel_id id);
 
-/** 
- * @brief Sets the torque enabled flag in the dynamixel's RAM. 
- * 
+/**
+ * @brief Sets the torque enabled flag in the dynamixel's RAM.
+ *
  * When torque is enabled, the servo will attempt to move to it's goal position or goal velocity.
- * Additionally, the EEPROM will be locked and all writes to the EEPROM will fail. 
- * 
+ * Additionally, the EEPROM will be locked and all writes to the EEPROM will fail.
+ *
  * Note: This does not send the packet immediately. Instead, this request will be placed in the
  * drivers internal command queue and will be sent at some point in the future.
- * 
+ *
  * @param id the ID of the servo
- * @param enabled what to set the enable torque flag to. 
+ * @param enabled what to set the enable torque flag to.
 */
 bool dynamixel_enable_torque(dynamixel_id id, bool enabled);
 
 /**
- * @brief Gets a copy of the eeprom last read from the servo. 
- * 
- * Note: This does not actually request the EEPROM from the servo. Instead this will return 
- * the settings from the last time the EEPROM was read. To actually request the EEPROM be read, 
+ * @brief Gets a copy of the eeprom last read from the servo.
+ *
+ * Note: This does not actually request the EEPROM from the servo. Instead this will return
+ * the settings from the last time the EEPROM was read. To actually request the EEPROM be read,
  * use `dynamixel_read_eeprom`.
- * 
+ *
  * @param id specifies which servo eeprom to get. This ID must be passed to the driver at dynamixel_init.
- * @param eeprom the struct to copy the EEPROM variables to. 
+ * @param eeprom the struct to copy the EEPROM variables to.
 */
-void dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom);
+bool dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom);
 
-void dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram);
+/**
+ * @brief Gets a copy of the ram last reD from the servo.
+ *
+ * @param id ID of the dynamixel read
+ * @param ram Pointer to location to store RAM
+ * @return true The ram was successfully read
+ * @return false The ram was not read or is stale
+ */
+bool dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram);
+
+/**
+ * @brief Returns if the corresponding dynamixel is connected.
+ * If this returns true, RAM data is considered valid
+ *
+ * @param id The ID to lookup
+ * @return true If the dynamixel is connected
+ * @return false If the dynamixel is not connected
+ */
+bool dynamixel_check_connected(dynamixel_id id);
+
+/**
+ * @brief Gets the current position of the servo
+ *
+ * @param id The servo to lookup
+ * @param position_out The position
+ * @return true Position successfully read
+ * @return false Position failed to read
+ */
+bool dynamixel_get_position(dynamixel_id id, int32_t *position_out);
 
 /* How control servo (?) */
 
