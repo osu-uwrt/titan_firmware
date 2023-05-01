@@ -17,6 +17,7 @@ void can_mcp251xfd_report_msg_tx_fifo_ready(void);
 void can_mcp251xfd_report_msg_rx_fifo_ready(void);
 void can_mcp251xfd_report_utility_tx_fifo_ready(void);
 void can_mcp251xfd_report_utility_rx_fifo_ready(void);
+void can_mcp251xfd_reset_msg_fifos();
 
 bool can_mcp251xfd_get_in_error(void);
 
@@ -57,6 +58,13 @@ extern struct utility_message_buffer utility_rx_buf;
  * @brief Holds data waiting to be transmitted
 */
 extern canmore_msg_encoder_t encoding_buffer;
+
+/**
+ * @brief True if canbus messages are being processed by the application, false if not
+ * Used to avoid buffer overflow errors when messages aren't being processed (as buffer overflows are marked as
+ * a system error, which is not the case when we are sent random data after the fact)
+ */
+extern bool canbus_msg_opened;
 
 void canbus_call_internal_error_cb(int line, uint16_t error_code, bool error_code_is_driver_error);
 void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code);

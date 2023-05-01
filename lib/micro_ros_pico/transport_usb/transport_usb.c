@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
@@ -26,11 +27,14 @@ int clock_gettime(__unused clockid_t unused, struct timespec *tp)
 
 bool transport_can_open(__unused struct uxrCustomTransport * transport)
 {
-    return canbus_initialized;
+    printf("-----Session Opened!-----\n");
+    return canbus_msg_open();
 }
 
 bool transport_can_close(__unused struct uxrCustomTransport * transport)
 {
+    canbus_msg_close();
+    printf("-----Session Closed!-----\n");
     return true;
 }
 

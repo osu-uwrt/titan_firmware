@@ -398,6 +398,10 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
         return;
     }
 
+    if (!gpio_is_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS)) {
+        return;
+    }
+
     setMCP251XFD_InterruptEvents active_interrupts;
     eERRORRESULT error_code = MCP251XFD_GetInterruptEvents(&mcp251xfd_device, &active_interrupts);
 
@@ -517,7 +521,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 
     if (active_interrupts & MCP251XFD_INT_RX_EVENT) {
         if (check_fifo_event(&mcp251xfd_device, mcp251xfd_msg_rx_fifo, MCP251XFD_RX_FIFO_NOT_EMPTY)) {
-            if (canbus_msg_driver_space_in_rx()) {
+            if (canbus_msg_driver_space_in_rx() || !canbus_msg_opened) {
 
                 uint32_t timestamp = 0;
                 uint8_t payload[MCP251XFD_PayloadToByte(mcp251xfd_msg_rx_fifo_config.Payload)];
@@ -530,7 +534,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                                                               &timestamp, mcp251xfd_msg_rx_fifo);
                 if (error_code != ERR_OK) {
                     canbus_report_driver_error(error_code);
-                } else {
+                } else if (canbus_msg_opened) {
                     bool is_extended = (msg.ControlFlags & MCP251XFD_EXTENDED_MESSAGE_ID) != 0;
                     bool is_canfd = (msg.ControlFlags & MCP251XFD_CANFD_FRAME) != 0;
                     canbus_msg_driver_post_rx(msg.MessageID, is_extended, MCP251XFD_DLCToByte(msg.DLC, is_canfd), msg.PayloadData);
@@ -755,4 +759,15 @@ uint32_t save_and_disable_mcp251Xfd_irq(void) {
 
 void restore_mcp251Xfd_irq(uint32_t prev_interrupt_state) {
     gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, prev_interrupt_state != 0);
+}
+
+void can_mcp251xfd_reset_msg_fifos() {
+    eERRORRESULT result = MCP251XFD_ResetFIFO(&mcp251xfd_device, mcp251xfd_msg_rx_fifo);
+    if (result != ERR_OK) {
+        canbus_report_driver_error(result);
+    }
+    result = MCP251XFD_ResetFIFO(&mcp251xfd_device, mcp251xfd_msg_tx_fifo);
+    if (result != ERR_OK) {
+        canbus_report_driver_error(result);
+    }
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/unique_id.h"
 #include "pico/stdlib.h"

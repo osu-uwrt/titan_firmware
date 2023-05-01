@@ -76,6 +76,7 @@ void canbus_set_device_in_error(bool device_in_error_state) {
 // Msg Queue Functions
 // ========================================
 
+bool canbus_msg_opened = false;
 canmore_msg_decoder_t msg_decoder = {0};
 canmore_msg_encoder_t encoding_buffer = {0};
 struct canmore_received_msg {
@@ -89,16 +90,46 @@ struct canmore_received_msg {
 
 // Exports to Application Code
 
+bool canbus_msg_open(void) {
+    if (!canbus_initialized) {
+        return false;
+    }
+
+    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
+
+    // Clear mcp251xfd buffers
+    can_mcp251xfd_reset_msg_fifos();
+
+    // Clear local buffers
+    canmore_received_msg.waiting = false;
+    canbus_msg_opened = true;
+    canmore_msg_encode_init(&encoding_buffer, encoding_buffer.client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
+
+    // Mark FIFOs as ready to receive (since we cleared the buffers it won't be able to )
+    can_mcp251xfd_report_msg_rx_fifo_ready();
+    can_mcp251xfd_report_msg_tx_fifo_ready();
+
+    restore_mcp251Xfd_irq(prev_interrupt);
+
+    return true;
+}
+
+void canbus_msg_close(void) {
+    assert(canbus_initialized);
+
+    canbus_msg_opened = false;
+}
+
 bool canbus_msg_read_available(void) {
     assert(canbus_initialized);
 
-    return canmore_received_msg.waiting;
+    return canbus_msg_opened && canmore_received_msg.waiting;
 }
 
 size_t canbus_msg_read(uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
-    if (!canmore_received_msg.waiting) {
+    if (!canbus_msg_opened || !canmore_received_msg.waiting) {
         return 0;
     }
 
@@ -118,11 +149,15 @@ size_t canbus_msg_read(uint8_t *buf, size_t len) {
 bool canbus_msg_write_available(void) {
     assert(canbus_initialized);
 
-    return canmore_msg_encode_done(&encoding_buffer);
+    return canbus_msg_opened && canmore_msg_encode_done(&encoding_buffer);
 }
 
 size_t canbus_msg_write(const uint8_t *buf, size_t len) {
     assert(canbus_initialized);
+
+    if (!canbus_msg_opened) {
+        return 0;
+    }
 
     // Ensure that writing to the encode object isn't interrupted by IRQ
     // This is different from all the other values since it's not just a single bool which controls state, but instead

@@ -131,6 +131,23 @@ void canbus_set_internal_error_cb(canbus_internal_error_cb_t callback);
 // ========================================
 
 /**
+ * @brief Opens the canbus communication channel.
+ * @attention This must be called before receiving or transmitting message frames.
+ *
+ * This clears the TX/RX fifo and begins receiving data.
+ * @return true Successfully opened
+ * @return false An error occurred (canbus offline, not initialized, etc.)
+ */
+bool canbus_msg_open(void);
+
+/**
+ * @brief Closes the canbus communication channel
+ * This unsubscribes from received messages.
+ * This is important so that the RX fifo won't raise an overflow fault when data is not being processed
+ */
+void canbus_msg_close(void);
+
+/**
  * @brief The maximum length of a transmitted or received msg.
 */
 extern const size_t canbus_msg_max_length;
