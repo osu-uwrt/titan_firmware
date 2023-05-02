@@ -11,13 +11,6 @@ set(PICO_BOARD puddles_backplane)
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT puddles)
 
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -37,8 +30,8 @@ add_executable(backplane_firmware
 pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 target_include_directories(backplane_firmware PUBLIC include)
 
-# Set version: major minor release_type (see build_version.h for more info)
-generate_version_tag(backplane_firmware 1 0 DEV) # Release Types: PROTO, DEV, STABLE
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(backplane_firmware 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(backplane_firmware 1)

@@ -11,13 +11,6 @@ set(PICO_BOARD sbh_mcu)
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
 
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -37,9 +30,8 @@ add_executable(smart_battery
 target_include_directories(smart_battery PUBLIC include)
 pico_generate_pio_header(smart_battery ${CMAKE_CURRENT_LIST_DIR}/src/i2c.pio)
 
-# Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(smart_battery 1 0 PROTO)
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(smart_battery 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(smart_battery 1)

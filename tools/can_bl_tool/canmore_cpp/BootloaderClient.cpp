@@ -11,9 +11,10 @@ using namespace Canmore;
 #define EXPECTED_VERSION_MINOR 0
 
 // Defines pulled from board_version.h
-#define VERSION_PROTO 0
+#define VERSION_DEBUG 0
 #define VERSION_DEV 1
-#define VERSION_STABLE 2
+#define VERSION_CLEAN 2
+#define VERSION_TAGGED 3
 
 #define CRC32_POLYNOMIAL 0x04C11DB7
 
@@ -54,11 +55,11 @@ BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): cli
                version_major, version_minor, EXPECTED_VERSION_MAJOR, EXPECTED_VERSION_MINOR);
     }
 
-    if (version_type == VERSION_PROTO) {
-        std::cout << "Warning! Bootloader running prototype firmware! This may not operate as expected" << std::endl;
+    if (version_type == VERSION_DEBUG) {
+        std::cout << "Warning! Bootloader running debug firmware! This may not operate as expected" << std::endl;
     } else if (version_type == VERSION_DEV) {
         std::cout << "Note: Target bootloader is a development version\n" << std::endl;
-    } else if (version_type != VERSION_STABLE) {
+    } else if (version_type != VERSION_CLEAN && version_type != VERSION_TAGGED) {
         throw BootloaderError("Invalid Version Type");
     }
 

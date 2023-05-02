@@ -51,16 +51,24 @@ string(STRIP "${BUILD_USER}" BUILD_USER)
 string(STRIP "${BUILD_HOST}" BUILD_HOST)
 string(STRIP "${BUILD_TIMESTAMP}" BUILD_TIMESTAMP)
 
-if (("${RELEASE_TYPE}" STREQUAL "STABLE") AND (NOT "${GIT_DIFF}" STREQUAL ""))
-    message(WARNING "\nRelease type set to STABLE but repository is dirty\nSetting release type to DEV")
-    set(RELEASE_TYPE "DEV")
-endif()
+string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER)
 
-if ("${RELEASE_TYPE}" STREQUAL "STABLE")
-    # STABLE doesn't have anything appended to the end of the string
+if ("${BUILD_TYPE_LOWER}" STREQUAL "debug")
+    # Debug builds have special string appended at end of version string
+    set(VER_RELEASE_TYPE "_debug")
+    set(RELEASE_TYPE "DEBUG")
+elseif (NOT "${GIT_DIFF}" STREQUAL "")
+    # Dev builds are generated when the working tree is dirty
     set(VER_RELEASE_TYPE "")
+    set(RELEASE_TYPE "DEV")
+elseif ("${GIT_TAG}" STREQUAL "")
+    # Clean builds are builds based on a clean repo without a git tag
+    set(VER_RELEASE_TYPE "")
+    set(RELEASE_TYPE "CLEAN")
 else()
-    string(TOLOWER "_${RELEASE_TYPE}" VER_RELEASE_TYPE)
+    # Tagged builds are based on a clean repo with a git tag
+    set(VER_RELEASE_TYPE "")
+    set(RELEASE_TYPE "TAGGED")
 endif()
 
 if ("${ROBOT}" STREQUAL "")

@@ -6,13 +6,6 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD backplane_breakout_board)
 
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -30,9 +23,8 @@ add_executable(micro_ros_example
 	safety_interface.c
 )
 
-# Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(micro_ros_example 1 0 PROTO)
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(micro_ros_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(micro_ros_example 0)

@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Set default build type to RelWithDebugInfo
+set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "CMake Build Type")
+
 # Include sdk
 set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)

@@ -11,13 +11,6 @@ set(PICO_BOARD mk2_actuator_board)
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
 
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 # Configure whether we're using new or old actuators
 set(USE_V2_ACTUATORS 0 CACHE STRING "Enables new actuators")
 
@@ -43,9 +36,8 @@ add_executable(actuator_mk2
 )
 target_include_directories(actuator_mk2 PUBLIC include)
 
-# Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(actuator_mk2 1 0 DEV)
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(actuator_mk2 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(actuator_mk2 1)

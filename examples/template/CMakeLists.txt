@@ -11,13 +11,6 @@ set(PICO_BOARD mk2_power_board)
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
 
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally (Compile for release, but keep symbol info for debugging)
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -36,9 +29,8 @@ add_executable(template_project
 )
 target_include_directories(template_project PUBLIC include)
 
-# Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(template_project 1 0 PROTO)
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(template_project 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(template_project 1)

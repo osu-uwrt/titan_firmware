@@ -6,14 +6,10 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD sbh_mcu)
 
+# The Target Robot
+# These can be found in lib/uwrt_boards/include/robots
+# Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
-
-# Default Target build type - Can be overidden by passing -DCMAKE_BUILD_TYPE="Debug" in the cmake command
-# Defaults to RelWithDebInfo when building normally
-# Overriding Debug increases size and slows down code, but gives more useful information during debugging
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -31,9 +27,8 @@ add_executable(pico_sdk_example
 	main.c
 )
 
-# Set version: major minor release_type (see build_version.h for more info)
-# Release Types: PROTO, DEV, STABLE
-generate_version_tag(pico_sdk_example 1 0 PROTO)
+# Set version: major minor (see build_version.h for more info)
+generate_version_tag(pico_sdk_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_usb(pico_sdk_example 1)
