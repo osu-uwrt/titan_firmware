@@ -8,6 +8,7 @@
 #include "basic_logger/logging.h"
 
 #include "actuators.h"
+#include "actuators_internal.h"
 #include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
@@ -140,6 +141,7 @@ bool claw_open(const char **errMsgOut) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (safety_kill_get_asserting_kill()) {
+        *errMsgOut = "Kill Pulled";
         return false;
     }
 
@@ -151,6 +153,7 @@ bool claw_open(const char **errMsgOut) {
         case CLAW_STATE_CLOSED:
             break;
         default:
+            *errMsgOut = "Invalid State";
             return false;
     }
 
@@ -168,6 +171,7 @@ bool claw_close(const char **errMsgOut) {
 
     if (safety_kill_get_asserting_kill()) {
         LOG_DEBUG("Not closing claw cuz safety");
+        *errMsgOut = "Kill Pulled";
         return false;
     }
 

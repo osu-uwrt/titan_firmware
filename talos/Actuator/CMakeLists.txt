@@ -69,7 +69,7 @@ target_link_libraries(actuator_mk2
 
 # Configure target depending on if running Mark 1 or Mark 2 Actuators
 if (USE_V2_ACTUATORS)
-	message("Building " ${PROJECT_NAME} " with Actuator V2 Support")
+	message("Building with Actuator V2 Support")
 	target_compile_definitions(actuator_mk2 PUBLIC ACTUATOR_V2_SUPPORT=1)
 
 	# List of sources files in mark 1 directory
@@ -90,7 +90,7 @@ if (USE_V2_ACTUATORS)
 		dynamixel
 	)
 else()
-	message("Building " ${PROJECT_NAME} " with Actuator V1 Support")
+	message("Building with Actuator V1 Support")
 	target_compile_definitions(actuator_mk2 PUBLIC ACTUATOR_V1_SUPPORT=1)
 
 	# List of sources files in mark 1 directory
