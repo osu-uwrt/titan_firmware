@@ -856,7 +856,7 @@ parse_dxl2_0_packet(InfoToParseDXLPacket_t *p_parse_packet, uint8_t recv_data) {
         }
         param_array[p_parse_packet->recv_param_len] = recv_data;
         update_dxl_crc(&p_parse_packet->calculated_crc, recv_data);
-        /////TODO/////
+        /////To do/////
         // https://emanual.robotis.com/docs/en/dxl/protocol2/#parameter
         for(p_parse_packet->check_xel_count=0; p_parse_packet->check_xel_count < p_parse_packet->xel_count; p_parse_packet->check_xel_count++){
           if(p_parse_packet->check_xel_count == 0) {

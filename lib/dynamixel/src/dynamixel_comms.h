@@ -6,12 +6,18 @@
 #include "dxl_packet.h"
 #include <stdint.h>
 
+// PICO_CONFIG: DYNAMIXEL_PACKET_BUFFER_SIZE, The max number of parameters allowed in a single transfer, min=1, default=128, group=dynamixel
+#ifndef DYNAMIXEL_PACKET_BUFFER_SIZE
+#define DYNAMIXEL_PACKET_BUFFER_SIZE 128
+#endif
+
 struct dynamixel_req_result {
   enum DXLInstruction instr;
   InfoToParseDXLPacket_t *packet;
+  uint8_t request_id;
 };
 
-typedef void (*dynamixel_request_cb)(enum dynamixel_error ec,
+typedef void (*dynamixel_request_cb)(dynamixel_error_t ec,
                                      struct dynamixel_req_result *result);
 
 void dynamixel_send_packet(dynamixel_request_cb callback,

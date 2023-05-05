@@ -10,7 +10,6 @@
 #include "pico/sync.h"
 
 #include "dynamixel/dynamixel.h"
-#include "dynamixel/async_uart.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -38,45 +37,6 @@ absolute_time_t next_heartbeat = {0};
 absolute_time_t next_status_update = {0};
 absolute_time_t next_led_update = {0};
 absolute_time_t next_connect_ping = {0};
-
-uint8_t data_buf[8] = "Hello 0";
-uint8_t recv_buf[8];
-
-void my_write_cb(enum async_uart_tx_err error);
-
-void my_read_cb(enum async_uart_rx_err error, uint8_t *data, size_t len) {
-    if (!error) {
-        if (is_receiver) {
-            async_uart_write(data, len, false, my_write_cb);
-        } else {
-            printf("Received: \"%.8s\"\n", data);
-        }
-    } else {
-        printf("ERR: %d\n", error);
-        if (is_receiver && error != ASYNC_UART_RX_BUSY) {
-            async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
-        }
-    }
-}
-
-void __time_critical_func(my_write_cb)(enum async_uart_tx_err error) {
-    if (!error) {
-        async_uart_read(recv_buf, sizeof(recv_buf), my_read_cb);
-    }
-    else {
-        printf("TX Busy?\n");
-    }
-}
-
-int64_t transmit_pacer(__unused alarm_id_t id, __unused void *user_data) {
-    data_buf[6]++;
-    if (data_buf[6] > '9') {
-        data_buf[6] = '0';
-    }
-    printf("Transmit: \"%.8s\"\n", data_buf);
-    async_uart_write(data_buf, sizeof(data_buf), false, my_write_cb);
-    return 500 * 1000;
-}
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -208,23 +168,25 @@ static void tick_background_tasks() {
     // TODO: Put any code that should periodically occur here
 }
 
-void on_dynamixel_error(uint8_t error) {
-    printf("ERROR CALLBACK: %d\n", error);
+void on_dynamixel_error(dynamixel_error_t error) {
+    printf("Dynamixel Driver Error: %d (arg: %d) - %s line %d\n", error.fields.error, error.fields.wrapped_error_code,
+        (error.fields.error_source == DYNAMIXEL_SOURCE_COMMS ? "dynamixel_comms" : "dynamixel_schedule"), error.fields.line);
     return;
 }
 
 void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
     switch (event) {
-        case DYNAMIXEL_EVENT_PING:
-            printf("Received ping from %d\n", id);
+        case DYNAMIXEL_EVENT_DISCONNECTED:
+            printf("Servo %d Disconnected\n", id);
             break;
-        case DYNAMIXEL_EVENT_EEPROM_READ: {
+        case DYNAMIXEL_EVENT_CONNECTED: {
             struct dynamixel_eeprom eeprom;
             dynamixel_get_eeprom(id, &eeprom);
 
+            printf("Servo Connected!\n");
             printf("--- Servo %d EEPROM ---\n", id);
             printf("  Model Number: %d\n", eeprom.model_num);
-            printf("  Model Info: %d\n", eeprom.model_info);
+            printf("  Model Info: %ld\n", eeprom.model_info);
             printf("  Firmware Version: %d\n", eeprom.firmware_version);
             printf("  ID: %d\n", eeprom.id);
             printf("  Baud Rate: %d\n", eeprom.baud_rate);
@@ -233,14 +195,14 @@ void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
             printf("  Operating Mode: %d\n", eeprom.operating_mode);
             printf("  Secondary ID: %d\n", eeprom.secondary_id);
             printf("  Protocol: %d\n", eeprom.protocol_type);
-            printf("  Homing Offset: %d\n", eeprom.homing_offset);
+            printf("  Homing Offset: %ld\n", eeprom.homing_offset);
             printf("  Temperature Limit: %d\n", eeprom.temperature_limit);
             printf("  Min Voltage Limit: %d\n", eeprom.min_voltage_limit);
             printf("  Max Voltage Limit: %d\n", eeprom.max_voltage_limit);
             printf("  PWM Limit: %d\n", eeprom.pwm_limit);
-            printf("  Velocity Limit: %d\n", eeprom.velocity_limit);
-            printf("  Min Position Limit: %d\n", eeprom.min_position_limit);
-            printf("  Max Position Limit: %d\n", eeprom.max_position_limit);
+            printf("  Velocity Limit: %ld\n", eeprom.velocity_limit);
+            printf("  Min Position Limit: %ld\n", eeprom.min_position_limit);
+            printf("  Max Position Limit: %ld\n", eeprom.max_position_limit);
             printf("  Startup Config: %d\n", eeprom.startup_config);
             printf("-------------------\n");
 
@@ -252,13 +214,21 @@ void on_dynamixel_event(enum dynamixel_event event, dynamixel_id id) {
 
             printf("--- Servo %d RAM ---\n", id);
             printf("  Torque Enable: %d\n", ram.torque_enable);
+            printf("  Moving: %d\n", ram.moving);
+            printf("  Realtime Tick: %d\n", ram.realtime_tick);
             printf("  Hardware Error Status: %d\n", ram.hardware_error_status);
-            printf("  Goal Position: %d\n", ram.goal_position);
-            printf("  Present Position: %d\n", ram.present_position);
-            printf("  Present Velocity: %d\n", ram.present_velocity);
+            printf("  Goal Position: %ld\n", ram.goal_position);
+            printf("  Present Position: %ld\n", ram.present_position);
+            printf("  Present Velocity: %ld\n", ram.present_velocity);
+            printf("  Present Voltage: %d.%d V\n", ram.present_input_voltage / 10, ram.present_input_voltage % 10);
+            printf("  Present Temperature: %d C\n", ram.present_temperature);
             printf("-------------------\n");
             break;
         }
+        case DYNAMIXEL_EVENT_ALERT:
+            printf("Servo %d Hardware Error Status Set!\n", id);
+            break;
+
         default:
             printf("Receieved unknown dynamixel event %d for ID %d\n", event, id);
             break;
@@ -285,7 +255,7 @@ int main() {
     printf("Stuff setup... initializing servo\n");
     sleep_ms(100);
     uint8_t servos[] = {1};
-    dynamixel_init(servos, 1, on_dynamixel_error, on_dynamixel_event);
+    dynamixel_init(pio0, 0, 4, servos, 1, on_dynamixel_error, on_dynamixel_event);
     printf("Dynamixel init complete\n");
     sleep_ms(100);
     // dynamixel_set_id(1, 3); // Change ID from 1 to 3

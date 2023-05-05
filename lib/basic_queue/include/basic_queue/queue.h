@@ -69,8 +69,8 @@
 */
 #define QUEUE_DEFINE(type, size) { \
         type buf[size + 1]; \
-        size_t write_pos; \
-        size_t read_pos; \
+        volatile size_t write_pos; \
+        volatile size_t read_pos; \
     }
 
 /**

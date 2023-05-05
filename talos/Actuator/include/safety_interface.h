@@ -12,6 +12,7 @@
 #define FAULT_ROS_ERROR           4
 #define FAULT_TIMER_MISSED        5
 #define FAULT_ACTUATOR_FAILURE    6     // Raised if an actuator command could not successfully due to a hardware/firmware issue
+#define FAULT_ACTUATOR_UNPLUGGED  7     // Raised if an actuator is unplugged, cleared when all actuators are plugged in
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",

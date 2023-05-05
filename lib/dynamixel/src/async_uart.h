@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include "hardware/pio.h"
 
-// TODO: Move to a seperate library
-
 enum async_uart_tx_err {
     /**
      * @brief Successfully transmitted data

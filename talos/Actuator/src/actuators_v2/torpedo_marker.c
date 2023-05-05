@@ -20,12 +20,7 @@ bool torpedo_marker_arm(const char **errMsgOut) {
         return false;
     }
 
-    if (!dynamixel_enable_torque(torpedo_marker_id, true)) {
-        *errMsgOut = "Actuator Error";
-        LOG_ERROR("Failed to enable torque");
-        safety_raise_fault(FAULT_ACTUATOR_FAILURE);
-        return false;
-    }
+    dynamixel_enable_torque(torpedo_marker_id, true);
 
     torpedo_marker_enabled = true;
     return true;
@@ -37,14 +32,9 @@ void torpedo_marker_safety_disable(void) {
             LOG_ERROR("Lost Connection Before Disable!");
             safety_raise_fault(FAULT_ACTUATOR_FAILURE);
             // Don't return here, just let it fall through and attempt the torque disable command
-            // TODO: Find a more concrete check rather than trying based on connected
         }
 
-        if (!dynamixel_enable_torque(torpedo_marker_id, false)) {
-            LOG_ERROR("Failed to disable torque!");
-            safety_raise_fault(FAULT_ACTUATOR_FAILURE);
-            return;
-        }
+        dynamixel_enable_torque(torpedo_marker_id, false);
         torpedo_marker_enabled = false;
     }
 }

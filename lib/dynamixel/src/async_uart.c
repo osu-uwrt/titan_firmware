@@ -1,12 +1,20 @@
-#include "dynamixel/async_uart.h"
+#include "async_uart.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "pico/sync.h"
 #include "pico/time.h"
 #include "uart_multidrop.pio.h"
 
+// PICO_CONFIG: ASYNC_UART_DMA_IRQ_NUM, DMA IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=dynamixel
+#ifndef ASYNC_UART_DMA_IRQ_NUM
 #define ASYNC_UART_DMA_IRQ_NUM 0
+#endif
+
+// PICO_CONFIG: ASYNC_UART_PIO_IRQ_NUM, PIO IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=dynamixel
+#ifndef ASYNC_UART_PIO_IRQ_NUM
 #define ASYNC_UART_PIO_IRQ_NUM 0
+#endif
+
 
 static_assert(ASYNC_UART_DMA_IRQ_NUM == 0 || ASYNC_UART_DMA_IRQ_NUM == 1, "ASYNC_UART_DMA_IRQ_NUM must be valid DMA IRQ number");
 static_assert(ASYNC_UART_PIO_IRQ_NUM == 0 || ASYNC_UART_PIO_IRQ_NUM == 1, "ASYNC_UART_PIO_IRQ_NUM must be valid PIO IRQ number");
@@ -33,7 +41,7 @@ struct async_uart_inst {
     size_t rx_data_len;
     alarm_id_t timeout_alarm;
 } local_inst;
-struct async_uart_inst * const inst = &local_inst;
+static struct async_uart_inst * const inst = &local_inst;
 
 bool __time_critical_func(async_uart_check_and_finish_rx)(enum async_uart_rx_err error_code, bool report_if_fifoover) {
     // To avoid any races, all operations clearing rx_active and depending on state data must occur within this critical section
@@ -134,6 +142,7 @@ void async_uart_init(PIO pio, unsigned int sm, unsigned int pin, unsigned int ba
     inst->timeout_ms = timeout_ms;
 
     inst->offset = pio_add_program(pio, &uart_multidrop_program);
+    pio_sm_claim(pio, sm);
     uart_multidrop_program_init(pio, sm, inst->offset, pin, baud);
 
     inst->dma_tx_chan = dma_claim_unused_channel(true);
