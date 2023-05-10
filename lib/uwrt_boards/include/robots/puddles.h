@@ -12,6 +12,7 @@
 // Address Definitions
 #define ROBOT_COMPUTER_IP   {192, 168, 1, 22}
 #define ROBOT_COMPUTER_UROS_PORT 8888
+#define ETHERNET_BUS_ID     0
 
 // Configuration Options
 #define HW_USE_DSHOT 0

@@ -174,7 +174,16 @@ int main() {
 
     // Initialize ROS Transports
     uint8_t sbh_mcu_serial_num = *(uint8_t*)(0x101FF000);
-    can_id = 8 + sbh_mcu_serial_num;
+    if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
+        panic("Unprogrammed serial number");
+    }
+
+    if (bq_pack_info.serial != sbh_mcu_serial_num) {
+        LOG_ERROR("BQ serial number (%d) does not match programmed serial (%d)", bq_pack_info.serial, sbh_mcu_serial_num);
+        safety_raise_fault(FAULT_BQ40_ERROR);
+    }
+
+    can_id = sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");

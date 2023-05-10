@@ -151,10 +151,12 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     status_msg.board_name.data = PICO_BOARD;
     status_msg.board_name.size = strlen(PICO_BOARD);
     status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
+    status_msg.bus_id = __CONCAT(CAN_BUS_NAME, _ID);
     status_msg.client_id = client_id;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
     status_msg.version_major = MAJOR_VERSION;
     status_msg.version_minor = MINOR_VERSION;
+    status_msg.version_release_type = RELEASE_TYPE;
     status_msg.faults = *fault_list_reg;
     status_msg.kill_switches_enabled = 0;
     status_msg.kill_switches_asserting_kill = 0;

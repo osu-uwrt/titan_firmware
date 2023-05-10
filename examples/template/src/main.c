@@ -11,6 +11,10 @@
 #include "micro_ros_pico/transport_usb.h"
 #endif
 
+#ifdef MICRO_ROS_TRANSPORT_ETH
+#include "micro_ros_pico/transport_eth.h"
+#endif
+
 #ifdef MICRO_ROS_TRANSPORT_CAN
 #include "can_mcp251Xfd/canbus.h"
 #include "micro_ros_pico/transport_can.h"

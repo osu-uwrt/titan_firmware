@@ -19,7 +19,7 @@ get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_re
 include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
-project(backplane_test C CXX ASM)
+project(backplane_firmware C CXX ASM)
 titan_firmware_init()
 
 # Define executable
@@ -35,7 +35,7 @@ generate_version_tag(backplane_firmware 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(backplane_firmware 1)
-pico_set_program_name(backplane_firmware "Backplane Test")
+pico_set_program_name(backplane_firmware "Puddles Backplane Firmware")
 
 # Wait for 2 seconds for serial to connect
 target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
