@@ -73,6 +73,6 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 // Custom Board Functions
 // ========================================
 
-rcl_ret_t ros_update_actuator_status(void);
+rcl_ret_t ros_actuators_update_status(void);
 
 #endif

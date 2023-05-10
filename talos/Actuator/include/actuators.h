@@ -3,41 +3,12 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <riptide_msgs2/msg/actuator_status.h>
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ACTUATORS, Enable/disable assertions for the actuators module, type=bool, default=0, group=Actuator
 #ifndef PARAM_ASSERTIONS_ENABLED_ACTUATORS
 #define PARAM_ASSERTIONS_ENABLED_ACTUATORS 0
 #endif
-
-// TODO: Update state to follow the current system better
-
-enum claw_state {
-    CLAW_STATE_UNINITIALIZED = 0,
-    CLAW_STATE_DISARMED,
-    CLAW_STATE_UNKNOWN_POSITION,
-    CLAW_STATE_OPENED,
-    CLAW_STATE_CLOSED,
-    CLAW_STATE_OPENING,
-    CLAW_STATE_CLOSING,
-    CLAW_STATE_ERROR
-};
-
-enum dropper_state {
-    DROPPER_STATE_UNINITIALIZED = 0,
-    DROPPER_STATE_DISARMED,
-    DROPPER_STATE_READY,
-    DROPPER_STATE_DROPPING,
-    DROPPER_STATE_ERROR
-};
-
-enum torpedo_state {
-    TORPEDO_STATE_UNINITIALIZED = 0,
-    TORPEDO_STATE_DISARMED,
-    TORPEDO_STATE_CHARGING,
-    TORPEDO_STATE_READY,
-    TORPEDO_STATE_FIRING,
-    TORPEDO_STATE_ERROR
-};
 
 // ========================================
 // Actuator Global
@@ -61,7 +32,7 @@ void actuators_initialize(void);
 /**
  * @brief Arms actuator system
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool true on success
  */
 bool actuators_arm(const char **errMsgOut);
@@ -73,6 +44,15 @@ bool actuators_arm(const char **errMsgOut);
  */
 void actuators_disarm(void);
 
+/**
+ * @brief Report is the actuators are currently busy performing an action.
+ * This is true if any of the actuators are performing a request which should finish within a bounded amount of time.
+ * This is a useful to wait to clear before performing any additional actuator actions.
+ *
+ * @return true Actuators are busy performing command
+ * @return false Actuators are not busy (however they could be in an error state)
+ */
+bool actuators_get_busy(void);
 
 // ========================================
 // Claw
@@ -81,14 +61,14 @@ void actuators_disarm(void);
 /**
  * @brief Returns the current state of the claw
  *
- * @return enum claw_state Claw's Current State
+ * @return uint8_t Claw's Current State following ActuatorStatus message
  */
-enum claw_state claw_get_state(void);
+uint8_t claw_get_state(void);
 
 /**
  * @brief Attempts to begin opening the claw
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool true when opened or running, false otherwise.
  */
 bool claw_open(const char **errMsgOut);
@@ -96,7 +76,7 @@ bool claw_open(const char **errMsgOut);
 /**
  * @brief Attempts to begin closing the claw
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool true when opened or running, false otherwise.
  */
 bool claw_close(const char **errMsgOut);
@@ -109,15 +89,21 @@ bool claw_close(const char **errMsgOut);
 /**
  * @brief Returns the current state of the marker dropper
  *
- * @param dropper_id: The dropper to get the state of (id starts at 1)
- * @return enum dropper_state dropper's Current State
+ * @return uint8_t Dropper's Current State following ActuatorStatus message
  */
-enum dropper_state dropper_get_state(void);
+uint8_t dropper_get_state(void);
+
+/**
+ * @brief Returns the number of droppers available
+ *
+ * @return uint8_t
+ */
+uint8_t dropper_get_available(void);
 
 /**
  * @brief Attempts to drop the requested marker
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool Result for the attempted command (true on success)
  */
 bool dropper_drop_marker(const char **errMsgOut);
@@ -125,7 +111,7 @@ bool dropper_drop_marker(const char **errMsgOut);
 /**
  * @brief Notifies the dropper system that the droppers have been reloaded
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool Result for the attempted command (true on success)
  */
 bool dropper_notify_reload(const char **errMsgOut);
@@ -138,14 +124,21 @@ bool dropper_notify_reload(const char **errMsgOut);
 /**
  * @brief Returns the current state of the torpedo system
  *
- * @return enum torpedo_state Torpedo System's Current State
+ * @return uint8_t Torpedo System's Current State following ActuatorStatus message
  */
-enum torpedo_state torpedo_get_state(void);
+uint8_t torpedo_get_state(void);
+
+/**
+ * @brief Returns the number of torpedos available
+ *
+ * @return uint8_t
+ */
+uint8_t torpedo_get_available(void);
 
 /**
  * @brief Attempts to fire the requested torpedo
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return if the torpedo successfully fired
  */
 bool torpedo_fire(const char **errMsgOut);
@@ -153,7 +146,7 @@ bool torpedo_fire(const char **errMsgOut);
 /**
  * @brief Notifies the dropper system that the torpedos have been reloaded
  *
- * @param errMsgOut Optional return for error message why the request failed. Can be NULL
+ * @param errMsgOut Optional return for error message why the request failed
  * @return bool Result for the attempted command (true on success)
  */
 bool torpedo_notify_reload(const char **errMsgOut);
@@ -198,6 +191,52 @@ bool dropper_set_timings(uint16_t active_time_ms);
  * @return bool Result on setting the torpedo timings (true on success)
  */
 bool torpedo_set_timings(uint8_t torpedo_num, enum torpedo_timing_type timing_type, uint16_t time_us);
+
+#endif
+
+#if ACTUATOR_V2_SUPPORT
+
+#include <stddef.h>
+#include <riptide_msgs2/msg/dynamixel_status.h>
+
+typedef size_t actuator_dxlitr_t;
+
+/**
+ * @brief Initialize dynamixel status iterator object
+ *
+ * @param itr Pointer to iterator object to initialize
+ */
+void actuator_dxlitr_init(actuator_dxlitr_t *itr);
+
+/**
+ * @brief Retrieves the status message for the current dynamixel organized by the iterator
+ *
+ * @param itr Pointer to iterator object, updated by this call
+ * @param status_out Pointer to store the current dynamixel status
+ * @return true Status was successfully retrieved and the iterator was advanced
+ * @return false End of iterator reached
+ */
+bool actuator_dxlitr_next(actuator_dxlitr_t *itr, riptide_msgs2__msg__DynamixelStatus *status_out);
+
+/**
+ * @brief Attempts to set the current torpedo marker servo position as its home position.
+ * This is useful when bringing up new torpedo marker systems as this allows each torpedo marker to have its own
+ * absolute position which is known as the "home" position.
+ *
+ * @param errMsgOut Optional return for error message why the request failed
+ * @return bool Result for the attempted command (true on success)
+ */
+bool torpedo_marker_set_home(const char **errMsgOut);
+
+/**
+ * @brief Attempts to move the current torpedo marker servo position to its home position.
+ * This is useful for moving the marker dropper back to its home position if stuck due to an unexpected disconnect
+ * or movement when powered off (as fire/drop commands do not work if the servo is not in its home position).
+ *
+ * @param errMsgOut Optional return for error message why the request failed
+ * @return bool Result for the attempted command (true on success)
+ */
+bool torpedo_marker_move_home(const char **errMsgOut);
 
 #endif
 

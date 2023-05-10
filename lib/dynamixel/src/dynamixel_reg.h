@@ -17,7 +17,7 @@ void dynamixel_reg_eeprom_decode(InfoToParseDXLPacket_t *response, struct dynami
  * @param id Dynamixel ID to read EEPROM from
  * @return enum DXLLibErrorCode The result of the request generation
  */
-enum DXLLibErrorCode dynamixel_reg_eeprom_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id);
+enum DXLLibErrorCode dynamixel_reg_eeprom_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, size_t packet_buf_size, dynamixel_id id);
 
 /**
  * @brief Decodes the received RAM response from a packet generated with `dynamixel_reg_ram_gen_request` into the ram buffer.
@@ -35,6 +35,6 @@ void dynamixel_reg_ram_decode(InfoToParseDXLPacket_t *response, struct dynamixel
  * @param id Dynamixel ID to read RAM from
  * @return enum DXLLibErrorCode The result of the request generation
  */
-enum DXLLibErrorCode dynamixel_reg_ram_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id);
+enum DXLLibErrorCode dynamixel_reg_ram_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, size_t packet_buf_size, dynamixel_id id);
 
 #endif

@@ -56,14 +56,16 @@ enum dynamixel_event {
       */
     DYNAMIXEL_EVENT_RAM_READ,
     /**
+     * @brief Reports that an EEPROM read was successful.
+     */
+    DYNAMIXEL_EVENT_EEPROM_READ,
+    /**
      * @brief Reports that the alert bit has been set on the servo
      *
      * Note that the ram should be valid at this point to read hardware_error_status
      */
     DYNAMIXEL_EVENT_ALERT,
 };
-
-// TODO: convert some of these to enums
 struct dynamixel_eeprom {
     uint16_t model_num;
     uint32_t model_info;
@@ -124,9 +126,7 @@ struct dynamixel_ram {
 typedef uint8_t dynamixel_id;
 
 
-// TODO: add cause string
 typedef void (*dynamixel_error_cb)(dynamixel_error_t error);
-
 typedef void (*dynamixel_event_cb)(enum dynamixel_event, dynamixel_id id);
 
 /**
@@ -145,9 +145,31 @@ void dynamixel_init(PIO pio, uint sm, uint pin,
                     dynamixel_error_cb error_cb,
                     dynamixel_event_cb event_cb);
 
+/**
+ * @brief Changes the requested dynamixel's ID
+ * @note The dynamixel scheduler module should be able to handle this, but is recommended that the scheduler be reconfigured after calling this function
+ *
+ * @param old The dynamixel's current ID
+ * @param new The new ID for the dynamixel
+ */
 void dynamixel_set_id(dynamixel_id old, dynamixel_id new);
 
+/**
+ * @brief Sets the target servo position.
+ *
+ * @param id Dynamixel ID to set
+ * @param pos New position
+ */
 void dynamixel_set_target_position(dynamixel_id id, int32_t pos);
+
+/**
+ * @brief Sets the homing offset of the dynamixel as defined in the register descriptions
+ * @note This does not automatically update the internal eeprom state, an eeprom reread must be issued
+ *
+ * @param id Dynamixel ID to set
+ * @param home_offset New homing offset
+ */
+void dynamixel_set_homing_offset(dynamixel_id id, int32_t home_offset);
 
 /**
  * @brief Sets the torque enabled flag in the dynamixel's RAM.
@@ -164,26 +186,29 @@ void dynamixel_set_target_position(dynamixel_id id, int32_t pos);
 void dynamixel_enable_torque(dynamixel_id id, bool enabled);
 
 /**
- * @brief Gets a copy of the eeprom last read from the servo.
+ * @brief Requests an EEPROM rescan. Upon successful EEPROM rescan, a DYNAMIXEL_EVENT_EEPROM_READ event is generated.
  *
- * Note: This does not actually request the EEPROM from the servo. Instead this will return
- * the settings from the last time the EEPROM was read. To actually request the EEPROM be read,
- * use `dynamixel_read_eeprom`.
- *
- * @param id specifies which servo eeprom to get. This ID must be passed to the driver at dynamixel_init.
- * @param eeprom the struct to copy the EEPROM variables to.
-*/
-bool dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom);
+ * @param id the ID of the servo
+ */
+void dynamixel_request_eeprom_rescan(dynamixel_id id);
 
 /**
- * @brief Gets a copy of the ram last reD from the servo.
+ * @brief Returns a pointer to the servo eeprom loaded during program initialization
+ * @attention EEPROM is not updated with this call, it must be rescanned by attempting an EEPROM rescan
  *
- * @param id ID of the dynamixel read
- * @param ram Pointer to location to store RAM
- * @return true The ram was successfully read
- * @return false The ram was not read or is stale
+ * @param id Dynamixel to read from
+ * @return struct dynamixel_eeprom* Pointer to EEPROM, or NULL if the driver does not have EEPROM for that ID
  */
-bool dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram);
+struct dynamixel_eeprom* dynamixel_get_eeprom(dynamixel_id id);
+
+/**
+ * @brief Returns pointer to the RAM read from the dynamixel
+ * @attention This memory is updated automatically in the background by the dynamixel refresh code
+ *
+ * @param id Dynamixel to read from
+ * @return volatile struct dynamixel_ram* Pointer to RAM, or NULL if the driver does not have RAM for that ID
+ */
+volatile struct dynamixel_ram* dynamixel_get_ram(dynamixel_id id);
 
 /**
  * @brief Returns if the corresponding dynamixel is connected.
@@ -204,7 +229,5 @@ bool dynamixel_check_connected(dynamixel_id id);
  * @return false Position failed to read
  */
 bool dynamixel_get_position(dynamixel_id id, int32_t *position_out);
-
-/* How control servo (?) */
 
 #endif

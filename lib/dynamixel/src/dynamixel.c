@@ -19,6 +19,42 @@
 #define DYNAMIXEL_BAUD_RATE 57600
 #endif
 
+/* ========================
+ *  Register Write Functions
+ *  ========================
+ */
+
+static inline void dynamixel_write_u8(dynamixel_id id, uint16_t reg, uint8_t data) {
+  dynamixel_schedule_write_packet(id, reg, &data, sizeof(data));
+}
+
+static inline void dynamixel_write_u16(dynamixel_id id, uint16_t reg, uint16_t data) {
+  uint8_t byte1 = data & 0xFF;
+  uint8_t byte2 = (data >> 8) & 0xFF;
+  uint8_t data_arr[] = {byte1, byte2};
+  dynamixel_schedule_write_packet(id, reg, data_arr, sizeof(data_arr));
+}
+
+static inline void dynamixel_write_u32(dynamixel_id id, uint16_t reg, uint32_t data) {
+  uint8_t byte1 = data & 0xFF;
+  uint8_t byte2 = (data >> 8) & 0xFF;
+  uint8_t byte3 = (data >> 16) & 0xFF;
+  uint8_t byte4 = (data >> 24) & 0xFF;
+  uint8_t data_arr[] = {byte1, byte2, byte3, byte4};
+  dynamixel_schedule_write_packet(id, reg, data_arr, sizeof(data_arr));
+}
+
+static inline void dynamixel_write_s8(dynamixel_id id, uint16_t reg, int8_t data) {
+  dynamixel_write_u8(id, reg, (uint8_t) data);
+}
+
+static inline void dynamixel_write_s16(dynamixel_id id, uint16_t reg, int16_t data) {
+  dynamixel_write_u16(id, reg, (uint16_t) data);
+}
+
+static inline void dynamixel_write_s32(dynamixel_id id, uint16_t reg, int32_t data) {
+  dynamixel_write_u32(id, reg, (uint32_t) data);
+}
 
 /* ========================
  *  Public Functions
@@ -37,54 +73,59 @@ void dynamixel_init(PIO pio, uint sm, uint pin,
   dynamixel_schedule_init(id_list, id_cnt, error_cb, event_cb);
 }
 
+void dynamixel_request_eeprom_rescan(dynamixel_id id) {
+  dynamixel_schedule_eeprom_read(id);
+}
+
+/* ========================
+ *  Setter Functions
+ *  ========================
+ */
+
 void dynamixel_set_id(dynamixel_id old, dynamixel_id new)
 {
-  dynamixel_schedule_write_packet(old, DYNAMIXEL_CTRL_TABLE_ID_ADDR, &new, sizeof(new));
+  dynamixel_write_u8(old, DYNAMIXEL_CTRL_TABLE_ID_ADDR, new);
 }
 
 void dynamixel_enable_torque(dynamixel_id id, bool enabled)
 {
-  uint8_t data = enabled ? 1 : 0;
-  dynamixel_schedule_write_packet(id, DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR, &data, sizeof(data));
+  dynamixel_write_u8(id, DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR, enabled ? 1 : 0);
 }
 
 void dynamixel_set_target_position(dynamixel_id id, int32_t pos)
 {
-  uint8_t byte1 = pos & 0xFF;
-  uint8_t byte2 = (pos >> 8) & 0xFF;
-  uint8_t byte3 = (pos >> 16) & 0xFF;
-  uint8_t byte4 = (pos >> 24) & 0xFF;
-  uint8_t data[] = {byte1, byte2, byte3, byte4};
-  // TODO: create functions called dynamixel_create_writeu32_packet and other variants
-  dynamixel_schedule_write_packet(id, DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR, data, sizeof(data));
+  dynamixel_write_s32(id, DYNAMIXEL_CTRL_TABLE_GOAL_POSITION_ADDR, pos);
 }
 
-bool dynamixel_get_eeprom(dynamixel_id id, struct dynamixel_eeprom *eeprom)
+void dynamixel_set_homing_offset(dynamixel_id id, int32_t home_offset) {
+  dynamixel_write_s32(id, DYNAMIXEL_CTRL_TABLE_HOMING_OFFSET_ADDR, home_offset);
+}
+
+/* ========================
+ *  Getter Functions
+ *  ========================
+ */
+
+struct dynamixel_eeprom* dynamixel_get_eeprom(dynamixel_id id)
 {
   struct dynamixel_state* state = dynamixel_schedule_get_state_ptr(id);
 
   if (state == NULL || !state->connected) {
-    return false;
+    return NULL;
   }
 
-  // TODO: Do we want this function?
-
-  memcpy(eeprom, &state->ram, sizeof(struct dynamixel_eeprom));
-  return true;
+  return &state->eeprom;
 }
 
-bool dynamixel_get_ram(dynamixel_id id, struct dynamixel_ram *ram)
+volatile struct dynamixel_ram* dynamixel_get_ram(dynamixel_id id)
 {
   struct dynamixel_state* state = dynamixel_schedule_get_state_ptr(id);
 
-  if (state == NULL || state->connected) {
-    return false;
+  if (state == NULL || !state->connected) {
+    return NULL;
   }
 
-  // TODO: Do we want this function?
-
-  memcpy(ram, &state->ram, sizeof(struct dynamixel_ram));
-  return true;
+  return &state->ram;
 }
 
 bool dynamixel_check_connected(dynamixel_id id) {

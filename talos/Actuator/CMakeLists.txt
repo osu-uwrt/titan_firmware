@@ -12,7 +12,7 @@ set(PICO_BOARD mk2_actuator_board)
 set(UWRT_ROBOT talos)
 
 # Configure whether we're using new or old actuators
-set(USE_V2_ACTUATORS 0 CACHE STRING "Enables new actuators")
+set(USE_V2_ACTUATORS 1 CACHE STRING "Enables new actuators")
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -75,6 +75,7 @@ if (USE_V2_ACTUATORS)
 	list(TRANSFORM ACTUATORS_V2_SPECIFIC_FILES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/src/actuators_v2/)
 	target_sources(actuator_mk2 PUBLIC
 		${ACTUATORS_V2_SPECIFIC_FILES}
+		src/ros/actuator_v2_dynamixel.c
 	)
 
 	# Link the required libraries for mark 1 actuators

@@ -68,9 +68,9 @@ void dynamixel_reg_eeprom_decode(InfoToParseDXLPacket_t *response, struct dynami
 
 }
 
-enum DXLLibErrorCode dynamixel_reg_eeprom_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id) {
+enum DXLLibErrorCode dynamixel_reg_eeprom_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, size_t packet_buf_size, dynamixel_id id) {
     return dynamixel_create_read_packet(
-          packet, packet_buf, id,
+          packet, packet_buf, packet_buf_size, id,
           DYNAMIXEL_CTRL_TABLE_EEPROM_START_ADDR,
           DYNAMIXEL_CTRL_TABLE_EEPROM_LENGTH);
 }
@@ -144,9 +144,9 @@ void dynamixel_reg_ram_decode(InfoToParseDXLPacket_t *response, struct dynamixel
                                      - DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR);
 }
 
-enum DXLLibErrorCode dynamixel_reg_ram_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id) {
+enum DXLLibErrorCode dynamixel_reg_ram_gen_request(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, size_t packet_buf_size, dynamixel_id id) {
     return dynamixel_create_read_packet(
-          packet, packet_buf, id,
+          packet, packet_buf, packet_buf_size, id,
           DYNAMIXEL_CTRL_TABLE_RAM_START_ADDR,
           DYNAMIXEL_CTRL_TABLE_RAM_LENGTH);
 }

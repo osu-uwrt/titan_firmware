@@ -17,7 +17,7 @@ volatile bool actuators_armed = false;
 const dynamixel_id dynamixel_servo_list[] = {MARKER_TORPEDO_ID};
 const size_t dynamixel_servo_count = sizeof(dynamixel_servo_list) / sizeof(*dynamixel_servo_list);
 
-void actuators_dynamixel_error_cb(dynamixel_error_t error) {
+static void actuators_dynamixel_error_cb(dynamixel_error_t error) {
     LOG_ERROR("Dynamixel Driver Error: %d (arg: %d) - %s line %d", error.fields.error, error.fields.wrapped_error_code,
         (error.fields.error_source == DYNAMIXEL_SOURCE_COMMS ? "dynamixel_comms" : "dynamixel_schedule"), error.fields.line);
     safety_raise_fault(FAULT_ACTUATOR_FAILURE);
@@ -32,22 +32,39 @@ static void check_lower_actuator_unplugged_fault(void) {
     safety_lower_fault(FAULT_ACTUATOR_UNPLUGGED);
 }
 
-void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_id id) {
+static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_id id) {
+    volatile struct dynamixel_ram *ram;
     switch (event) {
         case DYNAMIXEL_EVENT_CONNECTED:
             check_lower_actuator_unplugged_fault();
-            // TODO: Notify drivers that the actuator is back
+            if (id == MARKER_TORPEDO_ID) {
+                torpedo_marker_report_connect();
+            }
             break;
 
         case DYNAMIXEL_EVENT_DISCONNECTED:
             safety_raise_fault(FAULT_ACTUATOR_UNPLUGGED);
-            // TODO: Check if any other things need to be cleared
+            if (id == MARKER_TORPEDO_ID) {
+                torpedo_marker_report_disconnect();
+            }
             break;
 
         case DYNAMIXEL_EVENT_RAM_READ:
+            ram = dynamixel_get_ram(id);
+            if (id == MARKER_TORPEDO_ID) {
+                torpedo_marker_report_state(ram->torque_enable, ram->moving_status, ram->goal_position,
+                    ram->present_position, ram->hardware_error_status);
+            }
             break;
 
         case DYNAMIXEL_EVENT_ALERT:
+            safety_raise_fault(FAULT_ACTUATOR_FAILURE);
+            ram = dynamixel_get_ram(id);
+            LOG_WARN("Dynamixel (ID: %d) reporting hardware error 0x%02x", id, ram->hardware_error_status);
+            break;
+
+        case DYNAMIXEL_EVENT_EEPROM_READ:
+            // Don't care about eeprom reads, the status update will handle that
             break;
     }
 }
@@ -97,4 +114,42 @@ bool actuators_arm(const char **errMsgOut) {
 void actuators_disarm(void) {
     actuators_armed = false;
     torpedo_marker_safety_disable();
+}
+
+bool actuators_get_busy(void) {
+    return torpedo_marker_get_busy();
+}
+
+void actuator_dxlitr_init(actuator_dxlitr_t *itr) {
+    *itr = 0;
+}
+
+bool actuator_dxlitr_next(actuator_dxlitr_t *itr, riptide_msgs2__msg__DynamixelStatus *status_out) {
+    volatile struct dynamixel_eeprom *eeprom = NULL;
+    volatile struct dynamixel_ram *ram = NULL;
+
+    // Iterate until match found or iterator reached the end
+    while (*itr < dynamixel_servo_count && (eeprom == NULL || ram == NULL)) {
+        eeprom = dynamixel_get_eeprom(dynamixel_servo_list[*itr]);
+        ram = dynamixel_get_ram(dynamixel_servo_list[*itr]);
+        (*itr)++;
+    }
+
+    // Check if iterator reached a valid point
+    if (eeprom == NULL || ram == NULL) {
+        return false;
+    }
+
+    // Populate status message
+    status_out->model = eeprom->model_num;
+    status_out->fw_version = eeprom->firmware_version;
+    status_out->id = eeprom->id;
+    status_out->hw_err_status = ram->hardware_error_status;
+    status_out->torque_enable = ram->torque_enable;
+    status_out->moving = ram->moving;
+    status_out->voltage = ram->present_input_voltage;
+    status_out->temperature = ram->present_temperature;
+    status_out->position = ram->present_position;
+    status_out->load = ram->present_load;
+    return true;
 }

@@ -142,8 +142,7 @@ bool torpedo_arm(const char **errMsgOut) {
         return false;
     }
 
-    // Clear the firing state (as if we re-arm, we probably want to start from the beginning)
-    // TODO: Make sure this is the behavior we want
+    // Clear the firing state (as if we re-arm, we are starting a new sequence)
     next_torpedo_index = 0;
 
     // Arm and allow charging
@@ -279,26 +278,6 @@ static void torpedo_adc_cb(void) {
 // Movement Management
 // ========================================
 
-// ===== Public Functions =====
-
-enum torpedo_state torpedo_get_state(void) {
-    hard_assert_if(ACTUATORS, !actuators_initialized);
-
-    // Handle individual torpedo state
-    if (!torpedo_timings_valid) {
-        return TORPEDO_STATE_UNINITIALIZED;
-    } else if(!actuators_armed) {
-        return TORPEDO_STATE_DISARMED;
-    } else if (torpedo_firing) {
-        return TORPEDO_STATE_FIRING;
-    } else if (torpedo_check_charged()) {
-        return TORPEDO_STATE_READY;
-    } else {
-        return TORPEDO_STATE_CHARGING;
-    }
-    // TODO: Add error on charge timeout
-}
-
 void torpedo_fired_callback(void) {
     // Critical section to make sure the cleanup isn't interrupts
     uint32_t prev_interrupts = save_and_disable_interrupts();
@@ -320,6 +299,35 @@ void torpedo_fired_callback(void) {
     }
 
     // TODO: Check for expected discharge of capacitor
+}
+
+// ===== Public Functions =====
+
+uint8_t torpedo_get_state(void) {
+    hard_assert_if(ACTUATORS, !actuators_initialized);
+
+    // Handle individual torpedo state
+    if (!torpedo_timings_valid) {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
+    } else if(!actuators_armed) {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
+    } else if (torpedo_firing) {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
+    } else if (torpedo_check_charged()) {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
+    } else {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
+    }
+    // TODO: Add error on charge timeout
+}
+
+bool torpedo_get_busy(void) {
+    return torpedo_firing;
+}
+
+uint8_t torpedo_get_available(void) {
+    int avail = NUM_TORPEDOS - next_torpedo_index;
+    return (avail > 0 ? avail : 0);
 }
 
 bool torpedo_fire(const char **errMsgOut) {

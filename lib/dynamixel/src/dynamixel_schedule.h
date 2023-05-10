@@ -38,6 +38,13 @@ void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt,
 void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len);
 
 /**
+ * @brief Schedules a full EEPROM read command and updates EEPROM upon successful completion.
+ *
+ * @param id ID to read
+ */
+void dynamixel_schedule_eeprom_read(dynamixel_id id);
+
+/**
  * @brief Gets the requested IDs state
  *
  * @param id The ID to look up

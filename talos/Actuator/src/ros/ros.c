@@ -62,14 +62,6 @@ void ros_rmw_init_error_handling(void)  {
 // Global Definitions
 // ========================================
 
-#define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "heartbeat"
-#define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define KILLSWITCH_SUBCRIBER_NAME "state/kill"
-#define LED_SUBSCRIBER_NAME "command/led"
-#define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
-#define ACTUATOR_STATUS_PUBLISHER_NAME "state/actuator"
-
 bool ros_connected = false;
 
 // Core Variables
@@ -88,9 +80,6 @@ rcl_subscription_t led_subscriber;
 riptide_msgs2__msg__LedCommand led_command_msg;
 rcl_subscription_t physkill_notify_subscriber;
 std_msgs__msg__Bool physkill_notify_msg;
-rcl_publisher_t actuator_status_publisher;
-riptide_msgs2__msg__ActuatorStatus actuator_status_msg;
-// TODO: Add node specific items here
 
 // ========================================
 // Executor Callbacks
@@ -156,60 +145,6 @@ static void physkill_notify_subscription_callback(const void * msgin)
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
-
-static uint8_t actuator_to_ros_dropper_state(enum dropper_state dropper_state) {
-	if (dropper_state == DROPPER_STATE_READY) {
-		return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
-	} else if (dropper_state == DROPPER_STATE_DROPPING) {
-		return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
-	} else {
-		return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
-	}
-    // TODO: Add disarmed
-}
-
-static uint8_t actuator_to_ros_torpedo_state(enum torpedo_state torpedo_state) {
-	if (torpedo_state == TORPEDO_STATE_DISARMED) {
-		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
-	} else if (torpedo_state == TORPEDO_STATE_CHARGING) {
-		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
-	} else if (torpedo_state == TORPEDO_STATE_READY) {
-		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
-	} else if (torpedo_state == TORPEDO_STATE_FIRING) {
-		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
-	} else {
-		return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
-	}
-}
-
-static uint8_t actuator_to_ros_claw_state(enum claw_state claw_state) {
-	if (claw_state == CLAW_STATE_UNKNOWN_POSITION) {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_UNKNOWN;
-	} else if (claw_state == CLAW_STATE_OPENED) {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENED;
-	} else if (claw_state == CLAW_STATE_CLOSED) {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSED;
-	} else if (claw_state == CLAW_STATE_OPENING) {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENING;
-	} else if (claw_state == CLAW_STATE_CLOSING) {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSING;
-	} else {
-		return riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
-	}
-    // TODO: Add disarmed
-}
-
-rcl_ret_t ros_update_actuator_status(void) {
-	actuator_status_msg.claw_state = actuator_to_ros_claw_state(claw_get_state());
-	actuator_status_msg.torpedo1_state = actuator_to_ros_torpedo_state(torpedo_get_state());
-	actuator_status_msg.torpedo2_state = actuator_to_ros_torpedo_state(torpedo_get_state());
-	actuator_status_msg.dropper1_state = actuator_to_ros_dropper_state(dropper_get_state());
-	actuator_status_msg.dropper2_state = actuator_to_ros_dropper_state(dropper_get_state());
-
-	RCRETCHECK(rcl_publish(&actuator_status_publisher, &actuator_status_msg, NULL));
-
-    return RCL_RET_OK;
-}
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
@@ -310,19 +245,12 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
 
-    RCRETCHECK(rclc_publisher_init(
-		&actuator_status_publisher,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorStatus),
-		ACTUATOR_STATUS_PUBLISHER_NAME,
-		&rmw_qos_profile_sensor_data));
-
     // Executor Initialization
     const int executor_num_local_handles = 3;
     #if ACTUATOR_V1_SUPPORT
     const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + executor_num_local_handles;
     #elif ACTUATOR_V2_SUPPORT
-    const int executor_num_handles = ros_actuators_num_executor_handles + executor_num_local_handles;
+    const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v2_dynamixel_num_executor_handles + executor_num_local_handles;
     #else
     #error Unexpected Actuator Support
     #endif
@@ -333,10 +261,14 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg, &physkill_notify_subscription_callback, ON_NEW_DATA));
 
     // Initialize other files
-    RCRETCHECK(ros_actuators_init(&executor, &node, &support));
+    RCRETCHECK(ros_actuators_init(&executor, &node));
 
     #if ACTUATOR_V1_SUPPORT
     RCRETCHECK(actuator_v1_parameters_init(&node, &executor));
+    #endif
+
+    #if ACTUATOR_V2_SUPPORT
+    RCRETCHECK(actuator_v2_dynamixel_init(&node, &executor));
     #endif
 
     // Note: Code in executor callbacks should be kept to a minimum
@@ -357,9 +289,12 @@ void ros_fini(void) {
     actuator_v1_parameters_fini(&node);
     #endif
 
+    #if ACTUATOR_V2_SUPPORT
+    actuator_v2_dynamixel_fini(&node);
+    #endif
+
     ros_actuators_fini(&node);
 
-    RCSOFTCHECK(rcl_publisher_fini(&actuator_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));

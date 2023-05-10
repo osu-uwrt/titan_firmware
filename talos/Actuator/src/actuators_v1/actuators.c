@@ -50,7 +50,20 @@ bool actuators_arm(const char **errMsgOut) {
 
     LOG_INFO("Arming Actuators");
 
-    return torpedo_arm(errMsgOut);
+    // Perform individual arm actions for actuators
+    if (!torpedo_arm(errMsgOut)) {
+        return false;
+    }
+
+    if (!dropper_notify_reload(errMsgOut)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool actuators_get_busy(void) {
+    return torpedo_get_busy() || dropper_get_busy() || claw_get_busy();
 }
 
 void actuators_disarm(void) {

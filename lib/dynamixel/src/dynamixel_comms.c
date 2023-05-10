@@ -101,6 +101,7 @@ static void on_receive_reply_header(enum async_uart_rx_err error, uint8_t *data,
   }
 
   // We asked for DYNAMIXEL_REPLY_HEADER_SIZE, the driver should have given us this many bytes or we woulnd't get OK
+  (void) data_len;
   assert(data_len == DYNAMIXEL_REPLY_HEADER_SIZE);
 
   uint16_t body_length = data[5] | (data[6] << 8);
@@ -154,20 +155,21 @@ void dynamixel_send_packet(dynamixel_request_cb callback,
 
 enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet,
                                                   uint8_t *packet_buf,
+                                                  size_t packet_buf_size,
                                                   dynamixel_id id) {
   DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0,
-                                     packet_buf, DYNAMIXEL_PACKET_BUFFER_SIZE));
+                                     packet_buf, packet_buf_size));
   DXL_RETCHECK(end_make_dxl_packet(packet));
 
   return DXL_LIB_OK;
 }
 
 enum DXLLibErrorCode dynamixel_create_write_packet(
-    InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, dynamixel_id id,
-    uint16_t start_address, uint8_t *data, size_t data_len) {
+    InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf, size_t packet_buf_size,
+    dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len) {
   // https://emanual.robotis.com/docs/en/dxl/protocol2/#write-0x03
   DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_WRITE, 0,
-                                     packet_buf, DYNAMIXEL_PACKET_BUFFER_SIZE));
+                                     packet_buf, packet_buf_size));
   uint8_t byte1 = start_address & 0xFF;
   uint8_t byte2 = (start_address >> 8) & 0xFF;
   DXL_RETCHECK(add_param_to_dxl_packet(packet, &byte1, 1));
@@ -180,12 +182,13 @@ enum DXLLibErrorCode dynamixel_create_write_packet(
 
 enum DXLLibErrorCode dynamixel_create_read_packet(InfoToMakeDXLPacket_t *packet,
                                                   uint8_t *packet_buf,
+                                                  size_t packet_buf_size,
                                                   dynamixel_id id,
                                                   uint16_t start_address,
                                                   uint16_t length) {
   // https://emanual.robotis.com/docs/en/dxl/protocol2/#read-0x02
   DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_READ, 0,
-                                     packet_buf, DYNAMIXEL_PACKET_BUFFER_SIZE));
+                                     packet_buf, packet_buf_size));
   uint8_t byte1 = start_address & 0xFF;
   uint8_t byte2 = (start_address >> 8) & 0xFF;
   uint8_t byte3 = length & 0xFF;

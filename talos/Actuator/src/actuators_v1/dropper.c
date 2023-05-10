@@ -137,19 +137,29 @@ static int64_t dropper_finish_callback(__unused alarm_id_t id, __unused void *us
 
 // ===== Public Functions =====
 
-enum dropper_state dropper_get_state(void) {
+uint8_t dropper_get_state(void) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (dropper_active_time_ms == 0) {
-        return DROPPER_STATE_UNINITIALIZED;
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
     } else if(!actuators_armed) {
-        return DROPPER_STATE_DISARMED;
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_DISARMED;
     } if (dropper_alarm_active) {
-        return DROPPER_STATE_DROPPING;
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
     } else {
-        return DROPPER_STATE_READY;
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
     }
 }
+
+bool dropper_get_busy(void) {
+    return dropper_alarm_active;
+}
+
+uint8_t dropper_get_available(void) {
+    int avail = NUM_DROPPERS - next_dropper_index;
+    return (avail > 0 ? avail : 0);
+}
+
 
 bool dropper_drop_marker(const char **errMsgOut) {
     hard_assert_if(ACTUATORS, !actuators_initialized);

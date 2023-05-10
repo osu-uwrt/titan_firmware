@@ -112,10 +112,8 @@ static void tick_ros_tasks() {
     }
 
     if(timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_actuator_status());
+        RCSOFTRETVCHECK(ros_actuators_update_status());
     }
-
-    // TODO: Put any additional ROS tasks added here
 }
 
 static void tick_background_tasks() {
@@ -134,8 +132,6 @@ static void tick_background_tasks() {
         led_update_pins();
     }
     #endif
-
-    // TODO: Put any code that should periodically occur here
 }
 
 
@@ -155,7 +151,6 @@ int main() {
     safety_setup();
     led_init();
     ros_rmw_init_error_handling();
-    // TODO: Put any additional hardware initialization code here
 
     // Status Strip Initialization
     status_strip_init(pio0, 0, RGB_DATA_PIN, false);

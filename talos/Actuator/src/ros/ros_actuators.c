@@ -2,18 +2,17 @@
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+#include <std_msgs/msg/bool.h>
 #include <std_srvs/srv/set_bool.h>
 #include <std_srvs/srv/trigger.h>
+#include <riptide_msgs2/msg/actuator_status.h>
 
 #include "actuators.h"
 #include "ros.h"
 #include "ros_internal.h"
 
-#define TORPEDO_SERVICE_NAME "command/torpedo"
-#define DROPPER_SERVICE_NAME "command/dropper"
-#define CLAW_SERVICE_NAME "command/claw"
-#define NOTIFY_RELOAD_SERVICE_NAME "command/notify_reload"
-#define ACTUATOR_ARM_SERVICE_NAME "command/actuator_arm"
+static rcl_publisher_t status_publisher;
+static rcl_publisher_t busy_publisher;
 
 static rcl_service_t torpedo_service;
 static std_srvs__srv__Trigger_Request torpedo_req;
@@ -31,9 +30,38 @@ static rcl_service_t claw_service;
 static std_srvs__srv__SetBool_Request claw_req;
 static std_srvs__srv__SetBool_Response claw_res;
 
-static rcl_service_t actuator_arm_service;
+static rcl_service_t arm_service;
 static std_srvs__srv__SetBool_Request actuator_arm_req;
 static std_srvs__srv__SetBool_Response actuator_arm_res;
+
+// ========================================
+// Status Publishing
+// ========================================
+
+rcl_ret_t ros_actuators_update_status(void) {
+    std_msgs__msg__Bool busy_msg = {.data = actuators_get_busy()};
+    RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
+
+    riptide_msgs2__msg__ActuatorStatus status_msg;
+	status_msg.claw_state = claw_get_state();
+	status_msg.torpedo_state = torpedo_get_state();
+    status_msg.torpedo_available_count = torpedo_get_available();
+	status_msg.dropper_state = dropper_get_state();
+    status_msg.dropper_available_count = dropper_get_available();
+
+	RCRETCHECK(rcl_publish(&status_publisher, &status_msg, NULL));
+
+    // Publish dynamixel status if running v2 actuators
+    #if ACTUATOR_V2_SUPPORT
+    RCRETCHECK(actuator_v2_dynamixel_update_status());
+    #endif
+
+    return RCL_RET_OK;
+}
+
+// ========================================
+// Service Callbacks
+// ========================================
 
 static void torpedo_service_callback(__unused const void * req, void * res) {
     std_srvs__srv__Trigger_Response * res_in = (std_srvs__srv__Trigger_Response *) res;
@@ -98,7 +126,7 @@ static void claw_service_callback(const void * req, void * res) {
     res_in->message.capacity = msg_len+1;   // Add null terminated byte
 }
 
-static void actuator_arm_service_callback(const void * req, void * res) {
+static void arm_service_callback(const void * req, void * res) {
     std_srvs__srv__SetBool_Request * req_in = (std_srvs__srv__SetBool_Request *) req;
     std_srvs__srv__SetBool_Response * res_in = (std_srvs__srv__SetBool_Response *) res;
 
@@ -120,10 +148,14 @@ static void actuator_arm_service_callback(const void * req, void * res) {
     res_in->message.capacity = msg_len+1;   // Add null terminated byte
 }
 
+// ========================================
+// Initialization
+// ========================================
+
 // Define the number of executor handles required for this file
 const size_t ros_actuators_num_executor_handles = 5;
 
-rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node, __unused rclc_support_t *support)
+rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node)
 {
     // Torpedos
     RCRETCHECK(rclc_service_init_default(&torpedo_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger), TORPEDO_SERVICE_NAME));
@@ -142,17 +174,23 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node, __unus
     RCRETCHECK(rclc_executor_add_service(executor, &claw_service, &claw_req, &claw_res, claw_service_callback));
 
     // Actuator Arm
-    RCRETCHECK(rclc_service_init_default(&actuator_arm_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, SetBool), ACTUATOR_ARM_SERVICE_NAME));
-    RCRETCHECK(rclc_executor_add_service(executor, &actuator_arm_service, &actuator_arm_req, &actuator_arm_res, actuator_arm_service_callback));
+    RCRETCHECK(rclc_service_init_default(&arm_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, SetBool), ARM_SERVICE_NAME));
+    RCRETCHECK(rclc_executor_add_service(executor, &arm_service, &actuator_arm_req, &actuator_arm_res, arm_service_callback));
+
+    // State Publishers
+    RCRETCHECK(rclc_publisher_init_best_effort(&busy_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), BUSY_TOPIC_NAME));
+    RCRETCHECK(rclc_publisher_init_best_effort(&status_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ActuatorStatus), STATUS_TOPIC_NAME));
 
     return RCL_RET_OK;
 }
 
 void ros_actuators_fini(rcl_node_t *node)
 {
+    RCSOFTCHECK(rcl_publisher_fini(&status_publisher, node));
+    RCSOFTCHECK(rcl_publisher_fini(&busy_publisher, node));
     RCSOFTCHECK(rcl_service_fini(&torpedo_service, node));
     RCSOFTCHECK(rcl_service_fini(&dropper_service, node));
     RCSOFTCHECK(rcl_service_fini(&notify_reload_service, node));
     RCSOFTCHECK(rcl_service_fini(&claw_service, node));
-    RCSOFTCHECK(rcl_service_fini(&actuator_arm_service, node));
+    RCSOFTCHECK(rcl_service_fini(&arm_service, node));
 }

@@ -17,6 +17,16 @@
 #warning This file must be fixed before production use
 // TODO: Fix this up to support new design of being interrupt safe and supporting checking actuator arm state
 
+enum claw_state {
+    CLAW_STATE_ERROR = riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR,
+    CLAW_STATE_DISARMED = riptide_msgs2__msg__ActuatorStatus__CLAW_DISARMED,
+    CLAW_STATE_UNKNOWN_POSITION = riptide_msgs2__msg__ActuatorStatus__CLAW_UNKNOWN,
+    CLAW_STATE_OPENED = riptide_msgs2__msg__ActuatorStatus__CLAW_OPENED,
+    CLAW_STATE_CLOSED = riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSED,
+    CLAW_STATE_OPENING = riptide_msgs2__msg__ActuatorStatus__CLAW_OPENING,
+    CLAW_STATE_CLOSING = riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSING
+};
+
 static const uint direction_pin = CLAW_PHASE_PIN;
 static const uint mode2_pin = CLAW_MODE2_PIN;
 static const uint enable_pin = CLAW_ENABLE_PIN;
@@ -127,14 +137,18 @@ static int64_t claw_finish_callback(__unused alarm_id_t id, void *user_data) {
     return 0;
 }
 
-enum claw_state claw_get_state(void) {
+uint8_t claw_get_state(void) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
     if (claw_open_time_ms == 0 || claw_close_time_ms == 0) {
-        return CLAW_STATE_UNINITIALIZED;
+        return CLAW_STATE_ERROR;
     }
 
     return local_claw_state;
+}
+
+bool claw_get_busy(void) {
+    return scheduled_alarm_id != 0;
 }
 
 bool claw_open(const char **errMsgOut) {
