@@ -53,13 +53,18 @@ bool isValidCANDevice(const char *name) {
             (name[3] >= '0' && name[3] <= '9'));
 }
 
+static const char* const positionalArgsNames[] = {"uf2"};
+static const size_t numPositionalArgs = sizeof(positionalArgsNames)/sizeof(*positionalArgsNames);
+
 class CANBlToolArgs {
 public:
     // Arguments
     bool waitInBootDelay;
     bool justPullInfo;
     bool allowBootloaderOverwrite;
+    bool showHelpAndQuit;
     const char *filename;
+    const char *progname;
 
     bool parseSuccessful;
 
@@ -67,33 +72,29 @@ public:
             // Define default args
             waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), filename(""),
 
-            // Private Attributes
-            parseSuccessful(false), progname("[???]"), argc(argc), argv(argv) {
+            // Attributes
+            progname("[???]"), parseSuccessful(false), argc(argc), argv(argv), positionalIndex(0) {
 
         // Do parse
         parseSuccessful = tryParse();
-
-        if (!parseSuccessful) {
-            std::cout << std::endl;
-            printHelp();
-        }
     }
 
-private:
-    const char *progname;
-    int argc;
-    char** argv;
-
     void printHelp() {
-        std::cout << "Usage: " << progname << " [-fiw] [filename]" << std::endl;
-        std::cout << "\t-f: Full Image Flash" << std::endl;
-        std::cout << "\t\tAllows flashing of images containing a bootloader rather than restring to OTA" << std::endl;
+        std::cout << "Usage: " << progname << " [-fiw] [uf2]" << std::endl;
+        std::cout << "\t-h: Show this help message" << std::endl;
+        std::cout << "\t-f: Full Image Flash (if omitted, uf2 is assumed ota file)" << std::endl;
+        std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA" << std::endl;
         std::cout << "\t-i: Print Info" << std::endl;
         std::cout << "\t\tPrints information from the passed file and quits" << std::endl;
         std::cout << "\t-w: Wait for Boot" << std::endl;
         std::cout << "\t\tPrompts to wait for device in boot" << std::endl;
-        std::cout << "\tfilename: A UF2 file to flash" << std::endl;
+        std::cout << "\tuf2: A UF2 file to flash" << std::endl;
     }
+
+private:
+    int argc;
+    char** argv;
+    size_t positionalIndex;
 
     const char* tryGetArgument(const char *argname) {
         if (!argc) {
@@ -104,40 +105,62 @@ private:
         return *argv++;
     }
 
-    #define getArgumentOrReturn(variable) \
-        variable = tryGetArgument(#variable); \
-        if (!variable) {return false;}
-
-    #define defArgumentOrReturn(variable) \
-        const char* getArgumentOrReturn(variable)
-
-    bool tryParse() {
-        getArgumentOrReturn(progname);
-        while (argc > 1) {
-            defArgumentOrReturn(flag);
-            // Sanity check that its actually a flag
-            if (flag[0] != '-' || flag[2] != '\0') {
-                std::cout << "Expected flag, not '" << flag << "'" << std::endl;
-                return false;
-            }
-
-            switch (flag[1]) {
-            case 'f':
-                allowBootloaderOverwrite = true;
-                break;
-            case 'i':
-                justPullInfo = true;
-                break;
-            case 'w':
-                waitInBootDelay = true;
+    bool tryParsePositional(const char *arg) {
+        switch (positionalIndex) {
+            case 0:
+                filename = arg;
                 break;
             default:
-                std::cout << "Unexpected flag: -" << flag[1] << std::endl;
+                std::cout << "Unexpected positional argument '" << arg << "'" << std::endl;
                 return false;
+        }
+        positionalIndex++;
+        return true;
+    }
+
+
+    bool tryParse() {
+        const char* prognameTemp = tryGetArgument("progname"); \
+        if (!prognameTemp) {return false;}
+        progname = prognameTemp;
+
+        // Loop until all positional arguments found (or help, which is special)
+        while ((positionalIndex < numPositionalArgs || argc > 0) && !showHelpAndQuit) {
+            const char* arg = tryGetArgument(positionalArgsNames[positionalIndex]);
+            if (!arg) return false;
+
+            // Check if flag
+            if (arg[0] == '-') {
+                if (arg[2] != '\0') {
+                    std::cout << "Flag '" << arg << "' is not single character" << std::endl;
+                    return false;
+                }
+
+                switch (arg[1]) {
+                case 'f':
+                    allowBootloaderOverwrite = true;
+                    break;
+                case 'i':
+                    justPullInfo = true;
+                    break;
+                case 'w':
+                    waitInBootDelay = true;
+                    break;
+                case 'h':
+                    showHelpAndQuit = true;
+                    break;
+                default:
+                    std::cout << "Unexpected flag: -" << arg[1] << std::endl;
+                    return false;
+                }
+            }
+            // If not it's a positional argument
+            else {
+                if (!tryParsePositional(arg)) {
+                    return false;
+                }
             }
         }
-
-        getArgumentOrReturn(filename);
         return true;
     }
 };
@@ -154,7 +177,12 @@ int main(int argc, char** argv) {
     // Pull arguments
     CANBlToolArgs blArgs(argc, argv);
     if (!blArgs.parseSuccessful) {
+        std::cout << "Run '" << blArgs.progname << " -h' to show help." << std::endl;
         return 1;
+    }
+    if (blArgs.showHelpAndQuit) {
+        blArgs.printHelp();
+        return 0;
     }
 
     // Load in file

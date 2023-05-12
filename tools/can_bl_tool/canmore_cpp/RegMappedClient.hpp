@@ -13,6 +13,9 @@
 #include "canmore_titan/protocol.h"
 #include "canmore_titan/reg_mapped_client.h"
 
+// The W25Q16JV datasheet specifies max sector erase time to be 400ms
+#define REG_MAPPED_TIMEOUT_MS 1000
+
 namespace Canmore {
 
 class RegMappedClientError : public std::runtime_error

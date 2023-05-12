@@ -132,6 +132,7 @@ int main() {
     depth_init();
 
     // Status Strip Initialization
+    bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));
     status_strip_init(pio0, 0, RGB_DATA_PIN, true);
     status_strip_clear();
 

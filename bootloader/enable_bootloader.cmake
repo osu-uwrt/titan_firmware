@@ -11,16 +11,15 @@ function(titan_enable_bootloader TARGET TYPE)
         INSTALL_COMMAND ""
     )
 
-
     ExternalProject_Get_Property(titan_bootloader BINARY_DIR)
-    # message(FATAL_ERROR "Bootloader File: " ${BOOTLOADER_BL_UF2_FILE})
-	# set(BOOTLOADER_INTERFACE ${TYPE})
-    # set(BOOTLOADER_DIR titan_bootloader)
 
-    set(BOOTLOADER_BL_UF2_FILE ${BINARY_DIR}/titan_bootloader.uf2)
-    # set(BOOTLOADER_BL_UF2_FILE ${BOOTLOADER_DIR}/$<IF:$<BOOL:$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>>,$<TARGET_PROPERTY:titan_bootloader,OUTPUT_NAME>,$<TARGET_PROPERTY:titan_bootloader,NAME>>.uf2)
-    set(BOOTLOADER_APP_UF2_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_ota.uf2)
-    set(BOOTLOADER_COMBINED_FILE $<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>_with_bl.uf2)
+    set(UF2_COMMON_NAME "$<IF:$<BOOL:$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>>,$<TARGET_PROPERTY:${TARGET},OUTPUT_NAME>,$<TARGET_PROPERTY:${TARGET},NAME>>")
+    set(UF2_OTA_FILE "${UF2_COMMON_NAME}_ota.uf2")
+    set(UF2_COMBINED_FILE "${UF2_COMMON_NAME}_with_bl.uf2")
+
+    set_target_properties(${TARGET} PROPERTIES
+        BOOTLOADER_ENABLED 1
+        BOOTLOADER_BL_UF2_FILE "${BINARY_DIR}/titan_bootloader.uf2")
 
     # Make sure pico doesn't spit out a UF2
     # This is very cursed, where the very order of the set statement will determine whether UF2s are made
@@ -55,12 +54,12 @@ function(titan_enable_bootloader TARGET TYPE)
 
     # Build the uf2 file for the project (needs to be different to suffix it with _ota)
     add_custom_command(TARGET ${TARGET} POST_BUILD
-            COMMAND ELF2UF2 $<TARGET_FILE:${TARGET}> ${BOOTLOADER_APP_UF2_FILE})
+            COMMAND ELF2UF2 "$<TARGET_FILE:${TARGET}>" "${UF2_OTA_FILE}")
 
     # Generate the combined uf2 file for the project (to allow usb flashing)
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND BOOTUF2CAT
-            ${BOOTLOADER_BL_UF2_FILE}
-            ${BOOTLOADER_APP_UF2_FILE}
-            ${BOOTLOADER_COMBINED_FILE})
+            "$<TARGET_PROPERTY:${TARGET},BOOTLOADER_BL_UF2_FILE>"
+            "${UF2_OTA_FILE}"
+            "${UF2_COMBINED_FILE}")
 endfunction()

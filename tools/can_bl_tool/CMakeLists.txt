@@ -7,7 +7,7 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 
-project(caN_bl_tool)
+project(can_bl_tool)
 
 set(CMAKE_CXX_STANDARD 17)
 

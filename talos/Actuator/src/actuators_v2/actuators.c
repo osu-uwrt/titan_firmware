@@ -74,6 +74,8 @@ void actuators_initialize(void) {
     hard_assert_if(ACTUATORS, actuators_initialized);
     bi_decl_if_func_used(bi_program_feature("Actuators V2"));
 
+    bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal"))
+
     dynamixel_init(pio0, 0, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count,
                     actuators_dynamixel_error_cb, actuators_dynamixel_event_cb);
 

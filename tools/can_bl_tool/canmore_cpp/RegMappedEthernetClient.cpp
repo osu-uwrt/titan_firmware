@@ -16,9 +16,6 @@
 
 using namespace Canmore;
 
-// The W25Q16JV datasheet specifies max sector erase time to be 400ms
-#define REG_MAPPED_TIMEOUT_MS 500
-
 RegMappedEthernetClient::RegMappedEthernetClient(struct in_addr ipAddr, uint16_t port) :
     socketFd(-1)
 {

@@ -6,7 +6,7 @@
 
 using namespace Canmore;
 
-#define STALE_DISCOVERY_MS 1100
+#define STALE_DISCOVERY_MS 2000
 
 Discovery::Discovery(): socketFd(-1), threadEventFd(-1) {}
 
