@@ -65,7 +65,7 @@ void ros_rmw_init_error_handling(void)  {
 // ========================================
 
 #define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "heartbeat"
+#define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define BATTERY_STATUS_PUBLISHER_NAME "state/battery"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"

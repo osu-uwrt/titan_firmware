@@ -68,10 +68,10 @@ void ros_rmw_init_error_handling(void)  {
 // ========================================
 
 #define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "heartbeat"
+#define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
-#define SOFT_KILL_SUBSCRIBER_NAME "control/software_kill"
+#define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
 #define ELECTRICAL_READING_NAME "state/electrical"
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 

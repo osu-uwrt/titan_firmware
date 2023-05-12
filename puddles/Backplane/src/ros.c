@@ -78,16 +78,16 @@ void ros_rmw_init_error_handling(void)  {
 // ========================================
 
 #define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "heartbeat"
+#define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define DSHOT_COMMAND_SUCRIBER_NAME "command/dshot"
-#define DSHOT_RPM_PUBLISHER_NAME "thrusters/rpm"
-#define SOFTWARE_KILL_PUBLISHER_NAME "control/software_kill"
-#define DEPTH_PUBLISHER_NAME "depth/raw"
-#define WATER_TEMP_PUBLISHER_NAME "depth/temp"
+#define DSHOT_RPM_PUBLISHER_NAME "state/thrusters/rpm"
+#define SOFTWARE_KILL_PUBLISHER_NAME "command/software_kill"
+#define DEPTH_PUBLISHER_NAME "state/depth/raw"
+#define WATER_TEMP_PUBLISHER_NAME "state/depth/temp"
 #define ADC_PUBLISHER_NAME "state/electrical"
-#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "control/electrical"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
 bool ros_connected = false;
 bool dshot_command_received = false;
@@ -169,10 +169,12 @@ static void elec_command_subscription_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
     if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
+        // TODO: Is this what this command is used for?
         watchdog_reboot(0, 0, 0);
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
         // turn off the computer (it will reschedule itself to turn back on)
+        // TODO: Check that alarm scheduled
         add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
@@ -484,11 +486,6 @@ rcl_ret_t ros_init() {
 	software_kill_msg.sender_id.capacity = sizeof(software_kill_frame_str);
 	software_kill_msg.sender_id.size = 0;
 
-    // TODO: Code in executor callbacks should be kept to a minimum
-    // It should set whatever flags are necessary and get out
-    // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
-    // in the event that specific request times out
-
     return RCL_RET_OK;
 }
 
@@ -497,7 +494,7 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber));
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_publisher, &node))

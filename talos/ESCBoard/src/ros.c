@@ -67,12 +67,12 @@ void ros_rmw_init_error_handling(void)  {
 // ========================================
 
 #define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "heartbeat"
+#define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DSHOT_COMMAND_SUCRIBER_NAME "command/dshot"
-#define DSHOT_RPM_PUBLISHER_NAME "thrusters/rpm"
-#define DSHOT_TELEMETRY_PUBLISHER_NAME "thrusters/telemetry"
+#define DSHOT_RPM_PUBLISHER_NAME "state/thrusters/rpm"
+#define DSHOT_TELEMETRY_PUBLISHER_NAME "state/thrusters/telemetry"
 
 bool ros_connected = false;
 bool dshot_command_received = false;
