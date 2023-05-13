@@ -11,6 +11,9 @@ target_include_directories(async_i2c INTERFACE
 )
 
 target_link_libraries(async_i2c INTERFACE
-    pico_stdlib
+    hardware_gpio
     hardware_i2c
+    hardware_irq
+    hardware_sync
+    pico_time
 )

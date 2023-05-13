@@ -13,7 +13,8 @@ target_include_directories(can_pio INTERFACE
 )
 
 target_link_libraries(can_pio INTERFACE
-    pico_stdlib
+    hardware_clocks
+    hardware_irq
     pico_multicore
 
     basic_queue

@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include "hardware/irq.h"
-#include "pico/stdlib.h"
 #include "pico/multicore.h"
 
 // Public headers

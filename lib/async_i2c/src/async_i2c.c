@@ -4,7 +4,6 @@
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/assert.h"
-#include "pico/binary_info.h"
 #include "pico/time.h"
 
 #include "async_i2c.h"

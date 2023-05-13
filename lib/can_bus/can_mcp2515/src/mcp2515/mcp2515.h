@@ -6,7 +6,6 @@
 
 #include "hardware/spi.h"
 #include "pico/time.h"
-#include "pico/stdlib.h"
 
 /*
  *  Speed 8M

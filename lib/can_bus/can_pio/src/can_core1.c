@@ -1,7 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/irq.h"
 #include "hardware/clocks.h"

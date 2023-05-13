@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <time.h>
 #include "pico/binary_info.h"
-#include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
+#include "pico/time.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>

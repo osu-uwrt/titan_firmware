@@ -13,9 +13,13 @@ target_include_directories(can_mcp2515 INTERFACE
 )
 
 target_link_libraries(can_mcp2515 INTERFACE
-    pico_stdlib
-    pico_multicore
+    hardware_clocks
+    hardware_irq
+    hardware_gpio
     hardware_spi
+    hardware_sync
+    pico_multicore
+    pico_time
 
     basic_queue
     canmore_protocol

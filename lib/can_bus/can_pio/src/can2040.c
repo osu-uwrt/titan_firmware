@@ -6,7 +6,6 @@
 
 #include <stdint.h> // uint32_t
 #include <string.h> // memset
-#include "pico/stdlib.h" // hw_set_bits
 #include "can2040.h" // can2040_setup
 #include "hardware/regs/dreq.h" // DREQ_PIO0_RX1
 #include "hardware/structs/dma.h" // dma_hw

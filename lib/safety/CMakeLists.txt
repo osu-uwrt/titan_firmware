@@ -14,8 +14,10 @@ target_sources(safety INTERFACE
 
 target_link_libraries(safety INTERFACE
     basic_logger
-    pico_stdlib
     hardware_exception
+    hardware_sync
+    hardware_watchdog
+    pico_time
 
     # Hook required functions for safety watchdog reporting
 	"-Wl,--wrap=__assert_func,--wrap=panic,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session,--wrap=watchdog_reboot"

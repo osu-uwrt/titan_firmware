@@ -1,14 +1,12 @@
 #include <stdio.h>
 #include <time.h>
 #include "pico/binary_info.h"
-#include "pico/stdlib.h"
+#include "pico/time.h"
 
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
 
 #include "can_mcp251Xfd/canbus.h"
-#include "hardware/clocks.h"
-#include "hardware/irq.h"
 
 #include "micro_ros_pico/transport_can.h"
 

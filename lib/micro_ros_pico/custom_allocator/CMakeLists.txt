@@ -4,7 +4,6 @@ target_sources(micro_ros_custom_allocator INTERFACE
 )
 
 target_link_libraries(micro_ros_custom_allocator INTERFACE
-    pico_stdlib
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )
 

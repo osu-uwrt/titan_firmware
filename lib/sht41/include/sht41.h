@@ -1,10 +1,9 @@
 #ifndef SHT41
 #define SHT41
 
-#include "pico/stdlib.h"
 #include "stdint.h"
 
-struct sht41_data { 
+struct sht41_data {
     int16_t temp;
     int16_t rh;
 };

@@ -27,9 +27,12 @@ target_include_directories(can_mcp251Xfd INTERFACE
 )
 
 target_link_libraries(can_mcp251Xfd INTERFACE
-    pico_stdlib
     pico_unique_id
+    hardware_clocks
+    hardware_gpio
+    hardware_irq
     hardware_spi
+    pico_sync
 
     basic_queue
     canmore_protocol

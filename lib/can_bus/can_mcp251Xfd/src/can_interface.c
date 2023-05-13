@@ -4,7 +4,6 @@
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
-#include "pico/stdlib.h"
 
 #include "can_mcp251Xfd/canbus.h"
 
