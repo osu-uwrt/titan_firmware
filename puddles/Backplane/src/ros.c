@@ -174,12 +174,17 @@ static void elec_command_subscription_callback(const void * msgin){
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
         // turn off the computer (it will reschedule itself to turn back on)
-        // TODO: Check that alarm scheduled
-        add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
+        if (add_alarm_in_ms(10, &set_computer_power, (void *) false,  true) < 0) {
+            LOG_WARN("Failed to schedule set computer power alarm");
+            safety_raise_fault(FAULT_ROS_ERROR);
+        }
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
         // turn off the accoustics
-        add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
+        if (add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true) < 0) {
+            LOG_WARN("Failed to schedule set acoustic power alarm");
+            safety_raise_fault(FAULT_ROS_ERROR);
+        }
     }
     else {
         LOG_WARN("Unsupported electrical command used %d", msg->command);
@@ -494,7 +499,7 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber));
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_publisher, &node))

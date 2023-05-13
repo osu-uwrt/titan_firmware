@@ -10,6 +10,7 @@
 #include <riptide_msgs2/msg/robot_state.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <riptide_msgs2/msg/electrical_readings.h>
+#include <riptide_msgs2/msg/electrical_command.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
@@ -74,6 +75,7 @@ void ros_rmw_init_error_handling(void)  {
 #define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
 #define ELECTRICAL_READING_NAME "state/electrical"
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
 bool ros_connected = false;
 
@@ -89,6 +91,8 @@ int failed_heartbeats = 0;
 rcl_publisher_t firmware_status_publisher;
 rcl_publisher_t electrical_reading_publisher;
 riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = {0};
+rcl_subscription_t elec_command_subscriber;
+riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -142,6 +146,16 @@ static void software_kill_subscription_callback(const void * msgin)
     }
 
     safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
+}
+
+static void elec_command_subscription_callback(const void * msgin){
+    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_FANS) {
+        gpio_put(FAN_SWITCH_PIN, true);
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_FANS) {
+        gpio_put(FAN_SWITCH_PIN, false);
+    }
 }
 
 // ========================================
@@ -302,10 +316,17 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
         SOFT_KILL_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &elec_command_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg, &software_kill_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg, &elec_command_subscription_callback, ON_NEW_DATA));
 
     // Populate messages
     software_kill_msg.sender_id.data = software_kill_frame_str;
@@ -323,6 +344,7 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));

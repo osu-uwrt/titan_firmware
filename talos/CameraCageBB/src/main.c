@@ -151,6 +151,12 @@ int main() {
     gpio_put(FAN_SW_PIN, true);
     gpio_set_dir(FAN_SW_PIN, true);
 
+    // Initialize Orin Switch to allow ROS control
+    bi_decl_if_func_used(bi_1pin_with_name(ORIN_SW_PIN, "Orin Pwr Control"));
+    gpio_init(ORIN_SW_PIN);
+    gpio_put(ORIN_SW_PIN, true);
+    gpio_set_dir(ORIN_SW_PIN, true);
+
     // Enter main loop
     bool ros_initialized = false;
     while(true) {

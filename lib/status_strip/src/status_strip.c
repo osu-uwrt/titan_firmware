@@ -58,6 +58,7 @@ static struct status_strip_inst {
     repeating_timer_t refresh_timer;
 
     // LED state config
+    volatile bool enabled;
     enum status_strip_mode mode;
     uint8_t red_target;
     uint8_t green_target;
@@ -241,6 +242,12 @@ bool __time_critical_func(status_strip_refresh)(__unused repeating_timer_t *rt) 
         }
     }
 
+    // Clear color output if LEDs are disabled
+    if (!inst->enabled) {
+        inst->end_cmd.data = 0;
+        inst->middle_cmd.data = 0;
+    }
+
     // Transmit data
     dma_channel_set_read_addr(inst->dma_ctrl_chan, &inst->control_blocks[0], true);
 
@@ -311,6 +318,9 @@ void status_strip_init(PIO pio, uint sm, uint pin, bool first_pixel_is_rear) {
     inst->startup_flash_phase = STARTUP_PHASE_GROW;
     inst->startup_flash_index = 0;
 
+    // Start with LEDs enabled
+    inst->enabled = true;
+
     // Schedule the transmit
     inst->timer = 0;
     inst->flash_active = false;
@@ -334,4 +344,12 @@ void status_strip_flash_front(uint8_t red, uint8_t green, uint8_t blue) {
     inst->flash_timer = 0;
     inst->flash_count = 0;
     inst->flash_active = true;
+}
+
+void status_strip_enable(void) {
+    inst->enabled = true;
+}
+
+void status_strip_disable(void) {
+    inst->enabled = false;
 }

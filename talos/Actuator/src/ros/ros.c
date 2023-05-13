@@ -8,6 +8,7 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/actuator_status.h>
 #include <riptide_msgs2/msg/led_command.h>
+#include <riptide_msgs2/msg/electrical_command.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
@@ -76,10 +77,14 @@ int failed_heartbeats = 0;
 rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
+
+// Electrical System
 rcl_subscription_t led_subscriber;
 riptide_msgs2__msg__LedCommand led_command_msg;
 rcl_subscription_t physkill_notify_subscriber;
 std_msgs__msg__Bool physkill_notify_msg;
+rcl_subscription_t elec_command_subscriber;
+riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 
 // ========================================
 // Executor Callbacks
@@ -139,6 +144,16 @@ static void physkill_notify_subscription_callback(const void * msgin)
     else {
         // Flash blue on kill switch insertion
         status_strip_flash_front(0, 0, 255);
+    }
+}
+
+static void elec_command_subscription_callback(const void * msgin){
+    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_LEDS) {
+        status_strip_enable();
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_LEDS) {
+        status_strip_disable();
     }
 }
 
@@ -247,8 +262,14 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &elec_command_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_local_handles = 3;
+    const int executor_num_local_handles = 4;
     #if ACTUATOR_V1_SUPPORT
     const int executor_num_handles = ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + executor_num_local_handles;
     #elif ACTUATOR_V2_SUPPORT
@@ -261,6 +282,7 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg, &physkill_notify_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg, &elec_command_subscription_callback, ON_NEW_DATA));
 
     // Initialize other files
     RCRETCHECK(ros_actuators_init(&executor, &node));
@@ -297,6 +319,7 @@ void ros_fini(void) {
 
     ros_actuators_fini(&node);
 
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));

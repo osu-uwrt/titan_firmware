@@ -1,4 +1,5 @@
 #include "pico/stdlib.h"
+#include <time.h>
 
 #include <rmw_microros/rmw_microros.h>
 #include <rcl/rcl.h>
@@ -8,6 +9,7 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/led_command.h>
 #include <riptide_msgs2/msg/depth.h>
+#include <riptide_msgs2/msg/electrical_command.h>
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/bool.h>
@@ -74,6 +76,7 @@ void ros_rmw_init_error_handling(void)  {
 #define WATER_TEMP_PUBLISHER_NAME "state/depth/temp"
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
 bool ros_connected = false;
 
@@ -89,10 +92,14 @@ int failed_heartbeats = 0;
 rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
+
+// Electrical System
 rcl_subscription_t led_subscriber;
 riptide_msgs2__msg__LedCommand led_command_msg;
 rcl_subscription_t physkill_notify_subscriber;
 std_msgs__msg__Bool physkill_notify_msg;
+rcl_subscription_t elec_command_subscriber;
+riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 
 // Depth Sensor
 rcl_publisher_t depth_publisher;
@@ -159,6 +166,42 @@ static void physkill_notify_subscription_callback(const void * msgin)
     else {
         // Flash blue on kill switch insertion
         status_strip_flash_front(0, 0, 255);
+    }
+}
+
+static int64_t set_computer_power(__unused alarm_id_t alarm, void * data){
+    bool state = (bool) data;
+    gpio_put(ORIN_SW_PIN, state);
+
+    if (state) {
+        return 0; // Don't reschedule if turning on
+    } else {
+        return 1000 * 1000;   // Turn off for 1 second
+    }
+}
+
+static void elec_command_subscription_callback(const void * msgin){
+    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER) {
+        if (add_alarm_in_ms(10, &set_computer_power, (void *) false,  true) < 0) {
+            LOG_WARN("Failed to schedule set computer power alarm");
+            safety_raise_fault(FAULT_ROS_ERROR);
+        }
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_FANS) {
+        gpio_put(FAN_SW_PIN, true);
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_FANS) {
+        gpio_put(FAN_SW_PIN, false);
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_LEDS) {
+        status_strip_enable();
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_LEDS) {
+        status_strip_disable();
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__CLEAR_DEPTH) {
+        // TODO: Add in clear depth when code is found
     }
 }
 
@@ -310,12 +353,19 @@ rcl_ret_t ros_init() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &elec_command_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg, &physkill_notify_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg, &elec_command_subscription_callback, ON_NEW_DATA));
 
 	depth_msg.header.frame_id.data = depth_frame;
 	depth_msg.header.frame_id.capacity = sizeof(depth_frame);
@@ -330,6 +380,7 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));

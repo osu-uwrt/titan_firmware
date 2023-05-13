@@ -21,6 +21,7 @@
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
+#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
 #define BUSY_TOPIC_NAME "state/actuator/busy"
 #define STATUS_TOPIC_NAME "state/actuator/status"
