@@ -25,17 +25,17 @@
 #define RGB_DATA_PIN        12
 
 // Torpedos
-#define TORP_SEL_2_PIN      6       // ROUTE ME
-#define TORP_SEL_1_PIN      7       // ROUTE ME
+#define TORP_SEL_2_PIN      6
+#define TORP_SEL_1_PIN      7
 #define TORP_DRAIN_PIN      8
-#define TORP_ARM_PIN        11      // ROUTE ME
-#define COIL_3_PIN          25      // ROUTE ME
-#define COIL_2_PIN          26      // ROUTE ME
-#define COIL_1_PIN          27      // ROUTE ME
-#define TORP_CHARGE_LVL     28     // ROUTE ME
+#define TORP_ARM_PIN        11
+#define COIL_3_PIN          25
+#define COIL_2_PIN          26
+#define COIL_1_PIN          27
+#define TORP_CHARGE_LVL     28
 
 // Dropper
-#define DROPPER_2_PIN       23      // ROUTE ME
-#define DROPPER_1_PIN       24      // ROUTE ME
+#define DROPPER_2_PIN       23
+#define DROPPER_1_PIN       24
 
 #endif
