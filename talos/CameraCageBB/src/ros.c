@@ -171,7 +171,7 @@ static void elec_command_subscription_callback(const void * msgin){
         status_strip_disable();
     }
     else if (msg->command == riptide_msgs2__msg__ElectricalCommand__CLEAR_DEPTH) {
-        // TODO: Add in clear depth when code is found
+        depth_recalibrate();
     }
 }
 

@@ -65,4 +65,11 @@ void depth_init(void);
  */
 bool depth_reading_valid(void);
 
+/**
+ * @brief Begins a recalibration of the depth sensor. 
+ * 
+ * The recalibration will not begin until the next time a read is started. 
+*/
+void depth_recalibrate(void);
+
 #endif

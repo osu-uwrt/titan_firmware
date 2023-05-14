@@ -16,9 +16,26 @@
 
 bool depth_initialized = false;
 bool depth_set_on_read = false;
+static bool depth_begin_recal = false;
 static bool in_transaction = false;
 
 static void depth_begin_zero_depth(void);
+
+static void depth_zero_depth(void);
+
+#define FLUID_DENSITY 997
+
+/**
+ * @brief The surface pressure in tens of mbar
+ * Generated during calibration
+ */
+static int32_t surface_pressure;
+
+/**
+ * @brief The number of times a zero reading has been added
+ */
+static int zero_count;
+
 
 // ========================================
 // Initialization Code
@@ -322,6 +339,13 @@ static void depth_adc_queue_reads(int num_reads, void (*callback)(void)) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data) {
+     if(depth_begin_recal) { 
+        zero_count = 0;
+        depth_adc_queue_reads(20, &depth_zero_depth);
+        depth_begin_recal = false;
+        return 0;
+    }
+
     if (depth_read_running) {
         LOG_ERROR("Depth new transaction started with one still in progress");
         safety_raise_fault(FAULT_DEPTH_ERROR);
@@ -335,18 +359,6 @@ static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *
 // ========================================
 // Calibration Code
 // ========================================
-
-#define FLUID_DENSITY 997
-/**
- * @brief The surface pressure in tens of mbar
- * Generated during calibration
- */
-static int32_t surface_pressure;
-
-/**
- * @brief The number of times a zero reading has been added
- */
-static int zero_count;
 
 /**
  * @brief Callback after a succesful reading signaling to update zeroing
@@ -408,3 +420,7 @@ void depth_init(void) {
     // TODO: Raise fault on failure to queue
     async_i2c_enqueue(&reset_req, &in_transaction);
 }
+
+void depth_recalibrate(void) { 
+    depth_begin_recal = true;
+} 
