@@ -1,10 +1,17 @@
-#ifndef LED_H
-#define LED_H
+#ifndef DRIVER__LED_H_
+#define DRIVER__LED_H_
 
 #include <stdbool.h>
 
 /**
- * @brief Initialize the status LED
+ * @file driver/led.h
+ *
+ * @brief Driver for the RGB status LED on each of Mark 2 boards.
+ *
+ */
+
+/**
+ * @brief Initialize the RGB status LED
  */
 void led_init();
 

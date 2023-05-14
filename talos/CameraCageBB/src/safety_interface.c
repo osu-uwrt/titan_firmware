@@ -1,10 +1,7 @@
 #include <assert.h>
 #include "safety_interface.h"
-#include "led.h"
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
 #include "driver/canbus.h"
-#endif
+#include "driver/led.h"
 
 void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
     safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);

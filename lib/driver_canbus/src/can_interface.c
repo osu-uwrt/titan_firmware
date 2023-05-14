@@ -11,7 +11,7 @@
 
 #include "can_mcp251XFD_bridge.h"
 
-#include "titan/safety.h"
+#include "titan/safety.h"   // TODO: Only include if safety support compiled in
 
 // PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=driver_canbus
 #ifndef CAN_HEARTBEAT_INTERVAL_MS

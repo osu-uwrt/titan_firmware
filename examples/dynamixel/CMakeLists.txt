@@ -42,13 +42,13 @@ titan_use_upload_tool(dynamixel_example)
 # Define linking and targets
 pico_add_extra_outputs(dynamixel_example)
 target_link_libraries(dynamixel_example PUBLIC
+	driver_led		# Status LED support
 	titan_logger	# A nice little logging library
 	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
-	hardware_pwm	# LED PWM Support
 	driver_dynamixel
-	# Add any additional hardware here (ex. hardware_i2c)
+	# TODO: Add any additional hardware here (ex. hardware_i2c)
 )
 

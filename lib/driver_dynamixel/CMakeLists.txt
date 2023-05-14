@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 add_library(driver_dynamixel INTERFACE)
 
 target_sources(driver_dynamixel INTERFACE
@@ -17,8 +15,8 @@ target_include_directories(driver_dynamixel INTERFACE
 )
 
 target_link_libraries(driver_dynamixel INTERFACE
-    hardware_pio
     hardware_dma
+    hardware_pio
     titan_logger
     titan_queue
 )

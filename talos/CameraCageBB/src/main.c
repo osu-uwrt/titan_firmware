@@ -2,17 +2,17 @@
 #include "pico/stdlib.h"
 
 #include "driver/async_i2c.h"
+#include "driver/canbus.h"
+#include "driver/led.h"
+#include "driver/status_strip.h"
+#include "micro_ros_pico/transport_can.h"
 #include "titan/logger.h"
 #include "titan/version.h"
-#include "driver/canbus.h"
-#include "micro_ros_pico/transport_can.h"
 #include "titan/binary_info.h"
 
 #include "depth_sensor.h"
-#include "led.h"
 #include "ros.h"
 #include "safety_interface.h"
-#include "driver/status_strip.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -122,7 +122,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
 
     // I2C Initialization
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));

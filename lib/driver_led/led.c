@@ -1,11 +1,11 @@
 #include <stdbool.h>
-#include <rcl/rcl.h>
 #include "pico/binary_info.h"
-#include "pico/stdlib.h"
+#include "pico/time.h"
 #include "hardware/clocks.h"
+#include "hardware/gpio.h"
 #include "hardware/pwm.h"
 
-#include "led.h"
+#include "driver/led.h"
 
 /**
  * @brief Rate at which the normal LED value and fault value alternates between
@@ -18,12 +18,6 @@
 #define LED_LVL_OFF 0
 #define LED_LVL_YELLOW 7
 #define set_led_pin(pin, val)  pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
-
-#ifdef RASPBERRYPI_PICO
-#define STATUS_LEDR_PIN 10
-#define STATUS_LEDG_PIN 11
-#define STATUS_LEDB_PIN 12
-#endif
 
 static struct led_status {
     bool initialized;   // If this is false, the PWM hardware hasn't been setup yet

@@ -19,12 +19,6 @@
 // ========================================
 
 /**
- * @brief Set up error handling handler to report any RMW errors
- * Makes life a *lot* easier, as long as debug logging is enabled
- */
-void ros_rmw_init_error_handling(void);
-
-/**
  * @brief Attempt to initialize ROS after a successful ping from the agent
  *
  * @param board_id The ID for the board

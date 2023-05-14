@@ -310,7 +310,7 @@ void dshot_init(void) {
     // I know... Macros.. Sue me, but it's way better than doing this all by hand IMO
     #define INIT_THRUSTER(num) do { \
        bi_decl_if_func_used(bi_1pin_with_name(THRUSTER_##num##_PIN, "Thruster " __XSTRING(num) " DShot")); \
-       pio_claim_sm(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1)); \
+       pio_sm_claim(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1)); \
        bidir_dshot_program_init(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1), dshot_pio_offset, DSHOT_RATE, THRUSTER_##num##_PIN); \
     } while(0)
 

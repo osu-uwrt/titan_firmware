@@ -1,10 +1,13 @@
+#include <assert.h>
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
-#include <assert.h>
+
 #include <riptide_msgs2/msg/kill_switch_report.h>
+
+#include "driver/led.h"
+
 #include "dshot.h"
 #include "safety_interface.h"
-#include "led.h"
 
 bool safety_interface_kill_switch_refreshed = false;
 static bool prev_kill_state = false;

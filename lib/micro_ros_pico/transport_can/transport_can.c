@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/time.h"
 
@@ -9,19 +7,6 @@
 #include "driver/canbus.h"
 
 #include "micro_ros_pico/transport_can.h"
-
-void usleep(uint64_t us)
-{
-    sleep_us(us);
-}
-
-int clock_gettime(__unused clockid_t unused, struct timespec *tp)
-{
-    uint64_t m = time_us_64();
-    tp->tv_sec = m / 1000000;
-    tp->tv_nsec = (m % 1000000) * 1000;
-    return 0;
-}
 
 bool transport_can_open(__unused struct uxrCustomTransport * transport)
 {
@@ -79,7 +64,7 @@ size_t transport_can_read(__unused struct uxrCustomTransport * transport, uint8_
 
 bi_decl(bi_program_feature("Micro-ROS over CAN"))
 
-bool transport_can_init(uint client_id){
+bool transport_can_init(uint8_t client_id){
     if (!canbus_init(client_id)) {
         return false;
     }

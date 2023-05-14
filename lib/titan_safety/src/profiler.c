@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "pico.h"
 #include "pico/time.h"
-#include "titan/safety.h"
+#include "safety_internal.h"
 
 #if SAFETY_ENABLE_PROFILER
 
@@ -14,7 +14,7 @@ struct profiler_entry {
     absolute_time_t push_time;
     absolute_time_t pop_time;
     uint64_t total_time;
-    int32_t exception_num;
+    uint32_t exception_num;
     uint32_t extra_calls;
     bool has_ran;
     bool is_pushed;
@@ -133,7 +133,7 @@ void profiler_dump(void) {
                         entry->total_time);
                 } else {
                     LOG_INFO("%sPush %s @%lld us (Exception Level %ld)",
-                        nested_spaces
+                        nested_spaces,
                         profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num);
@@ -143,7 +143,7 @@ void profiler_dump(void) {
                 int64_t time_us = absolute_time_diff_us(last_time_reset, entry->pop_time) / 1000;
                 int64_t diff_us = absolute_time_diff_us(entry->push_time, entry->pop_time) / 1000;
                 LOG_INFO("%sPop %s @%lld us - Time in loop %lld us",
-                    nested_spaces
+                    nested_spaces,
                     profiler_names[found_profiler_id],
                     time_us,
                     diff_us);

@@ -2,16 +2,16 @@
 #include "pico/stdlib.h"
 
 #include "driver/async_i2c.h"
+#include "driver/led.h"
+#include "driver/mcp3426.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
 #include "depth_sensor.h"
-#include "mcp3426.h"
 #include "128D818.h"
 #include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 
 #include "time.h"
 
@@ -161,6 +161,15 @@ static void tick_background_tasks() {
     // D818_read();
 }
 
+static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t error_code) {
+    // Mark as used in case debug logging is disabled
+    (void) req;
+    (void) error_code;
+    LOG_DEBUG("Error in mcp3426 driver request: 0x%p, error_code: 0x%08lx", req, error_code);
+
+    safety_raise_fault(FAULT_ADC_ERROR);
+}
+
 
 int main() {
     stdio_init_all();
@@ -170,7 +179,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
 
     static_assert(SENSOR_I2C == 0, "Sensor i2c expected on i2c0");
     static_assert(BOARD_I2C == 1, "Board i2c expected on i2c0");
@@ -179,7 +188,7 @@ int main() {
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 400000, 10);
     depth_init();
     dshot_init();
-    mcp3426_init();
+    mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
     D818_init();
 
     // init the CPU pwr ctrl system

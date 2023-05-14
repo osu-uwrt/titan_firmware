@@ -1,11 +1,13 @@
 #include <assert.h>
-#include <riptide_msgs2/msg/kill_switch_report.h>
-#include "driver/canbus.h"
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
 
+#include <riptide_msgs2/msg/kill_switch_report.h>
+
+#include "driver/canbus.h"
+#include "driver/led.h"
+
 #include "safety_interface.h"
-#include "led.h"
 
 // State values for software kill pin
 #define SOFTKILL_STATE_KILL true

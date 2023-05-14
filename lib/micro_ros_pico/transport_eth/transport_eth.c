@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/time.h"
 #include "pico/unique_id.h"
@@ -12,6 +10,7 @@
 #include "titan/canmore.h"
 #include "titan/debug.h"
 #include "titan/logger.h"
+#include "titan/safety.h"	// TODO: Only include if saftey support enabled
 
 #include "micro_ros_pico/transport_eth.h"
 
@@ -54,20 +53,6 @@ bi_decl(bi_program_feature("Micro-ROS over Ethernet"));
 bi_decl(bi_device_ip_address_array(source_ip));
 bi_decl(bi_agent_ip_address_array(dest_ip));
 bi_decl(bi_agent_port(dest_port));
-
-// Micro ROS required functions
-void usleep(uint64_t us)
-{
-    sleep_us(us);
-}
-
-int clock_gettime(__unused clockid_t unused, struct timespec *tp)
-{
-    uint64_t m = time_us_64();
-    tp->tv_sec = m / 1000000;
-    tp->tv_nsec = (m % 1000000) * 1000;
-    return 0;
-}
 
 static bool transport_initialized = false;
 bool transport_eth_open(__unused struct uxrCustomTransport * transport)

@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 add_library(driver_sht41 INTERFACE)
 
 target_sources(driver_sht41 INTERFACE

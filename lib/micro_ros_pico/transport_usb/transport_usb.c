@@ -1,6 +1,4 @@
-#include <stdio.h>
 #include <stdint.h>
-#include <time.h>
 #include "pico/binary_info.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
@@ -9,19 +7,6 @@
 #include <rmw_microros/rmw_microros.h>
 
 #include "micro_ros_pico/transport_usb.h"
-
-void usleep(uint64_t us)
-{
-    sleep_us(us);
-}
-
-int clock_gettime(__unused clockid_t unused, struct timespec *tp)
-{
-    uint64_t m = time_us_64();
-    tp->tv_sec = m / 1000000;
-    tp->tv_nsec = (m % 1000000) * 1000;
-    return 0;
-}
 
 static bool transport_initialized = false;
 void transport_usb_serial_init_early(void)

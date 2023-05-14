@@ -5,7 +5,7 @@
 
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
+#include "driver/led.h"
 #include "hardware/structs/ioqspi.h"
 #include "pico/sync.h"
 
@@ -250,7 +250,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
     printf("Stuff setup... initializing servo\n");
     sleep_ms(100);

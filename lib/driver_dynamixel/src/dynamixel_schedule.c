@@ -4,6 +4,7 @@
 #include "pico/time.h"
 
 #include "driver/dynamixel.h"
+#include "titan/logger.h"
 #include "titan/queue.h"
 
 #include "dynamixel_schedule.h"
@@ -11,7 +12,6 @@
 #include "dynamixel_controls.h"
 #include "dynamixel_reg.h"
 
-#include "titan/logger.h"
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dynamixel_schedule"
 

@@ -2,11 +2,11 @@
 
 #include "titan/logger.h"
 #include "titan/version.h"
+#include "driver/led.h"
 #include "driver/status_strip.h"
 
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 #include "actuators.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
@@ -150,7 +150,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
 
     // Status Strip Initialization
     bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));

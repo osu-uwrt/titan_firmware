@@ -43,12 +43,12 @@ titan_enable_bootloader(camera_cage_bb can)
 # Define linking and targets
 pico_add_extra_outputs(camera_cage_bb)
 target_link_libraries(camera_cage_bb PUBLIC
+	driver_led			# Status LED support
 	titan_logger		# A nice little logging library
 	titan_safety		# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can		# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib			# Pico SDK Standard Library
-	hardware_pwm		# LED PWM Support
 	driver_async_i2c	# I2C support for depth sensor
 	driver_status_strip	# Status LED strip support
 )

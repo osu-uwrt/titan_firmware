@@ -1,8 +1,9 @@
 #include <assert.h>
-#include "safety_interface.h"
-#include "actuators.h"
-#include "led.h"
+#include "driver/led.h"
 #include "titan/logger.h"
+
+#include "actuators.h"
+#include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety_interface"

@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 add_library(driver_status_strip INTERFACE)
 
 target_sources(driver_status_strip INTERFACE

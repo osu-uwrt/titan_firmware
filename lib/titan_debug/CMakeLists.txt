@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 add_library(titan_debug INTERFACE)
 
 target_sources(titan_debug INTERFACE

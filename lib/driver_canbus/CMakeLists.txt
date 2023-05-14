@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 # Low level driver (used when only the mcp251Xfd internal driver is needed, not the wrapper)
 add_library(driver_mcp251Xfd_ll_driver INTERFACE)
 
@@ -12,7 +10,7 @@ target_include_directories(driver_mcp251Xfd_ll_driver INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/mcp251Xfd
 )
 
-
+# Normal Library
 add_library(driver_canbus INTERFACE)
 
 target_sources(driver_canbus INTERFACE
@@ -27,12 +25,12 @@ target_include_directories(driver_canbus INTERFACE
 )
 
 target_link_libraries(driver_canbus INTERFACE
-    pico_unique_id
     hardware_clocks
     hardware_gpio
     hardware_irq
     hardware_spi
     pico_sync
+    pico_unique_id
 
     titan_canmore
     titan_debug

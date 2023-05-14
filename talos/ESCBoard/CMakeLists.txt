@@ -45,12 +45,12 @@ titan_enable_bootloader(esc_board can)
 # Define linking and targets
 pico_add_extra_outputs(esc_board)
 target_link_libraries(esc_board PUBLIC
+	driver_led		# Status LED support
 	titan_logger	# A nice little logging library
 	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
-	hardware_pwm	# LED PWM Support
 	hardware_adc	# ADC Pin for VCC Measurement
 	hardware_pio	# PIO for DShot
 )

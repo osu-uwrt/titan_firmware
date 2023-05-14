@@ -1,3 +1,4 @@
+#include <time.h>
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
@@ -20,11 +21,10 @@
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/float32.h>
 
-
-#include "titan/version.h"
+#include "driver/mcp3426.h"
 #include "titan/logger.h"
+#include "titan/version.h"
 
-#include "mcp3426.h"
 #include "128D818.h"
 #include "depth_sensor.h"
 #include "dshot.h"
@@ -32,46 +32,6 @@
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
-
-// ========================================
-// RMW Error Handling Code
-// ========================================
-
-const char * const entity_lookup_table[] = {
-    "RMW_UROS_ERROR_ON_UNKNOWN",
-    "RMW_UROS_ERROR_ON_NODE",
-    "RMW_UROS_ERROR_ON_SERVICE",
-    "RMW_UROS_ERROR_ON_CLIENT",
-    "RMW_UROS_ERROR_ON_SUBSCRIPTION",
-    "RMW_UROS_ERROR_ON_PUBLISHER",
-    "RMW_UROS_ERROR_ON_GRAPH",
-    "RMW_UROS_ERROR_ON_GUARD_CONDITION",
-    "RMW_UROS_ERROR_ON_TOPIC",
-};
-const char * const source_lookup_table[] = {
-    "RMW_UROS_ERROR_ENTITY_CREATION",
-    "RMW_UROS_ERROR_ENTITY_DESTRUCTION",
-    "RMW_UROS_ERROR_CHECK",
-    "RMW_UROS_ERROR_NOT_IMPLEMENTED",
-    "RMW_UROS_ERROR_MIDDLEWARE_ALLOCATION",
-};
-
-#define lookup_string_enum(value, list) ((value < sizeof(list)/sizeof(*list)) ? list[value] : "Out-of-Bounds")
-#define lookup_entity_enum(value) lookup_string_enum(value, entity_lookup_table)
-#define lookup_source_enum(value) lookup_string_enum(value, source_lookup_table)
-
-void rmw_error_cb(
-  __unused const rmw_uros_error_entity_type_t entity,
-  __unused const rmw_uros_error_source_t source,
-  __unused const rmw_uros_error_context_t context,
-  __unused const char * file,
-  __unused const int line) {
-    LOG_DEBUG("RMW UROS Error:\n\tEntity: %s\n\tSource: %s\n\tDesc: %s\n\tLocation: %s:%d", lookup_entity_enum(entity), lookup_source_enum(source), context.description, file, line);
-}
-
-void ros_rmw_init_error_handling(void)  {
-    rmw_uros_set_error_handling_callback(rmw_error_cb);
-}
 
 // ========================================
 // Global Definitions
@@ -143,11 +103,15 @@ static void dshot_subscription_callback(const void * msgin) {
     dshot_command_received = true;
 }
 
+static alarm_id_t toggle_acc_pwr_alarm_id = 0;
+static alarm_id_t toggle_cpu_pwr_alarm_id = 0;
+
 static int64_t set_accoustic_power(__unused alarm_id_t alarm, void * data){
     bool state = (bool) data;
     gpio_put(PWR_CTL_ACC, state);
 
     if (state) {
+        toggle_acc_pwr_alarm_id = 0;
         return 0; // Don't reschedule if turning on
     } else {
         return 1000 * 1000;   // Turn off for 1 second
@@ -159,6 +123,7 @@ static int64_t set_computer_power(__unused alarm_id_t alarm, void * data){
     gpio_put(PWR_CTL_CPU, state);
 
     if (state) {
+        toggle_cpu_pwr_alarm_id = 0;
         return 0; // Don't reschedule if turning on
     } else {
         return 1000 * 1000;   // Turn off for 1 second
@@ -174,17 +139,34 @@ static void elec_command_subscription_callback(const void * msgin){
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
         // turn off the computer (it will reschedule itself to turn back on)
-        if (add_alarm_in_ms(10, &set_computer_power, (void *) false,  true) < 0) {
-            LOG_WARN("Failed to schedule set computer power alarm");
-            safety_raise_fault(FAULT_ROS_ERROR);
+        if (toggle_cpu_pwr_alarm_id != 0) {
+            LOG_WARN("Attempting to request multiple cycles in a row");
+        }
+        else {
+            toggle_cpu_pwr_alarm_id = add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
+            if (toggle_cpu_pwr_alarm_id < 0) {
+                toggle_cpu_pwr_alarm_id = 0;
+                LOG_WARN("Failed to schedule set computer power alarm");
+                safety_raise_fault(FAULT_ROS_ERROR);
+            }
         }
     }
     else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ACCOUSTICS){
         // turn off the accoustics
-        if (add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true) < 0) {
-            LOG_WARN("Failed to schedule set acoustic power alarm");
-            safety_raise_fault(FAULT_ROS_ERROR);
+        if (toggle_acc_pwr_alarm_id != 0) {
+            LOG_WARN("Attempting to request multiple cycles in a row");
         }
+        else {
+            toggle_acc_pwr_alarm_id = add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
+            if (toggle_acc_pwr_alarm_id < 0) {
+                toggle_acc_pwr_alarm_id = 0;
+                LOG_WARN("Failed to schedule set acoustic power alarm");
+                safety_raise_fault(FAULT_ROS_ERROR);
+            }
+        }
+    }
+    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__CLEAR_DEPTH) {
+        // TODO: Add in clear depth when code is found
     }
     else {
         LOG_WARN("Unsupported electrical command used %d", msg->command);

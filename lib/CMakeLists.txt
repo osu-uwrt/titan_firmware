@@ -1,6 +1,8 @@
 add_subdirectory(driver_async_i2c/)
 add_subdirectory(driver_canbus/)
 add_subdirectory(driver_dynamixel/)
+add_subdirectory(driver_led/)
+add_subdirectory(driver_mcp3426/)
 add_subdirectory(driver_sht41/)
 add_subdirectory(driver_status_strip/)
 add_subdirectory(driver_wiznet/)

@@ -5,9 +5,8 @@
 #include "hardware/flash.h"
 
 #include "driver/wiznet.h"
-#include "bl_interface.h"
-
 #include "titan/canmore.h"
+#include "bl_interface.h"
 
 typedef uint8_t IPAddress[4];
 static uint8_t mac[] = {0x2A, 0xCD, 0x00, 0x00, 0x00, 0x00};

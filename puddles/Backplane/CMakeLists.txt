@@ -50,12 +50,12 @@ target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)
 target_link_libraries(backplane_firmware PUBLIC
-	pico_stdlib
+	driver_async_i2c
+	driver_led
+	driver_mcp3426
+	hardware_pio
 	micro_ros_eth
+	pico_stdlib
 	titan_logger
 	titan_safety
-
-	hardware_pio
-	hardware_pwm
-	driver_async_i2c
 )

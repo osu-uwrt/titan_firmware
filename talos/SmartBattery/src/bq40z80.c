@@ -1,10 +1,12 @@
-#include "bq40z80.h"
+#include <stdio.h>
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
-#include "pio_i2c.h"
-#include <stdio.h>
 
 #include "titan/logger.h"
+
+#include "bq40z80.h"
+#include "pio_i2c.h"
+
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "bq40z80"
 
@@ -91,7 +93,7 @@ uint8_t bq_init() {
 
     // init PIO I2C
     pio_12c_program = pio_add_program(pio0, &i2c_program);
-    pio_claim_sm(pio0, PIO_SM);
+    pio_sm_claim(pio0, PIO_SM);
     i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
     // make the request for the serial #

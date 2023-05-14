@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 add_library(titan_safety INTERFACE)
 
 target_sources(titan_safety INTERFACE
@@ -13,11 +11,11 @@ target_sources(titan_safety INTERFACE
 )
 
 target_link_libraries(titan_safety INTERFACE
-    titan_logger
     hardware_exception
     hardware_sync
     hardware_watchdog
     pico_time
+    titan_logger
 
     # Hook required functions for safety watchdog reporting
 	"-Wl,--wrap=__assert_func,--wrap=panic,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session,--wrap=watchdog_reboot"

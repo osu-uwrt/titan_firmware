@@ -1,16 +1,16 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
+#include "driver/canbus.h"
+#include "driver/led.h"
+#include "micro_ros_pico/transport_can.h"
 #include "titan/logger.h"
 #include "titan/version.h"
-#include "driver/canbus.h"
-#include "micro_ros_pico/transport_can.h"
 #include "titan/binary_info.h"
 
 #include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -134,7 +134,7 @@ int main() {
     safety_setup();
     load_client_id();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
     dshot_init();
 
     // Initialize ROS Transport

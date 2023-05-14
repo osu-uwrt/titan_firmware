@@ -29,7 +29,6 @@ titan_firmware_init()
 # Can't use glob since glob doesn't like to ignore specific directories
 add_executable(actuator_mk2
 	src/main.c
-	src/led.c
 	src/safety_interface.c
 	src/ros/ros.c
 	src/ros/ros_actuators.c
@@ -50,11 +49,11 @@ titan_enable_bootloader(actuator_mk2 can)
 # Define linking and targets
 pico_add_extra_outputs(actuator_mk2)
 target_link_libraries(actuator_mk2 PUBLIC
+	driver_led			# Status LED Support
 	titan_logger		# A nice little logging library
 	titan_safety		# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can		# Micro ros suppot (supports _can, _usb, _eth)
 	driver_status_strip	# Top LED stip
-	hardware_pwm		# Required for status LED
 
 	pico_stdlib			# Pico SDK Standard Library
 )

@@ -1,15 +1,14 @@
 #include "pico/stdlib.h"
 
+#include "driver/canbus.h"
+#include "driver/led.h"
+#include "micro_ros_pico/transport_can.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 #include "bq40z80.h"
-
-#include "driver/canbus.h"
-#include "micro_ros_pico/transport_can.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -158,7 +157,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
 
     // start the bq40z80
     int err = bq_init();

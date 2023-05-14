@@ -1,11 +1,11 @@
 #include "pico/stdlib.h"
 
+#include "driver/led.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
@@ -158,7 +158,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
 
 

@@ -1,18 +1,18 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
-#include "titan/logger.h"
-#include "titan/version.h"
+#include "driver/async_i2c.h"
 #include "driver/canbus.h"
+#include "driver/led.h"
+#include "driver/mcp3426.h"
 #include "micro_ros_pico/transport_can.h"
 #include "titan/binary_info.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
-#include "led.h"
 #include "analog_io.h"
-#include "driver/async_i2c.h"
-#include "mcp3426.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -123,6 +123,14 @@ static void tick_background_tasks() {
     }
 }
 
+static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t error_code) {
+    // Mark as used in case debug logging is disabled
+    (void) req;
+    (void) error_code;
+    LOG_DEBUG("Error in mcp3426 driver request: 0x%p, error_code: 0x%08lx", req, error_code);
+    safety_raise_fault(FAULT_ADC_ERROR);
+}
+
 
 int main() {
     // Initialize stdio
@@ -134,7 +142,7 @@ int main() {
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
     led_init();
-    ros_rmw_init_error_handling();
+    micro_ros_init_error_handling();
 
     // Turn on FAN to get cooling
     // TODO: Move to separate directory when tachometer added
@@ -149,7 +157,7 @@ int main() {
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
-    mcp3426_init(MCP3426_MODE_CONTINOUS, MCP3426_SAMPLE_RATE_16_BIT, MCP3426_GAIN_X1);
+    mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_CLIENT_ID;
