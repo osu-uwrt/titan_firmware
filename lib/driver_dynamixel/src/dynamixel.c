@@ -9,12 +9,12 @@
 #include "dynamixel_controls.h"
 #include "dynamixel_schedule.h"
 
-// PICO_CONFIG: DYNAMIXEL_TIMEOUT_INTERVAL_MS, Maximum duration of active transfer before timeout in milliseconds, min=1, default=50, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_TIMEOUT_INTERVAL_MS, Maximum duration of active transfer before timeout in milliseconds, min=1, default=50, group=driver_dynamixel
 #ifndef DYNAMIXEL_TIMEOUT_INTERVAL_MS
 #define DYNAMIXEL_TIMEOUT_INTERVAL_MS 50
 #endif
 
-// PICO_CONFIG: DYNAMIXEL_BAUD_RATE, Baud rate of dynamixel servo comm interface, default=57600, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_BAUD_RATE, Baud rate of dynamixel servo comm interface, default=57600, group=driver_dynamixel
 #ifndef DYNAMIXEL_BAUD_RATE
 #define DYNAMIXEL_BAUD_RATE 57600
 #endif

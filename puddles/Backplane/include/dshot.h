@@ -8,7 +8,7 @@
 // Configuration
 // ========================================
 
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DSHOT, Enable/disable assertions in the dshot module, type=bool, default=0, group=ESCBoard
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DSHOT, Enable/disable assertions in the dshot module, type=bool, default=0, group=puddles/Backplane
 #ifndef PARAM_ASSERTIONS_ENABLED_DSHOT
 #define PARAM_ASSERTIONS_ENABLED_DSHOT 0
 #endif

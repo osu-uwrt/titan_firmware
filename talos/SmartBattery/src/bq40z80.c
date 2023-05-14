@@ -4,6 +4,10 @@
 #include "pio_i2c.h"
 #include <stdio.h>
 
+#include "titan/logger.h"
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "bq40z80"
+
 #define RETRANSMIT_COUNT 4
 
 uint8_t BQ_LEDS[3] = {LED_R_PIN, LED_Y_PIN, LED_G_PIN};
@@ -34,7 +38,7 @@ static uint8_t bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len
 
     if(ret_code){
         //something bad happened to the i2c, panic
-        printf("%d", ret_code);
+        LOG_FATAL("I2C transfer error: %d", ret_code);
         panic("PIO I2C NACK during transfer %d times", RETRANSMIT_COUNT);
     }
 
@@ -64,7 +68,7 @@ uint8_t bq_write_only_transfer(uint8_t* tx_buf, uint len){
 
     if(ret_code){
         //something bad happened to the i2c, panic
-        printf("%d", ret_code);
+        LOG_FATAL("I2C write error: %d", ret_code);
         panic("PIO I2C NACK during MAC_WRITE %d times", RETRANSMIT_COUNT);
     }
 
@@ -73,7 +77,7 @@ uint8_t bq_write_only_transfer(uint8_t* tx_buf, uint len){
 
 uint8_t bq_init() {
     uint8_t retries = 0;
-        
+
     // Init the wake pin, active high
     gpio_init(BMS_WAKE_PIN);
     gpio_set_dir(BMS_WAKE_PIN, GPIO_OUT);
@@ -87,6 +91,7 @@ uint8_t bq_init() {
 
     // init PIO I2C
     pio_12c_program = pio_add_program(pio0, &i2c_program);
+    pio_claim_sm(pio0, PIO_SM);
     i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
     // make the request for the serial #
@@ -95,7 +100,7 @@ uint8_t bq_init() {
     // Start the I2C to the chip
     while((data[1] == 0x00 || data[1] == 0xFF) && retries < 3) {
         int ret_code = 0;
-        
+
         // send the request to the chip
         ret_code |= pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, data, 1);
         ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, data, 2);
@@ -170,7 +175,7 @@ uint16_t bq_pack_voltage(){
     uint8_t data[2] = {0, 0};
     uint8_t reg_addr[1] = {BQ_READ_PACK_VOLT};
     bq_handle_i2c_transfer(reg_addr, data, 2);
-    
+
 
     uint16_t millivolts = data[0] | data[1] << 8;
     return millivolts;
@@ -235,7 +240,7 @@ struct bq_pack_info_t bq_pack_mfg_info(){
         pack_info.name[i-1] = data[i];
     }
     pack_info.name[data[0]+1] = 0;
-    
+
     // now kick it all out
     return pack_info;
 }
@@ -252,7 +257,7 @@ void bq_send_mac_command(const uint16_t command){
     bq_write_only_transfer(data, 3);
 }
 
-// WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the 
+// WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the
 // watchdog during execution as to not time the system out. This must be done to maintain MAC synchronicity
 // with the BQ chip during manual fet control
 void bq_open_dschg_temp(const int64_t open_time_ms){
@@ -268,12 +273,12 @@ void bq_open_dschg_temp(const int64_t open_time_ms){
     // send emergency fet off command
     bq_send_mac_command(BQ_MAC_EMG_FET_OFF_CMD);
 
-    absolute_time_t start = get_absolute_time();
-    while(bq_pack_discharging() && absolute_time_diff_us(start, get_absolute_time()) < 1000 * open_time_ms){
+    absolute_time_t fet_off_command_end = make_timeout_time_ms(open_time_ms);
+    while(bq_pack_discharging() && !time_reached(fet_off_command_end)){
         sleep_us(100);
         // also feed the watchdog so we dont reset
         watchdog_update();
-    }   
+    }
 
     uint8_t data[2] = {0, 0};
     uint8_t reg_addr[1] = {0x16};
@@ -291,7 +296,7 @@ void bq_open_dschg_temp(const int64_t open_time_ms){
         // this is a bad state. we requested fet open and it didnt happen
         bq_send_mac_command(BQ_MAC_RESET_CMD);
         panic("Failed to open DSCHG FET during power cycle cmd");
-    } 
+    }
 
     // send a cleanup reset command
     bq_send_mac_command(BQ_MAC_EMG_FET_ON_CMD);

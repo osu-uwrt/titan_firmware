@@ -21,12 +21,12 @@
  * @attention hardware_i2c calls should not be used on a bus initialized with Aync I2C.
  */
 
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ASYNC_I2C, Enable/disable assertions in the Async I2C module, type=bool, default=0, group=async_i2c
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ASYNC_I2C, Enable/disable assertions in the Async I2C module, type=bool, default=0, group=driver_async_i2c
 #ifndef PARAM_ASSERTIONS_ENABLED_ASYNC_I2C
 #define PARAM_ASSERTIONS_ENABLED_ASYNC_I2C 0
 #endif
 
-// PICO_CONFIG: I2C_REQ_QUEUE_SIZE, Number of pending i2c requests in the async_i2c request queue, type=int, default=16, group=async_i2c
+// PICO_CONFIG: I2C_REQ_QUEUE_SIZE, Number of pending i2c requests in the async_i2c request queue, type=int, default=16, group=driver_async_i2c
 #ifndef I2C_REQ_QUEUE_SIZE
 #define I2C_REQ_QUEUE_SIZE 16
 #endif

@@ -307,7 +307,7 @@ int main() {
                 tick_ros_tasks();
             }
         } else if(ros_initialized){
-            LOG_INFO("Lost connection to ROS")
+            LOG_INFO("Lost connection to ROS");
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);

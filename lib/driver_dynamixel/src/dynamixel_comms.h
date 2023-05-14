@@ -6,7 +6,7 @@
 #include "dxl_packet.h"
 #include <stdint.h>
 
-// PICO_CONFIG: DYNAMIXEL_PACKET_BUFFER_SIZE, The max number of parameters allowed in a single transfer, min=1, default=128, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_PACKET_BUFFER_SIZE, The max number of parameters allowed in a single transfer, min=1, default=128, group=driver_dynamixel
 #ifndef DYNAMIXEL_PACKET_BUFFER_SIZE
 #define DYNAMIXEL_PACKET_BUFFER_SIZE 128
 #endif

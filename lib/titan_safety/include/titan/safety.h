@@ -11,7 +11,7 @@
  *
  * API for managing firmware safety/reliability related functions.
  *
- * This library has four main components
+ * This library has five main components
  *  - Fault Reporting: Implements a fault tracking system in a 32-bit ID. If a fault occurs, a bit will be set
  *      corresponding to a fault ID defined by the implementer in the fault list. A callback will be raised to indicate
  *      to the user that a fault has occurred (such as an LED lighting up).
@@ -25,16 +25,20 @@
  *      in the system to aid in debugging. This code hooks the systick handler to report an uptime, the hardfault,
  *      assertion, and panic handlers to provide crash information, and stores this information for SAFETY_NUM_CRASH_LOG_ENTRIES.
  *
+ *  - Profiler: Records timestamps of various critical points in code to determine execution time for the various
+ *      functions in firmware. This data is recorded and can be printed during a watchdoog reset and extracted during
+ *      runtime.
+ *
  *  - Watchdog Timer: All of these functions are integrated with the chip's watchdog timer such that critical code,
- *      such as kill switch updates, are never missed
+ *      such as kill switch updates, are never missed.
  */
 
-// PICO_CONFIG: SAFETY_KILL_SWITCH_TIMEOUT_MS, Timeout in milliseconds of kill switch commands requiring updating. Note it may take longer to disable as it is only refreshed during safety_tick, type=int, default=500, group=safety
+// PICO_CONFIG: SAFETY_KILL_SWITCH_TIMEOUT_MS, Timeout in milliseconds of kill switch commands requiring updating. Note it may take longer to disable as it is only refreshed during safety_tick, type=int, default=500, group=titan_safety
 #ifndef SAFETY_KILL_SWITCH_TIMEOUT_MS
 #define SAFETY_KILL_SWITCH_TIMEOUT_MS 500
 #endif
 
-// PICO_CONFIG: SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE, Maximum size of software kill frame string to avoid competing software kill publishers, type=str, default=32, group=safety
+// PICO_CONFIG: SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE, Maximum size of software kill frame string to avoid competing software kill publishers, type=int, default=32, group=titan_safety
 #ifndef SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE
 #define SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE 32
 #endif

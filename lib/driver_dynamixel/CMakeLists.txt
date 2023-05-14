@@ -19,5 +19,6 @@ target_include_directories(driver_dynamixel INTERFACE
 target_link_libraries(driver_dynamixel INTERFACE
     hardware_pio
     hardware_dma
+    titan_logger
     titan_queue
 )

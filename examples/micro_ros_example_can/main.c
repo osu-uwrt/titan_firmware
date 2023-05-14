@@ -103,7 +103,7 @@ int main()
     msg_out.pwm[0] = 0;
     while (true)
     {
-        if (absolute_time_diff_us(next_blink, get_absolute_time()) > 0) {
+        if (time_reached(next_blink)) {
             state = !state;
             gpio_put(LED_PIN, state);
             next_blink = make_timeout_time_ms(500);

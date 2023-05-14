@@ -1,7 +1,7 @@
 #ifndef DYNAMIXEL_CONTROLS
 #define DYNAMIXEL_CONTROLS
 
-// PICO_CONFIG: DYNAMIXEL_SELECTED_SERVO, The configured servo for this driver, default=DYNAMIXEL_XL430, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_SELECTED_SERVO, The configured servo for this driver, default=DYNAMIXEL_XL430, group=driver_dynamixel
 #ifndef DYNAMIXEL_SELECTED_SERVO
 #define DYNAMIXEL_SELECTED_SERVO DYNAMIXEL_XL430
 #endif

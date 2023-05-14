@@ -397,7 +397,7 @@ double depth_read(void) {
 }
 
 bool depth_reading_valid(void) {
-    return depth_initialized && absolute_time_diff_us(depth_current_read_timeout, get_absolute_time()) < 0;
+    return depth_initialized && !time_reached(depth_current_read_timeout);
 }
 
 float depth_get_temperature(void) {

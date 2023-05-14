@@ -7,50 +7,50 @@
 #include "titan/logger.h"
 #include "titan/safety.h"
 
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "safety"
+
 /**
- * @file safety.h
+ * @file safety_internal.h
  *
  * Internal API for the safety library code.
  */
-
-#undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "safety"
 
 // ========================================
 // Configuration Functions
 // ========================================
 
-// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=3000, group=safety
+// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=3000, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_TIMER_MS
 #define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
 #endif
 
-// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=50, group=safety
+// PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=250, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
 #define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
 #endif
 
-// PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=safety
+// PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=titan_safety
 #ifndef SAFETY_PAUSE_WATCHDOG_ON_DEBUG
 #define SAFETY_PAUSE_WATCHDOG_ON_DEBUG 1
 #endif
 
-// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=200, group=safety
+// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=500, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS  200
+#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS  500
 #endif
 
-// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=5, group=safety
+// PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  50
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  100
 #endif
 
-// PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=safety
+// PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=titan_safety
 #ifndef SAFETY_NUM_CRASH_LOG_ENTRIES
 #define SAFETY_NUM_CRASH_LOG_ENTRIES 24
 #endif
 
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=safety
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0
 #endif

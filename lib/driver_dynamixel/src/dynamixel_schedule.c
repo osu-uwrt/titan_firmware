@@ -11,22 +11,21 @@
 #include "dynamixel_controls.h"
 #include "dynamixel_reg.h"
 
-// TODO: Figure out logging
 #include "titan/logger.h"
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dynamixel_schedule"
 
-// PICO_CONFIG: DYNAMIXEL_MAX_CMDS, Size of dynamixel command queue, min=1, default=8, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_MAX_CMDS, Size of dynamixel command queue, min=1, default=8, group=driver_dynamixel
 #ifndef DYNAMIXEL_MAX_CMDS
 #define DYNAMIXEL_MAX_CMDS 8
 #endif
 
-// PICO_CONFIG: DYNAMIXEL_REFRESH_INTERVAL_MS, Interval of dynamixel ping/ram read requests in milliseconds, min=1, default=200, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_REFRESH_INTERVAL_MS, Interval of dynamixel ping/ram read requests in milliseconds, min=1, default=200, group=driver_dynamixel
 #ifndef DYNAMIXEL_REFRESH_INTERVAL_MS
 #define DYNAMIXEL_REFRESH_INTERVAL_MS 200
 #endif
 
-// PICO_CONFIG: DYNAMIXEL_MAX_MISSED_PINGS, Max number of missed pings before dynamixel is marked as disconnected, min=1, default=3, group=dynamixel
+// PICO_CONFIG: DYNAMIXEL_MAX_MISSED_PINGS, Max number of missed pings before dynamixel is marked as disconnected, min=1, default=3, group=driver_dynamixel
 #ifndef DYNAMIXEL_MAX_MISSED_PINGS
 #define DYNAMIXEL_MAX_MISSED_PINGS 3
 #endif
@@ -458,7 +457,7 @@ static void process_next_transfer_or_release() {
 static void write_cmd_cb(dynamixel_error_t err, struct dynamixel_req_result *result) {
     // Check that a driver error wasn't reported
     if (err.fields.error != DYNAMIXEL_ERROR_NONE) {
-        LOG_DEBUG("Error executing queued command: 0x%08lx", err.data)
+        LOG_DEBUG("Error executing queued command: 0x%08lx", err.data);
         inst->error_cb(err);
     }
 
@@ -532,7 +531,7 @@ void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, ui
 static void eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_result *result) {
     // Check that a driver error wasn't reported
     if (err.fields.error != DYNAMIXEL_ERROR_NONE) {
-        LOG_DEBUG("Error executing queued command: 0x%08lx", err.data)
+        LOG_DEBUG("Error executing queued command: 0x%08lx", err.data);
         inst->error_cb(err);
     }
 

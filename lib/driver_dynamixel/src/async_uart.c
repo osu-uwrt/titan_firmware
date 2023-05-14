@@ -5,12 +5,12 @@
 #include "pico/time.h"
 #include "uart_multidrop.pio.h"
 
-// PICO_CONFIG: ASYNC_UART_DMA_IRQ_NUM, DMA IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=dynamixel
+// PICO_CONFIG: ASYNC_UART_DMA_IRQ_NUM, DMA IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=driver_dynamixel
 #ifndef ASYNC_UART_DMA_IRQ_NUM
 #define ASYNC_UART_DMA_IRQ_NUM 0
 #endif
 
-// PICO_CONFIG: ASYNC_UART_PIO_IRQ_NUM, PIO IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=dynamixel
+// PICO_CONFIG: ASYNC_UART_PIO_IRQ_NUM, PIO IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=driver_dynamixel
 #ifndef ASYNC_UART_PIO_IRQ_NUM
 #define ASYNC_UART_PIO_IRQ_NUM 0
 #endif

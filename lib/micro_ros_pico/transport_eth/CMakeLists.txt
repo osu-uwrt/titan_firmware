@@ -9,10 +9,11 @@ target_sources(micro_ros_eth INTERFACE
 target_link_libraries(micro_ros_eth INTERFACE
     pico_time
     pico_unique_id
-    driver_wiznet
 
-    titan_debug
+    driver_wiznet
     titan_binary_info
+    titan_debug
+    titan_logger
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

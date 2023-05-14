@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <riptide_msgs2/msg/actuator_status.h>
 
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ACTUATORS, Enable/disable assertions for the actuators module, type=bool, default=0, group=Actuator
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ACTUATORS, Enable/disable assertions for the actuators module, type=bool, default=0, group=talos/actuators
 #ifndef PARAM_ASSERTIONS_ENABLED_ACTUATORS
 #define PARAM_ASSERTIONS_ENABLED_ACTUATORS 0
 #endif

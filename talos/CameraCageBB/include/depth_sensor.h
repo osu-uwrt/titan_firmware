@@ -4,17 +4,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DEPTH, Enable/disable assertions in the Depth Sensor module, type=bool, default=0, group=Depth
+// PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DEPTH, Enable/disable assertions in the Depth Sensor module, type=bool, default=0, group=driver_depth
 #ifndef PARAM_ASSERTIONS_ENABLED_DEPTH
 #define PARAM_ASSERTIONS_ENABLED_DEPTH 0
 #endif
 
-// PICO_CONFIG: DEPTH_POLLING_RATE_MS, The depth sensor refresh rate in milliseconds, type=int, default=50, group=Depth
+// PICO_CONFIG: DEPTH_POLLING_RATE_MS, The depth sensor refresh rate in milliseconds, type=int, default=50, group=driver_depth
 #ifndef DEPTH_POLLING_RATE_MS
 #define DEPTH_POLLING_RATE_MS 50
 #endif
 
-// PICO_CONFIG: DEPTH_BAD_READS_FAULT_COUNT, The number of invalid reads from the depth sensor before a fault is raised, type=int, default=3, group=Depth
+// PICO_CONFIG: DEPTH_BAD_READS_FAULT_COUNT, The number of invalid reads from the depth sensor before a fault is raised, type=int, default=3, group=driver_depth
 #ifndef DEPTH_BAD_READS_FAULT_COUNT
 #define DEPTH_BAD_READS_FAULT_COUNT 3
 #endif

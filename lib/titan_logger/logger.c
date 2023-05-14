@@ -3,11 +3,11 @@
 
 #include "pico/time.h"
 
-static int dynamic_global_log_level = BASIC_LOGGER_DEFAULT_LEVEL;
+static int dynamic_global_log_level = TITAN_LOGGER_DEFAULT_LEVEL;
 static custom_logger_cb_t custom_cb = NULL;
 static void *custom_cb_args = NULL;
 
-#if BASIC_LOGGER_USE_COLOR_CODES
+#if TITAN_LOGGER_USE_COLOR_CODES
 #define COLOR_DEBUG_NUM 4
 #define COLOR_INFO_NUM  7
 #define COLOR_WARN_NUM  3
@@ -103,12 +103,12 @@ void titan_logger_log_common(const int log_level, const int local_log_level, con
     if (log_level >= dynamic_global_log_level || log_level >= local_log_level) {
         double uptime_seconds = to_us_since_boot(get_absolute_time()) / 1E6;
 
-#if BASIC_LOGGER_USE_COLOR_CODES
+#if TITAN_LOGGER_USE_COLOR_CODES
         printf(TAG_COLOR_STRING(log_level));
 #endif
 
 
-#if BASIC_LOGGER_PRINT_SOURCE_LOCATION
+#if TITAN_LOGGER_PRINT_SOURCE_LOCATION
         // Try to remove everything before the titan_firmware/ repo
         const char* start = strstr(filename, repo_dir);
         if (start != NULL) {
@@ -119,7 +119,7 @@ void titan_logger_log_common(const int log_level, const int local_log_level, con
         printf("[%s] [%.6lf] [%s]: ", GET_LEVEL_STRING(log_level), uptime_seconds, unit);
 #endif
 
-        #if BASIC_LOGGER_USE_COLOR_CODES
+        #if TITAN_LOGGER_USE_COLOR_CODES
         printf(MSG_COLOR_STRING(log_level));
         #endif
 

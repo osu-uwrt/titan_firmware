@@ -31,7 +31,7 @@
 #include "ros.h"
 
 #undef LOGGING_UNIT_NAME
-#define LOGGING_UNIT_NAME "main"
+#define LOGGING_UNIT_NAME "ros"
 
 // ========================================
 // RMW Error Handling Code
@@ -254,7 +254,6 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     status_msg.kill_switches_needs_update = 0;
     status_msg.kill_switches_timed_out = 0;
 
-    absolute_time_t now = get_absolute_time();
     for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
             status_msg.kill_switches_enabled |= (1<<i);
@@ -268,7 +267,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
             status_msg.kill_switches_needs_update |= (1<<i);
         }
 
-        if (kill_switch_states[i].needs_update && absolute_time_diff_us(now, kill_switch_states[i].update_timeout) < 0) {
+        if (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout)) {
             status_msg.kill_switches_timed_out |= (1<<i);
         }
     }

@@ -7,13 +7,16 @@
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include "titan/safety.h"
 #include "driver/wiznet.h"
-
 #include "titan/binary_info.h"
-#include "micro_ros_pico/transport_eth.h"
 #include "titan/canmore.h"
 #include "titan/debug.h"
+#include "titan/logger.h"
+
+#include "micro_ros_pico/transport_eth.h"
+
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "transport_eth"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -172,7 +175,7 @@ bool transport_eth_init(){
     busy_wait_ms(150);		// Max reset time in W5200 datasheet before startup
 
 	if (!eth_init(&eth_device, ETH_SPI ? spi1 : spi0, ETH_CS_PIN, ETH_RST_PIN, mac)){
-		puts("Failed to initialize networking!");
+		LOG_FATAL("Failed to initialize networking!");
 		return false;
 	}
 
@@ -193,7 +196,7 @@ bool transport_eth_init(){
 	w5100_getIPAddress(&eth_device, tmp);
 	for(size_t i = 0; i < 4; i++){
 		if(tmp[i] != source_ip[i]){
-			printf("IP mismatch after configure byte %d: %d, %d\n", i, tmp[i], source_ip[i]);
+			LOG_FATAL("IP mismatch after configure byte %d: %d, %d\n", i, tmp[i], source_ip[i]);
 			mismatch = true;
 		}
 	}
@@ -201,12 +204,12 @@ bool transport_eth_init(){
 
 
 	if (!eth_udp_begin(&ros_socket, &eth_device, source_port)) {
-		puts("Failed to initialize UDP Server");
+		LOG_FATAL("Failed to initialize UDP Server");
 		return false;
 	}
 
 	if (!eth_udp_begin(&control_interface_socket, &eth_device, control_port)) {
-		puts("Failed to initialize control interface");
+		LOG_FATAL("Failed to initialize control interface");
 		return false;
 	}
 

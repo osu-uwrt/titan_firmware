@@ -401,6 +401,7 @@ void dshot_init(void) {
 
     // Initialize DShot Pins
     dshot_pio_offset = pio_add_program(DSHOT_PIO_BLOCK, &bidir_dshot_program);
+    pio_claim_sm_mask(DSHOT_PIO_BLOCK, 0xF);  // Claim all state machines in pio block
     bidir_dshot_program_init(DSHOT_PIO_BLOCK, 0, dshot_pio_offset, DSHOT_RATE, ESC1_PWM_PIN);
     bidir_dshot_program_init(DSHOT_PIO_BLOCK, 1, dshot_pio_offset, DSHOT_RATE, ESC2_PWM_PIN);
     bidir_dshot_program_init(DSHOT_PIO_BLOCK, 2, dshot_pio_offset, DSHOT_RATE, ESC3_PWM_PIN);
@@ -415,6 +416,7 @@ void dshot_init(void) {
 
     // Initialize Telemetry Pins
     uint uart_offset = pio_add_program(DSHOT_TELEM_PIO_BLOCK, &uart_rx_program);
+    pio_claim_sm_mask(DSHOT_TELEM_PIO_BLOCK, 0xF);  // Claim all state machines in pio block
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 0, uart_offset, ESC1_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 1, uart_offset, ESC2_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 2, uart_offset, ESC3_TELEM_PIN, 115200);

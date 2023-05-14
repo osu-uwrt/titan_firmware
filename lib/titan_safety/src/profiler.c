@@ -73,7 +73,7 @@ void profiler_dump(void) {
         profiler_data[i].push_printed = false;
     }
 
-    printf("Profiler Log:\n");
+    LOG_INFO("Profiler Log:");
 
     bool time_found = false;
     int nested_level = 0;
@@ -112,23 +112,28 @@ void profiler_dump(void) {
                 nested_level--;
             }
 
+            // Create string space padding
+            char nested_spaces[nested_level + 1];
             for (int i = 0; i < nested_level; i++) {
-                putchar(' ');
+                nested_spaces[i] = ' ';
             }
+            nested_spaces[nested_level] = '\0';
 
             struct profiler_entry *entry = &profiler_data[found_profiler_id];
             if (is_push_entry) {
                 entry->push_printed = true;
                 int64_t time_us = absolute_time_diff_us(last_time_reset, entry->push_time);
                 if (entry->extra_calls > 0) {
-                    printf("Push %s @%lld us (Exception Level %ld) - %ld Additional Calls occurred (%lld ms total time)",
+                    LOG_INFO("%sPush %s @%lld us (Exception Level %ld) - %ld Additional Calls occurred (%lld ms total time)",
+                        nested_spaces,
                         profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num,
                         entry->extra_calls,
                         entry->total_time);
                 } else {
-                    printf("Push %s @%lld us (Exception Level %ld)",
+                    LOG_INFO("%sPush %s @%lld us (Exception Level %ld)",
+                        nested_spaces
                         profiler_names[found_profiler_id],
                         time_us,
                         entry->exception_num);
@@ -137,7 +142,8 @@ void profiler_dump(void) {
                 entry->pop_printed = true;
                 int64_t time_us = absolute_time_diff_us(last_time_reset, entry->pop_time) / 1000;
                 int64_t diff_us = absolute_time_diff_us(entry->push_time, entry->pop_time) / 1000;
-                printf("Pop %s @%lld us - Time in loop %lld us",
+                LOG_INFO("%sPop %s @%lld us - Time in loop %lld us",
+                    nested_spaces
                     profiler_names[found_profiler_id],
                     time_us,
                     diff_us);
@@ -146,8 +152,6 @@ void profiler_dump(void) {
             if (is_push_entry) {
                 nested_level++;
             }
-
-            printf("\n");
         }
     } while(time_found);
 }
