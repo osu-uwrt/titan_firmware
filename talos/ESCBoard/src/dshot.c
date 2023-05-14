@@ -8,7 +8,7 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
 #include "safety_interface.h"
 #include "dshot.h"

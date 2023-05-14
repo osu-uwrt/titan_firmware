@@ -8,10 +8,9 @@
 #include <rmw_microros/rmw_microros.h>
 
 #include "pico/stdlib.h"
-#include "micro_ros_pico/custom_allocator.h"
 #include "micro_ros_pico/transport_usb.h"
 
-#include "build_version.h"
+#include "titan/version.h"
 
 #include <uxr/client/client.h>
 #include <uxr/client/util/ping.h>

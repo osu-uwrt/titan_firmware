@@ -1,17 +1,17 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
-#include "basic_logger/logging.h"
-#include "build_version.h"
-#include "can_mcp251Xfd/canbus.h"
+#include "titan/logger.h"
+#include "titan/version.h"
+#include "driver/canbus.h"
 #include "micro_ros_pico/transport_can.h"
-#include "titan_binary_info/defs.h"
+#include "titan/binary_info.h"
 
 #include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
 #include "analog_io.h"
-#include "async_i2c.h"
+#include "driver/async_i2c.h"
 #include "mcp3426.h"
 
 #undef LOGGING_UNIT_NAME

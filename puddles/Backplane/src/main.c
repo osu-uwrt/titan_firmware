@@ -1,9 +1,9 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
-#include "async_i2c.h"
-#include "basic_logger/logging.h"
-#include "build_version.h"
+#include "driver/async_i2c.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
 #include "depth_sensor.h"
 #include "mcp3426.h"
@@ -21,7 +21,7 @@
 
 #ifdef MICRO_ROS_TRANSPORT_ETH
 #include "micro_ros_pico/transport_eth.h"
-#include "eth_networking.h"
+#include "driver/wiznet.h"
 #endif
 
 #undef LOGGING_UNIT_NAME

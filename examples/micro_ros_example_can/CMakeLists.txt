@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD backplane_breakout_board)
+set(PICO_BOARD mk1/backplane_breakout_board)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -23,8 +23,8 @@ add_executable(micro_ros_example
 	safety_interface.c
 )
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(micro_ros_example 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(micro_ros_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(micro_ros_example 0)
@@ -36,4 +36,4 @@ titan_use_upload_tool(micro_ros_example)
 
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)
-target_link_libraries(micro_ros_example pico_stdlib micro_ros_can safety)
+target_link_libraries(micro_ros_example PUBLIC pico_stdlib micro_ros_can titan_safety)

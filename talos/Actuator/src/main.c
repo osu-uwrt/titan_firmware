@@ -1,8 +1,8 @@
 #include "pico/stdlib.h"
 
-#include "basic_logger/logging.h"
-#include "build_version.h"
-#include "status_strip.h"
+#include "titan/logger.h"
+#include "titan/version.h"
+#include "driver/status_strip.h"
 
 #include "ros.h"
 #include "safety_interface.h"
@@ -14,9 +14,9 @@
 #endif
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #include "micro_ros_pico/transport_can.h"
-#include "titan_binary_info/defs.h"
+#include "titan/binary_info.h"
 #endif
 
 #undef LOGGING_UNIT_NAME

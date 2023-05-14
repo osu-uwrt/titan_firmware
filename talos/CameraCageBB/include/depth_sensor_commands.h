@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "async_i2c.h"
+#include "driver/async_i2c.h"
 #include "safety_interface.h"
 
 // Dirty hack to allow commands to be in separate header file

@@ -29,8 +29,8 @@ add_executable(dynamixel_example
 )
 target_include_directories(dynamixel_example PUBLIC include)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(dynamixel_example 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(dynamixel_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(dynamixel_example 1)
@@ -41,14 +41,14 @@ titan_use_upload_tool(dynamixel_example)
 
 # Define linking and targets
 pico_add_extra_outputs(dynamixel_example)
-target_link_libraries(dynamixel_example
-	basic_logger	# A nice little logging library
-	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+target_link_libraries(dynamixel_example PUBLIC
+	titan_logger	# A nice little logging library
+	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
 	hardware_pwm	# LED PWM Support
-	dynamixel
+	driver_dynamixel
 	# Add any additional hardware here (ex. hardware_i2c)
 )
 

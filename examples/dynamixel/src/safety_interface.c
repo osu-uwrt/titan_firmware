@@ -3,7 +3,7 @@
 #include "led.h"
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #endif
 
 // ========================================

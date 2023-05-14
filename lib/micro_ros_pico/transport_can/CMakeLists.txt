@@ -7,7 +7,7 @@ target_sources(micro_ros_can INTERFACE
 
 target_link_libraries(micro_ros_can INTERFACE
     pico_time
-    can_mcp251Xfd
+    driver_canbus
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

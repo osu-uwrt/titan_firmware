@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_camera_cage_bb)
+set(PICO_BOARD mk2/camera_cage_bb)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -29,8 +29,8 @@ add_executable(camera_cage_bb
 )
 target_include_directories(camera_cage_bb PUBLIC include)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(camera_cage_bb 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(camera_cage_bb 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(camera_cage_bb 1)
@@ -42,14 +42,14 @@ titan_enable_bootloader(camera_cage_bb can)
 
 # Define linking and targets
 pico_add_extra_outputs(camera_cage_bb)
-target_link_libraries(camera_cage_bb
-	basic_logger	# A nice little logging library
-	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
+target_link_libraries(camera_cage_bb PUBLIC
+	titan_logger		# A nice little logging library
+	titan_safety		# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+	micro_ros_can		# Micro ros suppot (supports _can, _usb, _eth)
 
-	pico_stdlib		# Pico SDK Standard Library
-	hardware_pwm	# LED PWM Support
-	async_i2c		# I2C support for depth sensor
-	status_strip	# Status LED strip support
+	pico_stdlib			# Pico SDK Standard Library
+	hardware_pwm		# LED PWM Support
+	driver_async_i2c	# I2C support for depth sensor
+	driver_status_strip	# Status LED strip support
 )
 

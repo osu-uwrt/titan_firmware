@@ -9,10 +9,9 @@ target_sources(micro_ros_eth INTERFACE
 target_link_libraries(micro_ros_eth INTERFACE
     pico_time
     pico_unique_id
-    wiznet_ethernet
+    driver_wiznet
 
-    canmore_protocol
-    canmore_debug_interface
+    titan_debug
     titan_binary_info
 
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a

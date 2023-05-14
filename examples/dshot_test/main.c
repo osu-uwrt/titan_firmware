@@ -5,7 +5,7 @@
 #include "hardware/structs/ioqspi.h"
 #include "hardware/sync.h"
 
-#include "build_version.h"
+#include "titan/version.h"
 
 #include "bidir_dshot.pio.h"
 

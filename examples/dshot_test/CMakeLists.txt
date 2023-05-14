@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD puddles_backplane)
+set(PICO_BOARD mk2/puddles_backplane)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -23,8 +23,8 @@ add_executable(dshot_test
 )
 pico_generate_pio_header(dshot_test ${CMAKE_CURRENT_LIST_DIR}/bidir_dshot.pio)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(dshot_test 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(dshot_test 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_usb(dshot_test 1)
@@ -39,7 +39,7 @@ titan_use_upload_tool(dshot_test)
 
 # Define linking and targets
 pico_add_extra_outputs(dshot_test)
-target_link_libraries(dshot_test
+target_link_libraries(dshot_test PUBLIC
 	pico_stdlib
 	hardware_pio
 )

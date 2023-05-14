@@ -7,14 +7,13 @@
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include "safety/safety.h"
-#include "eth_networking.h"
+#include "titan/safety.h"
+#include "driver/wiznet.h"
 
-#include "titan_binary_info/defs.h"
+#include "titan/binary_info.h"
 #include "micro_ros_pico/transport_eth.h"
-#include "canmore_titan/protocol.h"
-#include "canmore_titan/ethernet_defs.h"
-#include "canmore_titan/debug.h"
+#include "titan/canmore.h"
+#include "titan/debug.h"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -220,7 +219,7 @@ bool transport_eth_init(){
 		transport_eth_read
 	);
 
-	canmore_debug_init(&ethernet_control_interface_transmit);
+	debug_init(&ethernet_control_interface_transmit);
 
 	return true;
 }
@@ -280,7 +279,7 @@ void ethernet_tick(void) {
 		if (packetSize > 0 && packetSize <= sizeof(msg_buffer)) {
 			size_t len = eth_udp_read(&control_interface_socket, msg_buffer, sizeof(msg_buffer));
 			if (len == packetSize) {
-				canmore_debug_process_message(msg_buffer, len);
+				debug_process_message(msg_buffer, len);
 			}
 		}
 	} while (packetSize > 0);

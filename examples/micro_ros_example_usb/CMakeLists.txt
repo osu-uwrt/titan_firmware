@@ -22,8 +22,8 @@ add_executable(micro_ros_example
 	main.c
 )
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(micro_ros_example 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(micro_ros_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(micro_ros_example 0)
@@ -34,4 +34,4 @@ titan_use_upload_tool(micro_ros_example)
 
 # Define linking and targets
 pico_add_extra_outputs(micro_ros_example)
-target_link_libraries(micro_ros_example pico_stdlib micro_ros_usb)
+target_link_libraries(micro_ros_example PUBLIC pico_stdlib micro_ros_usb)

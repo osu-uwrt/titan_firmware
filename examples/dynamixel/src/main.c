@@ -1,7 +1,7 @@
 #include "pico/stdlib.h"
 
-#include "basic_logger/logging.h"
-#include "build_version.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
@@ -9,14 +9,14 @@
 #include "hardware/structs/ioqspi.h"
 #include "pico/sync.h"
 
-#include "dynamixel/dynamixel.h"
+#include "driver/dynamixel.h"
 
 #ifdef MICRO_ROS_TRANSPORT_USB
 #include "micro_ros_pico/transport_usb.h"
 #endif
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #include "micro_ros_pico/transport_can.h"
 #endif
 

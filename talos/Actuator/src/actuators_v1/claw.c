@@ -5,7 +5,7 @@
 #include "pico/binary_info.h"
 #include "pico/time.h"
 
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
 #include "actuators.h"
 #include "actuators_internal.h"

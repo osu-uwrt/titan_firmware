@@ -14,12 +14,12 @@
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/bool.h>
 
-#include "build_version.h"
-#include "basic_logger/logging.h"
+#include "titan/version.h"
+#include "titan/logger.h"
 
 #include "depth_sensor.h"
 #include "ros.h"
-#include "status_strip.h"
+#include "driver/status_strip.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"

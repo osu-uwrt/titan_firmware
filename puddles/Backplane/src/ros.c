@@ -21,8 +21,8 @@
 #include <std_msgs/msg/float32.h>
 
 
-#include "build_version.h"
-#include "basic_logger/logging.h"
+#include "titan/version.h"
+#include "titan/logger.h"
 
 #include "mcp3426.h"
 #include "128D818.h"

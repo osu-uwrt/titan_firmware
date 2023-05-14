@@ -1,9 +1,9 @@
 #include "mcp3426.h"
 #include "pico/stdlib.h"
 #include "stdint.h"
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 #include "safety_interface.h"
-#include "async_i2c.h"
+#include "driver/async_i2c.h"
 #include "stdio.h"
 #include "math.h"
 

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD puddles_backplane)
+set(PICO_BOARD mk2/puddles_backplane)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -30,8 +30,8 @@ add_executable(backplane_firmware
 pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 target_include_directories(backplane_firmware PUBLIC include)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(backplane_firmware 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(backplane_firmware 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(backplane_firmware 1)
@@ -49,13 +49,13 @@ target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
 
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)
-target_link_libraries(backplane_firmware
-	basic_logger
+target_link_libraries(backplane_firmware PUBLIC
 	pico_stdlib
 	micro_ros_eth
-	safety
+	titan_logger
+	titan_safety
 
 	hardware_pio
 	hardware_pwm
-	async_i2c
+	driver_async_i2c
 )

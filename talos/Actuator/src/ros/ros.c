@@ -12,8 +12,8 @@
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
-#include "build_version.h"
-#include "status_strip.h"
+#include "titan/version.h"
+#include "driver/status_strip.h"
 
 #include "actuators.h"
 #include "ros.h"

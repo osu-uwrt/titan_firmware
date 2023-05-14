@@ -6,7 +6,7 @@ target_sources(micro_ros_usb INTERFACE
 )
 
 target_link_libraries(micro_ros_usb INTERFACE
-    dual_serial_stdio_usb
+    titan_dual_stdio_usb
     pico_time
     ${MICRO_ROS_DIR}/libmicroros/libmicroros.a
 )

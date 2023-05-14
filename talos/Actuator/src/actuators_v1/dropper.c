@@ -6,7 +6,7 @@
 #include "pico/sync.h"
 #include "pico/time.h"
 
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
 #include "actuators.h"
 #include "safety_interface.h"

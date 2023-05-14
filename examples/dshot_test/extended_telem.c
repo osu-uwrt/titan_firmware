@@ -5,7 +5,7 @@
 #include "hardware/structs/ioqspi.h"
 #include "hardware/sync.h"
 
-#include "build_version.h"
+#include "titan/version.h"
 
 #include "bidir_dshot.pio.h"
 
@@ -87,7 +87,7 @@ bool __time_critical_func(decode_bidir_telemetry)(uint32_t packet, enum packet_t
     int8_t low_nibble = gcr_lookup[(gcr >> 5) & 0x1F];
     int8_t mid_nibble = gcr_lookup[(gcr >> 10) & 0x1F];
     int8_t high_nibble = gcr_lookup[(gcr >> 15) & 0x1F];
-    
+
     if (crc_nibble < 0 || low_nibble < 0 || mid_nibble < 0 || high_nibble < 0) {
         return false;
     }
@@ -167,14 +167,14 @@ int main() {
     bidir_dshot_program_init(DSHOT_PIO, 1, offset, DSHOT_RATE, ESC2_PWM_PIN);
     bidir_dshot_program_init(DSHOT_PIO, 2, offset, DSHOT_RATE, ESC3_PWM_PIN);
     bidir_dshot_program_init(DSHOT_PIO, 3, offset, DSHOT_RATE, ESC4_PWM_PIN);
-    pio_set_irq0_source_mask_enabled(DSHOT_PIO, 
-        PIO_INTR_SM0_BITS | PIO_INTR_SM1_BITS | 
+    pio_set_irq0_source_mask_enabled(DSHOT_PIO,
+        PIO_INTR_SM0_BITS | PIO_INTR_SM1_BITS |
         PIO_INTR_SM2_BITS | PIO_INTR_SM3_BITS, true);
     pio_set_irq1_source_mask_enabled(DSHOT_PIO,
         PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
         true);
-    
+
     irq_set_exclusive_handler(PIO0_IRQ_0, telem_missed_irq);
     irq_set_exclusive_handler(PIO0_IRQ_1, telem_cb);
 
@@ -185,7 +185,7 @@ int main() {
     absolute_time_t send_packet = make_timeout_time_ms(10000);
 
     while (true) {
-        
+
         if (time_reached(send_packet) && !sent) {
             puts("Sending!");
             sent = true;

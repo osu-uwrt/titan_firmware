@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
-#include "async_i2c.h"
+#include "driver/async_i2c.h"
 #include "safety_interface.h"
 #include "depth_sensor.h"
 #include "depth_sensor_commands.h"

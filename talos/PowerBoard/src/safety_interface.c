@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
 

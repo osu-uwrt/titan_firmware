@@ -6,7 +6,7 @@
 #include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 
 #include "micro_ros_pico/transport_can.h"
 

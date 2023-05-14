@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_actuator_board)
+set(PICO_BOARD mk2/actuator_board)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -36,8 +36,8 @@ add_executable(actuator_mk2
 )
 target_include_directories(actuator_mk2 PUBLIC include)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(actuator_mk2 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(actuator_mk2 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(actuator_mk2 1)
@@ -49,14 +49,14 @@ titan_enable_bootloader(actuator_mk2 can)
 
 # Define linking and targets
 pico_add_extra_outputs(actuator_mk2)
-target_link_libraries(actuator_mk2
-	basic_logger	# A nice little logging library
-	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
-	status_strip	# Top LED stip
-	hardware_pwm	# Required for status LED
+target_link_libraries(actuator_mk2 PUBLIC
+	titan_logger		# A nice little logging library
+	titan_safety		# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+	micro_ros_can		# Micro ros suppot (supports _can, _usb, _eth)
+	driver_status_strip	# Top LED stip
+	hardware_pwm		# Required for status LED
 
-	pico_stdlib		# Pico SDK Standard Library
+	pico_stdlib			# Pico SDK Standard Library
 )
 
 # Configure target depending on if running Mark 1 or Mark 2 Actuators
@@ -79,8 +79,8 @@ if (USE_V2_ACTUATORS)
 	)
 
 	# Link the required libraries for mark 1 actuators
-	target_link_libraries(actuator_mk2
-		dynamixel
+	target_link_libraries(actuator_mk2 PUBLIC
+		driver_dynamixel
 	)
 else()
 	message("Building with Actuator V1 Support")
@@ -105,7 +105,7 @@ else()
 	pico_generate_pio_header(actuator_mk2 ${CMAKE_CURRENT_SOURCE_DIR}/src/actuators_v1/torpedo.pio)
 
 	# Link the required libraries for mark 1 actuators
-	target_link_libraries(actuator_mk2
+	target_link_libraries(actuator_mk2 PUBLIC
 		hardware_adc	# Required for torpedo charge monitoring
 		hardware_pio	# Required for torpedo firing
 	)

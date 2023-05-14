@@ -6,7 +6,7 @@
 #include <rclc/executor.h>
 
 #include "ros.h"
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"

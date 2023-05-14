@@ -2,13 +2,13 @@
 #include "safety_interface.h"
 #include "actuators.h"
 #include "led.h"
-#include "basic_logger/logging.h"
+#include "titan/logger.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety_interface"
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #endif
 
 static void safety_handle_can_internal_error(canbus_error_data_t error_data) {

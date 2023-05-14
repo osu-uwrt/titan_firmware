@@ -11,8 +11,8 @@
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
 
-#include "build_version.h"
-#include "basic_logger/logging.h"
+#include "titan/version.h"
+#include "titan/logger.h"
 #include "hardware/watchdog.h"
 
 #include "ros.h"

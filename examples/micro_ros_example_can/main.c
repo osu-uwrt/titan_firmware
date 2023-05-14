@@ -11,7 +11,7 @@
 #include "pico/stdlib.h"
 #include "pico_can_transport.h"
 
-#include "build_version.h"
+#include "titan/version.h"
 
 #include "safety_interface.h"
 

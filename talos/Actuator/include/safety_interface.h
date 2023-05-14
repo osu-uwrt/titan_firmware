@@ -1,7 +1,7 @@
 #ifndef SAFETY_INTERFACE_H
 #define SAFETY_INTERFACE_H
 
-#include "safety/safety.h"
+#include "titan/safety.h"
 
 // NOTE: If adding fault IDs make sure to update the fault_string_list as well
 

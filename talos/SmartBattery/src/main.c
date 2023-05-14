@@ -1,14 +1,14 @@
 #include "pico/stdlib.h"
 
-#include "basic_logger/logging.h"
-#include "build_version.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
 #include "led.h"
 #include "bq40z80.h"
 
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #include "micro_ros_pico/transport_can.h"
 
 #undef LOGGING_UNIT_NAME

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "actuators.h"
-#include "dynamixel/dynamixel.h"
+#include "driver/dynamixel.h"
 
 void torpedo_marker_initialize(dynamixel_id id);
 bool torpedo_marker_arm(const char **errMsgOut);

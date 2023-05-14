@@ -3,8 +3,8 @@
 #include "actuators.h"
 #include "actuators_internal.h"
 #include "safety_interface.h"
-#include "basic_logger/logging.h"
-#include "dynamixel/dynamixel.h"
+#include "titan/logger.h"
+#include "driver/dynamixel.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuators"

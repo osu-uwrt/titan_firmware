@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD sbh_mcu)
+set(PICO_BOARD mk2/sbh_mcu)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -27,8 +27,8 @@ add_executable(pico_sdk_example
 	main.c
 )
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(pico_sdk_example 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(pico_sdk_example 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_usb(pico_sdk_example 1)
@@ -44,4 +44,4 @@ titan_use_upload_tool(pico_sdk_example)
 
 # Define linking and targets
 pico_add_extra_outputs(pico_sdk_example)
-target_link_libraries(pico_sdk_example pico_stdlib)
+target_link_libraries(pico_sdk_example PUBLIC pico_stdlib)

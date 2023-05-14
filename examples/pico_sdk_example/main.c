@@ -2,7 +2,7 @@
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
-#include "build_version.h"
+#include "titan/version.h"
 
 const uint LED_PIN = STATUS_LEDR_PIN;
 

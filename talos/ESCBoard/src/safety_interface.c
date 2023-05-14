@@ -5,7 +5,7 @@
 #include "safety_interface.h"
 
 #ifdef MICRO_ROS_TRANSPORT_CAN
-#include "can_mcp251Xfd/canbus.h"
+#include "driver/canbus.h"
 #endif
 
 void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {

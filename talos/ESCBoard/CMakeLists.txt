@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mk2_esc_board)
+set(PICO_BOARD mk2/esc_board)
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
@@ -31,8 +31,8 @@ target_include_directories(esc_board PUBLIC include)
 pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/uart_rx.pio)
 
-# Set version: major minor (see build_version.h for more info)
-generate_version_tag(esc_board 1 0)
+# Set version: major minor (see titan/version.h for more info)
+titan_generate_version_tag(esc_board 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(esc_board 1)
@@ -44,9 +44,9 @@ titan_enable_bootloader(esc_board can)
 
 # Define linking and targets
 pico_add_extra_outputs(esc_board)
-target_link_libraries(esc_board
-	basic_logger	# A nice little logging library
-	safety			# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+target_link_libraries(esc_board PUBLIC
+	titan_logger	# A nice little logging library
+	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
 
 	pico_stdlib		# Pico SDK Standard Library
