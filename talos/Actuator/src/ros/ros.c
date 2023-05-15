@@ -188,7 +188,7 @@ rcl_ret_t ros_init() {
     // ROS Core Initialization
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-    RCRETCHECK(rclc_node_init_default(&node, PICO_BOARD, ROBOT_NAMESPACE, &support));
+    RCRETCHECK(rclc_node_init_default(&node, PICO_TARGET_NAME, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
     RCRETCHECK(rclc_publisher_init_default(

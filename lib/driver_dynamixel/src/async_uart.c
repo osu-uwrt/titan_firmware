@@ -58,7 +58,7 @@ bool __time_critical_func(async_uart_check_and_finish_rx)(enum async_uart_rx_err
     // Check for rx overflow
     uint32_t overflow_flag = (1u << PIO_FDEBUG_RXSTALL_LSB) << inst->sm;
     if (report_if_fifoover && (inst->pio->fdebug & overflow_flag)) {
-        hw_set_bits(&inst->pio->fdebug, overflow_flag);
+        inst->pio->fdebug = overflow_flag;
         error_code = ASYNC_UART_RX_DATA_LOST;
     }
 
@@ -96,7 +96,12 @@ bool __time_critical_func(async_uart_check_and_finish_rx)(enum async_uart_rx_err
 
 int64_t async_uart_timeout(__unused alarm_id_t id, __unused void *user_data) {
     inst->timeout_alarm = -1;
-    async_uart_check_and_finish_rx(ASYNC_UART_RX_TIMEOUT, true);
+    if (dma_hw->ch[inst->dma_rx_chan].transfer_count == inst->rx_data_len) {
+        async_uart_check_and_finish_rx(ASYNC_UART_RX_TIMEOUT, true);
+    }
+    else {
+        async_uart_check_and_finish_rx(ASYNC_UART_RX_INCOMPLETE, true);
+    }
     return 0;
 }
 
@@ -216,7 +221,7 @@ void async_uart_write(const uint8_t *data, size_t len, bool preserve_read, async
 
         // Clear receive state
         uint32_t overflow_flag = (1u << PIO_FDEBUG_RXSTALL_LSB) << inst->sm;
-        hw_set_bits(&inst->pio->fdebug, overflow_flag);
+        inst->pio->fdebug = overflow_flag;
         pio_sm_clear_fifos(inst->pio, inst->sm);
         pio_interrupt_clear(inst->pio, uart_multidrop_irq_frame_error_num(inst->sm));
     }

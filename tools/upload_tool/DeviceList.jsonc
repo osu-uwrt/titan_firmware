@@ -5,49 +5,49 @@
     {
         // The first puddles backplane assembled (dev board)
         "name": "Puddles Dev Backplane",
-        "boardType": "puddles_backplane",
+        "boardType": "mk2/puddles_backplane",
         "serial": "E462288893572D28"
     },
     {
         // The official puddles backplane
         "name": "Puddles Backplane",
-        "boardType": "puddles_backplane",
+        "boardType": "mk2/puddles_backplane",
         "serial": "E462288893573D28"
     },
     // All these boards were part of the Mark 2 design
     {
         "name": "Mark 2 ESC Board 0",
-        "boardType": "mk2_esc_board",
+        "boardType": "mk2/esc_board",
         "serial": "E6621455075D8323"
     },
     {
         "name": "Mark 2 Camera Cage BB",
-        "boardType": "mk2_camera_cage_bb",
+        "boardType": "mk2/camera_cage_bb",
         "serial": "E66214550758B927"
     },
     {
         "name": "Mark 2 ESC Board 1",
-        "boardType": "mk2_esc_board",
+        "boardType": "mk2/esc_board",
         "serial": "E66214550761C327"
     },
     {
         "name": "Mark 2 Actuator Board",
-        "boardType": "mk2_actuator_board",
+        "boardType": "mk2/actuator_board",
         "serial": "E662145507614B27"
     },
     {
         "name": "Mark 2 Power Board",
-        "boardType": "mk2_power_board",
+        "boardType": "mk2/power_board",
         "serial": "E662145507404F27"
     },
     {
         "name": "Smart Battery Housing #1",
-        "boardType": "sbh_mcu",
+        "boardType": "mk2/sbh_mcu",
         "serial": "E662145507405727"
     },
     {
         "name": "Smart Battery Housing #2",
-        "boardType": "sbh_mcu",
+        "boardType": "mk2/sbh_mcu",
         "serial": "E66214550761C627"
     },
 
@@ -75,7 +75,7 @@
         // It ended up loosing its USB port on the drive back from Robosub, and now lies in Mark 1 (hopefully not to be needed)
         // This was the first one in the Digikey Order of picos
         "name": "Tempest Backplane Breakout",
-        "boardType": "backplane_breakout_board",
+        "boardType": "mk1/backplane_breakout_board",
         "serial": "E660B440070E5E2A"
     },
     {
@@ -95,7 +95,7 @@
         // (although the core is [I believe] still alive, just no 3V3 regulator)
         // This was the second one in the Digikey Order of picos
         "name": "Puddles Backplane Breakout Board",
-        "boardType": "backplane_breakout_board",
+        "boardType": "mk1/backplane_breakout_board",
         "serial": "E660B440075F7B26"
     },
     {
@@ -119,7 +119,7 @@
         // for prototyping a project we had, so it got a little more stable. But it still occasionally gets stuck during startup
         // and hangs initializing clocks. So I never trusted it enough to run at the 2021 competition [and hence Jerry was made]
         "name": "Original RP2040 Eval Board",
-        "boardType": "actuator_mk1_hat",
+        "boardType": "mk1/actuator_mk1_hat",
         "serial": "E460CCB01B3F532C"
     },
     {
@@ -131,7 +131,7 @@
         // this board's IO from the perf-board level shifters ending up sending 5V to the IO and killing the RP2040 I/O.
         // (The core was alive with USB, but couldn't access flash). But it says here in memorium.
         "name": "MK1 Actuator RP2040 Eval Board",
-        "boardType": "actuator_mk1_hat",
+        "boardType": "mk1/actuator_mk1_hat",
         "serial": "E460CCB01B29352A"
     },
     {
@@ -158,7 +158,7 @@
         // I asked Colin for a name, and he gave me terry. And hence the board type terry was born, the pin assignments for the pico to the
         // Mark 1 actuator hat.
         "name": "One of the first picos the team bought, taken during competition for use in the abomination of the 2022 Competition Actuator Board",
-        "boardType": "terry",
+        "boardType": "mk1/terry",
         "serial": "E660583883754F2C"
     },
     {
@@ -176,7 +176,7 @@
         // I2C gremlins if we couldn't get it just to the other side for the depth sensor. And hence, CAN bus and modualrized firmware
         // And so, that's why this firmware is so convoluted to add support for several MCUs and a distributed architecture over CAN bus
         "name": "Team raspberry pi pico (5th one in the order box)",
-        "boardType": "jerry",
+        "boardType": "mk1/jerry",
         "serial": "E660B440076B4B2A"
     }
 ]

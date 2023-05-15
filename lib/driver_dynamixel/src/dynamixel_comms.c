@@ -68,7 +68,7 @@ static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, s
   check_transfer_dxl_call(begin_parse_dxl_packet(&rx_packet, PROTOCOL, rx_packet_param_buf, sizeof(rx_packet_param_buf)), DXL_LIB_OK);
 
   // give the header data to the parser.
-  for (size_t i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < DYNAMIXEL_REPLY_HEADER_SIZE; i++) {
     check_transfer_dxl_call(parse_dxl_packet(&rx_packet, uart_header_buf[i]), DXL_LIB_PROCEEDING);
   }
 

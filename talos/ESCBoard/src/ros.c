@@ -220,7 +220,7 @@ rcl_ret_t ros_init(uint8_t board_id) {
     allocator = rcl_get_default_allocator();
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
-    const char *node_name = (board_id == 0 ? PICO_BOARD "_0_firmware" : PICO_BOARD "_1_firmware");
+    const char *node_name = (board_id == 0 ? PICO_TARGET_NAME "_0" : PICO_TARGET_NAME "_1");
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization

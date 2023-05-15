@@ -21,7 +21,8 @@ static const char * const fault_string_list[] = {
     "FAULT_CAN_RECV_ERROR",
     "FAULT_ROS_ERROR",
     "FAULT_TIMER_MISSED",
-    "FAULT_ACTUATOR_FAILURE"
+    "FAULT_ACTUATOR_FAILURE",
+    "FAULT_ACTUATOR_UNPLUGGED"
 };
 
 

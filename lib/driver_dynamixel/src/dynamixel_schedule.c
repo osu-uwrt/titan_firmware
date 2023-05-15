@@ -143,6 +143,8 @@ void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt,
         inst->servo_states[i].id = id_list[i];
         inst->servo_states[i].connected = false;
         inst->servo_states[i].missed_ping_counter = 0;
+        inst->servo_states[i].first_connect_attempted = false;
+        inst->servo_states[i].alert_notified = false;
     }
 
     // Begin the background refresh
@@ -342,7 +344,7 @@ static void connect_ping_cb(dynamixel_error_t err, struct dynamixel_req_result *
     struct dynamixel_state *servo = &inst->servo_states[inst->next_index_to_refresh];
 
     // Make sure the model matches what we expect
-    uint16_t discovered_model_num = result->packet->p_param_buf[0] | (result->packet->p_param_buf[0] << 8);
+    uint16_t discovered_model_num = result->packet->p_param_buf[0] | (result->packet->p_param_buf[1] << 8);
     if (discovered_model_num != DYNAMIXEL_MODEL_NUMBER) {
         LOG_DEBUG("Invalid Model: %d, expected " __XSTRING(DYNAMIXEL_MODEL_NUMBER), discovered_model_num);
         handle_refresh_transfer_done();
@@ -510,6 +512,8 @@ void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, ui
     struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&inst->cmd_queue);
     memcpy(&entry->packet, &packet, sizeof(packet));
     memcpy(entry->packet_buf, packet_buf, sizeof(packet_buf));
+    // Fix up the packet buffer pointer
+    entry->packet.p_packet_buf = entry->packet_buf;
     entry->callback = write_cmd_cb;
     QUEUE_MARK_WRITE_DONE(&inst->cmd_queue);
 
@@ -599,6 +603,8 @@ void dynamixel_schedule_eeprom_read(dynamixel_id id) {
     struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&inst->cmd_queue);
     memcpy(&entry->packet, &packet, sizeof(packet));
     memcpy(entry->packet_buf, packet_buf, sizeof(packet_buf));
+    // Fix up the packet buffer pointer
+    entry->packet.p_packet_buf = entry->packet_buf;
     entry->callback = eeprom_read_cb;
     QUEUE_MARK_WRITE_DONE(&inst->cmd_queue);
 

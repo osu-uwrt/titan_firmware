@@ -28,10 +28,13 @@ enum async_uart_rx_err {
      */
     ASYNC_UART_RX_BUSY,
     /**
-     * @brief The requested data was not received within timeout
+     * @brief No data received within timeout
      */
     ASYNC_UART_RX_TIMEOUT,
-
+    /**
+     * @brief Not all of the requested data was received within timeout
+     */
+    ASYNC_UART_RX_INCOMPLETE,
     /**
      * @brief A framing error was detected during receive
      */

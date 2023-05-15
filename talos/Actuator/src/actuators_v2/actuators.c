@@ -78,7 +78,7 @@ void actuators_initialize(void) {
 
     bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal"))
 
-    dynamixel_init(pio0, 0, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count,
+    dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count,
                     actuators_dynamixel_error_cb, actuators_dynamixel_event_cb);
 
     torpedo_marker_initialize(MARKER_TORPEDO_ID);

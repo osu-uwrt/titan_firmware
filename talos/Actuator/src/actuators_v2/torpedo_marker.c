@@ -11,13 +11,13 @@
 /**
  * @brief The servo position corresponding to the rest position of the servo
  */
-#define POSITION_HOME 2048
+#define POSITION_HOME 2472
 
 /**
  * @brief Margin (in each direction) from HOME_POSITION where the torpedo is considered at home
  * Used to determine if the torpedo is home where it is supposed to be, before attempting another command
  *
- * 128: ~11.25 deg in each direction / 22.5 deg total
+ * 64: ~5.625 deg in each direction / 11.25 deg total
  */
 #define HOME_MARGIN 64
 
@@ -27,10 +27,10 @@ static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
 /**
  * @brief Positions for various fire targets
  */
-#define POSITION_TORPEDO1_FIRE 1024
-#define POSITION_TORPEDO2_FIRE 20
-#define POSITION_DROPPER1_FIRE 3072
-#define POSITION_DROPPER2_FIRE 4076
+#define POSITION_TORPEDO1_FIRE 1448
+#define POSITION_TORPEDO2_FIRE 444
+#define POSITION_DROPPER1_FIRE 3496
+#define POSITION_DROPPER2_FIRE 4095
 
 #define MAX_MOVEMENT_TIME_MS 5000
 
@@ -95,7 +95,7 @@ static bool torpedo_marker_set_target(const char **errMsgOut, int32_t target_pos
     return true;
 }
 
-void torpedo_marker_report_state(bool torque_enabled, uint8_t moving_status, int32_t target_position,
+void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t target_position,
                                     int32_t current_position, uint8_t hardware_err_status) {
     torpedo_marker_enabled = torque_enabled;
     torpedo_marker_hardware_err = (hardware_err_status != 0);
@@ -106,13 +106,25 @@ void torpedo_marker_report_state(bool torque_enabled, uint8_t moving_status, int
             dynamixel_enable_torque(torpedo_marker_id, false);
             torpedo_marker_moving = false;
             torpedo_marker_enabled = false;
+            LOG_WARN("Failed to reach target within timeout period");
             safety_raise_fault(FAULT_ACTUATOR_FAILURE);
         }
 
         // Make sure we're still enabled and the target is our target before processing the state data
         if (torque_enabled && target_position == torpedo_marker_target_position) {
+            bool in_position;
+            if (current_position > target_position + HOME_MARGIN) {
+                in_position = false;
+            }
+            else if (current_position < target_position - HOME_MARGIN) {
+                in_position = false;
+            }
+            else {
+                in_position = true;
+            }
+
             // If the servo has reached its destination, then we have arrived
-            if (moving_status & 1) {
+            if (in_position && !moving) {
                 // If we're going home, then mark moving as false, and allow new commands
                 if (target_position == POSITION_HOME) {
                     torpedo_marker_moving = false;
@@ -223,6 +235,11 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
         return false;
     }
 
+    if (torpedo_marker_enabled || actuators_armed) {
+        *errMsgOut = "Must be disarmed";
+        return false;
+    }
+
     struct dynamixel_eeprom *eeprom = dynamixel_get_eeprom(torpedo_marker_id);
     volatile struct dynamixel_ram *ram = dynamixel_get_ram(torpedo_marker_id);
     if (!eeprom || !ram) {
@@ -230,10 +247,21 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
         return false;
     }
 
-    // TODO: Validate this math is correct
-    int32_t new_homing_offset = (eeprom->homing_offset + ram->present_position) % 4096;
+    int32_t homing_offset_compensation = eeprom->homing_offset;
+    if (homing_offset_compensation > 1024 || homing_offset_compensation < -1024) {
+        homing_offset_compensation = 0;
+    }
+
+    int32_t new_homing_offset = (((homing_offset_compensation + ram->present_position) - POSITION_HOME) % 4096);
+    if (new_homing_offset > 1024 || new_homing_offset < -1024) {
+        *errMsgOut = "Homing offset too large";
+        return false;
+    }
+
     dynamixel_set_homing_offset(torpedo_marker_id, new_homing_offset);
     dynamixel_request_eeprom_rescan(torpedo_marker_id);
+
+    LOG_INFO("Seting home to current position");
 
     return true;
 }
@@ -262,6 +290,7 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
     }
 
     dynamixel_set_target_position(torpedo_marker_id, POSITION_HOME);
+    LOG_INFO("Manually moving torpedo home");
 
     return true;
 }
@@ -313,6 +342,7 @@ bool dropper_drop_marker(const char **errMsgOut) {
 
     if (torpedo_marker_set_target(errMsgOut, target_position)) {
         dropper_next_index++;
+        LOG_INFO("Dropping Marker");
         return true;
     }
     else {
@@ -329,6 +359,7 @@ bool dropper_notify_reload(const char **errMsgOut) {
     }
 
     dropper_next_index = 0;
+    LOG_INFO("Marking dropper reloaded");
     return true;
 }
 
@@ -379,6 +410,7 @@ bool torpedo_fire(const char **errMsgOut) {
 
     if (torpedo_marker_set_target(errMsgOut, target_position)) {
         torpedo_next_index++;
+        LOG_INFO("Firing Torpedo");
         return true;
     }
     else {
@@ -395,5 +427,7 @@ bool torpedo_notify_reload(const char **errMsgOut) {
     }
 
     torpedo_next_index = 0;
+
+    LOG_INFO("Marking torpedos reloaded");
     return true;
 }

@@ -18,37 +18,27 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
-# Define Project
-project(dynamixel_example C CXX ASM)
+# Define project
+project(dynamixel_test C CXX ASM)
 titan_firmware_init()
 
 # Define executable
-file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
-add_executable(dynamixel_example
-	${SOURCES}
+add_executable(dynamixel_test
+	main.c
 )
-target_include_directories(dynamixel_example PUBLIC include)
 
 # Set version: major minor (see titan/version.h for more info)
-titan_generate_version_tag(dynamixel_example 1 0)
+titan_generate_version_tag(dynamixel_test 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(dynamixel_example 1)
-pico_set_program_name(dynamixel_example "Template Project")
+pico_enable_stdio_usb(dynamixel_test 0)
+pico_enable_stdio_uart(dynamixel_test 1)
+pico_set_program_name(dynamixel_test "Dynamixel Test")
 
 # Enable the 'make upload' and 'make serial' commands for project
-titan_use_upload_tool(dynamixel_example)
+titan_use_upload_tool(dynamixel_test)
+#titan_enable_bootloader(dynamixel_test can)
 
 # Define linking and targets
-pico_add_extra_outputs(dynamixel_example)
-target_link_libraries(dynamixel_example PUBLIC
-	driver_led		# Status LED support
-	titan_logger	# A nice little logging library
-	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_usb	# Micro ros suppot (supports _can, _usb, _eth)
-
-	pico_stdlib		# Pico SDK Standard Library
-	driver_dynamixel
-	# TODO: Add any additional hardware here (ex. hardware_i2c)
-)
-
+pico_add_extra_outputs(dynamixel_test)
+target_link_libraries(dynamixel_test PUBLIC pico_stdlib driver_dynamixel)
