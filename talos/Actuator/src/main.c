@@ -1,23 +1,16 @@
 #include "pico/stdlib.h"
 
-#include "titan/logger.h"
-#include "titan/version.h"
+#include "driver/canbus.h"
 #include "driver/led.h"
 #include "driver/status_strip.h"
+#include "micro_ros_pico/transport_can.h"
+#include "titan/binary_info.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
 #include "ros.h"
 #include "safety_interface.h"
 #include "actuators.h"
-
-#ifdef MICRO_ROS_TRANSPORT_USB
-#include "micro_ros_pico/transport_usb.h"
-#endif
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "driver/canbus.h"
-#include "micro_ros_pico/transport_can.h"
-#include "titan/binary_info.h"
-#endif
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -96,11 +89,7 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     uint8_t client_id = CAN_BUS_CLIENT_ID;
-    #else
-    uint8_t client_id = 1;
-    #endif
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -137,14 +126,8 @@ static void tick_background_tasks() {
 
 int main() {
     // Initialize stdio
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    // The USB transport is special since it initializes stdio for you already
-    transport_usb_serial_init_early();
-    #else
     stdio_init_all();
-    #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
-
 
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
@@ -161,19 +144,12 @@ int main() {
     actuators_initialize();
 
     // Initialize ROS Transports
-    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
     bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
-    #endif
-
-    #ifdef MICRO_ROS_TRANSPORT_USB
-    transport_usb_init();
-    #endif
 
     // Enter main loop
     // This is split into two sections of timers

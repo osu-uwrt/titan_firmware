@@ -11,7 +11,7 @@
 /**
  * @brief The servo position corresponding to the rest position of the servo
  */
-#define POSITION_HOME 2472
+#define POSITION_HOME 2048
 
 /**
  * @brief Margin (in each direction) from HOME_POSITION where the torpedo is considered at home
@@ -27,10 +27,10 @@ static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
 /**
  * @brief Positions for various fire targets
  */
-#define POSITION_TORPEDO1_FIRE 1448
-#define POSITION_TORPEDO2_FIRE 444
-#define POSITION_DROPPER1_FIRE 3496
-#define POSITION_DROPPER2_FIRE 4095
+#define POSITION_DROPPER1_FIRE 1024
+#define POSITION_DROPPER2_FIRE 20
+#define POSITION_TORPEDO1_FIRE 3072
+#define POSITION_TORPEDO2_FIRE 4076
 
 #define MAX_MOVEMENT_TIME_MS 5000
 
@@ -160,8 +160,6 @@ void torpedo_marker_initialize(dynamixel_id id) {
 }
 
 void torpedo_marker_report_connect(void) {
-    // TODO: Set mode to position control, with the limits that we want
-
     torpedo_marker_connected = true;
 }
 
@@ -252,7 +250,7 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
         homing_offset_compensation = 0;
     }
 
-    int32_t new_homing_offset = (((homing_offset_compensation + ram->present_position) - POSITION_HOME) % 4096);
+    int32_t new_homing_offset = -1 * ((ram->present_position - homing_offset_compensation) - POSITION_HOME) % 4096;
     if (new_homing_offset > 1024 || new_homing_offset < -1024) {
         *errMsgOut = "Homing offset too large";
         return false;

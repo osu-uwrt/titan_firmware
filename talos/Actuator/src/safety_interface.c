@@ -1,4 +1,5 @@
 #include <assert.h>
+#include "driver/canbus.h"
 #include "driver/led.h"
 #include "titan/logger.h"
 
@@ -7,10 +8,6 @@
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety_interface"
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "driver/canbus.h"
-#endif
 
 static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
     LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
@@ -29,9 +26,7 @@ static void safety_handle_can_receive_error(__unused enum canbus_receive_error_c
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_device_in_error(on);
-    #endif
 
     led_fault_set(on);
 }
@@ -49,10 +44,8 @@ void safety_handle_enable(void) {
 }
 
 void safety_interface_setup(void) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_receive_error_cb(safety_handle_can_receive_error);
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
-    #endif
 }
 
 void safety_interface_init(void) {}
