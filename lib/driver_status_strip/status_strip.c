@@ -226,14 +226,14 @@ bool __time_critical_func(status_strip_refresh)(__unused repeating_timer_t *rt) 
                 }
             }
 
-            // Finally update the front set of LEDs
+            // Finally update the rear set of LEDs
             if (inst->first_pixel_is_rear) {
-                inst->end_cmd.data = command.data;
-                inst->middle_cmd.data = flash_command.data;
-            }
-            else {
                 inst->middle_cmd.data = command.data;
                 inst->end_cmd.data = flash_command.data;
+            }
+            else {
+                inst->end_cmd.data = command.data;
+                inst->middle_cmd.data = flash_command.data;
             }
         }
         else {

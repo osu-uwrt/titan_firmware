@@ -7,7 +7,6 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <riptide_msgs2/msg/firmware_status.h>
-#include <riptide_msgs2/msg/robot_state.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <riptide_msgs2/msg/electrical_readings.h>
 #include <riptide_msgs2/msg/electrical_command.h>

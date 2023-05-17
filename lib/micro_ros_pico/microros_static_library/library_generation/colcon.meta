@@ -36,8 +36,8 @@
                 "-DUCLIENT_PROFILE_SERIAL=OFF",
                 "-DUCLIENT_PROFILE_STREAM_FRAMING=ON",
                 "-DUCLIENT_PROFILE_CUSTOM_TRANSPORT=ON",
-                "-DUCLIENT_MIN_SESSION_CONNECTION_INTERVAL=30",
-                "-DUCLIENT_MIN_SESSION_CONNECTION_ATTEMPTS=1"
+                "-DUCLIENT_MIN_SESSION_CONNECTION_INTERVAL=300",
+                "-DUCLIENT_MIN_SESSION_CONNECTION_ATTEMPTS=3"
             ]
         },
         "rmw_microxrcedds": {

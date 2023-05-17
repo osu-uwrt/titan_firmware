@@ -130,16 +130,17 @@ static void physkill_notify_subscription_callback(const void * msgin)
 }
 
 static alarm_id_t toggle_pwr_alarm_id = 0;
+static bool toggle_state = false;
 
-static int64_t set_computer_power(__unused alarm_id_t alarm, void * data){
-    bool state = (bool) data;
-    gpio_put(ORIN_SW_PIN, state);
+static int64_t set_computer_power(__unused alarm_id_t alarm, __unused void * data){
+    gpio_put(ORIN_SW_PIN, toggle_state);
 
-    if (state) {
+    if (toggle_state) {
         toggle_pwr_alarm_id = 0;
         return 0; // Don't reschedule if turning on
     } else {
-        return 1000 * 1000;   // Turn off for 1 second
+        toggle_state = !toggle_state;
+        return 5000 * 1000;   // Turn off for 5 seconds
     }
 }
 
@@ -150,6 +151,7 @@ static void elec_command_subscription_callback(const void * msgin){
             LOG_WARN("Attempting to request multiple cycles in a row");
         }
         else {
+            toggle_state = false;
             toggle_pwr_alarm_id = add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
             if (toggle_pwr_alarm_id < 0) {
                 toggle_pwr_alarm_id = 0;

@@ -32,8 +32,8 @@ pushd firmware/mcu_ws > /dev/null
         vcs import --input extra_packages.repos
     popd > /dev/null
 
-    # Workaround: The software team enjoys pain. 
-    git clone -b actuators-msgs https://github.com/osu-uwrt/riptide_core
+    # Workaround: The software team enjoys pain.
+    git clone https://github.com/osu-uwrt/riptide_core
     cp -R riptide_core/riptide_msgs ros2/riptide_msgs
     rm -rf riptide_core
 
