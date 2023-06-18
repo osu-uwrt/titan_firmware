@@ -111,6 +111,12 @@ extern uint32_t vcc_reading_mv;
  */
 extern bool esc_board_on;
 
+/**
+ * @brief Bool reporting if the ESCs are commanding a non-neutral value.
+ * If this is true, the thrusters are considered to be on (used for error reporting timeouts)
+ */
+extern bool dshot_thrusters_on;
+
 
 // ========================================
 // Exported Methods

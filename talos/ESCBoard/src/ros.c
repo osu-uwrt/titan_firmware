@@ -31,6 +31,8 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DSHOT_COMMAND_SUCRIBER_NAME "command/dshot"
+#define THRUSTER_MOVING_BORAD0_PUBLISHER_NAME "state/thrusters/moving_brd0"
+#define THRUSTER_MOVING_BORAD1_PUBLISHER_NAME "state/thrusters/moving_brd1"
 #define DSHOT_RPM_PUBLISHER_NAME "state/thrusters/rpm"
 #define DSHOT_TELEMETRY_PUBLISHER_NAME "state/thrusters/telemetry"
 
@@ -54,6 +56,7 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 
+rcl_publisher_t thrusters_moving_publisher;
 rcl_publisher_t dshot_telem_publisher;
 rcl_publisher_t dshot_rpm_publisher;
 rcl_subscription_t dshot_subscriber;
@@ -207,6 +210,10 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
 
     RCSOFTRETCHECK(rcl_publish(&dshot_telem_publisher, &telem_msg, NULL));
 
+    std_msgs__msg__Bool moving_msg;
+    moving_msg.data = dshot_thrusters_on;
+    RCSOFTCHECK(rcl_publish(&thrusters_moving_publisher, &moving_msg, NULL));
+
     return RCL_RET_OK;
 }
 
@@ -221,6 +228,7 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
     const char *node_name = (board_id == 0 ? PICO_TARGET_NAME "_0" : PICO_TARGET_NAME "_1");
+    const char *moving_publisher_name = (board_id == 0 ? THRUSTER_MOVING_BORAD0_PUBLISHER_NAME : THRUSTER_MOVING_BORAD1_PUBLISHER_NAME);
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
@@ -259,6 +267,12 @@ rcl_ret_t ros_init(uint8_t board_id) {
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotPartialTelemetry),
         DSHOT_TELEMETRY_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(
+        &thrusters_moving_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+        moving_publisher_name));
 
     // Executor Initialization
     const int executor_num_handles = 2;

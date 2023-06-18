@@ -27,6 +27,7 @@ static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "
 // ========================================
 
 bool dshot_initialized = false;
+bool dshot_thrusters_on = false;
 bool esc_board_on = false;
 struct dshot_uart_telemetry dshot_telemetry_data[NUM_THRUSTERS] = {0};
 struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = {0};
@@ -61,12 +62,6 @@ static absolute_time_t dshot_command_timeout;
  * Required for command transmit calculations
  */
 static uint dshot_pio_offset;
-
-/**
- * @brief Bool reporting if the ESCs are commanding a non-neutral value.
- * If this is true, the thrusters are considered to be on (used for error reporting timeouts)
- */
-static bool dshot_thrusters_on = false;
 
 /**
  * @brief The cached commands to send for dshot
