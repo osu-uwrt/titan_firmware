@@ -236,6 +236,11 @@ int main() {
                 profiler_push(PROFILER_ROS_CONFIG);
                 LOG_INFO("ROS connected");
 
+                // Lower all ROS related faults as we've got a new ROS context
+                safety_lower_fault(FAULT_ROS_ERROR);
+                safety_lower_fault(FAULT_ROS_BAD_COMMAND);
+                safety_lower_fault(FAULT_THRUSTER_TIMEOUT);
+
                 if(ros_init() == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);

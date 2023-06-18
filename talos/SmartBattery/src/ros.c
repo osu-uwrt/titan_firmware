@@ -147,10 +147,13 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info){
     status.serial = bq_pack_info.serial;
 
     // test for port and stbd
-    status.detect = 0;
+    status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
     if(bq_pack_present()){
-        // TODO determine which side from BQ GPIO
-        status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
+        if (bq_pack_side_det_port()) {
+            status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
+        } else {
+            status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_STBD;
+        }
     }
 
     // read cell info

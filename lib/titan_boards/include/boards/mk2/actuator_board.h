@@ -20,7 +20,7 @@
 #define CLAW_MODE1_PIN      3
 #define CLAW_FAULT_PIN      4
 #define CLAW_MODE2_PIN      5
-#define CLAW_PWM_PIN        9
+#define nCLAW_PWM_PIN        9
 #define CLAW_CHECK_PIN      10
 #define CLAW_CURRENT_PIN    29
 

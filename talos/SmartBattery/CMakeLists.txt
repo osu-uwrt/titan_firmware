@@ -44,12 +44,14 @@ titan_enable_bootloader(smart_battery can)
 # Define linking and targets
 pico_add_extra_outputs(smart_battery)
 target_link_libraries(smart_battery PUBLIC
-	driver_led		# Status LED support
-	titan_logger	# A nice little logging library
-	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
+	driver_async_i2c  # Async I2C Driver
+	driver_led		  # Status LED support
+	driver_ssd1306	  # SSD1306 LCD Support
+	titan_logger	  # A nice little logging library
+	titan_safety	  # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+	micro_ros_can	  # Micro ros suppot (supports _can, _usb, _eth)
 	hardware_pio
 	hardware_i2c
-	pico_stdlib		# Pico SDK Standard Library
+	pico_stdlib		  # Pico SDK Standard Library
 )
 

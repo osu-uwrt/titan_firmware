@@ -167,6 +167,9 @@ int main() {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
 
+                // Lower all ROS related faults as we've got a new ROS context
+                safety_lower_fault(FAULT_ROS_ERROR);
+
                 if(ros_init() == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);

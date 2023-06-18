@@ -21,6 +21,8 @@ target_link_libraries(titan_safety INTERFACE
 	"-Wl,--wrap=__assert_func,--wrap=panic,--wrap=uxr_run_session_until_confirm_delivery,--wrap=uxr_ping_agent_session,--wrap=watchdog_reboot"
 )
 
+target_compile_definitions(titan_safety INTERFACE TITAN_SAFETY=1)
+
 target_include_directories(titan_safety INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include
 )

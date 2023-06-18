@@ -17,6 +17,16 @@
 // Preprocessor Defines
 // ========================================
 
+// PICO_CONFIG: CAN_MCP251XFD_CONNECT_ATTEMPTS, Number of connection attempts when initializing the MCP251x Device, type=int, min=1, default=3, group=driver_canbus
+#ifndef CAN_MCP251XFD_CONNECT_ATTEMPTS
+#define CAN_MCP251XFD_CONNECT_ATTEMPTS 3
+#endif
+
+// PICO_CONFIG: CAN_MCP251XFD_CONNECT_DELAY, Delay between attempts of initializing the MCP251x Device in milliseconds, type=int, default=10, group=driver_canbus
+#ifndef CAN_MCP251XFD_CONNECT_DELAY_MS
+#define CAN_MCP251XFD_CONNECT_DELAY_MS 10
+#endif
+
 #ifndef UWRT_ROBOT_DEFINED
 #error Robot must be defined to retrieve CAN bus configuration
 #endif
@@ -271,6 +281,7 @@ MCP251XFD_Config mcp251xfd_device_config =
     //--- Interrupts ---
     .SysInterruptFlags = MCP251XFD_INT_TX_EVENT                 // Enable global TX interrupts (controlled via FIFO)
                        | MCP251XFD_INT_RX_EVENT                 // Enable global RX interrupts (controlled via FIFO)
+                       | MCP251XFD_INT_TEF_EVENT                // Enable TEF events (so we can watch when we send messages)
                        // Device Errors
                        | MCP251XFD_INT_RX_OVERFLOW_EVENT        // Device error if message dropped from code being slow
                        | MCP251XFD_INT_RAM_ECC_EVENT            // Report any RAM ECC errors
@@ -291,10 +302,17 @@ MCP251XFD_Config mcp251xfd_device_config =
 #define mcp251xfd_msg_rx_crc_filter_num  MCP251XFD_FILTER1
 #define mcp251xfd_utility_rx_filter_num  MCP251XFD_FILTER2
 
+MCP251XFD_RAMInfos mcp251xfd_transmit_event_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_msg_tx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_msg_rx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_utility_tx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_utility_rx_raminfo;
+
+MCP251XFD_FIFO mcp251xfd_transmit_event_fifo_config = {
+    .Name = MCP251XFD_TEF, .Size = MCP251XFD_FIFO_12_MESSAGE_DEEP, .ControlFlags = MCP251XFD_FIFO_ADD_TIMESTAMP_ON_OBJ,
+    .InterruptFlags = MCP251XFD_FIFO_OVERFLOW_INT + MCP251XFD_FIFO_EVENT_FIFO_NOT_EMPTY_INT,
+    .RAMInfos = &mcp251xfd_transmit_event_raminfo,
+};
 
 MCP251XFD_FIFO mcp251xfd_msg_tx_fifo_config = {
     .Name = mcp251xfd_msg_tx_fifo, .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_8BYTE,
@@ -450,8 +468,6 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 
     // Bus Errors
     if (active_interrupts & MCP251XFD_INT_BUS_ERROR_EVENT) {
-        // TODO: Handle bus off events to report CAN bus has gone offline
-        // TODO: Handle recovery from error passive?
         canbus_call_receive_error_cb(CANBUS_RECVERR_BUS_ERROR);
 
         interrupt_cleared = true;
@@ -484,7 +500,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 if (is_extended) {
                     msg.ControlFlags |= MCP251XFD_EXTENDED_MESSAGE_ID;
                 }
-                msg.MessageSEQ = 0;
+                msg.MessageSEQ = MESSAGE_SEQ_MSG_FRAME;
                 msg.PayloadData = buffer;
 
                 interrupt_cleared = true;
@@ -504,7 +520,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 msg.DLC = utility_tx_buf.length;
                 msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, utility_tx_buf.channel);
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;
-                msg.MessageSEQ = 0;
+                msg.MessageSEQ = utility_tx_buf.seq;
                 msg.PayloadData = utility_tx_buf.data;
 
                 interrupt_cleared = true;
@@ -521,7 +537,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 
     if (active_interrupts & MCP251XFD_INT_RX_EVENT) {
         if (check_fifo_event(&mcp251xfd_device, mcp251xfd_msg_rx_fifo, MCP251XFD_RX_FIFO_NOT_EMPTY)) {
-            if (canbus_msg_driver_space_in_rx() || !canbus_msg_opened) {
+            if (canbus_msg_driver_space_in_rx()) {
 
                 uint32_t timestamp = 0;
                 uint8_t payload[MCP251XFD_PayloadToByte(mcp251xfd_msg_rx_fifo_config.Payload)];
@@ -534,7 +550,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                                                               &timestamp, mcp251xfd_msg_rx_fifo);
                 if (error_code != ERR_OK) {
                     canbus_report_driver_error(error_code);
-                } else if (canbus_msg_opened) {
+                } else {
                     bool is_extended = (msg.ControlFlags & MCP251XFD_EXTENDED_MESSAGE_ID) != 0;
                     bool is_canfd = (msg.ControlFlags & MCP251XFD_CANFD_FRAME) != 0;
                     canbus_msg_driver_post_rx(msg.MessageID, is_extended, MCP251XFD_DLCToByte(msg.DLC, is_canfd), msg.PayloadData);
@@ -582,6 +598,35 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
         }
     }
 
+    if (active_interrupts & MCP251XFD_INT_TEF_EVENT) {
+        eMCP251XFD_TEFstatus tefStatus;
+        error_code = MCP251XFD_GetTEFStatus(&mcp251xfd_device, &tefStatus);
+        if (error_code != ERR_OK) {
+            canbus_report_driver_error(error_code);
+        }
+        else {
+            if (tefStatus & MCP251XFD_TEF_FIFO_OVERFLOW) {
+                canbus_report_library_error(CANBUS_LIBERR_TEF_OVERFLOW);
+
+                eERRORRESULT error_code = MCP251XFD_ClearFIFOEvents(&mcp251xfd_device, MCP251XFD_TEF, MCP251XFD_TEF_FIFO_OVERFLOW);
+                if (error_code != ERR_OK) canbus_report_driver_error(error_code);
+
+                interrupt_cleared = true;
+            }
+            if (tefStatus & MCP251XFD_TEF_FIFO_NOT_EMPTY) {
+                MCP251XFD_CANMessage msg;
+                uint32_t timestamp;
+                MCP251XFD_ReceiveMessageFromTEF(&mcp251xfd_device, &msg, &timestamp);
+
+                // If its a heartbeat transmission, keep track when we received it
+                if (msg.MessageSEQ == MESSAGE_SEQ_UTILITY_HEARTBEAT) {
+                    heartbeat_transmit_timeout = make_timeout_time_ms(CAN_MCP251XFD_HEARTBEAT_TIMEOUT_MS);
+                }
+                interrupt_cleared = true;
+            }
+        }
+    }
+
     // Report if an interrupt was raised but was unable to be cleared
     if (!interrupt_cleared) {
         canbus_report_library_error(CANBUS_LIBERR_UNEXPECTED_INTERRUPT);
@@ -595,57 +640,19 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 // Driver Exports
 // ========================================
 
-bool can_mcp251xfd_get_in_error(void) {
-    uint8_t txErrCnt, rxErrCnt;
-    eMCP251XFD_TXRXErrorStatus statusOut;
-    eERRORRESULT result = MCP251XFD_GetTransmitReceiveErrorCountAndStatus(&mcp251xfd_device, &txErrCnt, &rxErrCnt, &statusOut);
-    return result != ERR_OK || statusOut != MCP251XFD_TX_NO_ERROR;  // TODO: Update to proper check
-}
-
-bool can_mcp251xfd_configure(unsigned int client_id)
-{
-    saved_client_id = client_id;
-
-    //--- Compute Filter Values ---
-    // Mask was set up in initialization (0 all fields not being checked, set ID to be from agent)
-    mcp251xfd_msg_rx_filter.AcceptanceID = CANMORE_CALC_MSG_ID_A2C(client_id, 0);
-    mcp251xfd_msg_rx_crc_filter.AcceptanceID = CANMORE_CALC_MSG_EXT_ID_A2C(client_id, 0, 0);
-    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(client_id, 0);
-
-    //--- Initialize Int pins or GPIOs ---
-    // Initialize CS Pin
-    gpio_init(MCP2517FD_NCS_PIN);
-    gpio_put(MCP2517FD_NCS_PIN, true);
-    gpio_set_dir(MCP2517FD_NCS_PIN, GPIO_OUT);
-    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_NCS_PIN, "MCP251XFD CHIP SELECT"));
-
-    // Initialize SPI
-    // Stealing SPI Clock Speed just for setup
-    // This is because the initialization function is called several times, and all real setup is performed here
-    spi_init(MCP2517FD_SPI_INST, mcp251xfd_device.SPIClockSpeed);
-
-    gpio_set_function(MCP2517FD_SCK_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(MCP2517FD_MOSI_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(MCP2517FD_MISO_PIN, GPIO_FUNC_SPI);
-    bi_decl_if_func_used(bi_3pins_with_func(MCP2517FD_MISO_PIN, MCP2517FD_MOSI_PIN, MCP2517FD_SCK_PIN, GPIO_FUNC_SPI));
-
-    // Setup Clock Output
-    uint32_t clk_src_freq = clock_get_hz(MCP2517FD_OSC_SRC);
-    hard_assert(clk_src_freq % MCP2517FD_OSC_RATE == 0);  // Ensure that clock divides evenly
-    clock_gpio_init(MCP2517FD_CANCLK_PIN, MCP2517FD_CLK_GPOUT_AUXSRC, clk_src_freq / MCP2517FD_OSC_RATE);
-    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_CANCLK_PIN, "MCP251XFD CLOCK REF"));
-
-    // Setup IRQ Pin
-    gpio_init(MCP2517FD_INT_PIN);
-    gpio_set_dir(MCP2517FD_INT_PIN, GPIO_IN);
-    gpio_pull_up(MCP2517FD_INT_PIN);
-    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_INT_PIN, "MCP251XFD Interrupt Notify"));
-
-    sleep_ms(10);   // Give time for clocks on device to stabalize
+static bool can_mcp251xfd_configure_chip(void) {
+    // First disable the irq to ensure that we are configuring this in a safety context
+    gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, false);
 
     //--- Configure Device ---
     eERRORRESULT error_code = ERR__NO_DEVICE_DETECTED;
-    error_code = Init_MCP251XFD(&mcp251xfd_device, &mcp251xfd_device_config);
+
+    for (int try = 0; try < CAN_MCP251XFD_CONNECT_ATTEMPTS; try++) {
+        error_code = Init_MCP251XFD(&mcp251xfd_device, &mcp251xfd_device_config);
+        if (error_code == ERR_OK) break;
+        sleep_ms(CAN_MCP251XFD_CONNECT_DELAY_MS);
+    }
+
     if (error_code != ERR_OK) {
         canbus_report_driver_error(error_code);
         return false;
@@ -659,6 +666,12 @@ bool can_mcp251xfd_configure(unsigned int client_id)
     }
 
     // Configure FIFOs
+    error_code = MCP251XFD_ConfigureTEF(&mcp251xfd_device, true, &mcp251xfd_transmit_event_fifo_config);
+    if (error_code != ERR_OK) {
+        canbus_report_driver_error(error_code);
+        return false;
+    }
+
     error_code = MCP251XFD_ConfigureFIFO(&mcp251xfd_device, &mcp251xfd_msg_tx_fifo_config);
     if (error_code != ERR_OK) {
         canbus_report_driver_error(error_code);
@@ -722,6 +735,63 @@ bool can_mcp251xfd_configure(unsigned int client_id)
     return true;
 }
 
+bool can_mcp251xfd_configure(unsigned int client_id)
+{
+    saved_client_id = client_id;
+
+    //--- Compute Filter Values ---
+    // Mask was set up in initialization (0 all fields not being checked, set ID to be from agent)
+    mcp251xfd_msg_rx_filter.AcceptanceID = CANMORE_CALC_MSG_ID_A2C(client_id, 0);
+    mcp251xfd_msg_rx_crc_filter.AcceptanceID = CANMORE_CALC_MSG_EXT_ID_A2C(client_id, 0, 0);
+    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(client_id, 0);
+
+    //--- Initialize Int pins or GPIOs ---
+    // Initialize CS Pin
+    gpio_init(MCP2517FD_NCS_PIN);
+    gpio_put(MCP2517FD_NCS_PIN, true);
+    gpio_set_dir(MCP2517FD_NCS_PIN, GPIO_OUT);
+    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_NCS_PIN, "MCP251XFD CHIP SELECT"));
+
+    // Initialize SPI
+    // Stealing SPI Clock Speed just for setup
+    // This is because the initialization function is called several times, and all real setup is performed here
+    spi_init(MCP2517FD_SPI_INST, mcp251xfd_device.SPIClockSpeed);
+
+    gpio_set_function(MCP2517FD_SCK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(MCP2517FD_MOSI_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(MCP2517FD_MISO_PIN, GPIO_FUNC_SPI);
+    bi_decl_if_func_used(bi_3pins_with_func(MCP2517FD_MISO_PIN, MCP2517FD_MOSI_PIN, MCP2517FD_SCK_PIN, GPIO_FUNC_SPI));
+
+    // Setup Clock Output
+    uint32_t clk_src_freq = clock_get_hz(MCP2517FD_OSC_SRC);
+    hard_assert(clk_src_freq % MCP2517FD_OSC_RATE == 0);  // Ensure that clock divides evenly
+    clock_gpio_init(MCP2517FD_CANCLK_PIN, MCP2517FD_CLK_GPOUT_AUXSRC, clk_src_freq / MCP2517FD_OSC_RATE);
+    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_CANCLK_PIN, "MCP251XFD CLOCK REF"));
+
+    // Setup IRQ Pin
+    gpio_init(MCP2517FD_INT_PIN);
+    gpio_set_dir(MCP2517FD_INT_PIN, GPIO_IN);
+    gpio_pull_up(MCP2517FD_INT_PIN);
+    bi_decl_if_func_used(bi_1pin_with_name(MCP2517FD_INT_PIN, "MCP251XFD Interrupt Notify"));
+
+    sleep_ms(CAN_MCP251XFD_CONNECT_DELAY_MS);   // Give time for clocks on device to stabalize
+
+    return can_mcp251xfd_configure_chip();
+}
+
+void can_mcp251xfd_check_offline_reset(void) {
+    // Check if we need to reset the chip after being offline for too long
+    // Handles edge cases where the chip will randomly stop transmitting in the event of certain edge cases
+    if (absolute_time_diff_us(heartbeat_transmit_timeout, get_absolute_time()) > (CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS*1000)) {
+        if (can_mcp251xfd_configure_chip()) {
+            // Only clear the heartbeat transmit timeout (but not put it in the future, marking the bus online)
+            // if the initialization was successful. If not, then next time the canbus ticks this function will be called
+            // and this function should retry
+            heartbeat_transmit_timeout = get_absolute_time();
+        }
+    }
+}
+
 void can_mcp251xfd_report_msg_tx_fifo_ready(void) {
     // Ensure that readback/writing to FIFO configuration isn't interrupted
     uint32_t prev_state = save_and_disable_mcp251Xfd_irq();
@@ -759,15 +829,4 @@ uint32_t save_and_disable_mcp251Xfd_irq(void) {
 
 void restore_mcp251Xfd_irq(uint32_t prev_interrupt_state) {
     gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, prev_interrupt_state != 0);
-}
-
-void can_mcp251xfd_reset_msg_fifos() {
-    eERRORRESULT result = MCP251XFD_ResetFIFO(&mcp251xfd_device, mcp251xfd_msg_rx_fifo);
-    if (result != ERR_OK) {
-        canbus_report_driver_error(result);
-    }
-    result = MCP251XFD_ResetFIFO(&mcp251xfd_device, mcp251xfd_msg_tx_fifo);
-    if (result != ERR_OK) {
-        canbus_report_driver_error(result);
-    }
 }

@@ -126,7 +126,7 @@ uint8_t bq_init() {
 }
 
 uint8_t bq_pack_present(){
-    // read the operationstatus register (32 bits)
+    // read the operationstatus register (1-byte length + 4-byte data)
     uint8_t data[5] = {0, 0, 0, 0, 0};
     uint8_t reg_addr[1] = {BQ_READ_OPER_STAT};
     bq_handle_i2c_transfer(reg_addr, data, 5);
@@ -134,6 +134,16 @@ uint8_t bq_pack_present(){
     // the zeroth byte is the length of the field for some reason...
     // test the presence bit (bit 0 of byte 1)
     return (uint8_t)(data[1] & 0b00000001);
+}
+
+bool bq_pack_side_det_port(){
+    // read the GPIO register (16 bits)
+    uint8_t data[2] = {0, 0};
+    uint8_t reg_addr[1] = {BQ_READ_GPIO};
+    bq_handle_i2c_transfer(reg_addr, data, 2);
+
+    // Only byte 0 contains GPIO data - Read RH1 (bit 3)
+    return (data[0] & 0b00001000) != 0;
 }
 
 uint8_t bq_pack_discharging(){

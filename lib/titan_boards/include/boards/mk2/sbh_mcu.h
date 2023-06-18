@@ -17,6 +17,7 @@
 // Define custom client lookup for the bootloader (since we need to detect which board we're on)
 #define TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP "can_bl_custom_id/sbh_mcu.h"
 
+#define PERIPH_I2C          0
 #define PERIPH_SDA_PIN      0
 #define PERIPH_SCL_PIN      1
 #define LED_R_PIN           2
@@ -32,7 +33,7 @@
 #define SWITCH_SIGNAL_PIN   10
 
 #ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C 0
+#define PICO_DEFAULT_I2C PERIPH_I2C
 #endif
 #ifndef PICO_DEFAULT_I2C_SDA_PIN
 #define PICO_DEFAULT_I2C_SDA_PIN PERIPH_SDA_PIN

@@ -11,19 +11,12 @@
 
 #include "can_mcp251XFD_bridge.h"
 
-#include "titan/safety.h"   // TODO: Only include if safety support compiled in
-
-// PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=driver_canbus
-#ifndef CAN_HEARTBEAT_INTERVAL_MS
-#define CAN_HEARTBEAT_INTERVAL_MS 500
+#if TITAN_SAFETY
+#include "titan/safety.h"
 #endif
 
+volatile bool canbus_msg_opened = false;
 
-// TODO: Figure out if this can be moved with preprocessor when FD support is added to CANMore
-// Right now separated to allow setting FD support in this file without needing preprocessor to set in canbus.h
-// It's not the best [static allocations don't work with this unfortunately], but it works
-const size_t canbus_msg_max_length = CANMORE_MAX_MSG_LENGTH;
-const size_t canbus_utility_frame_max_length = CANMORE_FRAME_SIZE;
 
 // ========================================
 // Callback Functions
@@ -61,7 +54,10 @@ void canbus_call_internal_error_cb(int line, uint16_t error_code, bool error_cod
 }
 
 static void report_canmore_msg_decode_error(__unused void* arg, unsigned int error_code) {
-    canbus_call_receive_error_cb(CANBUS_RECVERR_DECODE_ERROR_BASE + error_code);
+    // Only report decode errors if we're listening
+    if (canbus_msg_opened) {
+        canbus_call_receive_error_cb(CANBUS_RECVERR_DECODE_ERROR_BASE + error_code);
+    }
 }
 
 void canbus_set_device_in_error(bool device_in_error_state) {
@@ -73,7 +69,6 @@ void canbus_set_device_in_error(bool device_in_error_state) {
 // Msg Queue Functions
 // ========================================
 
-bool canbus_msg_opened = false;
 canmore_msg_decoder_t msg_decoder = {0};
 canmore_msg_encoder_t encoding_buffer = {0};
 struct canmore_received_msg {
@@ -82,7 +77,7 @@ struct canmore_received_msg {
     // Length of data in buffer
     size_t length;
     // If the message is waiting to be read
-    bool waiting;
+    volatile bool waiting;
 } canmore_received_msg = {0};
 
 // Exports to Application Code
@@ -92,21 +87,8 @@ bool canbus_msg_open(void) {
         return false;
     }
 
-    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
-
-    // Clear mcp251xfd buffers
-    can_mcp251xfd_reset_msg_fifos();
-
-    // Clear local buffers
-    canmore_received_msg.waiting = false;
+    // After we set this bool, all write requests should now be allowed and receies will set the waiting flag
     canbus_msg_opened = true;
-    canmore_msg_encode_init(&encoding_buffer, encoding_buffer.client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
-
-    // Mark FIFOs as ready to receive (since we cleared the buffers it won't be able to )
-    can_mcp251xfd_report_msg_rx_fifo_ready();
-    can_mcp251xfd_report_msg_tx_fifo_ready();
-
-    restore_mcp251Xfd_irq(prev_interrupt);
 
     return true;
 }
@@ -115,6 +97,7 @@ void canbus_msg_close(void) {
     assert(canbus_initialized);
 
     canbus_msg_opened = false;
+    canmore_received_msg.waiting = false;   // Must be cleared after canbus_msg_opened (since it won't mark messages received after this)
 }
 
 bool canbus_msg_read_available(void) {
@@ -177,6 +160,8 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len) {
 // Exports to Driver Code
 
 bool canbus_msg_driver_space_in_rx(void) {
+    // No need to check canbus_msg_opened as waiting is cleared after clearing canbus_msg_opened
+    // and waiting can never be set with canbus_msg_opened false
     return !canmore_received_msg.waiting;
 }
 
@@ -194,8 +179,10 @@ void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t dat
                                                         data, data_len, client_id.pkt_ext.crc,
                                                         canmore_received_msg.data);
 
-        // Only queue the data if the decode was successful
-        if (msg_size > 0) {
+        // Only queue the data if the decode was successful and we care to receive messages
+        // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
+        // when in reality we just didn't set opened until halfway through receive
+        if (msg_size > 0 && canbus_msg_opened) {
             canmore_received_msg.length = msg_size;
             canmore_received_msg.waiting = true;
         }
@@ -266,6 +253,12 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     utility_tx_buf.length = len;
     utility_tx_buf.channel = channel;
     utility_tx_buf.waiting = true;
+    if (channel == CANMORE_CHAN_HEARTBEAT) {
+        utility_tx_buf.seq = MESSAGE_SEQ_UTILITY_HEARTBEAT;
+    }
+    else {
+        utility_tx_buf.seq = MESSAGE_SEQ_UTILITY_NORMAL;
+    }
 
     can_mcp251xfd_report_utility_tx_fifo_ready();
 
@@ -286,6 +279,7 @@ void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t
     callbacks[channel] = cb;
 }
 
+#if TITAN_SAFETY
 void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
     if (channel != CANMORE_TITAN_CHAN_CONTROL_INTERFACE) {
         return;
@@ -297,6 +291,7 @@ void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
 void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
     canbus_utility_frame_write(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, msg, len);
 }
+#endif
 
 
 // ========================================
@@ -304,6 +299,7 @@ void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
 // ========================================
 
 bool canbus_initialized = false;
+absolute_time_t heartbeat_transmit_timeout = {0};
 
 bool canbus_init(unsigned int client_id) {
     assert(!canbus_initialized);
@@ -319,9 +315,12 @@ bool canbus_init(unsigned int client_id) {
 
     canbus_initialized = true;
 
-    // TODO: Only initialize if safety compiled in
+#if TITAN_SAFETY
+    // Debug interface only works if safety is compiled in
+    // If not, we don't have any way to control the chip's watchdog/query chip status
     debug_init(&canbus_control_interface_transmit);
     canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
+#endif
 
     return true;
 }
@@ -330,7 +329,7 @@ bool canbus_init(unsigned int client_id) {
 bool canbus_check_online(void) {
     assert(canbus_initialized);
 
-    return !can_mcp251xfd_get_in_error();
+    return !time_reached(heartbeat_transmit_timeout);
 }
 
 absolute_time_t canbus_next_heartbeat = {0};
@@ -346,7 +345,7 @@ void canbus_tick(void) {
         static canmore_titan_heartbeat_t heartbeat = {.data = 0};
 
         heartbeat.pkt.cnt += 1;
-        heartbeat.pkt.error = (*fault_list_reg) != 0;
+        heartbeat.pkt.error = canbus_device_in_error_state;
         heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
 
         bool term_enabled;
@@ -369,4 +368,7 @@ void canbus_tick(void) {
             callbacks[channel](channel, msg_buffer, len);
         }
     }
+
+    // Check if we've been offline for too long and need a reset
+    can_mcp251xfd_check_offline_reset();
 }

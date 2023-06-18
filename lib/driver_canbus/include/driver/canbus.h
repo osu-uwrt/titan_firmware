@@ -34,6 +34,7 @@ enum canbus_library_error_codes {
     CANBUS_LIBERR_COMM_MALFUNCTION = 2,
     CANBUS_LIBERR_RX_OVERFLOW = 3,
     CANBUS_LIBERR_UNEXPECTED_INTERRUPT = 4,
+    CANBUS_LIBERR_TEF_OVERFLOW = 5
 };
 
 enum canbus_receive_error_codes {
@@ -148,11 +149,6 @@ bool canbus_msg_open(void);
 void canbus_msg_close(void);
 
 /**
- * @brief The maximum length of a transmitted or received msg.
-*/
-extern const size_t canbus_msg_max_length;
-
-/**
  * @brief Returns if a CANmore message is availble to be read.
  * @attention Requires `canbus_init` to be called
  * @attention Can not be used in interrupts
@@ -183,8 +179,8 @@ bool canbus_msg_write_available(void);
  * @attention Can not be used in interrupts
  *
  * @param buf The buffer containing data to transmit
- * @param len The length of data to transmit. If greater than `canbus_msg_max_length` this will be truncated
- * @return The number of bytes transmitted (either `len` or `canbus_msg_max_length` if truncated)
+ * @param len The length of data to transmit. If greater than `CANMORE_MAX_MSG_LENGTH` this will be truncated
+ * @return The number of bytes transmitted (either `len` or `CANMORE_MAX_MSG_LENGTH` if truncated)
 */
 size_t canbus_msg_write(const uint8_t *buf, size_t len);
 
@@ -192,11 +188,6 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len);
 // ========================================
 // CANmore Utility Frame Functions
 // ========================================
-
-/**
- * @brief The maximum length of a transmitted or received utility frame.
-*/
-extern const size_t canbus_utility_frame_max_length;
 
 /**
  * @brief Returns if space is available to write another CANmore utility frame in the transmit buffer.
@@ -212,8 +203,8 @@ bool canbus_utility_frame_write_available(void);
  *
  * @param channel The channel this utility frame is to be transmitted on
  * @param buf The buffer containing data to transmit
- * @param len The length of data to transmit. If greater than `canbus_utility_frame_max_length` this will be truncated
- * @return The number of bytes transmitted (either `len` or `canbus_utility_frame_max_length` if truncated)
+ * @param len The length of data to transmit. If greater than `CANMORE_FRAME_SIZE` this will be truncated
+ * @return The number of bytes transmitted (either `len` or `CANMORE_FRAME_SIZE` if truncated)
 */
 size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len);
 

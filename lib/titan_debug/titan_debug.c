@@ -1,6 +1,8 @@
 #include "pico/unique_id.h"
 
 #include "titan/debug.h"
+
+#if TITAN_SAFETY
 #include "titan/safety.h"
 
 // ========================================
@@ -59,3 +61,5 @@ void debug_process_message(uint8_t *msg_buffer, size_t len) {
         safety_enter_bootloader();
     }
 }
+
+#endif

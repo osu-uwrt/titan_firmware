@@ -1,5 +1,6 @@
 #include "pico/stdlib.h"
 
+#include "driver/async_i2c.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
@@ -9,6 +10,7 @@
 #include "ros.h"
 #include "safety_interface.h"
 #include "bq40z80.h"
+#include "display.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -79,6 +81,7 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_battery_status_update = make_timeout_time_ms(BATTERY_STATUS_TIME_MS);
 }
 
 /**
@@ -139,7 +142,7 @@ static void tick_background_tasks() {
         }
     }
 
-
+    display_check_poweroff();
 }
 
 
@@ -158,6 +161,11 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+    async_i2c_init(PERIPH_SDA_PIN, PERIPH_SCL_PIN, -1, -1, 400000, 20);
+    display_init();
+
+    sleep_ms(1000);
+    safety_tick();
 
     // start the bq40z80
     int err = bq_init();
@@ -188,6 +196,9 @@ int main() {
         panic("Failed to initialize CAN bus hardware!");
     }
 
+    // Show pack info on startup
+    display_show_stats(bq_pack_info.serial, bq_pack_soc(), bq_pack_voltage() / 1000.0);
+
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
@@ -203,6 +214,10 @@ int main() {
         if(is_ros_connected()) {
             if(!ros_initialized) {
                 LOG_INFO("ROS connected");
+                display_show_ros_connect();
+
+                // Lower all ROS related faults as we've got a new ROS context
+                safety_lower_fault(FAULT_ROS_ERROR);
 
                 if(ros_init(sbh_mcu_serial_num) == RCL_RET_OK) {
                     ros_initialized = true;

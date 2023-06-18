@@ -10,8 +10,8 @@
 #include "safety_interface.h"
 
 // State values for software kill pin
-#define SOFTKILL_STATE_KILL true
-#define SOFTKILL_STATE_RUN  false
+#define SOFTKILL_STATE_KILL false
+#define SOFTKILL_STATE_RUN  true
 
 volatile bool safety_interface_kill_switch_refreshed = false;
 volatile bool safety_interface_physical_kill_asserting_kill = true;

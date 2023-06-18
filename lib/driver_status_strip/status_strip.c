@@ -329,6 +329,7 @@ void status_strip_init(PIO pio, uint sm, uint pin, bool first_pixel_is_rear) {
 
 void status_strip_set(enum status_strip_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
+    inst->timer = 0;
     inst->mode = mode;
     inst->red_target = red;
     inst->green_target = green;

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "titan/canmore.h"
 
+#if TITAN_SAFETY
+
 /**
  * @file titan/debug.h
  *
@@ -13,7 +15,8 @@
  * with an MTU of at least 8 bytes. Packets can be fed into the process message, and tx_func will be called with the
  * response.
  *
- * @note This library requires titan_safety to function properly.
+ * @note This library requires titan_safety to function properly. Without titan_safety, this library has no way to monitor
+ * chip status or reboot into bootloader mode.
  *
  */
 
@@ -31,5 +34,7 @@ void debug_init(reg_mapped_server_tx_func tx_func);
  * @param len Length of message
  */
 void debug_process_message(uint8_t *msg_buffer, size_t len);
+
+#endif
 
 #endif

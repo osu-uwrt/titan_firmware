@@ -27,6 +27,7 @@ enum bq_reg_map {
     BQ_READ_CELL_DATE = 0x1B,
     BQ_READ_CELL_SERI = 0x1C,
     BQ_READ_CELL_NAME = 0x21,
+    BQ_READ_GPIO      = 0x48,
     BQ_READ_SAFE_ALRT = 0x50,
     BQ_READ_OPER_STAT = 0x54,
     BQ_READ_CHRG_STAT = 0x55,
@@ -64,7 +65,7 @@ uint8_t bq_pack_soc();
 // get the current pack voltage in millivolts
 uint16_t bq_pack_voltage();
 
-// get the current current reading in signed milliamps 
+// get the current current reading in signed milliamps
 int16_t bq_pack_current();
 
 // get the average cell current draw
@@ -75,6 +76,9 @@ uint16_t bq_time_to_empty();
 
 // get the manufacturing info from the pack
 struct bq_pack_info_t bq_pack_mfg_info();
+
+// Check if the side detect pin reports port (pack present must be true for this to be valid)
+bool bq_pack_side_det_port();
 
 // used for sending the MAC commands from the mac command enum
 void bq_send_mac_command(const uint16_t command);
