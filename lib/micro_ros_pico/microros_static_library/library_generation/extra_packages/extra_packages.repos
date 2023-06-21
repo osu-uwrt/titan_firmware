@@ -3,7 +3,3 @@ repositories:
     type: git
     url: https://github.com/ros-controls/control_msgs
     version: galactic-devel
-  riptide_msgs2:
-    type: git
-    url: https://github.com/osu-uwrt/riptide_msgs
-    version: ros2-dev
