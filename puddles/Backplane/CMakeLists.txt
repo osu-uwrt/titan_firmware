@@ -51,6 +51,7 @@ target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
 pico_add_extra_outputs(backplane_firmware)
 target_link_libraries(backplane_firmware PUBLIC
 	driver_async_i2c
+	driver_depth
 	driver_led
 	driver_mcp3426
 	hardware_pio

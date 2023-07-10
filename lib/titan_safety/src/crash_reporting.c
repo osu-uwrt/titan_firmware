@@ -15,9 +15,8 @@
 
 #include "safety_internal.h"
 
-
 // Use of Watchdog Scratch Registers
-// Can really only be considered valid if
+// Can really only be considered valid if watchdog_enable_caused_reboot is true
 // scratch[0]: Last Crash Action
 //  - CLEAN_BOOT: Last reset was a clean boot. Note that if this set, then a software requested reset occurred.
 //                This is primarily used in the log to denote when the first clean boot occurred
@@ -42,9 +41,6 @@
 // scratch[5]: Uptime since safety init (hundreds of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[6]: Bitwise Fault List
-// scratch[7]: Depth Sensor Backup Data
-//     Default: Should be set to 0xFFFFFFFF on clean boot
-//     Will be set during zeroing of the depth sensor
 
 #define CLEAN_BOOT                   0x1035000
 #define UNKNOWN_SAFETY_PREINIT       0x1035001
@@ -157,7 +153,6 @@ static uint16_t calc_crash_data_crc(void) {
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
 static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[5];
 volatile uint32_t * const fault_list_reg = &watchdog_hw->scratch[6];
-volatile uint32_t * const depth_cal_reg = &watchdog_hw->scratch[7];
 
 // Defined in hard_fault_handler.S
 extern void safety_hard_fault_handler(void);
@@ -373,9 +368,8 @@ static void safety_process_last_reset_cause(void) {
         // Dump profiler data from last session
         profiler_dump();
     } else {
-        // Clear watchdog registers that maintain state through crashes
-        *depth_cal_reg = DEPTH_CALIBRATION_INVALID;
-        crash_data.crash_counter.i = 0; // Clear all crash counters to clear sticky fault
+        // Clear all crash counters to clear sticky fault
+        crash_data.crash_counter.i = 0;
 
         // Decode the clean boot reset cause and write to log
         next_entry->reset_reason = CLEAN_BOOT;

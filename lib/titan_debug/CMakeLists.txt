@@ -10,4 +10,5 @@ target_include_directories(titan_debug INTERFACE
 
 target_link_libraries(titan_debug INTERFACE
     titan_canmore
+    hardware_watchdog
 )

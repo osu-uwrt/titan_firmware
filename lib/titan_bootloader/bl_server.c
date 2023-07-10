@@ -132,7 +132,7 @@ static reg_mapped_server_register_def_t bl_server_flash_control_regs[] = {
 static reg_mapped_server_page_def_t bl_server_pages[] = {
     // General Control Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_BL_MCU_CONTROL_PAGE_NUM, bl_server_mcu_control_regs),
-    DEFINE_PAGE_UNIMPLEMENTED(CANMORE_BL_VERSION_STRING_PAGE_NUM),  // To be filled in by agent
+    DEFINE_PAGE_UNIMPLEMENTED(CANMORE_BL_VERSION_STRING_PAGE_NUM),  // To be filled in at init
 
     // Flash Control Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_BL_FLASH_CONTROL_PAGE_NUM, bl_server_flash_control_regs),
@@ -162,7 +162,7 @@ void bl_server_init(void) {
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.base_addr = (uint8_t*) FULL_BUILD_TAG;
     bl_server_pages[CANMORE_BL_VERSION_STRING_PAGE_NUM].type.mem_mapped_byte.size = strlen(FULL_BUILD_TAG) + 1;
 
-    // Fill out version ID
+    // Fill out board ID
     flash_get_unique_id(mcu_control_flash_id.id_byte);
 }
 

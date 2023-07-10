@@ -141,16 +141,6 @@ absolute_time_t safety_kill_get_last_change(void);
 // ========================================
 
 /**
- * @brief Pointer to depth sensor calibration data which will persist watchdog resets.
- */
-extern volatile uint32_t * const depth_cal_reg;
-
-/**
- * @brief Value contained in depth_cal_reg if the register contains invalid data
- */
-#define DEPTH_CALIBRATION_INVALID 0xFFFFFFFF
-
-/**
  * @brief Resets into bootloader mode.
  * This issues a watchdog reset with the proper flags set to enter bootloader mode.
  * This function does not return

@@ -293,19 +293,17 @@ MCP251XFD_Config mcp251xfd_device_config =
 };
 
 // FIFO definitions
-#define mcp251xfd_msg_tx_fifo            MCP251XFD_FIFO1
+#define mcp251xfd_tx_fifo                MCP251XFD_FIFO1        // Utility and msg tx fifos joined to ensure that if the msg fifo stalls so do heartbeats, causing the device to reset
 #define mcp251xfd_msg_rx_fifo            MCP251XFD_FIFO2
-#define mcp251xfd_utility_tx_fifo        MCP251XFD_FIFO3
-#define mcp251xfd_utility_rx_fifo        MCP251XFD_FIFO4
+#define mcp251xfd_utility_rx_fifo        MCP251XFD_FIFO3
 
 #define mcp251xfd_msg_rx_filter_num      MCP251XFD_FILTER0
 #define mcp251xfd_msg_rx_crc_filter_num  MCP251XFD_FILTER1
 #define mcp251xfd_utility_rx_filter_num  MCP251XFD_FILTER2
 
 MCP251XFD_RAMInfos mcp251xfd_transmit_event_raminfo;
-MCP251XFD_RAMInfos mcp251xfd_msg_tx_raminfo;
+MCP251XFD_RAMInfos mcp251xfd_tx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_msg_rx_raminfo;
-MCP251XFD_RAMInfos mcp251xfd_utility_tx_raminfo;
 MCP251XFD_RAMInfos mcp251xfd_utility_rx_raminfo;
 
 MCP251XFD_FIFO mcp251xfd_transmit_event_fifo_config = {
@@ -314,12 +312,12 @@ MCP251XFD_FIFO mcp251xfd_transmit_event_fifo_config = {
     .RAMInfos = &mcp251xfd_transmit_event_raminfo,
 };
 
-MCP251XFD_FIFO mcp251xfd_msg_tx_fifo_config = {
-    .Name = mcp251xfd_msg_tx_fifo, .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_8BYTE,
+MCP251XFD_FIFO mcp251xfd_tx_fifo_config = {
+    .Name = mcp251xfd_tx_fifo, .Size = MCP251XFD_FIFO_12_MESSAGE_DEEP, .Payload = MCP251XFD_PAYLOAD_8BYTE,
     .Direction = MCP251XFD_TRANSMIT_FIFO, .Attempts = MCP251XFD_THREE_ATTEMPTS,
-    .Priority = MCP251XFD_MESSAGE_TX_PRIORITY17, .ControlFlags = MCP251XFD_FIFO_NO_RTR_RESPONSE,
+    .Priority = MCP251XFD_MESSAGE_TX_PRIORITY16, .ControlFlags = MCP251XFD_FIFO_NO_RTR_RESPONSE,
     .InterruptFlags = MCP251XFD_FIFO_TX_ATTEMPTS_EXHAUSTED_INT + MCP251XFD_FIFO_TRANSMIT_FIFO_NOT_FULL_INT,
-    .RAMInfos = &mcp251xfd_msg_tx_raminfo,
+    .RAMInfos = &mcp251xfd_tx_raminfo,
 };
 
 MCP251XFD_FIFO mcp251xfd_msg_rx_fifo_config = {
@@ -327,15 +325,6 @@ MCP251XFD_FIFO mcp251xfd_msg_rx_fifo_config = {
     .Direction = MCP251XFD_RECEIVE_FIFO, .ControlFlags = MCP251XFD_FIFO_ADD_TIMESTAMP_ON_RX,
     .InterruptFlags = MCP251XFD_FIFO_OVERFLOW_INT + MCP251XFD_FIFO_RECEIVE_FIFO_NOT_EMPTY_INT,
     .RAMInfos = &mcp251xfd_msg_rx_raminfo,
-};
-
-MCP251XFD_FIFO mcp251xfd_utility_tx_fifo_config = {
-    // NOTE: Don't notify on TX failures
-    .Name = mcp251xfd_utility_tx_fifo, .Size = MCP251XFD_FIFO_4_MESSAGE_DEEP, .Payload = UTILITY_MSG_PAYLOAD_SIZE_ENUM,
-    .Direction = MCP251XFD_TRANSMIT_FIFO, .Attempts = MCP251XFD_THREE_ATTEMPTS,
-    .Priority = MCP251XFD_MESSAGE_TX_PRIORITY16, .ControlFlags = MCP251XFD_FIFO_NO_RTR_RESPONSE,
-    .InterruptFlags = MCP251XFD_FIFO_TRANSMIT_FIFO_NOT_FULL_INT,
-    .RAMInfos = &mcp251xfd_utility_tx_raminfo,
 };
 
 MCP251XFD_FIFO mcp251xfd_utility_rx_fifo_config = {
@@ -475,7 +464,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
         if (error_code != ERR_OK) canbus_report_driver_error(error_code);
     }
     if (active_interrupts & MCP251XFD_INT_TX_ATTEMPTS_EVENT) {
-        if (check_and_clear_fifo_event(&mcp251xfd_device, mcp251xfd_msg_tx_fifo, MCP251XFD_TX_FIFO_ATTEMPTS_EXHAUSTED)){
+        if (check_and_clear_fifo_event(&mcp251xfd_device, mcp251xfd_tx_fifo, MCP251XFD_TX_FIFO_ATTEMPTS_EXHAUSTED)){
             canbus_call_receive_error_cb(CANBUS_RECVERR_MSG_TX_FAILURE);
             interrupt_cleared = true;
         }
@@ -483,7 +472,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
 
     // Handle FIFO Events
     if (active_interrupts & MCP251XFD_INT_TX_EVENT) {
-        if (check_fifo_event(&mcp251xfd_device, mcp251xfd_msg_tx_fifo, MCP251XFD_TX_FIFO_NOT_FULL)) {
+        if (check_fifo_event(&mcp251xfd_device, mcp251xfd_tx_fifo, MCP251XFD_TX_FIFO_NOT_FULL)) {
             if (!canmore_msg_encode_done(&encoding_buffer)) {
                 uint8_t buffer[MCP251XFD_PAYLOAD_MAX];
                 bool is_extended;
@@ -504,16 +493,9 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 msg.PayloadData = buffer;
 
                 interrupt_cleared = true;
-                error_code = MCP251XFD_TransmitMessageToFIFO(&mcp251xfd_device, &msg, mcp251xfd_msg_tx_fifo, true);
+                error_code = MCP251XFD_TransmitMessageToFIFO(&mcp251xfd_device, &msg, mcp251xfd_tx_fifo, true);
                 if (error_code != ERR_OK) canbus_report_driver_error(error_code);
-            } else {
-                interrupt_cleared = true;
-                set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_msg_tx_fifo, false);
-            }
-        }
-
-        if (check_fifo_event(&mcp251xfd_device, mcp251xfd_utility_tx_fifo, MCP251XFD_TX_FIFO_NOT_FULL)) {
-            if (utility_tx_buf.waiting) {
+            } else if (utility_tx_buf.waiting) {
                 MCP251XFD_CANMessage msg;
 
                 // Note this only holds when max utility_tx_buf.length is 8
@@ -524,13 +506,13 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 msg.PayloadData = utility_tx_buf.data;
 
                 interrupt_cleared = true;
-                error_code = MCP251XFD_TransmitMessageToFIFO(&mcp251xfd_device, &msg, mcp251xfd_utility_tx_fifo, true);
+                error_code = MCP251XFD_TransmitMessageToFIFO(&mcp251xfd_device, &msg, mcp251xfd_tx_fifo, true);
                 if (error_code != ERR_OK) canbus_report_driver_error(error_code);
 
                 utility_tx_buf.waiting = false;
             } else {
                 interrupt_cleared = true;
-                set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_utility_tx_fifo, false);
+                set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_tx_fifo, false);
             }
         }
     }
@@ -672,19 +654,13 @@ static bool can_mcp251xfd_configure_chip(void) {
         return false;
     }
 
-    error_code = MCP251XFD_ConfigureFIFO(&mcp251xfd_device, &mcp251xfd_msg_tx_fifo_config);
+    error_code = MCP251XFD_ConfigureFIFO(&mcp251xfd_device, &mcp251xfd_tx_fifo_config);
     if (error_code != ERR_OK) {
         canbus_report_driver_error(error_code);
         return false;
     }
 
     error_code = MCP251XFD_ConfigureFIFO(&mcp251xfd_device, &mcp251xfd_msg_rx_fifo_config);
-    if (error_code != ERR_OK) {
-        canbus_report_driver_error(error_code);
-        return false;
-    }
-
-    error_code = MCP251XFD_ConfigureFIFO(&mcp251xfd_device, &mcp251xfd_utility_tx_fifo_config);
     if (error_code != ERR_OK) {
         canbus_report_driver_error(error_code);
         return false;
@@ -795,7 +771,7 @@ void can_mcp251xfd_check_offline_reset(void) {
 void can_mcp251xfd_report_msg_tx_fifo_ready(void) {
     // Ensure that readback/writing to FIFO configuration isn't interrupted
     uint32_t prev_state = save_and_disable_mcp251Xfd_irq();
-    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_msg_tx_fifo, true);
+    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_tx_fifo, true);
     restore_mcp251Xfd_irq(prev_state);
 }
 
@@ -809,7 +785,7 @@ void can_mcp251xfd_report_msg_rx_fifo_ready(void) {
 void can_mcp251xfd_report_utility_tx_fifo_ready(void) {
     // Ensure that readback/writing to FIFO configuration isn't interrupted
     uint32_t prev_state = save_and_disable_mcp251Xfd_irq();
-    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_utility_tx_fifo, true);
+    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_tx_fifo, true);
     restore_mcp251Xfd_irq(prev_state);
 }
 
