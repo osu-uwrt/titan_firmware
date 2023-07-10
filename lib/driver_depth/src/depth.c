@@ -9,10 +9,12 @@
 
 
 // Global variables, see header for docs
-bool depth_initialized = false;
-bool depth_set_on_read = false;
+volatile bool depth_initialized = false;
+volatile bool depth_set_on_read = false;
 
 #define FLUID_DENSITY 997   // TODO: Make dynamic or at least fix for chlorinated/salt water
+
+static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data);
 
 // ========================================
 // Error Handling
@@ -55,10 +57,10 @@ void depth_fatal_err_cb(enum depth_error_event event) {
 /**
  * Magic value to report that the surface pressure is valid
  */
-#define SURFACE_PRESSURE_VALID_MAGIC 0xAA556996
+#define SURFACE_PRESSURE_VALID_MAGIC 0x55AA6996
 
 /**
- * @brief The surface pressure in tens of mbar
+ * @brief The surface pressure in Pascals
  * Generated during calibration
  */
 static int32_t surface_pressure __attribute__((section(".uninitialized_data.depth_sensor")));
@@ -69,7 +71,7 @@ static int32_t surface_pressure_xor __attribute__((section(".uninitialized_data.
 /**
  * @brief Contains SURFACE_PRESSURE_VALID_MAGIC to report that a valid surface pressure is contained in surface_pressure
 */
-static int32_t surface_pressure_valid __attribute__((section(".uninitialized_data.depth_sensor")));
+static uint32_t surface_pressure_valid __attribute__((section(".uninitialized_data.depth_sensor")));
 
 /**
  * @brief The number of times a zero reading has been added
@@ -82,7 +84,7 @@ static int zero_count;
  * @param pressure The pressure reading
  * @param temperature The temperature reading
  */
-static void depth_zero_read_cb(int32_t pressure, int32_t temperature) {
+static void depth_zero_read_cb(int32_t pressure, __unused int32_t temperature) {
     zero_count++;
     if (zero_count <= 40) {
         // First 20 readings aren't taken into account
@@ -132,11 +134,11 @@ static void depth_init_complete(void) {
 // ========================================
 
 /**
- * @brief The last pressure reading from the sensor in tens of mbar
+ * @brief The last pressure reading from the sensor in Pascals
  */
 static int32_t depth_pressure;
 /**
- * @brief The last temperature reading from the sensor in hundreds of deg C
+ * @brief The last temperature reading from the sensor in hundredths of deg C
  */
 static int32_t depth_temp;
 /**
@@ -199,7 +201,7 @@ void depth_init(unsigned int bus_num, enum depth_sensor_type sensor_type, depth_
 }
 
 double depth_read(void) {
-    return ((depth_pressure - surface_pressure)*100)/(FLUID_DENSITY*9.80665);
+    return (depth_pressure - surface_pressure)/(FLUID_DENSITY*9.80665);
 }
 
 bool depth_reading_valid(void) {

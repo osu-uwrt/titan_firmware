@@ -5,6 +5,7 @@
 #include "driver/depth.h"
 
 typedef void (*ms5837_init_cb)(void);
+// Callback with pressure in Pascals and Temperature in hundredths of deg C
 typedef void (*ms5837_read_cb)(int32_t pressure, int32_t temperature);
 typedef void (*ms5837_error_cb)(enum depth_error_event event);
 

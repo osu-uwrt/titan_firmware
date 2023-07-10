@@ -102,62 +102,90 @@ bool ms5837_busy(void) {
 // ========================================
 
 /**
- * @brief Does calculations with PROM and ADC readings to calculate the pressure and temperature readings for the MS5837-30BA sensor
- * Taken from the datasheet (And previous python firmware)
+ * @brief Does calculations with PROM and ADC readings to calculate the pressure and temperature readings
  *
- * @param depth_prom The PROM of the sensor
- * @param D1 The ADC reading of the D1 Conversion
+ * @param inst Sensor Instance
  * @param D2 The ADC reading of the D2 Conversion
  * @param pressure_out Pointer to write the pressure from the conversion
  * @param temp_out Pointer to write the temperature from the conversion
  */
-static void ms5837_30ba_calculate(uint16_t depth_prom[], uint32_t D1, uint32_t D2, int32_t *pressure_out, int32_t *temp_out) {
-    int64_t OFFi = 0;
-    int64_t SENSi = 0;
-    int Ti = 0;
+static void ms5837_calculate(struct depth_state *inst, uint32_t D2, int32_t *pressure_out, int32_t *temp_out) {
+    uint32_t D1 = inst->d1_temp;
+    uint16_t *C = inst->sensor_prom;
+    enum depth_sensor_type model = inst->sensor_type;
 
-    int32_t dT = D2-((int32_t)depth_prom[5]) * 256;
-    int64_t SENS = ((int64_t)depth_prom[1]) * 32768 + (((int64_t)depth_prom[3]) * dT)/256;
-    int64_t OFF = ((int64_t)depth_prom[2])*65536+(((int64_t)depth_prom[4])*dT)/128;
-    //int32_t pressure = (D1*SENS/(2097152)-OFF)/(8192);
+    // Modified from Blue Robotics Depth Sensor Arduino Library
+    // Given C1-C6 and D1, D2, calculated TEMP and P
+	// Do conversion first and then second order temp compensation
 
-    int32_t temp = 2000+dT*((int64_t)depth_prom[6])/8388608;
+	int32_t dT = 0;
+	int64_t SENS = 0;
+	int64_t OFF = 0;
+	int32_t SENSi = 0;
+	int32_t OFFi = 0;
+	int32_t Ti = 0;
+	int64_t OFF2 = 0;
+	int64_t SENS2 = 0;
+    int32_t TEMP = 0;
+    int32_t P = 0;
 
-    // Second order compensation
+	// Terms called
+	dT = D2-(uint32_t)(C[5])*256l;
+	if ( model == MS5837_02BA ) {
+		SENS = (int64_t)(C[1])*65536l+((int64_t)(C[3])*dT)/128l;
+		OFF = (int64_t)(C[2])*131072l+((int64_t)(C[4])*dT)/64l;
+		P = (D1*SENS/(2097152l)-OFF)/(32768l);
+	} else {
+		SENS = (int64_t)(C[1])*32768l+((int64_t)(C[3])*dT)/256l;
+		OFF = (int64_t)(C[2])*65536l+((int64_t)(C[4])*dT)/128l;
+		P = (D1*SENS/(2097152l)-OFF)/(8192l);
+	}
 
-    if ((temp/100) < 20) { // Low temp
-        Ti = (3*dT*dT)/(8589934592);
-        OFFi = (3*(temp-2000)*(temp-2000))/2;
-        SENSi = (5*(temp-2000)*(temp-2000))/8;
-        if ((temp/100) < -15) { // Very low temp
-            OFFi = OFFi+7*(temp+1500)*(temp+1500);
-            SENSi = SENSi+4*(temp+1500)*(temp+1500);
-        }
-    } else if ((temp/100) >= 20) { // High temp
-        Ti = 2*(dT*dT)/(137438953472);
-        OFFi = (1*(temp-2000)*(temp-2000))/16;
-        SENSi = 0;
+	// Temp conversion
+	TEMP = 2000l+(int64_t)(dT)*C[6]/8388608LL;
+
+	//Second order compensation
+	if ( model == MS5837_02BA ) {
+		if((TEMP/100)<20){         //Low temp
+			Ti = (11*(int64_t)(dT)*(int64_t)(dT))/(34359738368LL);
+			OFFi = (31*(TEMP-2000)*(TEMP-2000))/8;
+			SENSi = (63*(TEMP-2000)*(TEMP-2000))/32;
+		}
+	} else {
+		if((TEMP/100)<20){         //Low temp
+			Ti = (3*(int64_t)(dT)*(int64_t)(dT))/(8589934592LL);
+			OFFi = (3*(TEMP-2000)*(TEMP-2000))/2;
+			SENSi = (5*(TEMP-2000)*(TEMP-2000))/8;
+			if((TEMP/100)<-15){    //Very low temp
+				OFFi = OFFi+7*(TEMP+1500l)*(TEMP+1500l);
+				SENSi = SENSi+4*(TEMP+1500l)*(TEMP+1500l);
+			}
+		}
+		else if((TEMP/100)>=20){    //High temp
+			Ti = 2*(dT*dT)/(137438953472LL);
+			OFFi = (1*(TEMP-2000)*(TEMP-2000))/16;
+			SENSi = 0;
+		}
+	}
+
+	OFF2 = OFF-OFFi;           //Calculate pressure and temp second order
+	SENS2 = SENS-SENSi;
+
+	TEMP = (TEMP-Ti);
+
+	if ( model == MS5837_02BA ) {
+		P = (((D1*SENS2)/2097152l-OFF2)/32768l);
+	} else {
+		P = (((D1*SENS2)/2097152l-OFF2)/8192l);
+	}
+
+    if ( model == MS5837_02BA ) {
+        *pressure_out = P;  // Bar02 is already in Pa (0.01 mbar)
     }
-
-    int64_t OFF2 = OFF-OFFi;
-    int64_t SENS2 = SENS-SENSi;
-
-    *temp_out = (temp-Ti);
-    *pressure_out = (((D1*SENS2)/2097152-OFF2)/8192)/10.0;
-}
-
-/**
- * @brief Does calculations with PROM and ADC readings to calculate the pressure and temperature readings for the MS5837-02BA sensor
- * Taken from the datasheet (And previous python firmware)
- *
- * @param depth_prom The PROM of the sensor
- * @param D1 The ADC reading of the D1 Conversion
- * @param D2 The ADC reading of the D2 Conversion
- * @param pressure_out Pointer to write the pressure from the conversion
- * @param temp_out Pointer to write the temperature from the conversion
- */
-static void ms5837_02ba_calculate(uint16_t depth_prom[], uint32_t D1, uint32_t D2, int32_t *pressure_out, int32_t *temp_out) {
-    // TODO: Fill me out
+    else {
+        *pressure_out = P*10;  // Bar30 is in units of 0.1 mbar, need to get to Pa
+    }
+    *temp_out = TEMP;
 }
 
 
@@ -182,7 +210,7 @@ void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837
     inst->req.address = DEPTH_I2C_ADDR;
     inst->req.nostop = false;
     inst->req.tx_buffer = &inst->cmd;
-    inst->req.rx_buffer = &inst->rx_buf;
+    inst->req.rx_buffer = inst->rx_buf;
     inst->req.bytes_to_send = 1;
     inst->req.failed_callback = &ms5837_i2c_error_cb;
     inst->req.next_req_on_success = NULL;
@@ -360,15 +388,7 @@ static void ms5837_adc_read_finished(const struct async_i2c_request *req){
 
     // Calculate depth and pressure from calibration and the two conversions
     int32_t pressure, temp;
-    if (inst->sensor_type == MS5837_30BA) {
-        ms5837_30ba_calculate(inst->sensor_prom, inst->d1_temp, d2, &pressure, &temp);
-    }
-    else if (inst->sensor_type == MS5837_02BA) {
-        ms5837_02ba_calculate(inst->sensor_prom, inst->d1_temp, d2, &pressure, &temp);
-    }
-    else {
-        invalid_params_if(DEPTH, true);
-    }
+    ms5837_calculate(inst, d2, &pressure, &temp);
 
     // Report the conversion data
     inst->performing_operation = false;

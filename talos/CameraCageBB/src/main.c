@@ -141,7 +141,7 @@ int main() {
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
 
-    depth_init(BOARD_I2C, MS5837_30BA, &depth_sensor_error_cb);
+    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
     // Status Strip Initialization
     bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));

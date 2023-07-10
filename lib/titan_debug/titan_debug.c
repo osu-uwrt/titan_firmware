@@ -1,3 +1,4 @@
+#include <string.h>
 #include "pico/unique_id.h"
 
 #include "titan/debug.h"

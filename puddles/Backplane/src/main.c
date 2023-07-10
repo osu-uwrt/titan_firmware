@@ -8,7 +8,6 @@
 #include "titan/logger.h"
 #include "titan/version.h"
 
-#include "depth_sensor.h"
 #include "128D818.h"
 #include "dshot.h"
 #include "ros.h"
