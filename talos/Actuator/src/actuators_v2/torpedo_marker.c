@@ -111,7 +111,8 @@ void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t targe
         }
 
         // Make sure we're still enabled and the target is our target before processing the state data
-        if (torque_enabled && target_position == torpedo_marker_target_position) {
+        else if (torque_enabled && target_position == torpedo_marker_target_position) {
+
             bool in_position;
             if (current_position > target_position + HOME_MARGIN) {
                 in_position = false;
