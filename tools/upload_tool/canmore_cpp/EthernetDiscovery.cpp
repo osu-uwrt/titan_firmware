@@ -22,7 +22,7 @@ using namespace Canmore;
 EthernetDiscovery::EthernetDiscovery() {
     // Open socket
     int socketFd;
-	if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0)) < 0) {
+	if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
 
@@ -96,6 +96,21 @@ uint64_t EthernetNormalDevice::getFlashId() {
     return cachedFlashId.doubleword;
 }
 
+std::string EthernetNormalDevice::getAppVersion() {
+    if (!isAppVersionCached) {
+        try {
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            auto debugClient = DebugClient(interface);
+            cachedAppVersion = debugClient.getVersion();
+            isAppVersionCached = true;
+        } catch (RegMappedClientError &e) {
+            return "";
+        }
+    }
+
+    return cachedAppVersion;
+}
+
 std::shared_ptr<BootloaderClient> EthernetNormalDevice::switchToBootloaderMode() {
     auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
     auto debugClient = DebugClient(interface);
@@ -131,6 +146,27 @@ uint64_t EthernetBootloaderDevice::getFlashId() {
     }
 
     return cachedFlashId.doubleword;
+}
+
+std::string EthernetBootloaderDevice::getBLVersion() {
+    if (!isBLVersionCached) {
+        try {
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+
+            uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
+            if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
+                throw BootloaderError("Unexpected bootloader magic");
+            }
+
+            cachedBLVersion = interface->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM);
+            isBLVersionCached = true;
+        } catch (RegMappedClientError &e) {
+            return "";
+        }
+    }
+
+    return cachedBLVersion;
 }
 
 std::shared_ptr<BootloaderClient> EthernetBootloaderDevice::getClient() {

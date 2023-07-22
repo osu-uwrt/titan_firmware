@@ -1,3 +1,4 @@
+#include <cxxabi.h>
 #include <iostream>
 #include <filesystem>
 #include <memory>
@@ -5,11 +6,12 @@
 #include <thread>
 #include <net/if.h>
 
-#include "RP2040FlashInterface.hpp"
+#include "UploadTool.hpp"
 #include "titan/canmore.h"
 #include "canmore_cpp/Discovery.hpp"
 #include "canmore_cpp/BootloaderClient.hpp"
 #include "canmore_cpp/RegMappedClient.hpp"
+#include "pico_usb/USBDiscovery.hpp"
 
 #ifndef DEVICE_DEFINITIONS_FILE
 #error DEVICE_DEFINITIONS_FILE must be defined as json file relative to application
@@ -62,6 +64,7 @@ public:
     bool waitInBootDelay;
     bool justPullInfo;
     bool allowBootloaderOverwrite;
+    bool alwaysPromptForDev;
     bool showHelpAndQuit;
     const char *filename;
     const char *progname;
@@ -70,7 +73,7 @@ public:
 
     CANBlToolArgs(int argc, char** argv):
             // Define default args
-            waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), showHelpAndQuit(false), filename(""),
+            waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), alwaysPromptForDev(false), showHelpAndQuit(false), filename(""),
 
             // Attributes
             progname("[???]"), parseSuccessful(false), argc(argc), argv(argv), positionalIndex(0) {
@@ -88,6 +91,8 @@ public:
         std::cout << "\t\tPrints information from the passed file and quits" << std::endl;
         std::cout << "\t-w: Wait for Boot" << std::endl;
         std::cout << "\t\tPrompts to wait for device in boot" << std::endl;
+        std::cout << "\t-p: Always Prompt for Device" << std::endl;
+        std::cout << "\t\tDisable automatic device selection, and instead always prompts the user for which RP2040 to upload to" << std::endl;
         std::cout << "\tuf2: A UF2 file to flash" << std::endl;
     }
 
@@ -146,6 +151,9 @@ private:
                 case 'w':
                     waitInBootDelay = true;
                     break;
+                case 'p':
+                    alwaysPromptForDev = true;
+                    break;
                 case 'h':
                     showHelpAndQuit = true;
                     break;
@@ -166,82 +174,97 @@ private:
 };
 
 int main(int argc, char** argv) {
-    // Load in device map
-    fs::path applicationPath = argv[0];
-    auto deviceDefinitionPath = applicationPath.parent_path().append(DEVICE_DEFINITIONS_FILE);
-    if (!fs::exists(deviceDefinitionPath)) {
-        throw std::runtime_error("Cannot locate device file '" DEVICE_DEFINITIONS_FILE "' in application directory");
-    }
-    UploadTool::DeviceMap devMap(deviceDefinitionPath);
-
-    // Pull arguments
-    CANBlToolArgs blArgs(argc, argv);
-    if (!blArgs.parseSuccessful) {
-        std::cout << "Run '" << blArgs.progname << " -h' to show help." << std::endl;
-        return 1;
-    }
-    if (blArgs.showHelpAndQuit) {
-        blArgs.printHelp();
-        return 0;
-    }
-
-    // Load in file
-    UploadTool::RP2040UF2 uf2(blArgs.filename);
-
-    if (blArgs.justPullInfo) {
-        UploadTool::dumpUF2(uf2);
-        return 0;
-    }
-
-    // ===== Discover devices =====
-    std::vector<std::shared_ptr<UploadTool::RP2040Discovery>> discoverySources;
-    discoverySources.push_back(Canmore::EthernetDiscovery::create());
-
-    // Discover all CAN interfaces
-    struct if_nameindex *if_nidxs, *intf;
-    if_nidxs = if_nameindex();
-    if (if_nidxs != NULL)
-    {
-        for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++)
-        {
-            if (isValidCANDevice(intf->if_name)) {
-                discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
-            }
+    try {
+        // Load in device map
+        fs::path applicationPath = argv[0];
+        auto deviceDefinitionPath = applicationPath.parent_path().append(DEVICE_DEFINITIONS_FILE);
+        if (!fs::exists(deviceDefinitionPath)) {
+            throw std::runtime_error("Cannot locate device file '" DEVICE_DEFINITIONS_FILE "' in application directory");
         }
-        if_freenameindex(if_nidxs);
-    }
+        UploadTool::DeviceMap devMap(deviceDefinitionPath);
 
-    std::shared_ptr<UploadTool::RP2040FlashInterface> interface;
-    if (blArgs.waitInBootDelay) {
-        interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2);
-    }
-    else {
-        // Wait for devices to appear
-        std::cout << "Waiting for devices..." << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-        // Find all discovered devices
-        std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
-        for (auto discovery : discoverySources) {
-            std::vector<std::shared_ptr<UploadTool::RP2040Device>> interfaceDiscovered;
-            discovery->discoverDevices(interfaceDiscovered);
-            discovered.insert(std::end(discovered), std::begin(interfaceDiscovered), std::end(interfaceDiscovered));
+        // Pull arguments
+        CANBlToolArgs blArgs(argc, argv);
+        if (!blArgs.parseSuccessful) {
+            std::cout << "Run '" << blArgs.progname << " -h' to show help." << std::endl;
+            return 1;
         }
-
-        if (discovered.size() == 0) {
-            std::cout << "No devices to select" << std::endl;
+        if (blArgs.showHelpAndQuit) {
+            blArgs.printHelp();
             return 0;
         }
 
-        auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, true);
-        interface = dev->getFlashInterface();
+        // Load in file
+        UploadTool::RP2040UF2 uf2(blArgs.filename);
+
+        if (blArgs.justPullInfo) {
+            UploadTool::dumpUF2(uf2);
+            return 0;
+        }
+
+        // ===== Discover devices =====
+        std::vector<std::shared_ptr<UploadTool::RP2040Discovery>> discoverySources;
+        discoverySources.push_back(Canmore::EthernetDiscovery::create());
+        discoverySources.push_back(PicoUSB::USBDiscovery::create());
+
+        // Discover all CAN interfaces
+        struct if_nameindex *if_nidxs, *intf;
+        if_nidxs = if_nameindex();
+        if (if_nidxs != NULL)
+        {
+            for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++)
+            {
+                if (isValidCANDevice(intf->if_name)) {
+                    discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
+                }
+            }
+            if_freenameindex(if_nidxs);
+        }
+
+        std::shared_ptr<UploadTool::RP2040FlashInterface> interface;
+        if (blArgs.waitInBootDelay) {
+            interface = UploadTool::catchInBootDelay(discoverySources, devMap, uf2);
+        }
+        else {
+            // Wait for devices to appear
+            std::cout << "Waiting for devices..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+            // Find all discovered devices
+            std::vector<std::shared_ptr<UploadTool::RP2040Device>> discovered;
+            for (auto discovery : discoverySources) {
+                std::vector<std::shared_ptr<UploadTool::RP2040Device>> interfaceDiscovered;
+                discovery->discoverDevices(interfaceDiscovered);
+                discovered.insert(std::end(discovered), std::begin(interfaceDiscovered), std::end(interfaceDiscovered));
+            }
+
+            if (discovered.size() == 0) {
+                std::cout << "No devices to select" << std::endl;
+                return 0;
+            }
+
+            auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
+            interface = dev->getFlashInterface();
+        }
+
+        // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
+        // interface->readBytes(0x10000000, my_page);
+        // DumpHex(my_page.data(), my_page.size());
+
+        UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite);
+
     }
-
-    // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
-    // interface->readBytes(0x10000000, my_page);
-    // DumpHex(my_page.data(), my_page.size());
-
-    UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite);
+    catch (std::exception &e) {
+        int status;
+        char *exceptionName = abi::__cxa_demangle(abi::__cxa_current_exception_type()->name(), 0, 0, &status);
+        // const char *exceptionName = typeid(i).name();
+        std::cerr << std::endl << "[EXCEPTION] Exception '" << exceptionName << "' caused program termination" << std::endl;
+        free(exceptionName);
+        std::cerr << "  what():  " << e.what() << std::endl;
+    }
+    catch (...) {
+        std::cerr << std::endl << "[EXCEPTION] Unknown exception caused program termination" << std::endl;
+    }
 
     return 0;
 }

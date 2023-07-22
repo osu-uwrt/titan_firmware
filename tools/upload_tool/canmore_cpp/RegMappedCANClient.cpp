@@ -20,7 +20,7 @@ RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t ch
     ifIndex(ifIndex), clientId(clientId), channel(channel), socketFd(-1)
 {
     // Open socket
-	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW)) < 0) {
+	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
 

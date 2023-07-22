@@ -20,6 +20,7 @@ class DebugClient {
     public:
         DebugClient(std::shared_ptr<RegMappedClient> client);
 
+        std::string getVersion();
         uint64_t getFlashId() {return cachedFlashID.doubleword;}
         void enterBootloader();
 

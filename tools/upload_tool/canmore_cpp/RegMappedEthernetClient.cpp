@@ -23,7 +23,7 @@ RegMappedEthernetClient::RegMappedEthernetClient(struct in_addr ipAddr, uint16_t
     destaddr.sin_port = htons(port);
 
     // Open socket
-	if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0)) < 0) {
+	if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
 

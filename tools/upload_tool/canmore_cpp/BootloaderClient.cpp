@@ -33,7 +33,7 @@ uint32_t crc32_compute(const uint8_t *data, size_t len) {
     return crc32;
 }
 
-BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): client(client), erasedSectors(0), writtenPages(0) {
+BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): client(client) {
     RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
@@ -78,7 +78,7 @@ std::string BootloaderClient::getVersion() {
 
 void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
     if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK) != 0) {
-        throw BootloaderError("Invalid Read Address");
+        throw std::logic_error("Invalid Read Address");
     }
 
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
@@ -99,25 +99,16 @@ void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZ
 }
 
 void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) {
-    if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK) != 0) {
-        throw BootloaderError("Invalid Write Address");
+    if (bytes.size() != CANMORE_BL_FLASH_BUFFER_SIZE) {
+        throw std::logic_error("Invalid write size");
     }
-    if (bytes.size() > CANMORE_BL_FLASH_BUFFER_SIZE) {
-        throw BootloaderError("Buffer larger than flash page");
+    if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_WRITE_ADDR_ALIGN_MASK) != 0) {
+        throw std::logic_error("Invalid Write Address");
     }
 
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
-    uint32_t sectorNum = (addr - FLASH_BASE) / CANMORE_BL_FLASH_ERASE_SIZE;
-    uint32_t pageNum = (addr - FLASH_BASE) / CANMORE_BL_FLASH_BUFFER_SIZE;
-
-    // Make sure the page hasn't been written yet
-    if (writtenPages.test(pageNum)) {
-        throw BootloaderError("Attempting to write to already written page");
-    }
-    writtenPages.flip(pageNum);
-
-    // Fill flashContents making sure to handle unaligned write sizes
+    // Convert 8-bit array to 32-bit word vector which can be written
     std::vector<uint32_t> flashContents(CANMORE_BL_FLASH_BUFFER_SIZE/sizeof(uint32_t), 0);
     size_t bytesSize = bytes.size();
     for (size_t word = 0; (word * 4) < bytesSize; word++) {
@@ -129,25 +120,29 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
         flashContents.at(word) = value;
     }
 
-    // First erase if needed
-    if (!erasedSectors.test(sectorNum)) {
-        erasedSectors.flip(sectorNum);
-        flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr & (~CANMORE_BL_FLASH_ERASE_ADDR_ALIGN_MASK));
-        flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_ERASE);
-    }
-
     // Write the data
     client->writeArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0, flashContents);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_WRITE);
 }
 
+void BootloaderClient::eraseSector(uint32_t addr) {
+    if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_ERASE_ADDR_ALIGN_MASK) != 0) {
+        throw std::logic_error("Invalid Write Address");
+    }
+
+    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+
+    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
+    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_ERASE);
+}
+
 bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) {
     if (addr < FLASH_BASE || addr - FLASH_BASE >= cachedFlashSize || (addr & CANMORE_BL_FLASH_READ_ADDR_ALIGN_MASK) != 0) {
-        throw BootloaderError("Invalid Write Address");
+        throw std::logic_error("Invalid Verify Address");
     }
-    if (bytes.size() > CANMORE_BL_FLASH_BUFFER_SIZE) {
-        throw BootloaderError("Buffer larger than flash page");
+    if (bytes.size() != CANMORE_BL_FLASH_BUFFER_SIZE) {
+        throw std::logic_error("Buffer does not match flash page size");
     }
 
     RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);

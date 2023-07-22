@@ -50,6 +50,11 @@
         "boardType": "mk2/sbh_mcu",
         "serial": "E66214550761C627"
     },
+    {
+        "name": "Smart Battery Housing #3",
+        "boardType": "mk2/sbh_mcu",
+        "serial": "E6621455074A9D27"
+    },
 
 
 
@@ -119,7 +124,7 @@
         // for prototyping a project we had, so it got a little more stable. But it still occasionally gets stuck during startup
         // and hangs initializing clocks. So I never trusted it enough to run at the 2021 competition [and hence Jerry was made]
         "name": "Original RP2040 Eval Board",
-        "boardType": "mk1/actuator_mk1_hat",
+        "boardType": "mk1/rp2040_eval_board",
         "serial": "E460CCB01B3F532C"
     },
     {

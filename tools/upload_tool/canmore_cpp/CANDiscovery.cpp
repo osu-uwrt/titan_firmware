@@ -29,7 +29,7 @@ CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
 
     // Open socket
     int socketFd;
-	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW)) < 0) {
+	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
 	}
 
@@ -120,6 +120,21 @@ uint64_t CANNormalDevice::getFlashId() {
     return cachedFlashId.doubleword;
 }
 
+std::string CANNormalDevice::getAppVersion() {
+    if (!isAppVersionCached) {
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            auto debugClient = DebugClient(interface);
+            cachedAppVersion = debugClient.getVersion();
+            isAppVersionCached = true;
+        } catch (RegMappedClientError &e) {
+            return "";
+        }
+    }
+
+    return cachedAppVersion;
+}
+
 std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
     auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
     auto debugClient = DebugClient(interface);
@@ -155,6 +170,27 @@ uint64_t CANBootloaderDevice::getFlashId() {
     }
 
     return cachedFlashId.doubleword;
+}
+
+std::string CANBootloaderDevice::getBLVersion() {
+    if (!isBLVersionCached) {
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+
+            uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
+            if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {
+                throw BootloaderError("Unexpected bootloader magic");
+            }
+
+            cachedBLVersion = interface->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM);
+            isBLVersionCached = true;
+        } catch (RegMappedClientError &e) {
+            return "";
+        }
+    }
+
+    return cachedBLVersion;
 }
 
 std::shared_ptr<BootloaderClient> CANBootloaderDevice::getClient() {

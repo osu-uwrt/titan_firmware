@@ -15,7 +15,7 @@
 #include <functional>
 #include <ctime>
 
-#include "RP2040FlashInterface.hpp"
+#include "UploadTool.hpp"
 #include "boot/uf2.h"
 #include "pico/binary_info.h"
 #include "titan/binary_info.h"
@@ -267,17 +267,17 @@ private:
 };
 
 struct device_memory_access : public aligned_memory_access {
-    device_memory_access(std::shared_ptr<RP2040FlashInterface> dev, uint32_t offset = 0) :
+    device_memory_access(RP2040FlashInterface& dev, uint32_t offset = 0) :
         dev(dev), baseAddr(FLASH_BASE + offset) {}
 
     uint32_t getBaseAddress() override {return baseAddr;}
-    uint32_t getSize() override {return dev->getFlashSize();}
+    uint32_t getSize() override {return dev.getFlashSize();}
 
     std::array<uint8_t, UF2_PAGE_SIZE>& readBlock(uint32_t address) override {
         auto it = readCache.find(address);
         if (it == readCache.end()) {
             std::array<uint8_t, UF2_PAGE_SIZE> block;
-            dev->readBytes(address, block);
+            dev.readBytes(address, block);
             readCache.insert({address, block});
 
             return readCache.at(address);
@@ -287,7 +287,7 @@ struct device_memory_access : public aligned_memory_access {
     }
 
 private:
-    std::shared_ptr<RP2040FlashInterface> dev;
+    RP2040FlashInterface& dev;
     uint32_t baseAddr;
     std::map<uint32_t, std::array<uint8_t, UF2_PAGE_SIZE>> readCache;
 };
@@ -596,8 +596,7 @@ std::string intToIp(uint32_t ipWord){
     return ss.str();
 }
 
-void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, uint32_t base) {
-    auto raw_access = uf2_memory_access(uf2);
+void extractBinaryInfo(memory_access &raw_access, RP2040Application &appData, uint32_t base) {
     try {
         binary_info_header hdr;
         if (find_binary_info(raw_access, hdr, base)) {
@@ -663,60 +662,47 @@ void extractBinaryInfo(RP2040UF2 &uf2, RP2040UF2::RP2040Application &appData, ui
     }
 }
 
-uint32_t getBootloaderAppBase(std::shared_ptr<RP2040FlashInterface> itf) {
-    bool bootloaderFound = false;
-    uint32_t appImageBase = 0;
-    auto raw_access = device_memory_access(itf);
-    try {
-        binary_info_header hdr;
-        if (find_binary_info(raw_access, hdr)) {
-            auto access = remapped_memory_access(raw_access, hdr.reverse_copy_mapping);
-            auto visitor = bi_visitor{};
-            visitor.id_and_int([&](int tag, uint32_t id, uint32_t value) {
-                if (tag != BINARY_INFO_TAG_UWRT)
-                    return;
-                if (id == BINARY_INFO_ID_UW_BOOTLOADER_ENABLED) bootloaderFound = !!value;
-                if (id == BINARY_INFO_ID_UW_APPLICATION_BASE) appImageBase = value;
-            });
-            visitor.visit(access, hdr);
-        }
-    }
-    catch (not_mapped_exception&) {
-        // Ignore memory read failure, just return that no bootloader was found
-    }
-
-    if (bootloaderFound) {
-        return appImageBase;
-    } else {
-        return 0;
-    }
+void extractBinaryInfo(RP2040UF2 &uf2, RP2040Application &appData, uint32_t base) {
+    auto raw_access = uf2_memory_access(uf2);
+    extractBinaryInfo(raw_access, appData, base);
 }
 
-std::string getOTAVersionString(std::shared_ptr<RP2040FlashInterface> itf) {
-    std::string version;
-    uint32_t appBase = getBootloaderAppBase(itf);
+void extractBinaryInfo(RP2040FlashInterface& itf, RP2040Application &appData, uint32_t base) {
+    auto raw_access = device_memory_access(itf);
+    extractBinaryInfo(raw_access, appData, base);
+}
 
-    if (appBase != 0) {
-        auto raw_access = device_memory_access(itf);
-        try {
-            binary_info_header hdr;
-            if (find_binary_info(raw_access, hdr)) {
-                auto access = remapped_memory_access(raw_access, hdr.reverse_copy_mapping);
-                auto visitor = bi_visitor{};
-                visitor.id_and_string([&](int tag, uint32_t id, std::string value) {
-                    if (tag == BINARY_INFO_TAG_RASPBERRY_PI &&
-                        id == BINARY_INFO_ID_RP_PROGRAM_VERSION_STRING)
-                        version = value;
-                });
-                visitor.visit(access, hdr);
+void reportVersionInfo(std::vector<std::pair<std::string, std::string>> &infoOut, RP2040Application &firstApp, RP2040Application &nestedApp) {
+    // If has bootloader, report it
+    if (firstApp.isBootloader) {
+        // Show bootloader version if present
+        if (firstApp.programName.size() > 0) {
+            if (firstApp.programVersion.size() > 0) {
+                infoOut.emplace_back("BL Version", firstApp.programName + " " + firstApp.programVersion);
+            } else {
+                infoOut.emplace_back("BL Name", firstApp.programName);
             }
         }
-        catch (not_mapped_exception&) {
-            // Ignore memory read failure, just return that no bootloader was found
+
+        // Show app version if present
+        if (nestedApp.programName.size() > 0) {
+            if (nestedApp.programVersion.size() > 0) {
+                infoOut.emplace_back("App Version", nestedApp.programName + " " + nestedApp.programVersion);
+            } else {
+                infoOut.emplace_back("App Name", nestedApp.programName);
+            }
         }
     }
-
-    return version;
+    // If not, its either app version or it doesn't have UF2 data
+    else {
+        if (firstApp.programName.size() > 0) {
+            if (firstApp.programVersion.size() > 0) {
+                infoOut.emplace_back("App Version", firstApp.programName + " " + firstApp.programVersion);
+            } else {
+                infoOut.emplace_back("App Name", firstApp.programName);
+            }
+        }
+    }
 }
 
 }

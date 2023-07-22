@@ -42,11 +42,15 @@ class Device: public UploadTool::RP2040Device {
 
         virtual ~Device() {}
 
-        // RP2040Discovery overrides
-        std::string getMode() const override {return "Unknown";}
+        // RP2040Device overrides
+        virtual std::string getMode() const {return "Unknown";}
         std::string getInterface() const override {return interfaceName + " - Client " + std::to_string(clientId);}
         uint64_t getFlashId() override {return 0;}                      // Just return null flash ID unless its supported
-        bool supportsFlashInterface() const override {return false;}    // By default device doesn't support bootloader
+        bool supportsFlashInterface() const override {return false;}    // Unknown mode, don't know how to get it into bootloader
+        void getAdditionalInfo(std::vector<std::pair<std::string, std::string>> &infoOut) override {
+            // Any additional info to show, in this case which mode the canmore device is in
+            infoOut.emplace_back("Mode", this->getMode());
+        }
 
         // Attributes
         const std::string interfaceName;
@@ -73,10 +77,18 @@ class NormalDevice: public Device {
     public:
         using Device::Device;
 
+        virtual std::string getAppVersion() = 0;
         virtual uint64_t getFlashId() = 0;
         virtual std::shared_ptr<BootloaderClient> switchToBootloaderMode() = 0;
 
-        // RP2040Discovery overrides
+        void getAdditionalInfo(std::vector<std::pair<std::string, std::string>> &infoOut) override {
+            Device::getAdditionalInfo(infoOut);
+
+            // Show the app version for Normal Mode devices
+            infoOut.emplace_back("App Version", this->getAppVersion());
+        }
+
+        // RP2040Device overrides
         std::string getMode() const override {return "Application";}
         bool supportsFlashInterface() const override {return true;}
         std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
@@ -89,7 +101,7 @@ class BootDelayDevice: public Device {
 
         virtual std::shared_ptr<BootloaderClient> enterBootloader() = 0;
 
-        // RP2040Discovery overrides
+        // RP2040Device overrides
         std::string getMode() const override {return "Boot Delay";}
         // Note although it can be switched to bootloader in this mode, the delay is too short to allow it to be selected
         // Instead just report it can't switch, and require the command line flag to enter the mode
@@ -100,10 +112,18 @@ class BootloaderDevice: public Device {
     public:
         using Device::Device;
 
+        virtual std::string getBLVersion() = 0;
         virtual uint64_t getFlashId() = 0;
         virtual std::shared_ptr<BootloaderClient> getClient() = 0;
 
-        // RP2040Discovery overrides
+        void getAdditionalInfo(std::vector<std::pair<std::string, std::string>> &infoOut) override {
+            Device::getAdditionalInfo(infoOut);
+
+            // Show the bootloader version for Bootloader Mode devices
+            infoOut.emplace_back("Bootloader Version", this->getBLVersion());
+        }
+
+        // RP2040Device overrides
         std::string getMode() const override {return "Bootloader";}
         bool supportsFlashInterface() const override {return true;}
         std::shared_ptr<UploadTool::RP2040FlashInterface> getFlashInterface() override
@@ -245,8 +265,9 @@ class CANNormalDevice: public NormalDevice {
         CANNormalDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
             NormalDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
             ifIndex(parentInterface.getInterfaceNum()),
-            isFlashIdCached(false) {}
+            isFlashIdCached(false), isAppVersionCached(false) {}
 
+        std::string getAppVersion() override;
         uint64_t getFlashId() override;
         std::shared_ptr<BootloaderClient> switchToBootloaderMode() override;
 
@@ -254,6 +275,8 @@ class CANNormalDevice: public NormalDevice {
         int ifIndex;
         union flash_id cachedFlashId;
         bool isFlashIdCached;
+        std::string cachedAppVersion;
+        bool isAppVersionCached;
 };
 
 class CANBootloaderDevice: public BootloaderDevice {
@@ -261,8 +284,10 @@ class CANBootloaderDevice: public BootloaderDevice {
         CANBootloaderDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
             BootloaderDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
             ifIndex(parentInterface.getInterfaceNum()),
-            isFlashIdCached(false) {}
+            isFlashIdCached(false),
+            isBLVersionCached(false) {}
 
+        std::string getBLVersion() override;
         uint64_t getFlashId() override;
         std::shared_ptr<BootloaderClient> getClient() override;
 
@@ -270,6 +295,8 @@ class CANBootloaderDevice: public BootloaderDevice {
         int ifIndex;
         union flash_id cachedFlashId;
         bool isFlashIdCached;
+        std::string cachedBLVersion;
+        bool isBLVersionCached;
 };
 
 class CANBootDelayDevice: public BootDelayDevice {
@@ -317,10 +344,11 @@ class EthernetNormalDevice: public NormalDevice {
         // Use lower byte of IP as client ID
         EthernetNormalDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
             NormalDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
-            isFlashIdCached(false) {
+            isFlashIdCached(false), isAppVersionCached(false) {
                 this->devAddr.s_addr = devAddr.s_addr;
             }
 
+        std::string getAppVersion() override;
         uint64_t getFlashId() override;
         std::shared_ptr<BootloaderClient> switchToBootloaderMode() override;
 
@@ -328,16 +356,19 @@ class EthernetNormalDevice: public NormalDevice {
         in_addr devAddr;
         union flash_id cachedFlashId;
         bool isFlashIdCached;
+        std::string cachedAppVersion;
+        bool isAppVersionCached;
 };
 
 class EthernetBootloaderDevice: public BootloaderDevice {
     public:
         EthernetBootloaderDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
             BootloaderDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
-            isFlashIdCached(false) {
+            isFlashIdCached(false), isBLVersionCached(false) {
                 this->devAddr.s_addr = devAddr.s_addr;
             }
 
+        std::string getBLVersion() override;
         uint64_t getFlashId() override;
         std::shared_ptr<BootloaderClient> getClient() override;
 
@@ -345,6 +376,8 @@ class EthernetBootloaderDevice: public BootloaderDevice {
         in_addr devAddr;
         union flash_id cachedFlashId;
         bool isFlashIdCached;
+        std::string cachedBLVersion;
+        bool isBLVersionCached;
 };
 
 class EthernetBootDelayDevice: public BootDelayDevice {
