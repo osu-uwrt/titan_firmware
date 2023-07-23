@@ -155,6 +155,11 @@ void USBDiscovery::discoverDevices(std::vector<std::shared_ptr<UploadTool::RP204
             std::cerr << "  Picoboot Connection Failur: Libusb error " << e.libusb_code << std::endl;
             std::cerr << std::endl;
         }
+        catch (PicoprobeError &e) {
+            std::cerr << "Error discovering RP2040 via Picoprobe:" << std::endl;
+            std::cerr << "  what(): " << e.what() << std::endl;
+            std::cerr << std::endl;
+        }
     }
 }
 

@@ -92,7 +92,7 @@ std::shared_ptr<RP2040BootromInterface> NormalDevice::switchToBootromMode() {
 
     // Ensure we actually got the device and return it
     if (newDev == nullptr) {
-        throw std::runtime_error("Failed to rediscover RP2040 in bootrom");
+        throw usb_error("Failed to rediscover RP2040 in bootrom", LIBUSB_ERROR_OTHER);
     }
 
     return newDev->getBootromInterface();

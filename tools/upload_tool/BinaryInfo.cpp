@@ -14,6 +14,7 @@
 #include <memory>
 #include <functional>
 #include <ctime>
+#include <limits>
 
 #include "UploadTool.hpp"
 #include "boot/uf2.h"

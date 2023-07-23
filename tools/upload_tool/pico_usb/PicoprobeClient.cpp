@@ -199,7 +199,7 @@ uint32_t PicoprobeClient::ssiTransfer(uint32_t tx, int timeout_ms) {
         sr = target.readWord(ssi_hw_sr_io_addr);
 
         if(std::chrono::steady_clock::now() - start > std::chrono::milliseconds(timeout_ms))
-            throw std::runtime_error("Timed out waiting for SSI ready");
+            throw PicoprobeError("Timed out waiting for SSI ready");
     }
 
     // Write tx fifo
@@ -212,7 +212,7 @@ uint32_t PicoprobeClient::ssiTransfer(uint32_t tx, int timeout_ms) {
         sr = target.readWord(ssi_hw_sr_io_addr);
 
         if(std::chrono::steady_clock::now() - start > std::chrono::milliseconds(timeout_ms))
-            throw std::runtime_error("Timed out waiting for SSI to respond");
+            throw PicoprobeError("Timed out waiting for SSI to respond");
     }
 
     // Read RX fifo

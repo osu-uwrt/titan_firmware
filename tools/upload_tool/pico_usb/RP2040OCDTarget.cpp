@@ -67,7 +67,7 @@ void RP2040OCDTarget::initNormal() {
     // Halt the cpu to get it ready to receive commands
     openocd->sendCommand("halt 3000", 5000);
     if (openocd->sendCommand("rp2040.core0 curstate") != "halted") {
-        throw std::runtime_error("Failed to halt CPU after init");
+        throw PicoprobeError("Failed to halt CPU after init");
     }
 
     // Clear resets on required elements for flash programming
@@ -90,9 +90,18 @@ void RP2040OCDTarget::initRescue() {
     openocd->sendCommand("rp2040.rescue_dap dpreg 0x4 0x00000000");
 
     // Readback to ensure the de-assert was successful
-    auto dpreg4 = std::stoul(openocd->sendCommand("rp2040.rescue_dap dpreg 0x4"));
+    auto result = openocd->sendCommand("rp2040.rescue_dap dpreg 0x4");
+
+    const char* parseStart = result.c_str();
+    char* parseEnd;
+    auto dpreg4 = std::strtoul(parseStart, &parseEnd, 16);
+
+    if (result.size() == 0 || parseStart + result.size() != parseEnd) {
+        throw PicoprobeError("Failed to connect to RP2040");
+    }
+
     if (dpreg4 & 0xf0000000) {
-        throw std::runtime_error("Failed to de-assert rescue DAP reset");
+        throw PicoprobeError("Failed to de-assert rescue DAP reset");
     }
 }
 
@@ -108,7 +117,7 @@ uint32_t RP2040OCDTarget::readWord(uint32_t addr, int width) {
 
     uint32_t value;
     if (!(parseStream >> value)) {
-        throw std::runtime_error("Failed to read memory");
+        throw PicoprobeError("Failed to read memory");
     }
     return value;
 }
@@ -140,7 +149,7 @@ std::vector<uint32_t> RP2040OCDTarget::readMemory(uint32_t addr, uint32_t count,
     }
 
     if (data.size() != count) {
-        throw std::runtime_error("Failed to read memory");
+        throw PicoprobeError("Failed to read memory");
     }
 
     return data;
@@ -166,7 +175,7 @@ void RP2040OCDTarget::readoutRom() {
     // Sanity check bootrom
     auto magic = readMemory(BOOTROM_MAGIC_ADDR, 4, 8);
     if (magic.at(0) != 'M' || magic.at(1) != 'u' || magic.at(2) != 1) {
-        throw std::runtime_error("Failed to discover RP2040 Bootrom");
+        throw PicoprobeError("Failed to discover RP2040 Bootrom");
     }
 
     bootromVersion = magic.at(3);
@@ -205,7 +214,7 @@ uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, 
     openocd->sendCommand("wait_halt " + std::to_string(timeout_ms), timeout_ms + 1000);
     std::string curstate = openocd->sendCommand("rp2040.core0 curstate");
     if (curstate != "halted") {
-        throw std::runtime_error("CPU failed to halt after function call. Found in state: " + curstate);
+        throw PicoprobeError("CPU failed to halt after function call. Found in state: " + curstate);
     }
 
     // Parse the current register state
@@ -218,18 +227,18 @@ uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, 
     std::string prefix;
     parseStream >> prefix;
     if (prefix != "pc") {
-        throw std::runtime_error("Malformed register response: " + regstate);
+        throw PicoprobeError("Malformed register response: " + regstate);
     }
 
     parseStream >> newPc;
     // Check equality ignoring LSB
     if ((newPc | 1) != (bkptAddr | 1)) {
-        throw std::runtime_error("CPU halted at unexpected addr: " + regstate);
+        throw PicoprobeError("CPU halted at unexpected addr: " + regstate);
     }
 
     parseStream >> prefix;
     if (prefix != "r0") {
-        throw std::runtime_error("Malformed register response: " + regstate);
+        throw PicoprobeError("Malformed register response: " + regstate);
     }
 
     parseStream >> newR0;

@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/wait.h>
@@ -74,10 +75,22 @@ OpenOCDInstance::OpenOCDInstance():
         const char *initScript = getenv("UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT");
 
         // If stderr is not explicitely enabled, replace stderr with /dev/null to supress output
+        int stderrFd = STDERR_FILENO;
         if (!enableStderr) {
+            // Backup stderr so we can still report errors until we exec
+            stderrFd = dup(STDERR_FILENO);
+            if (stderrFd < 0) {
+                perror("dup(STDERR_FILENO)");
+                exit(1);
+            }
+            if (fcntl(stderrFd, F_SETFD, FD_CLOEXEC) == -1) {
+                perror("fcntl(FD_CLOEXEC)");
+            }
+
+            // Open dev null and replace stderr
             int nullfd = open("/dev/null", O_WRONLY);
             if (nullfd < 0) {
-                perror("open");
+                perror("open(/dev/null)");
                 exit(1);
             }
             if (dup2(nullfd, STDERR_FILENO) < 0) {
@@ -100,7 +113,14 @@ OpenOCDInstance::OpenOCDInstance():
             execlp(execPath, execPath, "-c", "gdb_port disabled", "-c", "telnet_port disabled", "-c", "tcl_port pipe",
                     "-c", "noinit", NULL);
         }
-        std::cerr << "[ERROR] Failed to execute '" << execPath << "': " << std::strerror(errno) << std::endl;
+
+        // Create error message to write to stderr (our duplicated f)
+        std::stringstream errStream;
+        errStream << "Failed to execute '" << execPath << "': " << std::strerror(errno) << std::endl;
+        auto errStr = errStream.str();
+
+        // No use checking for error, as if we can't actually write to stderr, we don't have anywhere to put it
+        write(stderrFd, errStr.c_str(), errStr.size());
         exit(1);
     }
     else if (openocdPid < 0) {
@@ -125,6 +145,7 @@ OpenOCDInstance::~OpenOCDInstance() {
         if (ret == 0) {
             // If process is still alive, attempt a graceful shutdown
             try {
+                sendCommand("reset");
                 sendCommand("shutdown");
             }
             catch (std::exception &e) {}  // Ignore any errors
@@ -182,13 +203,13 @@ void OpenOCDInstance::writeData(std::string data) {
     ret = write(stdinFd, data.c_str(), data.length());
     if (ret < 0) {
         if (errno == EPIPE) {
-            throw std::runtime_error("OpenOCD stdin pipe broken");
+            throw PicoprobeError("OpenOCD stdin pipe broken");
         }
         else {
             throw std::system_error(errno, std::generic_category(), "write");
         }
     } else if ((size_t)ret != data.length()) {
-        throw std::runtime_error("OpenOCD stdin pipe failed to fully write");
+        throw PicoprobeError("OpenOCD stdin pipe failed to fully write");
     }
 }
 
@@ -215,11 +236,11 @@ std::string OpenOCDInstance::readData(int timeout_ms) {
     }
     else if (fds[0].revents & POLLHUP) {
         // If hangup event, then the other end of the pipe was broken
-        throw std::runtime_error("OpenOCD stdout pipe broken");
+        throw PicoprobeError("OpenOCD stdout pipe broken");
     }
     else {
         // Else then we don't have any events, and the pipe timed out
-        throw std::runtime_error("OpenOCD stdout pipe timeout");
+        throw PicoprobeError("OpenOCD stdout pipe timeout");
     }
 }
 
@@ -241,7 +262,7 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
         if (out.back() == '\x1A') break;
 
         if (out.find('\x1A') != std::string::npos) {
-            throw std::runtime_error("OpenOCD sent extra data after command separator");
+            throw PicoprobeError("OpenOCD sent extra data after command separator");
         }
     }
 
@@ -252,7 +273,7 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
 void OpenOCDInstance::init() {
     sendCommand("init");
     if (sendCommand("command mode") != "exec") {
-        throw std::runtime_error("Failed to initialize OpenOCD. Enable openocd stderr for more details");
+        throw PicoprobeError("Failed to initialize OpenOCD. Enable openocd stderr for more details");
     }
 }
 

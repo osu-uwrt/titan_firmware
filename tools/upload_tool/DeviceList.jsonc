@@ -55,6 +55,16 @@
         "boardType": "mk2/sbh_mcu",
         "serial": "E6621455074A9D27"
     },
+    {
+        "name": "Smart Battery Housing #4",
+        "boardType": "mk2/sbh_mcu",
+        "serial": "E6621455075B8127"
+    },
+    {
+        "name": "Smart Battery Housing #5",
+        "boardType": "mk2/sbh_mcu",
+        "serial": "E66214550758C027"
+    },
 
 
 

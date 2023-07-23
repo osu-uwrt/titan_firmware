@@ -7,6 +7,12 @@
 
 namespace PicoUSB {
 
+class PicoprobeError : public std::runtime_error {
+    public:
+        PicoprobeError(const char* msg): std::runtime_error(msg) {};
+        PicoprobeError(const std::string& msg): std::runtime_error(msg) {};
+};
+
 class OpenOCDInstance {
 public:
     struct OpenOCDVersion {
