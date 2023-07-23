@@ -114,18 +114,18 @@ static void led_subscription_callback(const void * msgin)
 static void physkill_notify_subscription_callback(const void * msgin)
 {
     // This topic is published whenever the physical killswitch topic is published
-    // This will flash the front of the LED strip for feedback that the kill switch is inserted
+    // This will flash the LED strip for feedback that the kill switch is inserted
     // This is required as the thrusters won't chime if software kill is active, so this is the only source of
     // feedback for whoever inserts the kill switch
 
 	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
     if (msg->data) {    // Note true means that the physical kill switch is asserted (switch removed)
         // Flash red on kill switch removal
-        status_strip_flash_front(255, 0, 0);
+        status_strip_status_flash(255, 0, 0);
     }
     else {
         // Flash blue on kill switch insertion
-        status_strip_flash_front(0, 0, 255);
+        status_strip_status_flash(0, 0, 255);
     }
 }
 

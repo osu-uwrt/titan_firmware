@@ -226,15 +226,9 @@ bool __time_critical_func(status_strip_refresh)(__unused repeating_timer_t *rt) 
                 }
             }
 
-            // Finally update the rear set of LEDs
-            if (inst->first_pixel_is_rear) {
-                inst->middle_cmd.data = command.data;
-                inst->end_cmd.data = flash_command.data;
-            }
-            else {
-                inst->end_cmd.data = command.data;
-                inst->middle_cmd.data = flash_command.data;
-            }
+            // Finally update the LEDs
+            inst->end_cmd.data = flash_command.data;
+            inst->middle_cmd.data = flash_command.data;
         }
         else {
             inst->end_cmd.data = command.data;
@@ -337,7 +331,7 @@ void status_strip_set(enum status_strip_mode mode, uint8_t red, uint8_t green, u
     restore_interrupts(prev_interrupts);
 }
 
-void status_strip_flash_front(uint8_t red, uint8_t green, uint8_t blue) {
+void status_strip_status_flash(uint8_t red, uint8_t green, uint8_t blue) {
     inst->flash_active = false;
     inst->red_flash_target = red;
     inst->green_flash_target = green;
