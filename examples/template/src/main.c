@@ -173,6 +173,13 @@ int main() {
     }
     #endif
 
+    #ifdef MICRO_ROS_TRANSPORT_ETH
+    if (!transport_eth_init()) {
+        // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
+        panic("Failed to initialize Ethernet hardware!");
+    }
+    #endif
+
     #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
     #endif

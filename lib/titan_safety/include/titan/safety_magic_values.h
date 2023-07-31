@@ -1,0 +1,19 @@
+#ifndef TITAN__SAFETY_MAGIC_VALUES_H_
+#define TITAN__SAFETY_MAGIC_VALUES_H_
+
+#define CLEAN_BOOT                   0x1035000
+#define UNKNOWN_SAFETY_PREINIT       0x1035001
+#define UNKNOWN_SAFETY_ACTIVE        0x1035002
+#define PANIC                        0x1035003
+#define HARD_FAULT                   0x1035004
+#define ASSERT_FAIL                  0x1035005
+#define IN_ROS_TRANSPORT_LOOP        0x1035006
+
+#define CLEAN_RESET_TYPE_POR         0x7193001
+#define CLEAN_RESET_TYPE_RUN         0x7193002
+#define CLEAN_RESET_TYPE_PSM         0x7193003
+#define CLEAN_RESET_TYPE_SOFTWARE    0x7193004
+#define CLEAN_RESET_TYPE_UNK_WDG     0x7193005
+#define CLEAN_RESET_TYPE_BOOTLOADER  0x7193006
+
+#endif

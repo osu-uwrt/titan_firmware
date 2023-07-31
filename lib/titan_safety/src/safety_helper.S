@@ -1,7 +1,6 @@
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/watchdog.h"
-
-#define IN_ROS_TRANSPORT_LOOP   0x1035006
+#include "titan/safety_magic_values.h"
 
 .data
 .type prev_scratch_reg,%object

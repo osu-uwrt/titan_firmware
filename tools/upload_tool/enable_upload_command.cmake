@@ -40,8 +40,4 @@ function(titan_use_upload_tool target)
                 DEPENDS upload_tool
                 DEPENDS ${target})
 
-    add_custom_target(swd_flash
-                # By passing filename in it will auto-select the board for that given firmware
-                COMMAND "${REPO_DIR}/tools/swd_flash.sh" "$<TARGET_FILE:${target}>"
-                DEPENDS ${target})
 endfunction()

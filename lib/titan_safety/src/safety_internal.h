@@ -45,11 +45,6 @@
 #define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  100
 #endif
 
-// PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=titan_safety
-#ifndef SAFETY_NUM_CRASH_LOG_ENTRIES
-#define SAFETY_NUM_CRASH_LOG_ENTRIES 24
-#endif
-
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0

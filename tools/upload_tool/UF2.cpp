@@ -127,9 +127,9 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
     // Now that we have loaded, fetch all the binary info
     uint32_t searchBase = 0;
     do {
-        RP2040Application app = {};
+        BinaryInfo::AppInfo app = {};
         app.binaryStart = (searchBase == 0 ? getBaseAddress() : searchBase);
-        extractBinaryInfo(*this, app, searchBase);
+        BinaryInfo::extractAppInfo(*this, app, searchBase);
         searchBase = app.blAppBase;
         if (boardType != "" && app.boardType != "") {
             if (boardType != app.boardType) {

@@ -18,13 +18,13 @@ class RP2040UF2Error : public std::runtime_error {
         RP2040UF2Error(std::string error): std::runtime_error(error) {};
 };
 
-class RP2040UF2 {
+class RP2040UF2: public BinaryInfo::AppImage {
     public:
         RP2040UF2(std::ifstream &stream);
         RP2040UF2(const char *filename);
 
         std::string boardType;
-        std::vector<RP2040Application> apps;
+        std::vector<BinaryInfo::AppInfo> apps;
 
         std::array<uint8_t, 256>& getBlock(uint32_t blockNum);
         std::array<uint8_t, 256>& getAddress(uint32_t flashAddress);
@@ -66,10 +66,10 @@ class RP2040EraseWrapper {
 // ========================================
 
 std::string hexWord(uint32_t word);
-void dumpInfo(RP2040Application &app);
+void dumpInfo(BinaryInfo::AppInfo &app);
 void dumpUF2(RP2040UF2 &uf2);
 std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect);
-std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2);
+std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2);
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA);
 
 

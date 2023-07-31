@@ -38,67 +38,19 @@
 //     scratch[2]: Faulting File Line
 //  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
 // scratch[4]: Reserved for Pico SDK watchdog use
-// scratch[5]: Uptime since safety init (hundreds of milliseconds)
+// scratch[5]: Uptime since safety init (tens of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[6]: Bitwise Fault List
 
-#define CLEAN_BOOT                   0x1035000
-#define UNKNOWN_SAFETY_PREINIT       0x1035001
-#define UNKNOWN_SAFETY_ACTIVE        0x1035002
-#define PANIC                        0x1035003
-#define HARD_FAULT                   0x1035004
-#define ASSERT_FAIL                  0x1035005
-#define IN_ROS_TRANSPORT_LOOP        0x1035006
-
-#define CLEAN_RESET_TYPE_POR         0x7193001
-#define CLEAN_RESET_TYPE_RUN         0x7193002
-#define CLEAN_RESET_TYPE_PSM         0x7193003
-#define CLEAN_RESET_TYPE_SOFTWARE    0x7193004
-#define CLEAN_RESET_TYPE_UNK_WDG     0x7193005
-#define CLEAN_RESET_TYPE_BOOTLOADER  0x7193006
+// Note the values are defined in safety_magic_values.h
+#include "titan/safety_magic_values.h"
 
 
 // ========================================
 // Crash Log Definitions
 // ========================================
 
-struct crash_data {
-
-    union {
-        uint32_t i;
-        struct __attribute__((__packed__)) {
-            uint16_t crc;
-            union {
-                uint8_t i;
-                struct {
-                    #define VALID_MAGIC_VALUE 0x5
-                    uint8_t valid:4;
-                    uint8_t log_wrapped:1;
-                };
-            } flags;
-            uint8_t next_entry;
-        };
-    } header;
-
-    union {
-        uint32_t i;
-        struct __attribute__((__packed__)) {
-            uint8_t total_crashes;
-            uint8_t panic_count;
-            uint8_t hard_fault_count;
-            uint8_t assert_fail_count;
-        };
-    } crash_counter;
-
-    struct crash_log_entry {
-        uint32_t reset_reason;
-        uint32_t scratch_1;
-        uint32_t scratch_2;
-        uint32_t uptime;
-
-        uint32_t faults;
-    } crash_log[SAFETY_NUM_CRASH_LOG_ENTRIES];
-} crash_data __attribute__((section(".uninitialized_data.crash_data")));
+struct crash_data crash_data __attribute__((section(".uninitialized_data.crash_data")));
 
 // Ensure struct packed properly
 static_assert(offsetof(struct crash_data, header.crc) == 0, "CRC must be first entry in crash data");
