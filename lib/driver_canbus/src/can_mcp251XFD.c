@@ -755,11 +755,14 @@ bool can_mcp251xfd_configure(unsigned int client_id)
     return can_mcp251xfd_configure_chip();
 }
 
+static bool reset_now = false;
+
 void can_mcp251xfd_check_offline_reset(void) {
     // Check if we need to reset the chip after being offline for too long
     // Handles edge cases where the chip will randomly stop transmitting in the event of certain edge cases
-    if (absolute_time_diff_us(heartbeat_transmit_timeout, get_absolute_time()) > (CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS*1000)) {
+    if (absolute_time_diff_us(heartbeat_transmit_timeout, get_absolute_time()) > (CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS*1000) || reset_now) {
         if (can_mcp251xfd_configure_chip()) {
+            reset_now = false;
             // Only clear the heartbeat transmit timeout (but not put it in the future, marking the bus online)
             // if the initialization was successful. If not, then next time the canbus ticks this function will be called
             // and this function should retry
@@ -805,4 +808,22 @@ uint32_t save_and_disable_mcp251Xfd_irq(void) {
 
 void restore_mcp251Xfd_irq(uint32_t prev_interrupt_state) {
     gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, prev_interrupt_state != 0);
+}
+
+void canbus_reenable_intr(void) {
+    uint32_t prev_state = save_and_disable_mcp251Xfd_irq();
+    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_tx_fifo, true);
+    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_msg_rx_fifo, true);
+    set_fifo_not_full_empty_interrupt(&mcp251xfd_device, mcp251xfd_utility_rx_fifo, true);
+    restore_mcp251Xfd_irq(prev_state);
+}
+
+void canbus_fifo_clear(void) {
+    uint32_t prev_state = save_and_disable_mcp251Xfd_irq();
+    MCP251XFD_ResetFIFO(&mcp251xfd_device, mcp251xfd_msg_rx_fifo);
+    restore_mcp251Xfd_irq(prev_state);
+}
+
+void canbus_reset(void) {
+    reset_now = true;
 }

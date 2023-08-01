@@ -9,6 +9,10 @@
 #include "titan/version.h"
 #include "hardware/watchdog.h"
 
+#ifdef MICRO_ROS_TRANSPORT_CAN
+#include "driver/canbus.h"
+#endif
+
 // ========================================
 // MCU Control Bindings
 // ========================================
@@ -35,6 +39,23 @@ static bool reboot_mcu_cb(__unused const struct reg_mapped_server_register_defin
     reboot_mcu_on_return = true;
     return true;
 }
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+static bool can_intr_en_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write, __unused uint32_t *data_ptr) {
+    canbus_reenable_intr();
+    return true;
+}
+
+static bool can_fifo_clear_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write, __unused uint32_t *data_ptr) {
+    canbus_fifo_clear();
+    return true;
+}
+
+static bool can_reset_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write, __unused uint32_t *data_ptr) {
+    canbus_reset();
+    return true;
+}
+#endif
 
 // ========================================
 // Safety Status Bindings
@@ -239,6 +260,11 @@ static reg_mapped_server_register_def_t debug_server_mcu_control_regs[] = {
     DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MCU_CONTROL_MINOR_VERSION_OFFSET, &mcu_control_minor_version, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MCU_CONTROL_RELEASE_TYPE_OFFSET, &mcu_control_release_type, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET, reboot_mcu_cb, REGISTER_PERM_WRITE_ONLY),
+#ifdef MICRO_ROS_TRANSPORT_CAN
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET, can_intr_en_cb, REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET, can_fifo_clear_cb, REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET, can_reset_cb, REGISTER_PERM_WRITE_ONLY),
+#endif
 };
 
 static reg_mapped_server_register_def_t debug_server_safety_status_regs[] = {
