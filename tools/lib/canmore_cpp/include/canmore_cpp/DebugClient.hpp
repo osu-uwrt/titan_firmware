@@ -208,6 +208,11 @@ class DebugClient {
         void raiseFault(uint32_t faultId);
         void lowerFault(uint32_t faultId);
 
+        // TODO Remove me CAN Debug Stuff
+        void canDbgIntrEn();
+        void canDbgFifoClear();
+        void canDbgReset();
+
     private:
         union flash_id cachedFlashID;
         std::shared_ptr<RegMappedClient> client;

@@ -123,3 +123,18 @@ void DebugClient::enterBootloader() {
 std::string DebugClient::getVersion() {
     return client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_VERSION_STRING_PAGE_NUM);
 }
+
+void DebugClient::canDbgIntrEn() {
+    RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET, 1);
+}
+
+void DebugClient::canDbgFifoClear() {
+    RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET, 1);
+}
+
+void DebugClient::canDbgReset() {
+    RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET, 1);
+}

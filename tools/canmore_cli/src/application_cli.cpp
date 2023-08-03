@@ -271,6 +271,39 @@ public:
     }
 };
 
+class AppCanDebugCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
+
+    std::string getArgList() const override {return "[action]";}
+    std::string getHelp() const override {return "Issues a can debug operation\nValid Actions:\n1: Issue intr en\n2: Issue fifo clear\n3: Reset CAN hardware";}
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+        if (args.size() != 1) {
+            interface.writeLine("Expected 1 argument");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        std::string const& action = args.at(0);
+        if (action == "0") {
+            interface.writeLine("Issuing CAN Interrupt Enable Signal");
+            interface.handle->canDbgIntrEn();
+        }
+        else if (action == "1") {
+            interface.writeLine("Issuing CAN FIFO Reset Signal");
+            interface.handle->canDbgIntrEn();
+        }
+        else if (action == "3") {
+            interface.writeLine("Issuing CAN Debug Reset Subsystem Signal");
+            interface.handle->canDbgReset();
+        }
+        else {
+            interface.writeLine("Invalid action: '" + action + "'");
+        }
+    }
+};
+
 ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CLIInterface(handle) {
     registerCommand(std::make_shared<AppUptimeCommand>());
     registerCommand(std::make_shared<AppVersionCommand>());
@@ -282,6 +315,7 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppLowerFaultCommand>());
     registerCommand(std::make_shared<AppFaultNamesCommand>());
     registerCommand(std::make_shared<AppSafetyStatusCommand>());
+    registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 
     auto devMap = DeviceMap::create();

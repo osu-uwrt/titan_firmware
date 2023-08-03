@@ -99,6 +99,7 @@ public:
         if (bgTask) bgTask->callback(*this);
 
         std::vector<std::string> args;
+        should_exit = false;
         while (!should_exit) {
             auto cmd = cliCore.getCommand(args);
             if (cmd.size() > 0) {
