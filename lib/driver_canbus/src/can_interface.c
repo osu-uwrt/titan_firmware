@@ -109,7 +109,10 @@ bool canbus_msg_read_available(void) {
 size_t canbus_msg_read(uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
+    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
+
     if (!canbus_msg_opened || !canmore_received_msg.waiting) {
+        restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
@@ -122,6 +125,8 @@ size_t canbus_msg_read(uint8_t *buf, size_t len) {
     canmore_received_msg.waiting = false;
 
     can_mcp251xfd_report_msg_rx_fifo_ready();
+
+    restore_mcp251Xfd_irq(prev_interrupt);
 
     return copy_len;
 }
@@ -205,7 +210,10 @@ bool canbus_utility_frame_read_available(void) {
 size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
+    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
+
     if (!utility_rx_buf.waiting) {
+        restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
@@ -219,6 +227,8 @@ size_t canbus_utility_frame_read(uint32_t *channel_out, uint8_t *buf, size_t len
 
     can_mcp251xfd_report_utility_rx_fifo_ready();
 
+    restore_mcp251Xfd_irq(prev_interrupt);
+
     return copy_len;
 }
 
@@ -231,10 +241,6 @@ bool canbus_utility_frame_write_available(void) {
 size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
-    if (utility_tx_buf.waiting) {
-        return 0;
-    }
-
     // Check channel ID
     if (channel > (1<<CANMORE_NOC_LENGTH)) {
         return 0;
@@ -245,6 +251,13 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
         len = CANMORE_FRAME_SIZE;
     }
     if (len == 0) {
+        return 0;
+    }
+
+    uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
+
+    if (utility_tx_buf.waiting) {
+        restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
@@ -261,6 +274,8 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     }
 
     can_mcp251xfd_report_utility_tx_fifo_ready();
+
+    restore_mcp251Xfd_irq(prev_interrupt);
 
     return len;
 }

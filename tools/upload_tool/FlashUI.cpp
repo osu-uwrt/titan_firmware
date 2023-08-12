@@ -1,7 +1,8 @@
 #include <bit>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
-#include "RP2040FlashInterface.hpp"
+#include "UploadTool.hpp"
 #include "canmore_cpp/Discovery.hpp"
 
 namespace UploadTool {
@@ -16,10 +17,10 @@ bool showConfirmation(const char *msg) {
     std::cout << msg << " [y/N]: ";
     std::flush(std::cout);
 
-    char input;
-    std::cin >> input;
+    std::string input;
+    std::getline(std::cin, input);
 
-    return input == 'y' || input == 'Y';
+    return input == "y" || input == "Y";
 }
 
 void drawProgressBar(float percentage) {
@@ -44,102 +45,29 @@ void drawProgressBar(float percentage) {
 #define COLOR_BODY "\033[0;32m"
 #define COLOR_RESET "\033[0m"
 
-void printRow(const char* name, const char* value, bool indent = false) {
-    // Don't print empty field
-    if (*value == 0) {
-        return;
-    }
-
-    if (indent) std::cout << "\t";
-    std::cout << COLOR_HEADER << name << (strlen(name) < 7 ? ":\t" : ":");
-    if (!indent) std::cout << "\t";
-    std::cout << COLOR_NAME << value << COLOR_RESET << std::endl;
-}
-
-void printRow(const char* name, std::vector<std::string> values, bool indent = false) {
-    // Don't print empty field
-    if (values.size() == 0) {
-        return;
-    }
-    if (values.size() == 1) {
-        printRow(name, values.at(0).c_str(), indent);
-        return;
-    }
-
-    if (indent) std::cout << "\t";
-    std::cout << COLOR_HEADER << name << ":" COLOR_RESET << std::endl;
-    for (auto &value : values) {
-        std::cout << COLOR_NAME "\t\t" << value << COLOR_RESET << std::endl;
-    }
-}
-
-void printRow(const char* name, std::map<uint,std::vector<std::string>> values) {
-    if (values.size() == 0) {
-        return;
-    }
-
-    std::cout << COLOR_HEADER << name << ":" COLOR_RESET << std::endl;
-    for (auto &subval : values) {
-        auto str = std::to_string(subval.first);
-        printRow(str.c_str(), subval.second, true);
-    }
-}
-
-void printRow(const char* name, int value) {
-    auto str = hexWord(value);
-    printRow(name, str.c_str());
-}
-
-void dumpInfo(RP2040UF2::RP2040Application &app) {
-    // Primary Information
-    printRow("Name", app.programName.c_str());
-    printRow("Description", app.programDescription.c_str());
-    printRow("Version", app.programVersion.c_str());
-    printRow("Board Name", app.boardType.c_str());
-
-    // Device Addressing
-    printRow("Device IP Addr", app.deviceIpAddress.c_str());
-    printRow("Agent IP Addr", app.agentIpAddress.c_str());
-    if (app.agentPort != 0) {
-        auto s = std::to_string(app.agentPort);
-        printRow("Agent Port", s.c_str());
-    }
-
-    if (app.clientIds.size() == 1) {
-        auto s = std::to_string(app.clientIds.at(0));
-        printRow("Client ID", s.c_str());
-    } else if (app.clientIds.size() > 1) {
-        std::cout << COLOR_HEADER << "Client ID List:" COLOR_RESET << std::endl;
-        for (auto clientId : app.clientIds) {
-            std::cout << COLOR_NAME "\t\t" << clientId << COLOR_RESET << std::endl;
-        }
-    }
-
-    // Extra Information
-    printRow("Build Date", app.programBuildDate.c_str());
-    printRow("URL", app.programUrl.c_str());
-    printRow("SDK Version", app.sdkVersion.c_str());
-    printRow("Boot 2 Name", app.boot2Name.c_str());
-
-    printRow("Binary Start", app.binaryStart);
-    if (app.binaryEnd != 0) {
-        printRow("Binary End", app.binaryEnd);
-    }
-    if (app.blAppBase != 0) {
-        printRow("Next App Addr", app.blAppBase);
-    }
-
-    printRow("Build Attrs", app.buildAttributes);
-    printRow("Features", app.programFeatures);
-    printRow("Pins", app.pins);
-}
-
 void dumpUF2(RP2040UF2 &uf2) {
     for (auto &app : uf2.apps) {
         std::cout << COLOR_TITLE "==========" << (app.isBootloader ? "Bootloader" : "Application") << " Image==========" COLOR_RESET << std::endl;
-        dumpInfo(app);
+        dumpAppInfo(app);
         std::cout << std::endl;
     }
+}
+
+void printImageName(BinaryInfo::AppInfo &app) {
+    if (app.isBootloader) {
+        std::cout << COLOR_HEADER "[Bootloader] " COLOR_RESET;
+    }
+
+    if (app.programName.size() == 0) {
+        std::cout << COLOR_HEADER "(No Program Name)" COLOR_RESET;
+    } else {
+        std::cout << COLOR_BODY << app.programName << COLOR_RESET;
+    }
+
+    if (app.programVersion.size() > 0) {
+        std::cout << " " COLOR_BODY << app.programVersion << COLOR_RESET;
+    }
+    std::cout << std::endl;
 }
 
 void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMap &deviceMap) {
@@ -155,9 +83,6 @@ void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMa
     std::cout << COLOR_HEADER "Name:\t\t";
     std::cout << COLOR_NAME << devDescr.name << COLOR_RESET << std::endl;
 
-    std::cout << COLOR_HEADER "\tMode:\t\t";
-    std::cout << COLOR_BODY << dev->getMode() << COLOR_RESET << std::endl;
-
     std::cout << COLOR_HEADER "\tInterface:\t";
     std::cout << COLOR_BODY << dev->getInterface() << COLOR_RESET << std::endl;
 
@@ -166,6 +91,15 @@ void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMa
 
     std::cout << COLOR_HEADER "\tUnique ID:\t";
     std::cout << COLOR_BODY << devDescr.hexSerialNum() << COLOR_RESET << std::endl;
+
+    std::vector<std::pair<std::string, std::string>> devInfo;
+    dev->getAdditionalInfo(devInfo);
+
+    for (std::pair<std::string, std::string> entry : devInfo) {
+        std::cout << COLOR_HEADER "\t" << entry.first << ":\t";
+        if (entry.first.size() <= 6) std::cout << "\t";
+        std::cout << COLOR_BODY << entry.second << COLOR_RESET << std::endl;
+    }
 
     std::cout << std::endl;
 }
@@ -229,21 +163,21 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 
     if (goodMatches.size() > 0) {
-        std::cout << COLOR_TITLE "==========Compatible Targets==========" COLOR_RESET << std::endl;
+        std::cout << COLOR_TITLE "===========Compatible Targets===========" COLOR_RESET << std::endl;
         for (auto dev : goodMatches) {
             printDevice(index++, dev, deviceMap);
         }
     }
 
     if (otherMatches.size() > 0) {
-        std::cout << COLOR_TITLE "============Other Targets============" COLOR_RESET << std::endl;
+        std::cout << COLOR_TITLE "=============Other Targets=============" COLOR_RESET << std::endl;
         for (auto dev : otherMatches) {
             printDevice(index++, dev, deviceMap);
         }
     }
 
     if (invalidMatches.size() > 0) {
-        std::cout << COLOR_TITLE "===========Invalid Targets===========" COLOR_RESET << std::endl;
+        std::cout << COLOR_TITLE "=========Non-Flashable Targets=========" COLOR_RESET << std::endl;
         for (auto dev : invalidMatches) {
             printDevice(0, dev, deviceMap);
         }
@@ -291,7 +225,7 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 }
 
-std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2) {
+std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2) {
     std::cout << COLOR_TITLE "===========Available Interfaces===========" COLOR_RESET << std::endl;
     unsigned int index = 1;
     std::vector<std::shared_ptr<Canmore::Discovery>> validInterfaces;
@@ -427,6 +361,9 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
     std::cout << COLOR_HEADER "\tUnique ID:\t";
     std::cout << COLOR_BODY << devDescr.hexSerialNum() << COLOR_RESET << std::endl;
 
+    std::cout << COLOR_HEADER "\tBL Version:\t";
+    std::cout << COLOR_BODY << dev->getVersion() << COLOR_RESET << std::endl;
+
     std::cout << std::endl;
 
     if (devDescr.boardType != uf2.boardType) {
@@ -440,6 +377,14 @@ std::shared_ptr<UploadTool::RP2040FlashInterface> catchInBootDelay(std::vector<s
 }
 
 void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {
+    // Error if the image is large for flash
+    if (uf2.getBaseFlashOffset() + uf2.getSize() > interface->getFlashSize()) {
+        std::cout << "[ERROR] Requested image @+0x" << std::hex << uf2.getBaseFlashOffset() << " len 0x" << uf2.getSize()
+                  << " is too large to fit into device flash size 0x" << interface->getFlashSize()
+                  << std::dec << std::endl;
+        return;
+    }
+
     // Error if uf2 reports OTA but tries to overwrite bootloader
     if (isOTA && uf2.getBaseFlashOffset() < interface->tryGetBootloaderSize()) {
         std::cout << "[ERROR] Requested OTA image @+0x" << std::hex << uf2.getBaseFlashOffset()
@@ -458,7 +403,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     }
 
     // Warn if trying to flash OTA without a bootloader
-    if (isOTA && interface->tryGetBootloaderSize() == 0) {
+    if (isOTA && uf2.getBaseFlashOffset() != 0 && interface->tryGetBootloaderSize() == 0) {
         if (!showConfirmation("[WARNING] Attempting to flash OTA image but no bootloader was found. Continue with flashing?")) {
             std::cout << "Flash aborted." << std::endl;
             return;
@@ -480,8 +425,36 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         }
     }
 
+    // Report which image we're flashing
+    if (isOTA && uf2.getBaseFlashOffset() != 0) {
+        std::cout << std::endl << "Flashing OTA Image:";
+    } else {
+        std::cout << std::endl << "Flashing Full Image:";
+    }
+    if (uf2.apps.size() == 0) {
+        std::cout << COLOR_HEADER " (No Binary Info Found)" COLOR_RESET << std::endl;
+    }
+    else if (uf2.apps.size() == 1) {
+        std::cout << " ";
+        printImageName(uf2.apps.at(0));
+    }
+    else {
+        std::cout << std::endl;
+        for (auto &app : uf2.apps) {
+            std::cout << " - ";
+            printImageName(app);
+        }
+    }
+    std::cout << std::endl;
+
+    // Create erase wrapper to handle the erasing of blocks for us
+    RP2040EraseWrapper flashWrapper(interface);
+
     // Write all blocks except for first
     // This allows for the application to be verified before sealing (w/ boot2)
+    // By writing this way, if the upload is interrupted, the previous stage (whether it be bootrom or bootloader)
+    // will notice that the boot2 has an invalid crc (since we can only erase in 4KB pages, so boot2 will be erased when)
+    // the second block (@256 bytes) is written. It will then refuse to run, and fallback to accepting a new image
     std::cout << "Writing Image..." << std::endl;
     uint32_t blockCount = uf2.getNumBlocks();
     for (uint32_t i = 1; i < blockCount; i++) {
@@ -490,7 +463,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
 
         // Write data
         auto block = uf2.getBlock(i);
-        interface->writeBytes(uf2.getBlockAddress(i), block);
+        flashWrapper.writeBytes(uf2.getBlockAddress(i), block);
     }
     drawProgressBar(1.0);
 
@@ -512,7 +485,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     std::cout << "Sealing Image..." << std::endl;
     {
         auto block = uf2.getBlock(0);
-        interface->writeBytes(uf2.getBlockAddress(0), block);
+        flashWrapper.writeBytes(uf2.getBlockAddress(0), block);
         if (!interface->verifyBytes(uf2.getBlockAddress(0), block)) {
             std::cout << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(0) << std::dec << std::endl;
             return;

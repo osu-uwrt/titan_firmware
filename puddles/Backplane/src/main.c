@@ -2,12 +2,12 @@
 #include "pico/stdlib.h"
 
 #include "driver/async_i2c.h"
+#include "driver/depth.h"
 #include "driver/led.h"
 #include "driver/mcp3426.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
-#include "depth_sensor.h"
 #include "128D818.h"
 #include "dshot.h"
 #include "ros.h"
@@ -128,7 +128,7 @@ static void tick_ros_tasks() {
     }
 
     // Send depth as soon as a new reading comes in
-    if (depth_reading_valid() && depth_set_on_read) {
+    if (depth_set_on_read) {
         depth_set_on_read = false;
         RCSOFTRETVCHECK(ros_update_depth_publisher());
     }
@@ -161,6 +161,18 @@ static void tick_background_tasks() {
     // D818_read();
 }
 
+static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
+     // TODO: Switch to parameter for safety raise fault when args are supported
+    LOG_ERROR("Depth sensor error: %d (%s)", event, (recoverable ? "recoverable" : "non-recoverable"));
+
+    if (recoverable) {
+        safety_raise_fault(FAULT_DEPTH_ERROR);
+    }
+    else {
+        safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
+    }
+}
+
 static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t error_code) {
     // Mark as used in case debug logging is disabled
     (void) req;
@@ -186,7 +198,7 @@ int main() {
     bi_decl_if_func_used(bi_2pins_with_func(SENSOR_SDA_PIN, SENSOR_SCL_PIN, GPIO_FUNC_I2C));
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     async_i2c_init(SENSOR_SDA_PIN, SENSOR_SCL_PIN, BOARD_SDA_PIN, BOARD_SCL_PIN, 400000, 10);
-    depth_init();
+    depth_init(SENSOR_I2C, MS5837_30BA, &depth_sensor_error_cb);
     dshot_init();
     mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
     D818_init();

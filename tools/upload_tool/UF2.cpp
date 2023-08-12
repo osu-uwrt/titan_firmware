@@ -1,9 +1,10 @@
 #include <algorithm>
+#include <cstring>
 #include <memory>
 
 #include "boot/uf2.h"
 
-#include "RP2040FlashInterface.hpp"
+#include "UploadTool.hpp"
 
 using namespace UploadTool;
 
@@ -126,9 +127,9 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
     // Now that we have loaded, fetch all the binary info
     uint32_t searchBase = 0;
     do {
-        RP2040Application app = {};
+        BinaryInfo::AppInfo app = {};
         app.binaryStart = (searchBase == 0 ? getBaseAddress() : searchBase);
-        extractBinaryInfo(*this, app, searchBase);
+        BinaryInfo::extractAppInfo(*this, app, searchBase);
         searchBase = app.blAppBase;
         if (boardType != "" && app.boardType != "") {
             if (boardType != app.boardType) {
@@ -149,10 +150,10 @@ std::array<uint8_t, 256>& RP2040UF2::getBlock(uint32_t blockNum) {
 
 std::array<uint8_t, 256>& RP2040UF2::getAddress(uint32_t flashAddress) {
     if (flashAddress % UF2_PAGE_SIZE != 0) {
-        throw std::runtime_error("Unaligned uf2 address read");
+        throw std::logic_error("Unaligned uf2 address read");
     }
     if (flashAddress < baseAddress || flashAddress >= baseAddress + getSize()) {
-        throw std::runtime_error("Invalid flash address");
+        throw std::logic_error("Invalid flash address");
     }
 
     return getBlock((flashAddress - baseAddress) / UF2_PAGE_SIZE);

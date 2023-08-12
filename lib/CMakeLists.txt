@@ -1,5 +1,6 @@
 add_subdirectory(driver_async_i2c/)
 add_subdirectory(driver_canbus/)
+add_subdirectory(driver_depth/)
 add_subdirectory(driver_dynamixel/)
 add_subdirectory(driver_led/)
 add_subdirectory(driver_mcp3426/)

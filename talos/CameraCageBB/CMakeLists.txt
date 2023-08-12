@@ -43,6 +43,7 @@ titan_enable_bootloader(camera_cage_bb can)
 # Define linking and targets
 pico_add_extra_outputs(camera_cage_bb)
 target_link_libraries(camera_cage_bb PUBLIC
+    driver_depth        # Depth Sensor support
 	driver_led			# Status LED support
 	titan_logger		# A nice little logging library
 	titan_safety		# Handles critical code (Watchdog, Kill Switch, Fault Reporting)

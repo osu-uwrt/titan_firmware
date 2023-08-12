@@ -43,6 +43,11 @@
 #define SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE 32
 #endif
 
+// PICO_CONFIG: SAFETY_NUM_CRASH_LOG_ENTRIES, Number of crash log entries to store in crash history, type=int, default=24, group=titan_safety
+#ifndef SAFETY_NUM_CRASH_LOG_ENTRIES
+#define SAFETY_NUM_CRASH_LOG_ENTRIES 24
+#endif
+
 
 // ========================================
 // Fault Management Functions
@@ -79,6 +84,13 @@ void safety_raise_fault(uint32_t fault_id);
  */
 void safety_lower_fault(uint32_t fault_id);
 
+/**
+ * @brief Looks up fault id name for a given fault id
+ *
+ * @param fault_id The fault id to lookup
+ * @return const char* The fault name
+ */
+const char * safety_lookup_fault_id(uint32_t fault_id);
 
 
 // ========================================
@@ -140,15 +152,45 @@ absolute_time_t safety_kill_get_last_change(void);
 // Safety Watchdog-Related Functions
 // ========================================
 
-/**
- * @brief Pointer to depth sensor calibration data which will persist watchdog resets.
- */
-extern volatile uint32_t * const depth_cal_reg;
+struct crash_data {
 
-/**
- * @brief Value contained in depth_cal_reg if the register contains invalid data
- */
-#define DEPTH_CALIBRATION_INVALID 0xFFFFFFFF
+    union {
+        uint32_t i;
+        struct __attribute__((__packed__)) {
+            uint16_t crc;
+            union {
+                uint8_t i;
+                struct {
+                    #define VALID_MAGIC_VALUE 0x5
+                    uint8_t valid:4;
+                    uint8_t log_wrapped:1;
+                };
+            } flags;
+            uint8_t next_entry;
+        };
+    } header;
+
+    union {
+        uint32_t i;
+        struct __attribute__((__packed__)) {
+            uint8_t total_crashes;
+            uint8_t panic_count;
+            uint8_t hard_fault_count;
+            uint8_t assert_fail_count;
+        };
+    } crash_counter;
+
+    struct crash_log_entry {
+        uint32_t reset_reason;
+        uint32_t scratch_1;
+        uint32_t scratch_2;
+        uint32_t uptime;
+
+        uint32_t faults;
+    } crash_log[SAFETY_NUM_CRASH_LOG_ENTRIES];
+};
+
+extern struct crash_data crash_data;
 
 /**
  * @brief Resets into bootloader mode.

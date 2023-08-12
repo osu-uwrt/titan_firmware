@@ -24,6 +24,7 @@
 #define PRESENCE_TIMEOUT_COUNT 10
 #define PWRCYCL_CHECK_INTERVAL_MS 250
 #define PWR_CYCLE_DURATION_MS 10000
+#define DISPLAY_UPDATE_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -35,6 +36,7 @@ absolute_time_t next_connect_ping = {0};
 absolute_time_t next_pack_present_update = {0};
 absolute_time_t next_battery_status_update = {0};
 absolute_time_t next_pwrcycl_update = {0};
+absolute_time_t next_display_update = {0};
 
 uint8_t presence_fail_count = 0;
 bq_pack_info_t bq_pack_info;
@@ -127,6 +129,14 @@ static void tick_background_tasks() {
         bq_update_soc_leds();
     }
 
+    // Update LCD if reed switch held and we are in time for a display update
+    if (gpio_get(SWITCH_SIGNAL_PIN) && time_reached(next_display_update)) {
+        next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
+
+        // Show pack info
+        display_show_stats(bq_pack_info.serial, bq_pack_soc(), bq_pack_voltage() / 1000.0);
+    }
+
     if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
         // check if we need to update the presence counter
         if(!(canbus_check_online() || bq_pack_present())){
@@ -151,6 +161,8 @@ int main() {
     gpio_init(PWR_CTRL_PIN);
     gpio_set_dir(PWR_CTRL_PIN, GPIO_OUT);
     gpio_put(PWR_CTRL_PIN, 1);
+
+    gpio_init(SWITCH_SIGNAL_PIN);
 
     // Initialize stdio
     stdio_init_all();
@@ -196,9 +208,6 @@ int main() {
         panic("Failed to initialize CAN bus hardware!");
     }
 
-    // Show pack info on startup
-    display_show_stats(bq_pack_info.serial, bq_pack_soc(), bq_pack_voltage() / 1000.0);
-
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
@@ -237,6 +246,7 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
+            display_show_ros_disconnect();
             ros_initialized = false;
         } else {
             if (time_reached(next_connect_ping)) {

@@ -21,12 +21,12 @@
 #include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/float32.h>
 
+#include "driver/depth.h"
 #include "driver/mcp3426.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
 #include "128D818.h"
-#include "depth_sensor.h"
 #include "dshot.h"
 #include "ros.h"
 

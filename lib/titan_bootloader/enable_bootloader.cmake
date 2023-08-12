@@ -2,6 +2,7 @@ set(TITAN_BOOTLOADER_SCRIPT_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "")
 set(TITAN_BOOTLOADER_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE INTERNAL "")
 
 function(titan_enable_bootloader TARGET TYPE)
+    include(ExternalProject)
     ExternalProject_Add (
         titan_bootloader
         SOURCE_DIR ${TITAN_BOOTLOADER_SCRIPT_DIR}

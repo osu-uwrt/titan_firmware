@@ -17,5 +17,6 @@
 #include "titan/canmore/reg_mapped_client.h"
 #include "titan/canmore/reg_mapped_server.h"
 #include "titan/canmore/bootloader_interface.h"
+#include "titan/canmore/debug_interface.h"
 
 #endif

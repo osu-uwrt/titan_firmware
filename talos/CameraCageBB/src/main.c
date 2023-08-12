@@ -10,7 +10,7 @@
 #include "titan/version.h"
 #include "titan/binary_info.h"
 
-#include "depth_sensor.h"
+#include "driver/depth.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -93,7 +93,7 @@ static void tick_ros_tasks() {
     }
 
     // Send depth as soon as a new reading comes in
-    if (depth_reading_valid() && depth_set_on_read) {
+    if (depth_set_on_read) {
         depth_set_on_read = false;
         RCSOFTRETVCHECK(ros_update_depth_publisher());
     }
@@ -108,6 +108,18 @@ static void tick_background_tasks() {
 
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
+    }
+}
+
+static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
+     // TODO: Switch to parameter for safety raise fault when args are supported
+    LOG_ERROR("Depth sensor error: %d (%s)", event, (recoverable ? "recoverable" : "non-recoverable"));
+
+    if (recoverable) {
+        safety_raise_fault(FAULT_DEPTH_ERROR);
+    }
+    else {
+        safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
     }
 }
 
@@ -129,7 +141,7 @@ int main() {
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
 
-    depth_init();
+    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
     // Status Strip Initialization
     bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));

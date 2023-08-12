@@ -220,4 +220,12 @@ typedef void (*canbus_utility_chan_cb_t)(uint32_t channel, uint8_t *buf, size_t 
  */
 void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t cb);
 
+
+// Debug Bindings
+// TODO: Remove me
+
+void canbus_reenable_intr(void);
+void canbus_fifo_clear(void);
+void canbus_reset(void);
+
 #endif

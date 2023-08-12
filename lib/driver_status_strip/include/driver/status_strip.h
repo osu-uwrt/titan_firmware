@@ -46,14 +46,14 @@ void status_strip_init(PIO pio, uint sm, uint pin, bool first_pixel_is_rear);
 void status_strip_set(enum status_strip_mode mode, uint8_t red, uint8_t green, uint8_t blue);
 
 /**
- * @brief Temporarily flashes the front with the provided color.
+ * @brief Temporarily flashes the strip with the provided color.
  * Used to alert of a status change while preserving the color command (such as kill switch insertion/removal).
  *
  * @param red Red color component (0-255)
  * @param green Green color component (0-255)
  * @param blue Blue color component (0-255)
  */
-void status_strip_flash_front(uint8_t red, uint8_t green, uint8_t blue);
+void status_strip_status_flash(uint8_t red, uint8_t green, uint8_t blue);
 
 /**
  * @brief Clears the current command and sets the status strip to off.
@@ -69,7 +69,7 @@ static inline void status_strip_clear(void) {
 void status_strip_enable(void);
 
 /**
- * @brief Disables all strip output, supressing set, flash front, and startup output.
+ * @brief Disables all strip output, supressing set, temporary flash, and startup output.
  * This preserves the current state, and only prevents updates from outputting data to the LEDs.
  * The strip can be re-enabled using `status_strip_enable`
  */

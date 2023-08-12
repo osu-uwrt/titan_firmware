@@ -54,7 +54,7 @@ static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_i
         case DYNAMIXEL_EVENT_RAM_READ:
             ram = dynamixel_get_ram(id);
             if (id == MARKER_TORPEDO_ID) {
-                torpedo_marker_report_state(ram->torque_enable, ram->moving_status, ram->goal_position,
+                torpedo_marker_report_state(ram->torque_enable, ram->moving, ram->goal_position,
                     ram->present_position, ram->hardware_error_status);
             }
             break;
@@ -77,6 +77,8 @@ void actuators_initialize(void) {
     bi_decl_if_func_used(bi_program_feature("Actuators V2"));
 
     bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal"))
+    gpio_disable_pulls(CLAW_CHECK_PIN);
+    gpio_disable_pulls(CLAW_PWM_PIN);
 
     dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count,
                     actuators_dynamixel_error_cb, actuators_dynamixel_event_cb);

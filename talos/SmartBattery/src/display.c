@@ -65,6 +65,16 @@ void display_show_ros_connect(void) {
     ssd1306_UpdateScreen();
 }
 
+void display_show_ros_disconnect(void) {
+    display_on = true;
+    display_poweroff_time = make_timeout_time_ms(2000);
+    ssd1306_SetDisplayOn(1);
+    ssd1306_Fill(Black);
+    ssd1306_SetCursor(0, 7);
+    ssd1306_WriteString("ROS Lost", Font_11x18, White);
+    ssd1306_UpdateScreen();
+}
+
 void display_check_poweroff(void) {
     if (display_on && time_reached(display_poweroff_time)) {
         display_on = false;
