@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include <string.h>
 #include "pico/unique_id.h"
 
@@ -63,17 +64,23 @@ static bool can_reset_cb(__unused const struct reg_mapped_server_register_defini
 // Memory Stats Bindings
 // ========================================
 
-static size_t mem_stats_total_mem = 0;
-static size_t mem_stats_heap_use = 0;
-static size_t mem_stats_stack_use = 0;
-static size_t mem_stats_static_use = 0;
-static size_t mem_stats_arena = 0;
-static size_t mem_stats_ordblks = 0;
-static size_t mem_stats_hblks = 0;
-static size_t mem_stats_hblkhd = 0;
-static size_t mem_stats_uordblks = 0;
-static size_t mem_stats_fordblks = 0;
-static size_t mem_stats_keepcost = 0;
+extern char __StackLimit;
+extern char __StackTop;
+extern char __StackBottom;
+extern char __data_start__;
+extern char end;
+
+static uint32_t mem_stats_total_mem = 0;
+static uint32_t mem_stats_heap_use = 0;
+static uint32_t mem_stats_stack_use = 0;
+static uint32_t mem_stats_static_use = 0;
+static uint32_t mem_stats_arena = 0;
+static uint32_t mem_stats_ordblks = 0;
+static uint32_t mem_stats_hblks = 0;
+static uint32_t mem_stats_hblkhd = 0;
+static uint32_t mem_stats_uordblks = 0;
+static uint32_t mem_stats_fordblks = 0;
+static uint32_t mem_stats_keepcost = 0;
 
 static bool mem_stats_capture_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write, __unused uint32_t *data_ptr) {
     struct mallinfo mi = mallinfo();

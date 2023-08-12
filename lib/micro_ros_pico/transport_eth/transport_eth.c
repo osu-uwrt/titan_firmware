@@ -13,6 +13,10 @@
 
 #include "micro_ros_pico/transport_eth.h"
 
+#if TITAN_SAFETY
+#include "titan/safety.h"
+#endif
+
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "transport_eth"
 

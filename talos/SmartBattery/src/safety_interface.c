@@ -11,7 +11,7 @@
 static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
     LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
                 (error_data.is_driver_error ? "Internal Driver" : "Library"));
-    safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data);
+    safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data.raw);
 }
 
 // ========================================

@@ -375,7 +375,7 @@ void canbus_tick(void) {
     if (canbus_utility_frame_read_available()) {
         uint32_t channel;
         size_t len = canbus_utility_frame_read(&channel, msg_buffer, sizeof(msg_buffer));
-        if (channel < CANBUS_NUM_CHANNELS && callbacks[channel] != NULL) {
+        if (len && channel < CANBUS_NUM_CHANNELS && callbacks[channel] != NULL) {
             callbacks[channel](channel, msg_buffer, len);
         }
     }

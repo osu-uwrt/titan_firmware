@@ -44,10 +44,13 @@ enum canbus_receive_error_codes {
     CANBUS_RECVERR_DECODE_ERROR_BASE = 100,
 };
 
-typedef struct canbus_error_data {
-    uint16_t error_code;
-    uint16_t error_line:15;
-    uint8_t is_driver_error:1;  // If set to 1, error_code corresponds to a driver error code, rather than library error code
+typedef union canbus_error_data {
+    uint32_t raw;
+    struct __attribute__((packed)) {
+        uint16_t error_code;
+        uint16_t error_line:15;
+        uint8_t is_driver_error:1;  // If set to 1, error_code corresponds to a driver error code, rather than library error code
+    };
 } canbus_error_data_t;
 static_assert(sizeof(canbus_error_data_t) == sizeof(uint32_t), "Struct canbus_error_data did not pack properly");
 

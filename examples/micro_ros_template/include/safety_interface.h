@@ -8,16 +8,14 @@
 //      FAULT_WATCHDOG_RESET      0
 //      FAULT_WATCHDOG_WARNING    1
 #define FAULT_CAN_INTERNAL_ERROR  2
-#define FAULT_CAN_RECV_ERROR      3
-#define FAULT_ROS_ERROR           4
-#define FAULT_TIMER_MISSED        5
+#define FAULT_ROS_ERROR           3
+#define FAULT_TIMER_MISSED        4
 // TODO: Define any additional faults here
 
 static const char * const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
     "FAULT_WATCHDOG_WARNING",
     "FAULT_CAN_INTERNAL_ERROR",
-    "FAULT_CAN_RECV_ERROR",
     "FAULT_ROS_ERROR",
     "FAULT_TIMER_MISSED"
 };

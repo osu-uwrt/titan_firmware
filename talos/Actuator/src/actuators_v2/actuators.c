@@ -22,7 +22,7 @@ const size_t dynamixel_servo_count = sizeof(dynamixel_servo_list) / sizeof(*dyna
 static void actuators_dynamixel_error_cb(dynamixel_error_t error) {
     LOG_ERROR("Dynamixel Driver Error: %d (arg: %d) - %s line %d", error.fields.error, error.fields.wrapped_error_code,
         (error.fields.error_source == DYNAMIXEL_SOURCE_COMMS ? "dynamixel_comms" : "dynamixel_schedule"), error.fields.line);
-    safety_raise_fault_with_arg(FAULT_ACTUATOR_FAILURE, error);
+    safety_raise_fault_with_arg(FAULT_ACTUATOR_FAILURE, error.data);
 }
 
 static void check_lower_actuator_unplugged_fault(void) {
