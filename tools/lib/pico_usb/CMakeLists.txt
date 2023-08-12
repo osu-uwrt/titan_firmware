@@ -23,9 +23,11 @@ target_sources(pico_usb INTERFACE
 	${CMAKE_CURRENT_LIST_DIR}/src/USBBootrom.cpp
 	${CMAKE_CURRENT_LIST_DIR}/src/USBDevice.cpp
 	${CMAKE_CURRENT_LIST_DIR}/src/USBDiscovery.cpp
+	${CMAKE_CURRENT_LIST_DIR}/flash_getid_stub/flash_getid_compiled.c
 )
 
 target_include_directories(pico_usb INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include ${LIBUSB_INCLUDE_DIR})
+target_include_directories(pico_usb INTERFACE ${CMAKE_CURRENT_LIST_DIR}/flash_getid_stub/include)
 
 # Include hardware registers, can't do cmake include since it pulls in a lot more than we need
 target_include_directories(pico_usb INTERFACE ${PICO_SDK_PATH}/src/rp2040/hardware_regs/include)

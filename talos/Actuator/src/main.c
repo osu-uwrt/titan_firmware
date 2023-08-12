@@ -52,7 +52,7 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
             }
             LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
             if (error_on_miss)
-                safety_raise_fault(FAULT_TIMER_MISSED);
+                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
         }
         *next_fire_ptr = time_tmp;
         return true;

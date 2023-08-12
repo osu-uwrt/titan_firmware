@@ -10,7 +10,6 @@
 #include "titan/canmore.h"
 #include "titan/debug.h"
 #include "titan/logger.h"
-#include "titan/safety.h"	// TODO: Only include if saftey support enabled
 
 #include "micro_ros_pico/transport_eth.h"
 
@@ -24,7 +23,9 @@
  */
 
 typedef uint8_t IPAddress[4];
+#if TITAN_SAFETY
 void ethernet_control_interface_transmit(uint8_t *msg, size_t len);
+#endif
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -153,7 +154,7 @@ bool transport_eth_init(){
 	// set cs to de-assert
 	gpio_put(ETH_CS_PIN, 1);
 
-	//reset routine TODO dont annoy watchdog
+	//reset routine
     gpio_put(ETH_RST_PIN, 0);
     busy_wait_ms(50);
     gpio_put(ETH_RST_PIN, 1);
@@ -193,10 +194,13 @@ bool transport_eth_init(){
 		return false;
 	}
 
+#if TITAN_SAFETY
+	// Only enable control interface if safety is compiled in, as the debug interface relies on safety
 	if (!eth_udp_begin(&control_interface_socket, &eth_device, control_port)) {
 		LOG_FATAL("Failed to initialize control interface");
 		return false;
 	}
+#endif
 
     rmw_uros_set_custom_transport(
 		false,
@@ -207,7 +211,9 @@ bool transport_eth_init(){
 		transport_eth_read
 	);
 
+#if TITAN_SAFETY
 	debug_init(&ethernet_control_interface_transmit);
+#endif
 
 	return true;
 }
@@ -219,6 +225,8 @@ bool ethernet_check_online(){
 // ========================================
 // Heartbeat/Debug Interface
 // ========================================
+
+#if TITAN_SAFETY
 
 absolute_time_t ethernet_next_heartbeat = {0};
 static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
@@ -240,7 +248,10 @@ void ethernet_control_interface_transmit(uint8_t *msg, size_t len) {
 	}
 }
 
+#endif
+
 void ethernet_tick(void) {
+#if TITAN_SAFETY
     // Heartbeat scheduling
     if (time_reached(ethernet_next_heartbeat)) {
         ethernet_next_heartbeat = make_timeout_time_ms(ETH_HEARTBEAT_INTERVAL_MS);
@@ -271,4 +282,5 @@ void ethernet_tick(void) {
 			}
 		}
 	} while (packetSize > 0);
+#endif
 }

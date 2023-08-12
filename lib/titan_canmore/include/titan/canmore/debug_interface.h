@@ -17,6 +17,8 @@ extern "C" {
  *       +----------------+
  * 0x01: | Version String |  RO  (Mem-mapped)
  *       +----------------+
+ * 0x02: |  Memory Stats  |  (Reg)
+ *       +----------------+
  *       |                |
  *       |      ...       |
  *       |                |
@@ -71,6 +73,52 @@ extern "C" {
  * ==============
  * Reading this page will return a version string. Note that the string is null terminated and attempting to read a
  * register past the 0x00 byte will result in an invalid address error.
+ *
+ *
+ * Memory Stats
+ * ========================
+ * Contains information on device memory usage.
+ *
+ *       +----------------+
+ * 0x00: |     Capture    | WO
+ *       +----------------+
+ * 0x01: |    Total Mem   | RO
+ *       +----------------+
+ * 0x02: |    Heap Use    | RO
+ *       +----------------+
+ * 0x03: |   Stack Use    | RO
+ *       +----------------+
+ * 0x04: |   Static Use   | RO
+ *       +----------------+
+ * 0x05: |     Arena      | RO
+ *       +----------------+
+ * 0x06: |    Ordblks     | RO
+ *       +----------------+
+ * 0x07: |     Hblks      | RO
+ *       +----------------+
+ * 0x08: |     Hblkhd     | RO
+ *       +----------------+
+ * 0x09: |    Uordblks    | RO
+ *       +----------------+
+ * 0x0A: |    Fordblks    | RO
+ *       +----------------+
+ * 0x0B: |    Keepcost    | RO
+ *       +----------------+
+ *
+ *
+ * Capture:         Captures the current memory usage into the other registers in this page.
+ *                  Must be called before reading any of the other registers in this page.
+ * Total Mem:       Total memory available in the device
+ * Heap Use:        Memory available to the heap
+ * Stack Use:       Memory available to the core 0 stack
+ * Static Use:      Memory used by static allocations
+ * Arena:           Total non-mmapped bytes (mallinfo() arena)
+ * Ordblks:         # of free chunks (mallinfo() ordblks)
+ * Hblks:           # of mapped regions (mallinfo() hblks)
+ * Hblkhd:          Bytes in mapped regions (mallinfo() hblkhd)
+ * Uordblks:        Total allocated space (mallinfo() uordblks)
+ * Fordblks:        Total free space (mallinfo() fordblks)
+ * Keepcost:        Topmost releasable block (mallinfo() keepcost)
  *
  *
  * Safety Status Register Map
@@ -152,6 +200,7 @@ extern "C" {
 // Page Number Definitions
 #define CANMORE_DBG_MCU_CONTROL_PAGE_NUM 0x00
 #define CANMORE_DBG_VERSION_STRING_PAGE_NUM 0x01
+#define CANMORE_DBG_MEM_STATS_PAGE_NUM 0x02
 #define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
 #define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
 #define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
@@ -170,6 +219,20 @@ extern "C" {
 #define CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET 0x08  // TODO: Remove me when bug fixed
 #define CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET 0x09
 #define CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET 0x0A
+
+// Memory Stats Register Definitions
+#define CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET 0x00
+#define CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET 0x01
+#define CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET 0x02
+#define CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET 0x03
+#define CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET 0x04
+#define CANMORE_DBG_MEM_STATS_ARENA_OFFSET 0x05
+#define CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET 0x06
+#define CANMORE_DBG_MEM_STATS_HBLKS_OFFSET 0x07
+#define CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET 0x08
+#define CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET 0x09
+#define CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET 0x0A
+#define CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET 0x0B
 
 // Safety Status Register Map
 #define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET 0x00

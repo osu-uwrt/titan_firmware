@@ -11,10 +11,6 @@
 
 #include "can_mcp251XFD_bridge.h"
 
-#if TITAN_SAFETY
-#include "titan/safety.h"
-#endif
-
 volatile bool canbus_msg_opened = false;
 
 

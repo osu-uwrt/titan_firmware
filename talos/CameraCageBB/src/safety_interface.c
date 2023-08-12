@@ -1,15 +1,17 @@
 #include <assert.h>
-#include "safety_interface.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
+#include "titan/logger.h"
 
-void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
-    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
-}
+#include "safety_interface.h"
 
-void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
-    //safety_raise_fault(FAULT_CAN_RECV_ERROR);
-    // TODO: Switch to something that is recoverable
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "safety_interface"
+
+static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
+    LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
+                (error_data.is_driver_error ? "Internal Driver" : "Library"));
+    safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data);
 }
 
 // ========================================
@@ -17,9 +19,7 @@ void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes er
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_device_in_error(on);
-    #endif
 
     led_fault_set(on);
 }
@@ -28,23 +28,19 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    // TODO: Modify this function to add callbacks when system is killed
     led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
-    // TODO: Modify this function to add callbacks for when system is enabled
-
     led_killswitch_set(true);
 }
 
 void safety_interface_setup(void) {
-    canbus_set_receive_error_cb(safety_handle_can_receive_error);
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
 void safety_interface_init(void) {
-    // TODO: Modify this function to add code to be called during safety_init
+
 }
 
 void safety_interface_tick(void) {
@@ -52,7 +48,7 @@ void safety_interface_tick(void) {
 }
 
 void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
+
 }
 
 

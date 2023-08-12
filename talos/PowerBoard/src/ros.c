@@ -73,14 +73,14 @@ static void software_kill_subscription_callback(const void * msgin)
     if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
             msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
         LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->kill_switch_id);
         return;
     }
 
     // Make sure frame id isn't too large
     if (msg->sender_id.size >= SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE) {
         LOG_WARN("Software Kill Frame ID too large");
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->sender_id.size);
         return;
     }
 

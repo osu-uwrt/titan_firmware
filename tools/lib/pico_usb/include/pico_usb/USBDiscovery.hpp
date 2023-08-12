@@ -102,6 +102,7 @@ private:
     std::shared_ptr<USBDeviceHandle> handle;
     picoboot::connection conn;
     uint64_t cachedFlashId;
+    uint32_t cachedFlashSize;
 
 public:
     BinaryInfo::AppInfo firstApp, nestedApp;

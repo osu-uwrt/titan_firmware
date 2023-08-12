@@ -48,9 +48,9 @@ enum reg_mapped_server_register_permissions {
  */
 typedef struct reg_mapped_server_register_definition {
     enum reg_mapped_server_register_type {
-        REGISTER_TYPE_UNIMPLEMENTED = 0,
-        REGISTER_TYPE_MEMORY,
-        REGISTER_TYPE_EXEC
+        REGISTER_TYPE_UNIMPLEMENTED = 0,  // Unimplemented register, returns error when accessed
+        REGISTER_TYPE_MEMORY,             // A register directly mapped to a 32-bit word. Access controlled by perm field
+        REGISTER_TYPE_EXEC                // A register which fires a callback when accessed. The callback only fires if perm field allows that type of access
     } reg_type;
 
     union {
@@ -72,10 +72,10 @@ typedef struct reg_mapped_server_register_definition {
  */
 typedef struct reg_mapped_server_page_definition {
     enum reg_mapped_server_page_type {
-        PAGE_TYPE_UNIMPLEMENTED = 0,
-        PAGE_TYPE_MEMORY_MAPPED_WORD,
-        PAGE_TYPE_MEMORY_MAPPED_BYTE,
-        PAGE_TYPE_REGISTER_MAPPED
+        PAGE_TYPE_UNIMPLEMENTED = 0,   // Unimplemented page, returns error when accessed
+        PAGE_TYPE_MEMORY_MAPPED_WORD,  // A page mapped directly to an array of 32-bit words
+        PAGE_TYPE_MEMORY_MAPPED_BYTE,  // A page mapped directly to an array of bytes
+        PAGE_TYPE_REGISTER_MAPPED      // A page backed by an array of register definitions
     } page_type;
 
     union {
@@ -99,17 +99,15 @@ typedef struct reg_mapped_server_page_definition {
 } reg_mapped_server_page_def_t;
 
 /**
- * @brief Map of registers in
+ * @brief Register mapped server instance declaration.
+ * Passed to the register mapped server request handler to determine how to handle the packet.
  */
-typedef struct reg_mapped_server_register_map {
-} server_register_map_t;
-
 typedef struct reg_mapped_server_inst {
     // Must be populated by code calling reg_mapped_server_handle_request
-    reg_mapped_server_tx_func tx_func;
-    const reg_mapped_server_page_def_t *page_array;
-    size_t num_pages;
-    uint8_t control_interface_mode;
+    reg_mapped_server_tx_func tx_func;  // Function called by request handler to transmit responses
+    const reg_mapped_server_page_def_t *page_array;  // Array of register mapped pages implemented by the server
+    size_t num_pages;  // Number of elements in page_array
+    uint8_t control_interface_mode;  // The mode implemented by the reg mapped server. A packet's mode field must match this value to be processed
 
     // Should be initialized to 0, holds state tracking data
     // ... Put stuff here

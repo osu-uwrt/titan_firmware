@@ -55,7 +55,7 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
             }
             LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
             if (error_on_miss)
-                safety_raise_fault(FAULT_TIMER_MISSED);
+                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
         }
         *next_fire_ptr = time_tmp;
         return true;
@@ -112,14 +112,11 @@ static void tick_background_tasks() {
 }
 
 static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
-     // TODO: Switch to parameter for safety raise fault when args are supported
-    LOG_ERROR("Depth sensor error: %d (%s)", event, (recoverable ? "recoverable" : "non-recoverable"));
-
     if (recoverable) {
-        safety_raise_fault(FAULT_DEPTH_ERROR);
+        safety_raise_fault_with_arg(FAULT_DEPTH_ERROR, event);
     }
     else {
-        safety_raise_fault(FAULT_DEPTH_INIT_ERROR);
+        safety_raise_fault_with_arg(FAULT_DEPTH_INIT_ERROR, event);
     }
 }
 

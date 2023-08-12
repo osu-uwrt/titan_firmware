@@ -322,6 +322,9 @@ inline static void w5100_resetSS(w5k_data_t *c) {
     gpio_put(c->ss_pin, 1);
     asm volatile("nop \n nop \n nop");
 }
+inline static void w5100_deinitSS(w5k_data_t *c) {
+    gpio_put(c->ss_pin, 1);
+}
 
 
 

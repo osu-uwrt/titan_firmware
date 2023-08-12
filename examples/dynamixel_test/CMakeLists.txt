@@ -6,11 +6,6 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD pico)
 
-# The Target Robot
-# These can be found in lib/uwrt_boards/include/robots
-# Store any robot dependent configuration values in these files
-set(UWRT_ROBOT talos)
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
 	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"

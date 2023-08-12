@@ -1,22 +1,24 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "driver/wiznet.h"
 #include "hardware/gpio.h"
 #include "hardware/flash.h"
-
-#include "driver/wiznet.h"
 #include "titan/canmore.h"
+#include "titan/binary_info.h"
+
 #include "bl_interface.h"
 
 typedef uint8_t IPAddress[4];
 static uint8_t mac[] = {0x2A, 0xCD, 0x00, 0x00, 0x00, 0x00};
-static uint8_t device_ip[] = ETHERNET_IP;
-static IPAddress gateway = ETHERNET_GATEWAY;
-static IPAddress subnet = ETHERNET_MASK;
+static const IPAddress device_ip = ETHERNET_IP;
+static const IPAddress gateway = ETHERNET_GATEWAY;
+static const IPAddress subnet = ETHERNET_MASK;
+bi_decl(bi_device_ip_address_array(device_ip));
 
-static IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
-static uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
-static uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
+static const IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
+static const uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
+static const uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
 
 static w5k_data_t eth_device;
 static udp_socket_t heartbeat_socket;

@@ -231,7 +231,7 @@ uint16_t w5100_read(w5k_data_t *c, uint16_t addr, uint8_t *buf, uint16_t len)
 			cmd[1] = addr >> 8;
 			cmd[2] = addr & 0xFF;
 			cmd[3] = 0;
-			spi_write_blocking(c->spi_port, cmd, 4); // TODO: why doesn't this work?
+			spi_write_blocking(c->spi_port, cmd, 4); // fix: why doesn't this work?
 			buf[i] = cmd[3];
 			addr++;
 			w5100_resetSS(c);

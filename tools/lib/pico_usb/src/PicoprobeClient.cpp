@@ -1,6 +1,8 @@
 #include <iostream>
 #include <chrono>
+#include "DeviceMap.hpp"
 #include "pico_usb/PicoprobeClient.hpp"
+#include "pico_usb/flash_getid.h"
 
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/ssi.h"
@@ -9,7 +11,15 @@
 using namespace PicoUSB;
 
 PicoprobeClient::PicoprobeClient(std::string serialStr): target(serialStr), flashState(FlashUnknown) {
-    cachedFlashId = readFlashId();
+    auto info = readFlashInfo();
+    cachedFlashId = info.info.flash_id;
+
+    auto& map = DeviceMap::create();
+    auto flashInfo = map.lookupFlashChip(info.info.jedec_id);
+    if (flashInfo.isUnknown) {
+        std::cerr << "Unknown flash chip ID '" << flashInfo.hexId() << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
+    }
+    cachedFlashSize = flashInfo.capacity;
 
     // Extract current BinaryInfo on device
     try {
@@ -64,8 +74,7 @@ void PicoprobeClient::flushWriteBuffer() {
 
     enterCommandMode();
 
-    // Write to last 256 bytes of SCRATCH_Y (where the bootrom normally copies out boot2)
-    // Should be a safe place to write, as the bootrom will overwrite it anyways during the boot sequence
+    // Write to our buffer to SCRATCH_X
     uint32_t scratch_addr = SRAM4_BASE;
     target.writeMemory(scratch_addr, writeBuffer, 32);
 
@@ -128,21 +137,24 @@ bool PicoprobeClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
     return bytes == readout;
 }
 
-uint64_t PicoprobeClient::readFlashId() {
-    enterCommandMode();
+flash_info_t PicoprobeClient::readFlashInfo() {
+    const uint32_t stubLocation = SRAM4_BASE; // Store stub in SCRATCH_X
 
-    // Perform Read Unique ID Command
-    uint64_t flashId = 0;
-    flashCsForce(false);
-    ssiTransfer(0x4B);
-    for (int i = 0; i < 4; i++) ssiTransfer(0);
-    for (int i = 0; i < 8; i++) flashId |= ((uint64_t)ssiTransfer(0) << (8*i));
-    flashCsForce(true);
+    std::vector<uint32_t> getidStub(flash_getid_bin, flash_getid_bin + flash_getid_bin_len);
+    target.writeMemory(stubLocation, getidStub, 8);
 
-    // TODO: Inline this into assembly
+    target.callFunction(stubLocation);
+
+    flash_info_t flashInfo;
+    auto infoData = target.readMemory(stubLocation + flash_getid_bin_len, sizeof(flashInfo.data), 8);
     notifyCommandDone();
 
-    return flashId;
+    uint8_t *data_ptr = flashInfo.data;
+    for (auto entry : infoData) {
+        *data_ptr++ = (uint8_t)entry;
+    }
+
+    return flashInfo;
 }
 
 void PicoprobeClient::enterXIPMode() {
@@ -179,6 +191,7 @@ void PicoprobeClient::notifyCommandDone() {
     flashState = FlashCommand;
 }
 
+/*
 void PicoprobeClient::flashCsForce(bool high) {
     uint32_t ss_ctrl_io_addr = (IO_QSPI_BASE + IO_QSPI_GPIO_QSPI_SS_CTRL_OFFSET);
     uint32_t field_val = high ?
@@ -218,3 +231,4 @@ uint32_t PicoprobeClient::ssiTransfer(uint32_t tx, int timeout_ms) {
     // Read RX fifo
     return target.readWord(ssi_hw_dr0_io_addr);
 }
+*/

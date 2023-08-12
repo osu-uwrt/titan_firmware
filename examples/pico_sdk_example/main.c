@@ -4,7 +4,7 @@
 
 #include "titan/version.h"
 
-const uint LED_PIN = STATUS_LEDR_PIN;
+const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 
 int main() {
     watchdog_enable(5000, true);

@@ -85,7 +85,7 @@ void Discovery::reportDiscoveredDevice(const std::shared_ptr<Device> &device) {
     // Remove older version of Device if it exists
     for (auto it = discoveredDevices.begin(); it != discoveredDevices.end(); ) {
         if (**it == *device) {
-            discoveredDevices.erase(it++);
+            it = discoveredDevices.erase(it);
         }
         else {
             ++it;
@@ -110,6 +110,7 @@ void Discovery::pruneDiscoveredDevices() {
         - std::chrono::milliseconds(STALE_DISCOVERY_MS);
     auto searchDev = std::make_shared<Device>(lastValidTime);
     auto it = discoveredDevices.lower_bound(searchDev);
+    // TODO: Debug flakey discovery
 
     // Remove devices not in this range
     discoveredDevices.erase(discoveredDevices.begin(), it);

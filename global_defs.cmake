@@ -12,6 +12,15 @@ function(titan_firmware_init)
     # Make relwithdebuginfo actually like Release
     set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
 
+    # Split function and data into sections to allow linker to optimize unused functions
+    add_compile_options(-ffunction-sections -fdata-sections)
+
+    # Map all __FILE__ invoctaions to remove the prefix before the repo root - Makes logging cleaner
+    # Only supported by GCC version 8.0 and above
+    if(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 8.0)
+        add_compile_options(-fmacro-prefix-map=${REPO_DIR}/=)
+    endif()
+
     # Enable param asserts if in debug mode
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_compile_definitions(PARAM_ASSERTIONS_ENABLE_ALL=1)

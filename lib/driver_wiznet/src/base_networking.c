@@ -53,7 +53,7 @@ void eth_ifconfig(w5k_data_t *c, const uint8_t* ip, const uint8_t* gateway, cons
 void eth_deinit(w5k_data_t *c)
 {
     w5100_softReset(c);
-    // TODO: Reset SS pin state
+    w5100_deinitSS(c);
     for (int i = 0; i < MAX_SOCK_NUM; i++){
         if (c->socket_state[i].state_ref != NULL){
             *c->socket_state[i].state_ref = 0;
@@ -106,7 +106,7 @@ SOCKET eth_socketBegin(w5k_data_t *c, uint8_t protocol, uint16_t port, uint8_t *
 	// next, use any that are effectively closed
 	for (s=0; s < MAX_SOCK_NUM; s++) {
 		uint8_t stat = status[s];
-		// TODO: this also needs to check if no more data
+		// fix: this also needs to check if no more data
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif

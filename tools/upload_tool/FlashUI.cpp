@@ -282,7 +282,15 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
 
     uint8_t defaultClientId = 0;
     for (auto &app : uf2.apps) {
-        if (app.clientIds.size() == 1) {
+        if (app.clientIds.size() > 0 && app.deviceIpAddress.size() > 0) {
+            std::cout << "Both Ethernet and CAN bus supported?? Unable to determine image client id" << std::endl;
+        }
+        else if (app.deviceIpAddress.size() > 0) {
+            std::cout << "Found ethernet image with IP address: " << app.deviceIpAddress << std::endl;
+            std::cout << "   - The client ID for ethernet interfaces is the last byte of the bootloader IP address." << std::endl;
+            break;
+        }
+        else if (app.clientIds.size() == 1) {
             defaultClientId = app.clientIds.at(0);
             if (defaultClientId >= 255 || defaultClientId == 0) {
                 std::cout << "Invalid client ID decoded from image: " << std::to_string(defaultClientId) << std::endl;
@@ -293,7 +301,7 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
         else if (app.clientIds.size() > 1) {
             std::cout << "Provided Firmware Image has multiple valid CAN IDs:" << std::endl;
             for (auto id : app.clientIds) {
-                std::cout << "   -" << id << std::endl;
+                std::cout << "   - " << id << std::endl;
             }
             break;
         }

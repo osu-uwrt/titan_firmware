@@ -365,7 +365,7 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
             dshot_thruster_cmds[i]= (-val) + 1048;
         } else {
             LOG_WARN("Invalid Thruster Command Sent: %d", val);
-            safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+            safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, val);
             dshot_clear_command_state();
             break;
         }

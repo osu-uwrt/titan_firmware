@@ -1,30 +1,13 @@
 #include <assert.h>
-#include "driver/led.h"
 #include "safety_interface.h"
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "driver/canbus.h"
-
-static void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
-    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
-}
-
-static void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
-    //safety_raise_fault(FAULT_CAN_RECV_ERROR);
-    // TODO: Switch to something that is recoverable
-}
-#endif
 
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
-    canbus_set_device_in_error(on);
-    #endif
-
-    led_fault_set(on);
+    // TODO: Define your fault LED pin here
+    #warning No fault LED defined
 }
 
 void safety_handle_kill(void) {
@@ -32,20 +15,17 @@ void safety_handle_kill(void) {
     // This is because safety_kill_switch_update can be called from interrupts
 
     // TODO: Modify this function to add callbacks when system is killed
-    led_killswitch_set(false);
+    // Leave this function empty if a kill switch is not going to be used
 }
 
 void safety_handle_enable(void) {
     // TODO: Modify this function to add callbacks for when system is enabled
-
-    led_killswitch_set(true);
+    // Leave this function empty if a kill switch is not going to be used
 }
 
 void safety_interface_setup(void) {
-    #ifdef MICRO_ROS_TRANSPORT_CAN
-    canbus_set_receive_error_cb(safety_handle_can_receive_error);
-    canbus_set_internal_error_cb(safety_handle_can_internal_error);
-    #endif
+    // TODO: Modify this function to add any code to be called during safety_setup
+    // This should include code to initialize your fault LED pin
 }
 
 void safety_interface_init(void) {
@@ -53,7 +33,9 @@ void safety_interface_init(void) {
 }
 
 void safety_interface_tick(void) {
-
+    // TODO: Modify this function to add any code to be periodically called
+    // Any periodic tasks related to safety should run here, such as polling a kill switch,
+    // or reading a GPIO pin to raise a fault
 }
 
 void safety_interface_deinit(void) {

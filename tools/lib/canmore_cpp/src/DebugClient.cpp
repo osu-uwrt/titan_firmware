@@ -110,6 +110,26 @@ void DebugClient::getCrashLog(std::vector<CrashLogEntry> &crashLogOut) {
     }
 }
 
+MemoryStats DebugClient::getMemoryStats() {
+    RegisterPage memoryStatsPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_MEM_STATS_PAGE_NUM);
+    MemoryStats stats;
+
+    memoryStatsPage.writeRegister(CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET, 1);
+    stats.totalMem = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET);
+    stats.heapUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET);
+    stats.stackUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET);
+    stats.staticUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET);
+    stats.arena = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ARENA_OFFSET);
+    stats.ordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET);
+    stats.hblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKS_OFFSET);
+    stats.hblkhd = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET);
+    stats.uordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET);
+    stats.fordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET);
+    stats.keepcost = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET);
+
+    return stats;
+}
+
 void DebugClient::reboot() {
     RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
     mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET, 1);

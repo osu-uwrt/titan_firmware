@@ -4,6 +4,7 @@
 #include <map>
 #include "RP2040FlashInterface.hpp"
 #include "BinaryInfo.hpp"
+#include "pico_usb/flash_getid.h"
 
 namespace PicoUSB {
 
@@ -85,13 +86,14 @@ public:
 
     uint32_t tryGetBootloaderSize() {return firstApp.isBootloader ? firstApp.blAppBase - FLASH_BASE : 0;}
     uint64_t getFlashId() {return cachedFlashId;}
-    uint32_t getFlashSize() {return 0x1000000;} // TODO: Calculate this
+    uint32_t getFlashSize() {return cachedFlashSize;}
     bool shouldWarnOnBootloaderOverwrite() {return false;}
 
 private:
     RP2040OCDTarget target;
     FlashState flashState;
     uint64_t cachedFlashId;
+    uint32_t cachedFlashSize;
     std::vector<uint32_t> writeBuffer;
     uint32_t writeBufferAddr;
 
@@ -100,9 +102,7 @@ private:
     void enterCommandMode();
     void notifyCommandDone();  // Must be called after running flash commands requiring enterCommandMode()
 
-    uint64_t readFlashId(); // TODO: Remove me
-    void flashCsForce(bool high);
-    uint32_t ssiTransfer(uint32_t tx, int timeout_ms = 5000);
+    flash_info_t readFlashInfo();
 
 public:
     BinaryInfo::AppInfo firstApp, nestedApp;

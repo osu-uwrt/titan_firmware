@@ -1,6 +1,21 @@
+{
+// Contains map of flash chip JEDEC IDs to flash chip names and capacities
+"jedecIdMap": [
+    {
+        "name": "Winbond W25Q16JV",
+        "id": "EF4015",
+        "capacity": 2097152  // 2 MB
+    },
+    {
+        "name": "Winbond W25Q128JV",
+        "id": "EF7018",
+        "capacity": 16777216  // 16 MB
+    }
+],
+
 // Contains map of all board serial numbers to board type, as well as providing a friendly name
 // Used by various Titan Firmware tools to properly identify boards by serial number
-[
+"serialMap": [
     // ========================================
     // Mark 2 Era Boards
     // ========================================
@@ -197,3 +212,4 @@
         "serial": "E660B440076B4B2A"
     }
 ]
+}

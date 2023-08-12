@@ -271,6 +271,33 @@ public:
     }
 };
 
+class AppMemoryStatsCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppMemoryStatsCommand(): CanmoreCommandHandler("memstats") {}
+
+    std::string getArgList() const override {return "";}
+    std::string getHelp() const override {return "Reports device memory statistics.";}
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+        (void) args;
+        auto stats = interface.handle->getMemoryStats();
+        uint32_t reservedMem = stats.totalMem - stats.heapUse;
+
+        renderField("Total memory on chip", std::to_string(stats.totalMem), 40);
+        renderField("Total heap memory available", std::to_string(stats.heapUse), 40);
+        renderField("Stack memory reserved", std::to_string(stats.stackUse), 40);
+        renderField("Static memory reserved", std::to_string(stats.staticUse), 40);
+        renderField("Memory Usage", std::to_string(100*(((double)(stats.arena - stats.keepcost + reservedMem))/((double)stats.totalMem))) + "%", 40);
+        renderField("Total non-mmapped bytes (arena)", std::to_string(stats.arena), 40);
+        renderField("# of free chunks (ordblks)", std::to_string(stats.ordblks), 40);
+        renderField("# of mapped regions (hblks)", std::to_string(stats.hblks), 40);
+        renderField("Bytes in mapped regions (hblkhd)", std::to_string(stats.hblkhd), 40);
+        renderField("Total allocated space (uordblks)", std::to_string(stats.uordblks), 40);
+        renderField("Total free space (fordblks)", std::to_string(stats.fordblks), 40);
+        renderField("Topmost releasable block (keepcost)", std::to_string(stats.keepcost), 40);
+    }
+};
+
 class AppCanDebugCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
@@ -315,6 +342,7 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppLowerFaultCommand>());
     registerCommand(std::make_shared<AppFaultNamesCommand>());
     registerCommand(std::make_shared<AppSafetyStatusCommand>());
+    registerCommand(std::make_shared<AppMemoryStatsCommand>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 

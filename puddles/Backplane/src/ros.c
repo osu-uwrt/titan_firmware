@@ -132,15 +132,11 @@ static int64_t set_computer_power(__unused alarm_id_t alarm, void * data){
 
 static void elec_command_subscription_callback(const void * msgin){
     const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
-    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
-        LOG_INFO("Commanded robot reset, Engaging intentional WDR");
-        // TODO: Is this what this command is used for?
-        watchdog_reboot(0, 0, 0);
-    }
-    else if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
+    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER){
         // turn off the computer (it will reschedule itself to turn back on)
         if (toggle_cpu_pwr_alarm_id != 0) {
             LOG_WARN("Attempting to request multiple cycles in a row");
+            safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         }
         else {
             toggle_cpu_pwr_alarm_id = add_alarm_in_ms(10, &set_computer_power, (void *) false,  true);
@@ -155,6 +151,7 @@ static void elec_command_subscription_callback(const void * msgin){
         // turn off the accoustics
         if (toggle_acc_pwr_alarm_id != 0) {
             LOG_WARN("Attempting to request multiple cycles in a row");
+            safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         }
         else {
             toggle_acc_pwr_alarm_id = add_alarm_in_ms(10, &set_accoustic_power, (void *) false,  true);
@@ -166,10 +163,7 @@ static void elec_command_subscription_callback(const void * msgin){
         }
     }
     else if (msg->command == riptide_msgs2__msg__ElectricalCommand__CLEAR_DEPTH) {
-        // TODO: Add in clear depth when code is found
-    }
-    else {
-        LOG_WARN("Unsupported electrical command used %d", msg->command);
+        depth_recalibrate();
     }
 }
 
@@ -181,14 +175,14 @@ static void software_kill_subscription_callback(const void * msgin)
     if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
             msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
         LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->kill_switch_id);
         return;
     }
 
     // Make sure frame id isn't too large
     if (msg->sender_id.size >= SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE) {
         LOG_WARN("Software Kill Frame ID too large");
-        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->sender_id.size);
         return;
     }
 

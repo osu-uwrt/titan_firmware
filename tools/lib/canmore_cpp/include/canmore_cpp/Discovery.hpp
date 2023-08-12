@@ -139,7 +139,7 @@ class Discovery: public RP2040Discovery {
         void discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &devicesOut) override;
 
         virtual std::string getInterfaceName() = 0;
-        virtual void discoverCanmoreDevices(std::vector<std::shared_ptr<Device>> &devicesOut);  // TODO: Remove virtual after testing
+        void discoverCanmoreDevices(std::vector<std::shared_ptr<Device>> &devicesOut);
         std::shared_ptr<BootloaderClient> catchDeviceInBootDelay(uint8_t clientId);
 
         // Timeout in milliseconds or -1 if block indefinitely
@@ -344,7 +344,7 @@ class EthernetDiscovery: public Discovery, public SocketSingleton<EthernetDiscov
 
 class EthernetNormalDevice: public NormalDevice {
     public:
-        // Use lower byte of IP as client ID
+        // Use lower byte of IP as client ID. This isn't ideal, but we shouldn't be trying to do anything larger than a /24 subnet
         EthernetNormalDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
             NormalDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
             isFlashIdCached(false), isAppVersionCached(false) {

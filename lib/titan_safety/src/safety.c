@@ -64,10 +64,11 @@ void safety_tick(void) {
     safety_interface_tick();
     profiler_reset(true);
 
-    if (absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time) <
+    int64_t watchdog_time_remaining = absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time);
+    if (watchdog_time_remaining <
             1000 * (safety_initialized ? SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS :
                     SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS)) {
-        safety_raise_fault(FAULT_WATCHDOG_WARNING);
+        safety_raise_fault_with_arg(FAULT_WATCHDOG_WARNING, watchdog_time_remaining);
     }
 
     watchdog_timeout_time = make_timeout_time_ms(safety_initialized ? SAFETY_WATCHDOG_ACTIVE_TIMER_MS :

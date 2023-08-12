@@ -1,5 +1,8 @@
+#include <iostream>
 #include "pico_usb/USBDiscovery.hpp"
-#include "read_flash.h"
+#include "pico_usb/flash_getid.h"
+
+#include "DeviceMap.hpp"
 
 using namespace PicoUSB;
 
@@ -31,28 +34,37 @@ RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> 
         handle(handle), conn(handle->handle, claimPicobootItf(handle)) {
 
     // Try to find discover the flash ID
-    union {
-        uint8_t data[8];
-        uint64_t doubleword;
-    } serial = {0};
+    flash_info_t flash_data = {0};
 
     try {
-        // TODO: Make this a little nicer
-        // Currently just puts a small stub to read the flash ID to 0x20001000
-        conn.write(0x20001000, serial.data, sizeof(serial));
-        conn.exit_xip();
-        conn.write(0x20000000, flash_bin, flash_bin_len);
-        conn.exec(0x20000000);
-        conn.enter_cmd_xip();
-        conn.read(0x20001000, serial.data, sizeof(serial));
+        // Load stub to read flash unique ID and JEDEC ID into end of memory
+        // This will be fine to write our stub, since this space is reserved for the boot2 writeout during boot
+        if (flash_getid_bin_len > 256) {
+            throw std::logic_error("Flash Binary Stub won't fit into space");
+        }
+        const uint32_t flash_bin_stub_loc = SRAM_END - 256;
 
-        cachedFlashId = serial.doubleword;
+        conn.write(flash_bin_stub_loc, flash_getid_bin, flash_getid_bin_len);
+        conn.exec(flash_bin_stub_loc);
+        conn.enter_cmd_xip();
+        conn.read(flash_bin_stub_loc + flash_getid_bin_len, flash_data.data, sizeof(flash_data.data));
+
+        cachedFlashId = flash_data.info.flash_id;
+
+        auto& map = DeviceMap::create();
+        auto flashInfo = map.lookupFlashChip(flash_data.info.jedec_id);
+        if (flashInfo.isUnknown) {
+            std::cerr << "Unknown flash chip ID '" << flashInfo.hexId() << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
+        }
+        cachedFlashSize = flashInfo.capacity;
     }
     catch (picoboot::command_failure &e) {
         cachedFlashId = 0;
+        cachedFlashSize = FLASH_END - FLASH_START;
     }
     catch (picoboot::connection_error &e) {
         cachedFlashId = 0;
+        cachedFlashSize = FLASH_END - FLASH_START;
     }
 
     // Extract current BinaryInfo on device
@@ -109,5 +121,5 @@ uint64_t RP2040BootromInterface::getFlashId() {
 }
 
 uint32_t RP2040BootromInterface::getFlashSize() {
-    return FLASH_END - FLASH_START;     // TODO: Actually try to figure this out
+    return cachedFlashSize;
 }

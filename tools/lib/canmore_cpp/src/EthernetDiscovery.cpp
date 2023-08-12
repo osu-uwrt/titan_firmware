@@ -192,7 +192,6 @@ std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::enterBootloader() {
 
     // Get a discovery context to wait for bootloader
     auto discovery = EthernetDiscovery::create();
-    // TODO: Fix this so clientId can't have colissions
     std::shared_ptr<BootloaderDevice> dev = discovery->waitForDevice<BootloaderDevice>(clientId, ETH_MODE_SWITCH_TIMEOUT_MS);
     if (!dev) {
         throw BootloaderError("Failed to reconnect to device in bootloader mode");

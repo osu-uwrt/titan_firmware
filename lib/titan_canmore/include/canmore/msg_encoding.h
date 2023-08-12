@@ -26,11 +26,6 @@ extern "C" {
 */
 #define CANMORE_MAX_MSG_SEQ_NUM  ((1<<CANMORE_NOC_LENGTH) - 1)
 
-/**
- * @brief Maximum possible message size in bytes supported by CANmore protocol
-*/
-#define CANMORE_MAX_MSG_LENGTH  1024
-
 
 // ========================================
 // CANmore Message Encoder

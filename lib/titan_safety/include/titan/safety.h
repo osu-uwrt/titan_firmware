@@ -59,6 +59,21 @@
 #define FAULT_WATCHDOG_WARNING 1
 // All other fault ids are implentation specific
 
+struct fault_data {
+    absolute_time_t time;  // The time this fault mot recently occurred
+    uint32_t extra_data;   // Extra data from the most recent firing of this fault
+    const char* filename;  // The filename where this fault most recently occurred
+    uint16_t line;         // The line where this fault most recently occurred
+    bool multiple_fires;   // Set if fault raised multiple times
+    bool sticky_fault;     // Set on raised, but not cleared by lower
+};
+
+/*
+ * @brief Array of fault_data for every fault.
+ * Contains MAX_FAULT_ID+1 entries.
+ */
+extern struct fault_data safety_fault_data[];
+
 /**
  * @brief A pointer to the list of all the active faults as bits
  *
@@ -67,13 +82,32 @@
 extern volatile uint32_t * const fault_list_reg;
 
 /**
- * @brief Raises the specified fault id
+ * @brief Raises the specified fault id. Note the macros should be used to autopopulate
+ * filename and line.
  *
- * This function can be used in interrupt callbacks
+ * This function is safe to be used in interrupt callbacks
  *
  * @param fault_id The id to be raised. Faults are defined above
+ * @param arg Additional data to store alongside fault information
+ * @param filename The file the fault was raised
+ * @param line The line the fault was raised
  */
-void safety_raise_fault(uint32_t fault_id);
+void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filename, uint16_t line);
+
+/**
+ * @brief Raises the specific fault id.
+ *
+ * @param fault_id The fault id to be raised. Faults are defined above
+ */
+#define safety_raise_fault(fault_id) safety_raise_fault_full(fault_id, 0, __FILE__, __LINE__)
+
+/**
+ * @brief Raises the specific fault id.
+ *
+ * @param fault_id The fault id to be raised. Faults are defined above
+ * @param arg Additional data to hold alongside fault information
+ */
+#define safety_raise_fault_with_arg(fault_id, arg) safety_raise_fault_full(fault_id, (uint32_t)(arg), __FILE__, __LINE__)
 
 /**
  * @brief Lowers the specified fault id

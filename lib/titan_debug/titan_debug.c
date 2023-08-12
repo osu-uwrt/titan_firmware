@@ -13,6 +13,7 @@
 #include "driver/canbus.h"
 #endif
 
+
 // ========================================
 // MCU Control Bindings
 // ========================================
@@ -56,6 +57,43 @@ static bool can_reset_cb(__unused const struct reg_mapped_server_register_defini
     return true;
 }
 #endif
+
+
+// ========================================
+// Memory Stats Bindings
+// ========================================
+
+static size_t mem_stats_total_mem = 0;
+static size_t mem_stats_heap_use = 0;
+static size_t mem_stats_stack_use = 0;
+static size_t mem_stats_static_use = 0;
+static size_t mem_stats_arena = 0;
+static size_t mem_stats_ordblks = 0;
+static size_t mem_stats_hblks = 0;
+static size_t mem_stats_hblkhd = 0;
+static size_t mem_stats_uordblks = 0;
+static size_t mem_stats_fordblks = 0;
+static size_t mem_stats_keepcost = 0;
+
+static bool mem_stats_capture_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write, __unused uint32_t *data_ptr) {
+    struct mallinfo mi = mallinfo();
+
+    mem_stats_total_mem = (&__StackTop - &__data_start__);
+    mem_stats_heap_use = (&__StackLimit - &end);
+    mem_stats_stack_use = (&__StackTop - &__StackBottom);
+    mem_stats_static_use = (&end - &__data_start__);
+
+    mem_stats_arena = mi.arena;
+    mem_stats_ordblks = mi.ordblks;
+    mem_stats_hblks = mi.hblks;
+    mem_stats_hblkhd = mi.hblkhd;
+    mem_stats_uordblks = mi.uordblks;
+    mem_stats_fordblks = mi.fordblks;
+    mem_stats_keepcost = mi.keepcost;
+
+    return true;
+}
+
 
 // ========================================
 // Safety Status Bindings
@@ -110,8 +148,8 @@ static bool lower_fault_cb(__unused const struct reg_mapped_server_register_defi
         return false;
     }
     safety_lower_fault(fault_id);
-    return true;
-}
+    return true;}
+
 
 // ========================================
 // Crash Log Bindings
@@ -247,11 +285,12 @@ static bool prev_index_cb(__unused const struct reg_mapped_server_register_defin
     return true;
 }
 
+
 // ========================================
 // Register Map
 // ========================================
 
-static reg_mapped_server_register_def_t debug_server_mcu_control_regs[] = {
+static const reg_mapped_server_register_def_t debug_server_mcu_control_regs[] = {
     DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MCU_CONTROL_MAGIC_OFFSET, &mcu_control_magic_value, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_ENTER_BL_OFFSET, enter_bl_cb, REGISTER_PERM_WRITE_ONLY),
     DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MCU_CONTROL_LOWER_FLASH_ID, &mcu_control_flash_id.id_word[0], REGISTER_PERM_READ_ONLY),
@@ -267,7 +306,22 @@ static reg_mapped_server_register_def_t debug_server_mcu_control_regs[] = {
 #endif
 };
 
-static reg_mapped_server_register_def_t debug_server_safety_status_regs[] = {
+static const reg_mapped_server_register_def_t debug_server_memory_stats_regs[] = {
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET, mem_stats_capture_cb, REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET, &mem_stats_total_mem, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET, &mem_stats_heap_use, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET, &mem_stats_stack_use, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET, &mem_stats_static_use, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_ARENA_OFFSET, &mem_stats_arena, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET, &mem_stats_ordblks, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_HBLKS_OFFSET, &mem_stats_hblks, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET, &mem_stats_hblkhd, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET, &mem_stats_uordblks, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET, &mem_stats_fordblks, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET, &mem_stats_keepcost, REGISTER_PERM_READ_ONLY),
+};
+
+static const reg_mapped_server_register_def_t debug_server_safety_status_regs[] = {
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET, safety_global_state_cb, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_SAFETY_STATUS_FAULT_LIST_OFFSET, fault_list_cb, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_SAFETY_STATUS_UPTIME_OFFSET, uptime_cb, REGISTER_PERM_READ_ONLY),
@@ -276,7 +330,7 @@ static reg_mapped_server_register_def_t debug_server_safety_status_regs[] = {
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET, lower_fault_cb, REGISTER_PERM_WRITE_ONLY),
 };
 
-static reg_mapped_server_register_def_t debug_server_crash_log_regs[] = {
+static const reg_mapped_server_register_def_t debug_server_crash_log_regs[] = {
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_CRASH_LOG_CRASH_COUNT_OFFSET, crash_count_cb, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_CRASH_LOG_HAS_WRAPPED_OFFSET, has_wrapped_cb, REGISTER_PERM_READ_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_CRASH_LOG_PREV_COUNT_OFFSET, prev_count_cb, REGISTER_PERM_READ_ONLY),
@@ -292,6 +346,7 @@ static reg_mapped_server_page_def_t debug_server_pages[] = {
     // General Control Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MCU_CONTROL_PAGE_NUM, debug_server_mcu_control_regs),
     DEFINE_PAGE_UNIMPLEMENTED(CANMORE_DBG_VERSION_STRING_PAGE_NUM),  // To be filled in at startup
+    DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MEM_STATS_PAGE_NUM, debug_server_memory_stats_regs),
 
     // Safety Status Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_SAFETY_STATUS_PAGE_NUM, debug_server_safety_status_regs),
@@ -304,6 +359,7 @@ static reg_mapped_server_inst_t debug_server_inst = {
     .num_pages = sizeof(debug_server_pages)/sizeof(*debug_server_pages),
     .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
 };
+
 
 // ========================================
 // Must be after debug_server_pages
@@ -327,6 +383,7 @@ static bool fault_name_idx_cb(__unused const struct reg_mapped_server_register_d
     debug_server_pages[CANMORE_DBG_FAULT_NAME_PAGE_NUM].type.mem_mapped_byte.size = strlen(fault_name) + 1;
     return true;
 }
+
 
 // ========================================
 // Exported Functions

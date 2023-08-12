@@ -29,15 +29,15 @@ void RP2040OCDTarget::initCommon() {
 
     if (showedVersionWarning) {}
     else if (!version.valid) {
-        std::cerr << "[WARNING] Unable to parse OpenOCD version. This program has been tested to work with version v0.11 and v0.12" << std::endl;
+        std::cerr << "[WARNING] Unable to parse OpenOCD version. This program has been tested to work with version v0.12" << std::endl;
         showedVersionWarning = true;
     }
     else if (version.major > 0 || version.minor > 12) {
-        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is newer than tested versions v0.11 and v0.12. This wrapper may not function correctly." << std::endl;
+        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is newer than tested versions v0.12. This wrapper may not function correctly." << std::endl;
         showedVersionWarning = true;
     }
-    else if (version.minor < 11) {
-        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is outdated! This wrapper may not function correctly. Please use either v0.11 or v0.12." << std::endl;
+    else if (version.minor < 12) {
+        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is outdated! This wrapper may not function correctly. Please use v0.12." << std::endl;
         showedVersionWarning = true;
     }
 
@@ -76,7 +76,9 @@ void RP2040OCDTarget::initNormal() {
             RESETS_RESET_PADS_QSPI_BITS |
             RESETS_RESET_TIMER_BITS;
     writeWord(RESETS_BASE + REG_ALIAS_CLR_BITS, rst_mask);
-    // TODO: Verify done signals are set
+    if ((readWord(RESETS_BASE) & rst_mask) != 0) {
+        throw PicoprobeError("Failed to un-reset required subsystems");
+    }
 }
 
 void RP2040OCDTarget::initRescue() {

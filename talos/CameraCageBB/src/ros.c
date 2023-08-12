@@ -149,6 +149,7 @@ static void elec_command_subscription_callback(const void * msgin){
     if (msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_COMPUTER) {
         if (toggle_pwr_alarm_id != 0) {
             LOG_WARN("Attempting to request multiple cycles in a row");
+            safety_raise_fault(FAULT_ROS_BAD_COMMAND);
         }
         else {
             toggle_state = false;

@@ -1,13 +1,16 @@
 #include <assert.h>
+#include "driver/canbus.h"
+#include "driver/led.h"
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
+#include "titan/logger.h"
 
 #include <riptide_msgs2/msg/kill_switch_report.h>
 
-#include "driver/canbus.h"
-#include "driver/led.h"
-
 #include "safety_interface.h"
+
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "safety_interface"
 
 // State values for software kill pin
 #define SOFTKILL_STATE_KILL false
@@ -32,12 +35,10 @@ static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
     }
 }
 
-void safety_handle_can_internal_error(__unused canbus_error_data_t error_data) {
-    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
-}
-
-void safety_handle_can_receive_error(__unused enum canbus_receive_error_codes err_code) {
-    //safety_raise_fault(FAULT_CAN_RECV_ERROR);
+static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
+    LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
+                (error_data.is_driver_error ? "Internal Driver" : "Library"));
+    safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data);
 }
 
 // ========================================
@@ -90,7 +91,6 @@ void safety_interface_setup(void) {
     gpio_set_dir(SOFT_KILLSWITCH_PIN, GPIO_OUT);
     gpio_disable_pulls(SOFT_KILLSWITCH_PIN);
 
-    canbus_set_receive_error_cb(safety_handle_can_receive_error);
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 

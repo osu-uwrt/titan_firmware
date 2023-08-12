@@ -70,13 +70,13 @@ extern "C" {
  * Only write requests can be made bulk requests.
  *
  * To ensure that bulk requests do not execute unless the previous request has been successfully received, a sequence
- * number is assigned to each request. This limits the maximum number of bulk requests before a response to 256 bytes.
+ * number is assigned to each request. This limits the maximum number of bulk requests before a response to 256 words.
  * This permits 1024 bytes to be transferred before requiring a response from the client.
  *
  * Bulk requests begin with a write request with flag bulk request set to 1 and a sequence number of 0. Subsequent
  * requests can be sent with bulk request = 1 with an increasing sequence until bulk request end = 1 is set, after
  * which a response is sent. If an error occurred in any of the previous requests, a response will be sent with an
- * error result and contain the sequence number that the error occurred on. Any subsequent requests in the bulk
+ * error result and contain the sequence number that the error occurred on. Any requests after that seq no. in the bulk
  * transfer were ignored.
  *
  * If a non-bulk request is sent before the request ending the bulk request, the bulk request will error bulk request
@@ -114,7 +114,7 @@ extern "C" {
  *   | Mode  | R | M | E | B | W |
  *   +-*-*-*-+-*-+-*-+-*-+-*-+-*-+
  *     7   5   4   3   2   1   0
- *   Mode: The Control Interface Mode implemented by this protocol
+ *   Mode: The Control Interface Mode implemented by this protocol (See titan canmore heartbeat extension mode description)
  *   R (RFU): Reserved for future use, set to 0
  *   W (Write): Set to 1 if write request, 0 if read request
  *   B (Bulk Request): Set to 1 if a bulk request, 0 if normal request
@@ -162,6 +162,7 @@ extern "C" {
  *   3: Invalid Register Address
  *   4: Invalid Register Mode (Ex: Trying to write to a read-only register, multiword write across page boundary)
  *   5: Invalid Data (If attempting to write an invalid value, such an invalid command to a register which executes the command)
+ *   6: Invalid Mode (The mode in the request does not match the mode for the reg mapped server)
  * Seq No: The last sequence number received from the agent if successful, or the sequence number the error occurred on (all subsequent requests ignored)
  * Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error occurred
  */

@@ -23,6 +23,7 @@ add_executable(titan_bootloader
 	bl_server.c
 )
 target_include_directories(titan_bootloader PUBLIC include)
+target_compile_definitions(titan_bootloader PUBLIC BOOTLOADER_DEBUG_BAUD_RATE=115200)
 
 # Target minimum compile size to fit in 16K
 target_compile_options(titan_bootloader PUBLIC -Os)
