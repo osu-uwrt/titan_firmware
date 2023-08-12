@@ -4,6 +4,7 @@
 #include "driver/wiznet.h"
 #include "hardware/gpio.h"
 #include "hardware/flash.h"
+#include "hardware/timer.h"
 #include "titan/canmore.h"
 #include "titan/binary_info.h"
 

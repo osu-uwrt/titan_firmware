@@ -4,6 +4,7 @@
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
+#include "pico/time.h"
 
 #include "driver/canbus.h"
 #include "titan/canmore.h"

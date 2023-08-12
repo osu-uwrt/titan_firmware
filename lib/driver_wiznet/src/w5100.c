@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#include "hardware/timer.h"
 #include "driver/wiznet/w5100.h"
 
 uint8_t w5100_init(w5k_data_t *c, spi_inst_t *spi, uint8_t ss_pin, uint8_t reset)
