@@ -199,6 +199,11 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
         std::cin >> userChoice;
 
         if(std::cin.fail()) {
+            if (std::cin.eof()) {
+                std::cout << std::endl << "No stdin available! Aborting upload..." << std::endl;
+                return nullptr;
+            }
+
             std::cout << "Invalid input!" << std::endl;
             std::cin.clear();
             std::cin.ignore(256,'\n');
@@ -384,13 +389,13 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
     return dev;
 }
 
-void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {
+bool flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {
     // Error if the image is large for flash
     if (uf2.getBaseFlashOffset() + uf2.getSize() > interface->getFlashSize()) {
         std::cout << "[ERROR] Requested image @+0x" << std::hex << uf2.getBaseFlashOffset() << " len 0x" << uf2.getSize()
                   << " is too large to fit into device flash size 0x" << interface->getFlashSize()
                   << std::dec << std::endl;
-        return;
+        return false;
     }
 
     // Error if uf2 reports OTA but tries to overwrite bootloader
@@ -398,14 +403,14 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         std::cout << "[ERROR] Requested OTA image @+0x" << std::hex << uf2.getBaseFlashOffset()
                   << " overlaps with bootloader reserved space @+0x" << interface->tryGetBootloaderSize()
                   << std::dec << std::endl;
-        return;
+        return false;
     }
 
     // Check with user to confirm they want to overwrite bootloader
     if (!isOTA && interface->shouldWarnOnBootloaderOverwrite()) {
         if (!showConfirmation("[WARNING!] Attempting to flash/overwrite the bootloader via the bootloader interface! This may brick the interface!\nAre you CERTAIN you want to continue flashing the full image?")) {
             std::cout << "Flash aborted." << std::endl;
-            return;
+            return false;
         }
         interface->enableBootloaderOverwrite();
     }
@@ -414,7 +419,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     if (isOTA && uf2.getBaseFlashOffset() != 0 && interface->tryGetBootloaderSize() == 0) {
         if (!showConfirmation("[WARNING] Attempting to flash OTA image but no bootloader was found. Continue with flashing?")) {
             std::cout << "Flash aborted." << std::endl;
-            return;
+            return false;
         }
     }
 
@@ -428,7 +433,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         if (!interface->verifyBytes(FLASH_BASE, appBoot2)) {
             if (!showConfirmation("[WARNING] The boot2 used by this application does not match the bootloader boot2. This may cause performance or other stability issues. Continue with flashing?")) {
                 std::cout << "Flash aborted." << std::endl;
-                return;
+                return false;
             }
         }
     }
@@ -484,7 +489,7 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         auto block = uf2.getBlock(i);
         if (!interface->verifyBytes(uf2.getBlockAddress(i), block)) {
             std::cout << std::endl << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(i) << std::dec << std::endl;
-            return;
+            return false;
         }
     }
     drawProgressBar(1.0);
@@ -496,12 +501,13 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         flashWrapper.writeBytes(uf2.getBlockAddress(0), block);
         if (!interface->verifyBytes(uf2.getBlockAddress(0), block)) {
             std::cout << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(0) << std::dec << std::endl;
-            return;
+            return false;
         }
     }
 
     std::cout << "Image Written." << std::endl;
     interface->reboot();
+    return true;
 }
 
 }

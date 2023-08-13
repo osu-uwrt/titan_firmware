@@ -1,0 +1,19 @@
+{
+    "cmake.sourceDirectory": [
+        "${workspaceFolder}/talos/Actuator/",
+        "${workspaceFolder}/talos/CameraCageBB/",
+        "${workspaceFolder}/talos/ESCBoard/",
+        "${workspaceFolder}/talos/PowerBoard/",
+        "${workspaceFolder}/talos/SmartBattery/",
+        "${workspaceFolder}/puddles/Backplane/",
+        "${workspaceFolder}/tools/upload_tool/",
+        "${workspaceFolder}/tools/canmore_cli/"
+    ],
+    "cmake.statusbar.advanced": {
+        "ctest":{"visibility": "hidden"},
+        "kit": {"visibility": "icon"},
+        "launch": {"visibility": "hidden"},
+        "debug": {"visibility": "hidden"}
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+}

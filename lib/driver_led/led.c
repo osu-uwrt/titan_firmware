@@ -12,11 +12,11 @@
  */
 #define LED_TOGGLE_RATE_MS 500
 
-#define LED_BRIGHTNESS_STEPS 32
+#define LED_BRIGHTNESS_STEPS 1024
 #define LED_FREQUENCY_HZ 1000
 #define LED_LVL_ON LED_BRIGHTNESS_STEPS
 #define LED_LVL_OFF 0
-#define LED_LVL_YELLOW 7
+#define LED_LVL_YELLOW 224
 #define set_led_pin(pin, val)  pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
 
 static struct led_status {

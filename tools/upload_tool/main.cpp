@@ -218,19 +218,22 @@ int main(int argc, char** argv) {
 
             if (discovered.size() == 0) {
                 std::cout << "No devices to select" << std::endl;
-                return 0;
+                return 1;
             }
 
             auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
+            if (!dev) {
+                return 1;
+            }
             interface = dev->getFlashInterface();
         }
 
-        // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
-        // interface->readBytes(0x10000000, my_page);
-        // DumpHex(my_page.data(), my_page.size());
-
-        UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite);
-
+        if (UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite)) {
+            return 0;
+        }
+        else {
+            return 1;
+        }
     }
     catch (std::exception &e) {
         int status;
@@ -239,10 +242,10 @@ int main(int argc, char** argv) {
         std::cerr << std::endl << "[EXCEPTION] Exception '" << exceptionName << "' caused program termination" << std::endl;
         free(exceptionName);
         std::cerr << "  what():  " << e.what() << std::endl;
+        return 255;
     }
     catch (...) {
         std::cerr << std::endl << "[EXCEPTION] Unknown exception caused program termination" << std::endl;
+        return 255;
     }
-
-    return 0;
 }

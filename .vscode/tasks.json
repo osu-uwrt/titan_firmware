@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Upload",
+            "detail": "Uploads Active CMake Project",
+            "type": "shell",
+            "isBackground": false,
+            "command": "make upload",
+            "options": {
+                "cwd": "${command:cmake.launchTargetDirectory}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true,
+                "clear": true,
+                "showReuseMessage": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

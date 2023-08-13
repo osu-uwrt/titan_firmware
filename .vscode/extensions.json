@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "ms-vscode.cpptools-extension-pack",
+        "dan-c-underwood.arm",
+        "chris-hock.pioasm",
+        "cschlosser.doxdocgen",
+        "Gruntfuggly.todo-tree",
+        "marus25.cortex-debug"
+    ]
+}
