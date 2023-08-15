@@ -1,19 +1,18 @@
-#include <assert.h>
-#include <stdbool.h>
-#include <string.h>
+#include "can_mcp251XFD_bridge.h"
+
+#include "driver/canbus.h"
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-
-#include "driver/canbus.h"
 #include "titan/canmore.h"
 #include "titan/debug.h"
 
-#include "can_mcp251XFD_bridge.h"
+#include <assert.h>
+#include <stdbool.h>
+#include <string.h>
 
 volatile bool canbus_msg_opened = false;
-
 
 // ========================================
 // Callback Functions
@@ -41,16 +40,14 @@ void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code) {
 
 void canbus_call_internal_error_cb(int line, uint16_t error_code, bool error_code_is_driver_error) {
     if (canbus_internal_error_cb) {
-        canbus_error_data_t error_data = {
-            .error_code = error_code,
-            .error_line = line,
-            .is_driver_error = error_code_is_driver_error
-        };
+        canbus_error_data_t error_data = { .error_code = error_code,
+                                           .error_line = line,
+                                           .is_driver_error = error_code_is_driver_error };
         canbus_internal_error_cb(error_data);
     }
 }
 
-static void report_canmore_msg_decode_error(__unused void* arg, unsigned int error_code) {
+static void report_canmore_msg_decode_error(__unused void *arg, unsigned int error_code) {
     // Only report decode errors if we're listening
     if (canbus_msg_opened) {
         canbus_call_receive_error_cb(CANBUS_RECVERR_DECODE_ERROR_BASE + error_code);
@@ -61,13 +58,12 @@ void canbus_set_device_in_error(bool device_in_error_state) {
     canbus_device_in_error_state = device_in_error_state;
 }
 
-
 // ========================================
 // Msg Queue Functions
 // ========================================
 
-canmore_msg_decoder_t msg_decoder = {0};
-canmore_msg_encoder_t encoding_buffer = {0};
+canmore_msg_decoder_t msg_decoder = { 0 };
+canmore_msg_encoder_t encoding_buffer = { 0 };
 struct canmore_received_msg {
     // Message data buffer
     uint8_t data[CANMORE_MAX_MSG_LENGTH];
@@ -75,7 +71,7 @@ struct canmore_received_msg {
     size_t length;
     // If the message is waiting to be read
     volatile bool waiting;
-} canmore_received_msg = {0};
+} canmore_received_msg = { 0 };
 
 // Exports to Application Code
 
@@ -94,7 +90,8 @@ void canbus_msg_close(void) {
     assert(canbus_initialized);
 
     canbus_msg_opened = false;
-    canmore_received_msg.waiting = false;   // Must be cleared after canbus_msg_opened (since it won't mark messages received after this)
+    canmore_received_msg.waiting =
+        false;  // Must be cleared after canbus_msg_opened (since it won't mark messages received after this)
 }
 
 bool canbus_msg_read_available(void) {
@@ -172,14 +169,14 @@ void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t dat
         return;
     }
 
-    canmore_id_t client_id = {.identifier = identifier};
+    canmore_id_t client_id = { .identifier = identifier };
 
     if (!is_extended) {
         canmore_msg_decode_frame(&msg_decoder, client_id.pkt_std.noc, data, data_len);
-    } else {
-        size_t msg_size = canmore_msg_decode_last_frame(&msg_decoder, client_id.pkt_ext.noc,
-                                                        data, data_len, client_id.pkt_ext.crc,
-                                                        canmore_received_msg.data);
+    }
+    else {
+        size_t msg_size = canmore_msg_decode_last_frame(&msg_decoder, client_id.pkt_ext.noc, data, data_len,
+                                                        client_id.pkt_ext.crc, canmore_received_msg.data);
 
         // Only queue the data if the decode was successful and we care to receive messages
         // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
@@ -195,8 +192,8 @@ void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t dat
 // Utility Queue Functions
 // ========================================
 
-struct utility_message_buffer utility_tx_buf = {0};
-struct utility_message_buffer utility_rx_buf = {0};
+struct utility_message_buffer utility_tx_buf = { 0 };
+struct utility_message_buffer utility_rx_buf = { 0 };
 
 bool canbus_utility_frame_read_available(void) {
     assert(canbus_initialized);
@@ -239,7 +236,7 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     assert(canbus_initialized);
 
     // Check channel ID
-    if (channel > (1<<CANMORE_NOC_LENGTH)) {
+    if (channel > (1 << CANMORE_NOC_LENGTH)) {
         return 0;
     }
 
@@ -281,8 +278,8 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
 // Utility Function Callbacks
 // ========================================
 
-#define CANBUS_NUM_CHANNELS (1<<CANMORE_NOC_LENGTH)
-canbus_utility_chan_cb_t callbacks[CANBUS_NUM_CHANNELS] = {0};
+#define CANBUS_NUM_CHANNELS (1 << CANMORE_NOC_LENGTH)
+canbus_utility_chan_cb_t callbacks[CANBUS_NUM_CHANNELS] = { 0 };
 
 void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t cb) {
     assert(canbus_initialized);
@@ -305,13 +302,12 @@ void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
 }
 #endif
 
-
 // ========================================
 // Initialization Functions
 // ========================================
 
 bool canbus_initialized = false;
-absolute_time_t heartbeat_transmit_timeout = {0};
+absolute_time_t heartbeat_transmit_timeout = { 0 };
 
 bool canbus_init(unsigned int client_id) {
     assert(!canbus_initialized);
@@ -337,14 +333,13 @@ bool canbus_init(unsigned int client_id) {
     return true;
 }
 
-
 bool canbus_check_online(void) {
     assert(canbus_initialized);
 
     return !time_reached(heartbeat_transmit_timeout);
 }
 
-absolute_time_t canbus_next_heartbeat = {0};
+absolute_time_t canbus_next_heartbeat = { 0 };
 static uint8_t msg_buffer[CANMORE_FRAME_SIZE];
 
 void canbus_tick(void) {
@@ -354,7 +349,7 @@ void canbus_tick(void) {
     if (time_reached(canbus_next_heartbeat) && canbus_utility_frame_write_available()) {
         canbus_next_heartbeat = make_timeout_time_ms(CAN_HEARTBEAT_INTERVAL_MS);
 
-        static canmore_titan_heartbeat_t heartbeat = {.data = 0};
+        static canmore_titan_heartbeat_t heartbeat = { .data = 0 };
 
         heartbeat.pkt.cnt += 1;
         heartbeat.pkt.error = canbus_device_in_error_state;
@@ -364,7 +359,8 @@ void canbus_tick(void) {
         if (can_mcp251x_get_term_state(&term_enabled)) {
             heartbeat.pkt.term_valid = 1;
             heartbeat.pkt.term_enabled = (term_enabled ? 1 : 0);
-        } else {
+        }
+        else {
             heartbeat.pkt.term_valid = 0;
             heartbeat.pkt.term_enabled = 0;
         }

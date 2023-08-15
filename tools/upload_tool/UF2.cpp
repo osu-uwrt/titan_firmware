@@ -1,10 +1,10 @@
-#include <algorithm>
-#include <cstring>
-#include <memory>
-
 #include "boot/uf2.h"
 
 #include "UploadTool.hpp"
+
+#include <algorithm>
+#include <cstring>
+#include <memory>
 
 using namespace UploadTool;
 
@@ -52,12 +52,14 @@ void assertBlockValid(struct uf2_block *block, uint32_t expected_num_blocks, boo
 
     // Check block number makes sense
     if (block->block_no >= block->num_blocks) {
-        throw RP2040UF2Error("Invalid block no: " + hexWord(block->block_no) + " >= num blocks " + hexWord(block->num_blocks));
+        throw RP2040UF2Error("Invalid block no: " + hexWord(block->block_no) + " >= num blocks " +
+                             hexWord(block->num_blocks));
     }
 
     // Verify total block count if provided
     if (verify_num_blocks && expected_num_blocks != block->num_blocks) {
-        throw RP2040UF2Error("Invalid num blocks: " + hexWord(block->num_blocks) + " != expected " + hexWord(expected_num_blocks));
+        throw RP2040UF2Error("Invalid num blocks: " + hexWord(block->num_blocks) + " != expected " +
+                             hexWord(expected_num_blocks));
     }
 }
 
@@ -77,7 +79,7 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
 
     do {
         struct uf2_block block;
-        stream.read((char*) &block, sizeof(block));
+        stream.read((char *) &block, sizeof(block));
 
         // First check if the read didn't fully complete
         if (stream.eof()) {
@@ -118,7 +120,7 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
         // Quit now if we don't have any data left
         // That means we've read the last block and no data remains after
         stream.peek();
-    } while(!stream.eof());
+    } while (!stream.eof());
 
     if (expected_block_no != expected_num_blocks) {
         throw RP2040UF2Error("Expected additional UF2 blocks");
@@ -144,11 +146,11 @@ void RP2040UF2::initFromStream(std::ifstream &stream) {
     } while (searchBase != 0);
 }
 
-std::array<uint8_t, 256>& RP2040UF2::getBlock(uint32_t blockNum) {
+std::array<uint8_t, 256> &RP2040UF2::getBlock(uint32_t blockNum) {
     return uf2Array.at(blockNum);
 }
 
-std::array<uint8_t, 256>& RP2040UF2::getAddress(uint32_t flashAddress) {
+std::array<uint8_t, 256> &RP2040UF2::getAddress(uint32_t flashAddress) {
     if (flashAddress % UF2_PAGE_SIZE != 0) {
         throw std::logic_error("Unaligned uf2 address read");
     }

@@ -1,8 +1,8 @@
+#include "canmore_cpp/Discovery.hpp"
+
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
-
-#include "canmore_cpp/Discovery.hpp"
 
 using namespace Canmore;
 
@@ -83,7 +83,7 @@ void Discovery::reportDiscoveredDevice(const std::shared_ptr<Device> &device) {
     const std::lock_guard<std::mutex> lock(discoveredDevicesMutex);
 
     // Remove older version of Device if it exists
-    for (auto it = discoveredDevices.begin(); it != discoveredDevices.end(); ) {
+    for (auto it = discoveredDevices.begin(); it != discoveredDevices.end();) {
         if (**it == *device) {
             it = discoveredDevices.erase(it);
         }
@@ -106,8 +106,9 @@ void Discovery::pruneDiscoveredDevices() {
     // NOTE: The caller MUST lock the mutex before calling this function
 
     // Get range of valid devices
-    auto lastValidTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-        - std::chrono::milliseconds(STALE_DISCOVERY_MS);
+    auto lastValidTime =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()) -
+        std::chrono::milliseconds(STALE_DISCOVERY_MS);
     auto searchDev = std::make_shared<Device>(lastValidTime);
     auto it = discoveredDevices.lower_bound(searchDev);
     // TODO: Debug flakey discovery

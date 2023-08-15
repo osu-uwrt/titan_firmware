@@ -1,18 +1,18 @@
+#include "safety_internal.h"
+
+#include "hardware/sync.h"
+#include "pico/assert.h"
+
 #include <stdbool.h>
 #include <stdint.h>
-
-#include "pico/assert.h"
-#include "hardware/sync.h"
-
-#include "safety_internal.h"
 
 // ========================================
 // Fault Management Functions
 // ========================================
 
-struct fault_data safety_fault_data[MAX_FAULT_ID+1] = {0};
+struct fault_data safety_fault_data[MAX_FAULT_ID + 1] = { 0 };
 
-void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filename, uint16_t line) {
+void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filename, uint16_t line) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     absolute_time_t raise_time = get_absolute_time();
@@ -24,13 +24,14 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filena
     safety_fault_data[fault_id].line = line;
     safety_fault_data[fault_id].sticky_fault = true;
 
-    if ((*fault_list_reg & (1u<<fault_id)) == 0) {
-        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-        // the setting of the fault state and the fault LED
+    if ((*fault_list_reg & (1u << fault_id)) == 0) {
+        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled
+        // during the setting of the fault state and the fault LED
 
-        *fault_list_reg |= (1<<fault_id);
+        *fault_list_reg |= (1 << fault_id);
         safety_set_fault_led(true);
-    } else {
+    }
+    else {
         safety_fault_data[fault_id].multiple_fires = true;
     }
 
@@ -40,13 +41,13 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filena
 void safety_lower_fault(uint32_t fault_id) {
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
-    if ((*fault_list_reg & (1u<<fault_id)) != 0) {
-        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled during
-        // the setting of the fault state and the fault LED
+    if ((*fault_list_reg & (1u << fault_id)) != 0) {
+        // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled
+        // during the setting of the fault state and the fault LED
 
         uint32_t prev_interrupt_state = save_and_disable_interrupts();
 
-        *fault_list_reg &= ~(1u<<fault_id);
+        *fault_list_reg &= ~(1u << fault_id);
         safety_set_fault_led((*fault_list_reg) != 0);
 
         restore_interrupts(prev_interrupt_state);
@@ -68,7 +69,8 @@ void safety_internal_fault_tick(void) {
                 // Fault was not present in last tick
                 LOG_FAULT("Fault %s (%d) Raised (Arg: %ld, File: 0x%p, Line: %d)", safety_lookup_fault_id(i), i,
                           safety_fault_data[i].extra_data, safety_fault_data[i].filename, safety_fault_data[i].line);
-            } else {
+            }
+            else {
                 // Fault was present and is no longer present
                 LOG_FAULT("Fault %s (%d) Lowered", safety_lookup_fault_id(i), i);
             }

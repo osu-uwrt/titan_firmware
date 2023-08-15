@@ -1,15 +1,14 @@
-#include <stdbool.h>
-#include <stdint.h>
+#include "actuators.h"
+#include "actuators_internal.h"
+#include "safety_interface.h"
 
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-
 #include "titan/logger.h"
 
-#include "actuators.h"
-#include "actuators_internal.h"
-#include "safety_interface.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
@@ -80,7 +79,6 @@ bool claw_set_timings(uint16_t open_time_ms, uint16_t close_time_ms) {
 
     return true;
 }
-
 
 // ========================================
 // H-Bridge Control Functions
@@ -160,21 +158,21 @@ bool claw_open(const char **errMsgOut) {
     }
 
     switch (claw_get_state()) {
-        case CLAW_STATE_OPENED:
-        case CLAW_STATE_OPENING:
-            return true;
-        case CLAW_STATE_UNKNOWN_POSITION:
-        case CLAW_STATE_CLOSED:
-            break;
-        default:
-            *errMsgOut = "Invalid State";
-            return false;
+    case CLAW_STATE_OPENED:
+    case CLAW_STATE_OPENING:
+        return true;
+    case CLAW_STATE_UNKNOWN_POSITION:
+    case CLAW_STATE_CLOSED:
+        break;
+    default:
+        *errMsgOut = "Invalid State";
+        return false;
     }
 
     LOG_INFO("Opening Claw");
 
     local_claw_state = CLAW_STATE_OPENING;
-    scheduled_alarm_id = add_alarm_in_ms(claw_open_time_ms, &claw_finish_callback, ((void*)CLAW_STATE_OPENED), true);
+    scheduled_alarm_id = add_alarm_in_ms(claw_open_time_ms, &claw_finish_callback, ((void *) CLAW_STATE_OPENED), true);
     claw_driver_move(OPEN_DIRECTION_IS_FORWARD);
 
     return true;
@@ -190,21 +188,21 @@ bool claw_close(const char **errMsgOut) {
     }
 
     switch (claw_get_state()) {
-        case CLAW_STATE_CLOSED:
-        case CLAW_STATE_CLOSING:
-            return true;
-        case CLAW_STATE_UNKNOWN_POSITION:
-        case CLAW_STATE_OPENED:
-            break;
-        default:
-            LOG_DEBUG("defualt case");
-            return false;
+    case CLAW_STATE_CLOSED:
+    case CLAW_STATE_CLOSING:
+        return true;
+    case CLAW_STATE_UNKNOWN_POSITION:
+    case CLAW_STATE_OPENED:
+        break;
+    default:
+        LOG_DEBUG("defualt case");
+        return false;
     }
 
     LOG_INFO("Closing Claw");
 
     local_claw_state = CLAW_STATE_CLOSING;
-    scheduled_alarm_id = add_alarm_in_ms(claw_close_time_ms, &claw_finish_callback, ((void*)CLAW_STATE_CLOSED), true);
+    scheduled_alarm_id = add_alarm_in_ms(claw_close_time_ms, &claw_finish_callback, ((void *) CLAW_STATE_CLOSED), true);
     claw_driver_move(!OPEN_DIRECTION_IS_FORWARD);
 
     return true;

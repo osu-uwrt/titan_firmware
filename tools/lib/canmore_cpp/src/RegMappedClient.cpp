@@ -1,6 +1,6 @@
-#include <algorithm>
-
 #include "canmore_cpp/RegMappedClient.hpp"
+
+#include <algorithm>
 
 using namespace Canmore;
 
@@ -26,7 +26,8 @@ void RegMappedClient::writeRegister(uint8_t mode, uint8_t page, uint8_t offset, 
     }
 }
 
-void RegMappedClient::readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst, uint8_t numWords) {
+void RegMappedClient::readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst,
+                                uint8_t numWords) {
     clientCfg.control_interface_mode = mode;
 
     auto buf = new uint32_t[numWords];

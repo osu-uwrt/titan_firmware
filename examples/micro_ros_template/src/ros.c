@@ -1,18 +1,17 @@
+#include "ros.h"
+
 #include "pico/stdlib.h"
-
-#include <rmw_microros/rmw_microros.h>
-#include <rcl/rcl.h>
-#include <rcl/error_handling.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
-#include <riptide_msgs2/msg/firmware_status.h>
-#include <std_msgs/msg/int8.h>
-#include <std_msgs/msg/bool.h>
-
 #include "titan/logger.h"
 #include "titan/version.h"
 
-#include "ros.h"
+#include <rcl/error_handling.h>
+#include <rcl/rcl.h>
+#include <rclc/executor.h>
+#include <rclc/rclc.h>
+#include <rmw_microros/rmw_microros.h>
+#include <riptide_msgs2/msg/firmware_status.h>
+#include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/int8.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -46,9 +45,8 @@ std_msgs__msg__Bool killswitch_msg;
 // Executor Callbacks
 // ========================================
 
-static void killswitch_subscription_callback(const void * msgin)
-{
-	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
+static void killswitch_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
@@ -62,16 +60,16 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
     status_msg.board_name.data = PICO_BOARD;
     status_msg.board_name.size = strlen(PICO_BOARD);
-    status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
+    status_msg.board_name.capacity = status_msg.board_name.size + 1;  // includes NULL byte
 
-    // Select bus ID depending on the transport used
-    #ifdef MICRO_ROS_TRANSPORT_CAN
+// Select bus ID depending on the transport used
+#ifdef MICRO_ROS_TRANSPORT_CAN
     status_msg.bus_id = __CONCAT(CAN_BUS_NAME, _ID);
-    #elif MICRO_ROS_TRANSPORT_ETH
+#elif MICRO_ROS_TRANSPORT_ETH
     status_msg.bus_id = ETHERNET_BUS_ID;
-    #else
+#else
     status_msg.bus_id = 0;
-    #endif
+#endif
 
     status_msg.client_id = client_id;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
@@ -86,19 +84,19 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
 
     for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
-            status_msg.kill_switches_enabled |= (1<<i);
+            status_msg.kill_switches_enabled |= (1 << i);
         }
 
         if (kill_switch_states[i].asserting_kill) {
-            status_msg.kill_switches_asserting_kill |= (1<<i);
+            status_msg.kill_switches_asserting_kill |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update) {
-            status_msg.kill_switches_needs_update |= (1<<i);
+            status_msg.kill_switches_needs_update |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout)) {
-            status_msg.kill_switches_timed_out |= (1<<i);
+            status_msg.kill_switches_timed_out |= (1 << i);
         }
     }
 
@@ -114,10 +112,11 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     if (ret != RCL_RET_OK) {
         failed_heartbeats++;
 
-        if(failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
+        if (failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
             ros_connected = false;
         }
-    } else {
+    }
+    else {
         failed_heartbeats = 0;
     }
 
@@ -139,28 +138,21 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_node_init_default(&node, PICO_TARGET_NAME, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
-    RCRETCHECK(rclc_publisher_init_default(
-        &heartbeat_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
-        HEARTBEAT_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&heartbeat_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), HEARTBEAT_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(
-        &firmware_status_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
-        FIRMWARE_STATUS_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&firmware_status_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
+                                           FIRMWARE_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-        KILLSWITCH_SUBCRIBER_NAME));
+        &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 1;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
+                                              &killswitch_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 
@@ -197,4 +189,3 @@ bool ros_ping(void) {
     ros_connected = rmw_uros_ping_agent(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT, 1) == RCL_RET_OK;
     return ros_connected;
 }
-

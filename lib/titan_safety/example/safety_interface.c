@@ -1,7 +1,6 @@
-#include <assert.h>
-
 #include "safety_interface.h"
 
+#include <assert.h>
 
 // ========================================
 // Implementations for External Interface Functions
@@ -42,10 +41,12 @@ void safety_interface_deinit(void) {
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES] = {[0 ... NUM_KILL_SWITCHES-1] = { .enabled = false }};
-const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
-static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
+struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES] = { [0 ... NUM_KILL_SWITCHES - 1] = { .enabled =
+                                                                                                         false } };
+const int num_kill_switches = sizeof(kill_switch_states) / sizeof(*kill_switch_states);
+static_assert(sizeof(kill_switch_states) / sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 
-const char * safety_lookup_fault_id(uint32_t fault_id) {
-    return (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN");
+const char *safety_lookup_fault_id(uint32_t fault_id) {
+    return (fault_id < sizeof(fault_string_list) / sizeof(*fault_string_list) ? fault_string_list[fault_id] :
+                                                                                "UNKNOWN");
 }

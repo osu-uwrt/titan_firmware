@@ -1,5 +1,6 @@
-#include <stdbool.h>
-#include <stdint.h>
+#include "actuators.h"
+#include "safety_interface.h"
+#include "torpedo.pio.h"
 
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
@@ -7,12 +8,10 @@
 #include "hardware/pio.h"
 #include "pico/binary_info.h"
 #include "pico/sync.h"
-
 #include "titan/logger.h"
 
-#include "safety_interface.h"
-#include "actuators.h"
-#include "torpedo.pio.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "torpedo"
@@ -27,38 +26,39 @@ bi_decl(bi_1pin_with_name(TORP_DRAIN_PIN, "Torpedo Drain"));
 #define NUM_COILS 3
 // PIO requires that coil pins be reverse consecutive for side-set
 // See actuator mk2 board pin definitions and torpedo pio file for more details
-#define FIRST_COIL_PIN COIL_3_PIN   // This must be the coil pin with the lowest pin number
-static_assert(COIL_3_PIN+1 == COIL_2_PIN, "Coil pins must be consecutive");
-static_assert(COIL_2_PIN+1 == COIL_1_PIN, "Coil pins must be consecutive");
+#define FIRST_COIL_PIN COIL_3_PIN  // This must be the coil pin with the lowest pin number
+static_assert(COIL_3_PIN + 1 == COIL_2_PIN, "Coil pins must be consecutive");
+static_assert(COIL_2_PIN + 1 == COIL_1_PIN, "Coil pins must be consecutive");
 bi_decl(bi_1pin_with_name(COIL_1_PIN, "Torpedo Coil 1"));
 bi_decl(bi_1pin_with_name(COIL_2_PIN, "Torpedo Coil 2"));
 bi_decl(bi_1pin_with_name(COIL_3_PIN, "Torpedo Coil 3"));
 
-static const uint torpedo_select_pins[] = {TORP_SEL_1_PIN, TORP_SEL_2_PIN};
+static const uint torpedo_select_pins[] = { TORP_SEL_1_PIN, TORP_SEL_2_PIN };
 bi_decl(bi_1pin_with_name(TORP_SEL_1_PIN, "Torpedo Select 1"));
 bi_decl(bi_1pin_with_name(TORP_SEL_2_PIN, "Torpedo Select 2"));
 
-#define NUM_TORPEDOS (sizeof(torpedo_select_pins)/sizeof(*torpedo_select_pins))
+#define NUM_TORPEDOS (sizeof(torpedo_select_pins) / sizeof(*torpedo_select_pins))
 
-#define ARM_LEVEL_ARMED    0
+#define ARM_LEVEL_ARMED 0
 #define ARM_LEVEL_DISARMED 1
 #define DRAIN_LEVEL_NODRAIN 1
 #define DRAIN_LEVEL_DRAIN 0
 
-#define COIL_LEVEL_ON  1
+#define COIL_LEVEL_ON 1
 #define COIL_LEVEL_OFF 0
-#define TORP_SEL_LEVEL_ON  1
+#define TORP_SEL_LEVEL_ON 1
 #define TORP_SEL_LEVEL_OFF 0
 
 // Sanity check to make sure that the coils defined above equal the coils defined in the timings command
-static_assert((ACTUATOR_NUM_TORPEDO_TIMINGS+1) == NUM_COILS*2, "Timings does not match number of coils");
+static_assert((ACTUATOR_NUM_TORPEDO_TIMINGS + 1) == NUM_COILS * 2, "Timings does not match number of coils");
 // Sanity check to make sure torpedo timings in the protocol matches what pio expects
-static_assert(ACTUATOR_NUM_TORPEDO_TIMINGS == torpedo_num_timings, "Protocol number of timings does not match pio state machine");
+static_assert(ACTUATOR_NUM_TORPEDO_TIMINGS == torpedo_num_timings,
+              "Protocol number of timings does not match pio state machine");
 
 /**
  * @brief Data containing instance data for each torpedo
  */
-static uint16_t torpedo_timings[NUM_TORPEDOS][ACTUATOR_NUM_TORPEDO_TIMINGS] = {0};
+static uint16_t torpedo_timings[NUM_TORPEDOS][ACTUATOR_NUM_TORPEDO_TIMINGS] = { 0 };
 static bool torpedo_timings_valid = false;
 
 /**
@@ -105,7 +105,7 @@ void torpedo_initialize(void) {
 
     // Compute select mask and set the pins
     torpedo_sel_mask = 0;
-    for (uint i = 0; i < NUM_TORPEDOS; i++){
+    for (uint i = 0; i < NUM_TORPEDOS; i++) {
         torpedo_sel_mask |= 1 << torpedo_select_pins[i];
         torpedo_sel_off_mask |= TORP_SEL_LEVEL_OFF << torpedo_select_pins[i];
     }
@@ -158,7 +158,7 @@ bool torpedo_arm(const char **errMsgOut) {
 void torpedo_safety_disable(void) {
     // It should be fine to do nothing before initialization since the
     // pins haven't even been configured to do anything before initialized is true
-    if (!actuators_initialized){
+    if (!actuators_initialized) {
         return;
     }
 
@@ -183,24 +183,22 @@ void torpedo_safety_disable(void) {
 
         // Report that the actuation was aborted
         // This is important since we responed over ROS that the actuator fired, but now we're cancelling it
-        // Due to how brief these pulses are, it is worth the occasional fault when we pull the kill switch over thinking
-        // the actuator fired and some random kill event stopped it silently (like a timeout)
+        // Due to how brief these pulses are, it is worth the occasional fault when we pull the kill switch over
+        // thinking the actuator fired and some random kill event stopped it silently (like a timeout)
         safety_raise_fault(FAULT_ACTUATOR_FAILURE);
     }
     else {
         restore_interrupts(prev_interrupts);
     }
-
 }
-
 
 // ========================================
 // Timing Management
 // ========================================
 
 // Subtract the time it takes to pull data before running loop
-#define ON_SUBTRACT     2
-#define OFF_SUBTRACT    4
+#define ON_SUBTRACT 2
+#define OFF_SUBTRACT 4
 
 #define IS_ON_TIMING_TYPE(timing_type) (((timing_type) % 2) == 0)
 static_assert(IS_ON_TIMING_TYPE(ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME), "Unexpected timing calculation");
@@ -221,12 +219,12 @@ bool torpedo_set_timings(uint8_t torpedo_num, enum torpedo_timing_type timing_ty
 
     if (IS_ON_TIMING_TYPE(timing_type)) {
         compensation_value = ON_SUBTRACT;
-    } else {
+    }
+    else {
         compensation_value = OFF_SUBTRACT;
     }
 
-
-    if (time_us < compensation_value){
+    if (time_us < compensation_value) {
         return false;
     }
 
@@ -236,9 +234,10 @@ bool torpedo_set_timings(uint8_t torpedo_num, enum torpedo_timing_type timing_ty
     }
 
     // Set the timings
-    LOG_INFO("Setting Torpedo Timings for torpedo %d (Timing type: %d, timing: %d us)", torpedo_num, timing_type, time_us);
+    LOG_INFO("Setting Torpedo Timings for torpedo %d (Timing type: %d, timing: %d us)", torpedo_num, timing_type,
+             time_us);
 
-    torpedo_timings[torpedo_num-1][timing_type] = time_us - compensation_value;
+    torpedo_timings[torpedo_num - 1][timing_type] = time_us - compensation_value;
 
     // Refresh boolean if all timings are configured
     bool timings_valid = true;
@@ -262,16 +261,17 @@ static float torpedo_charge = 0;
 static bool torpedo_check_charged(void) {
     static bool torpedo_charged = false;
 
-    if (torpedo_charged){
+    if (torpedo_charged) {
         torpedo_charged = torpedo_charge >= TORPEDO_DISCHARGED_THRESHOLD;
-    } else {
+    }
+    else {
         torpedo_charged = torpedo_charge >= TORPEDO_CHARGED_THRESHOLD;
     }
     return torpedo_charged;
 }
 
 static void torpedo_adc_cb(void) {
-    torpedo_charge = (float)adc_fifo_get() / TORPEDO_VDIV_CAL;
+    torpedo_charge = (float) adc_fifo_get() / TORPEDO_VDIV_CAL;
 }
 
 // ========================================
@@ -309,13 +309,17 @@ uint8_t torpedo_get_state(void) {
     // Handle individual torpedo state
     if (!torpedo_timings_valid) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
-    } else if(!actuators_armed) {
+    }
+    else if (!actuators_armed) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
-    } else if (torpedo_firing) {
+    }
+    else if (torpedo_firing) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
-    } else if (torpedo_check_charged()) {
+    }
+    else if (torpedo_check_charged()) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
-    } else {
+    }
+    else {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
     }
     // TODO: Add error on charge timeout

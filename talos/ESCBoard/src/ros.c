@@ -1,23 +1,22 @@
+#include "ros.h"
+
+#include "dshot.h"
+
 #include "pico/stdlib.h"
+#include "titan/logger.h"
+#include "titan/version.h"
 
-#include <rmw_microros/rmw_microros.h>
-#include <rcl/rcl.h>
 #include <rcl/error_handling.h>
-#include <rclc/rclc.h>
+#include <rcl/rcl.h>
 #include <rclc/executor.h>
-
+#include <rclc/rclc.h>
+#include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/dshot_command.h>
 #include <riptide_msgs2/msg/dshot_partial_telemetry.h>
 #include <riptide_msgs2/msg/dshot_rpm_feedback.h>
 #include <riptide_msgs2/msg/firmware_status.h>
-#include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/bool.h>
-
-#include "titan/logger.h"
-#include "titan/version.h"
-
-#include "dshot.h"
-#include "ros.h"
+#include <std_msgs/msg/int8.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -66,14 +65,13 @@ riptide_msgs2__msg__DshotCommand dshot_msg;
 // ROS Callbacks
 // ========================================
 
-static void killswitch_subscription_callback(const void * msgin)
-{
-	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
+static void killswitch_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-static void dshot_subscription_callback(const void * msgin) {
-    const riptide_msgs2__msg__DshotCommand * msg = (const riptide_msgs2__msg__DshotCommand *)msgin;
+static void dshot_subscription_callback(const void *msgin) {
+    const riptide_msgs2__msg__DshotCommand *msg = (const riptide_msgs2__msg__DshotCommand *) msgin;
     extern uint8_t esc_board_num;
     uint offset = (esc_board_num == 1 ? 4 : 0);
     dshot_update_thrusters(&msg->values[offset]);
@@ -84,7 +82,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
     status_msg.board_name.data = PICO_BOARD;
     status_msg.board_name.size = strlen(PICO_BOARD);
-    status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
+    status_msg.board_name.capacity = status_msg.board_name.size + 1;  // includes NULL byte
     status_msg.bus_id = __CONCAT(CAN_BUS_NAME, _ID);
     status_msg.client_id = client_id;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
@@ -99,19 +97,19 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
 
     for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
-            status_msg.kill_switches_enabled |= (1<<i);
+            status_msg.kill_switches_enabled |= (1 << i);
         }
 
         if (kill_switch_states[i].asserting_kill) {
-            status_msg.kill_switches_asserting_kill |= (1<<i);
+            status_msg.kill_switches_asserting_kill |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update) {
-            status_msg.kill_switches_needs_update |= (1<<i);
+            status_msg.kill_switches_needs_update |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout)) {
-            status_msg.kill_switches_timed_out |= (1<<i);
+            status_msg.kill_switches_timed_out |= (1 << i);
         }
     }
 
@@ -127,10 +125,11 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     if (ret != RCL_RET_OK) {
         failed_heartbeats++;
 
-        if(failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
+        if (failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
             ros_connected = false;
         }
-    } else {
+    }
+    else {
         failed_heartbeats = 0;
     }
 
@@ -148,7 +147,7 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
         int16_t rpm = 0;
 
         if (dshot_rpm_data[i].valid) {
-            valid_mask |= 1<<(thruster_base + i);
+            valid_mask |= 1 << (thruster_base + i);
 
             rpm = INT16_MAX;
             unsigned int period_us = dshot_rpm_data[i].rpm_period_us;
@@ -156,7 +155,8 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
             // Check if the period isn't reporting not moving
             if (period_us == (0x1FF << 0x7)) {
                 rpm = 0;
-            } else if (period_us != 0) {
+            }
+            else if (period_us != 0) {
                 // Convert period to RPM if it's valid
                 uint32_t erpm = (60 * 1000000) / period_us;
                 uint32_t rpm_unsigned = erpm / num_pole_pairs;
@@ -183,10 +183,9 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
     return RCL_RET_OK;
 }
 
-
 rcl_ret_t ros_send_telemetry(uint8_t board_id) {
     riptide_msgs2__msg__DshotPartialTelemetry telem_msg;
-    telem_msg.vcc_voltage = (vcc_reading_mv/1000.f);
+    telem_msg.vcc_voltage = (vcc_reading_mv / 1000.f);
     telem_msg.escs_powered = esc_board_on;
     telem_msg.start_thruster_num = (board_id == 0 ? 0 : 4);
 
@@ -197,8 +196,10 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
             telem_msg.esc_telemetry[i].voltage = dshot_telemetry_data[i].voltage / 100.0;
             telem_msg.esc_telemetry[i].current = dshot_telemetry_data[i].current / 100.0;
             telem_msg.esc_telemetry[i].consumption_ah = dshot_telemetry_data[i].consumption / 1000.0;
-            telem_msg.esc_telemetry[i].rpm = (dshot_rpm_reversed[i] ? -1 : 1) * dshot_telemetry_data[i].rpm * 100 / num_pole_pairs;
-        } else {
+            telem_msg.esc_telemetry[i].rpm =
+                (dshot_rpm_reversed[i] ? -1 : 1) * dshot_telemetry_data[i].rpm * 100 / num_pole_pairs;
+        }
+        else {
             telem_msg.esc_telemetry[i].present = false;
             telem_msg.esc_telemetry[i].temperature_c = 0;
             telem_msg.esc_telemetry[i].voltage = 0;
@@ -217,7 +218,6 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
     return RCL_RET_OK;
 }
 
-
 // ========================================
 // ROS Core
 // ========================================
@@ -228,58 +228,44 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
     const char *node_name = (board_id == 0 ? PICO_TARGET_NAME "_0" : PICO_TARGET_NAME "_1");
-    const char *moving_publisher_name = (board_id == 0 ? THRUSTER_MOVING_BORAD0_PUBLISHER_NAME : THRUSTER_MOVING_BORAD1_PUBLISHER_NAME);
+    const char *moving_publisher_name =
+        (board_id == 0 ? THRUSTER_MOVING_BORAD0_PUBLISHER_NAME : THRUSTER_MOVING_BORAD1_PUBLISHER_NAME);
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
-    RCRETCHECK(rclc_publisher_init_default(
-        &heartbeat_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
-        HEARTBEAT_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&heartbeat_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), HEARTBEAT_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(
-        &firmware_status_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
-        FIRMWARE_STATUS_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&firmware_status_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
+                                           FIRMWARE_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-        KILLSWITCH_SUBCRIBER_NAME));
+        &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &dshot_subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotCommand),
-        DSHOT_COMMAND_SUCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_best_effort(&dshot_subscriber, &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotCommand),
+                                                  DSHOT_COMMAND_SUCRIBER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_best_effort(
-        &dshot_rpm_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotRPMFeedback),
-        DSHOT_RPM_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_best_effort(&dshot_rpm_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotRPMFeedback),
+                                               DSHOT_RPM_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&dshot_telem_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotPartialTelemetry),
+                                               DSHOT_TELEMETRY_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_best_effort(
-        &dshot_telem_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotPartialTelemetry),
-        DSHOT_TELEMETRY_PUBLISHER_NAME));
-
-    RCRETCHECK(rclc_publisher_init_best_effort(
-        &thrusters_moving_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-        moving_publisher_name));
+        &thrusters_moving_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), moving_publisher_name));
 
     // Executor Initialization
     const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
 
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_subscriber, &dshot_msg, &dshot_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
+                                              &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_subscriber, &dshot_msg, &dshot_subscription_callback,
+                                              ON_NEW_DATA));
 
     return RCL_RET_OK;
 }
@@ -310,4 +296,3 @@ bool ros_ping(void) {
     ros_connected = rmw_uros_ping_agent(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT, 1) == RCL_RET_OK;
     return ros_connected;
 }
-

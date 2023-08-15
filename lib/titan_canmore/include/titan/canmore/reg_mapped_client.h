@@ -1,11 +1,11 @@
 #ifndef TITAN__CANMORE__REG_MAPPED_CLIENT_H_
 #define TITAN__CANMORE__REG_MAPPED_CLIENT_H_
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-
 #include "titan/canmore/reg_mapped_protocol.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +26,7 @@ enum reg_mapped_client_transfer_mode {
     /**
      * @brief Perform multiword transfers during array read/writes
      */
-    TRANSFER_MODE_MULTIWORD     // TODO: Implement multiword
+    TRANSFER_MODE_MULTIWORD  // TODO: Implement multiword
 };
 
 /*
@@ -49,7 +49,7 @@ enum reg_mapped_client_transfer_mode {
  * @return true If transmit successful
  * @return false If transmit failed
  */
-typedef bool (*reg_mapped_client_tx_func)(const uint8_t *buf, size_t len, void* arg);
+typedef bool (*reg_mapped_client_tx_func)(const uint8_t *buf, size_t len, void *arg);
 
 /**
  * @brief Clears the receive buffer
@@ -58,7 +58,7 @@ typedef bool (*reg_mapped_client_tx_func)(const uint8_t *buf, size_t len, void* 
  * @return true if clear successful
  * @return false if clear failed
  */
-typedef bool (*reg_mapped_client_clear_rx_func)(void* arg);
+typedef bool (*reg_mapped_client_clear_rx_func)(void *arg);
 
 /**
  * @brief Receive function prototype
@@ -72,7 +72,7 @@ typedef bool (*reg_mapped_client_clear_rx_func)(void* arg);
  * @return true If data was successfully received
  * @return false If an error occurred during receive, a timeout occurred, or received data did not match len
  */
-typedef bool (*reg_mapped_client_rx_func)(uint8_t *buf, size_t len, unsigned int timeout_ms, void* arg);
+typedef bool (*reg_mapped_client_rx_func)(uint8_t *buf, size_t len, unsigned int timeout_ms, void *arg);
 
 /**
  * @brief Configuration struct for reg mapped client library functions
@@ -97,7 +97,7 @@ typedef struct reg_mapped_client_cfg {
     /**
      * @brief Optional argument data to pass to tx_func and rx_func
      */
-    void* arg;
+    void *arg;
     /**
      * @brief Transfer mode to use for array transfers
      */
@@ -117,7 +117,8 @@ typedef struct reg_mapped_client_cfg {
  * @param data_out Pointer to write read data
  * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
  */
-int reg_mapped_client_read_register(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset, uint32_t *data_out);
+int reg_mapped_client_read_register(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset,
+                                    uint32_t *data_out);
 
 /**
  * @brief Write to a register
@@ -143,7 +144,7 @@ int reg_mapped_client_write_register(const reg_mapped_client_cfg_t *cfg, uint8_t
  * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
  */
 int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset_start,
-                                    uint32_t *data_array, uint8_t num_words);
+                                 uint32_t *data_array, uint8_t num_words);
 
 /**
  * @brief Write array of words to a page
@@ -158,7 +159,7 @@ int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t pag
  * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
  */
 int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset_start,
-                                    const uint32_t *data_array, uint8_t num_words);
+                                  const uint32_t *data_array, uint8_t num_words);
 
 /**
  * @brief Read a page containing a null-temrinated string
@@ -169,8 +170,8 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
  * @param max_len Max number of bytes to write to str_out
  * @return int Length of read string, or negative on error
  */
-int reg_mapped_client_read_string_page(const reg_mapped_client_cfg_t *cfg, uint8_t page_num,
-                                        char* str_out, size_t max_len);
+int reg_mapped_client_read_string_page(const reg_mapped_client_cfg_t *cfg, uint8_t page_num, char *str_out,
+                                       size_t max_len);
 
 #ifdef __cplusplus
 }

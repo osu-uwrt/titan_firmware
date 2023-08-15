@@ -1,4 +1,5 @@
-#include <assert.h>
+#include "safety_interface.h"
+
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "hardware/gpio.h"
@@ -7,14 +8,14 @@
 
 #include <riptide_msgs2/msg/kill_switch_report.h>
 
-#include "safety_interface.h"
+#include <assert.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety_interface"
 
 // State values for software kill pin
 #define SOFTKILL_STATE_KILL false
-#define SOFTKILL_STATE_RUN  true
+#define SOFTKILL_STATE_RUN true
 
 volatile bool safety_interface_kill_switch_refreshed = false;
 volatile bool safety_interface_physical_kill_asserting_kill = true;
@@ -37,7 +38,7 @@ static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
 
 static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
     LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
-                (error_data.is_driver_error ? "Internal Driver" : "Library"));
+              (error_data.is_driver_error ? "Internal Driver" : "Library"));
     safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data.raw);
 }
 
@@ -80,38 +81,40 @@ void safety_interface_setup(void) {
     gpio_init(PHYS_KILLSWITCH_PIN);
     gpio_pull_up(PHYS_KILLSWITCH_PIN);
     gpio_set_dir(PHYS_KILLSWITCH_PIN, GPIO_IN);
-    gpio_set_irq_enabled_with_callback(PHYS_KILLSWITCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &safety_interface_gpio_callback);
+    gpio_set_irq_enabled_with_callback(PHYS_KILLSWITCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true,
+                                       &safety_interface_gpio_callback);
 
     // Initialize Physical Kill Override Pin
     // This allows the microcontroller to override the kill switch signal to kill the vehicle
     // Useful for software kill, so that we can kill power to the ESCs even if the kill switch is inserted
     bi_decl_if_func_used(bi_1pin_with_name(SOFT_KILLSWITCH_PIN, "Software Kill Control"));
     gpio_init(SOFT_KILLSWITCH_PIN);
-    gpio_put(SOFT_KILLSWITCH_PIN, SOFTKILL_STATE_KILL); // Default to kill since safety is not initialized
+    gpio_put(SOFT_KILLSWITCH_PIN, SOFTKILL_STATE_KILL);  // Default to kill since safety is not initialized
     gpio_set_dir(SOFT_KILLSWITCH_PIN, GPIO_OUT);
     gpio_disable_pulls(SOFT_KILLSWITCH_PIN);
 
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
-void safety_interface_init(void) { }
+void safety_interface_init(void) {}
 
 void safety_interface_tick(void) {
     safety_interface_refresh_physical_kill_switch();
 }
 
-void safety_interface_deinit(void) { }
-
+void safety_interface_deinit(void) {}
 
 // ========================================
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] =
-    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
-const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
-static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
+struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] = {
+    [0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES - 1] = { .enabled = false }
+};
+const int num_kill_switches = sizeof(kill_switch_states) / sizeof(*kill_switch_states);
+static_assert(sizeof(kill_switch_states) / sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 
-const char * safety_lookup_fault_id(uint32_t fault_id) {
-    return (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN");
+const char *safety_lookup_fault_id(uint32_t fault_id) {
+    return (fault_id < sizeof(fault_string_list) / sizeof(*fault_string_list) ? fault_string_list[fault_id] :
+                                                                                "UNKNOWN");
 }

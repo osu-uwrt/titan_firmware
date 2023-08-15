@@ -12,5 +12,5 @@ target_include_directories(driver_status_strip INTERFACE
 
 target_link_libraries(driver_status_strip INTERFACE
     hardware_pio
-	hardware_dma
+    hardware_dma
 )

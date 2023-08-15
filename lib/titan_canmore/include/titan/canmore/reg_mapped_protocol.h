@@ -114,15 +114,13 @@ extern "C" {
  *   | Mode  | R | M | E | B | W |
  *   +-*-*-*-+-*-+-*-+-*-+-*-+-*-+
  *     7   5   4   3   2   1   0
- *   Mode: The Control Interface Mode implemented by this protocol (See titan canmore heartbeat extension mode description)
- *   R (RFU): Reserved for future use, set to 0
- *   W (Write): Set to 1 if write request, 0 if read request
- *   B (Bulk Request): Set to 1 if a bulk request, 0 if normal request
- *   E (Bulk End): Set to 1 if the last transfer in a bulk request, 0 if not last request or not a bulk request
- *   M (Multiword): Set to 1 if multiple data words are being written
+ *   Mode: The Control Interface Mode implemented by this protocol (See titan canmore heartbeat extension mode
+ * description) R (RFU): Reserved for future use, set to 0 W (Write): Set to 1 if write request, 0 if read request B
+ * (Bulk Request): Set to 1 if a bulk request, 0 if normal request E (Bulk End): Set to 1 if the last transfer in a bulk
+ * request, 0 if not last request or not a bulk request M (Multiword): Set to 1 if multiple data words are being written
  * Count: The number of words to read/write if If bulk request, an increasing counter for the bulk request
- * Reg Address: The 16-bit address for the register to access in little-endian. This is defined by the higher-level protocol
- * Data Word (Only if W=1): The 32-bit word to write in little-endian format
+ * Reg Address: The 16-bit address for the register to access in little-endian. This is defined by the higher-level
+ * protocol Data Word (Only if W=1): The 32-bit word to write in little-endian format
  *
  *
  * Client to Agent Response
@@ -161,10 +159,11 @@ extern "C" {
  *   2: Bulk Request Sequence Error
  *   3: Invalid Register Address
  *   4: Invalid Register Mode (Ex: Trying to write to a read-only register, multiword write across page boundary)
- *   5: Invalid Data (If attempting to write an invalid value, such an invalid command to a register which executes the command)
- *   6: Invalid Mode (The mode in the request does not match the mode for the reg mapped server)
- * Seq No: The last sequence number received from the agent if successful, or the sequence number the error occurred on (all subsequent requests ignored)
- * Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error occurred
+ *   5: Invalid Data (If attempting to write an invalid value, such an invalid command to a register which executes the
+ * command) 6: Invalid Mode (The mode in the request does not match the mode for the reg mapped server) Seq No: The last
+ * sequence number received from the agent if successful, or the sequence number the error occurred on (all subsequent
+ * requests ignored) Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error
+ * occurred
  */
 
 union reg_mapped_request_flags {

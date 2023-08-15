@@ -1,9 +1,8 @@
-#include "pico/stdlib.h"
+#include "safety_interface.h"
 
+#include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
-
-#include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -12,8 +11,7 @@
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
-absolute_time_t next_led_flash = {0};
-
+absolute_time_t next_led_flash = { 0 };
 
 // Global variables
 const uint led_pin = PICO_DEFAULT_LED_PIN;
@@ -38,12 +36,13 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
     if (time_reached(time_tmp)) {
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
-            unsigned int i = 0; \
-            while(time_reached(time_tmp)) {
+            unsigned int i = 0;
+            while (time_reached(time_tmp)) {
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                     next_fire_ptr);
             if (error_on_miss)
                 safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
         }
@@ -70,7 +69,6 @@ static void tick_background_tasks() {
     // If not, you will experience random watchdog timeouts which are very difficult to debug
 }
 
-
 int main() {
     // Initialize stdio
     stdio_init_all();
@@ -87,13 +85,12 @@ int main() {
 
     // TODO: Put any additional hardware initialization code here
 
-
     // Initialize safety before entering main loop
     // This makes the watchdog timer much more strict, as we aren't initializing hardware which might block for a while
     safety_init();
 
     // Enter main loop
-    while(true) {
+    while (true) {
         // Do background tasks
         tick_background_tasks();
 

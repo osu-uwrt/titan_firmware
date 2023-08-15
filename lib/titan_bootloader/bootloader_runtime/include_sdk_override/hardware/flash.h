@@ -100,8 +100,8 @@ void flash_get_unique_id(uint8_t *id_out);
  * implementation of pico_get_unique_id() for an example of this.
  *
  *  \param txbuf Pointer to a byte buffer which will be transmitted to the flash
- *  \param rxbuf Pointer to a byte buffer where data received from the flash will be written. txbuf and rxbuf may be the same buffer.
- *  \param count Length in bytes of txbuf and of rxbuf
+ *  \param rxbuf Pointer to a byte buffer where data received from the flash will be written. txbuf and rxbuf may be the
+ * same buffer. \param count Length in bytes of txbuf and of rxbuf
  */
 void flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count);
 

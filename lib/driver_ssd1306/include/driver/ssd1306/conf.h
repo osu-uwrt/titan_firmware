@@ -7,9 +7,9 @@
 #define __SSD1306_CONF_H__
 
 // I2C Configuration
-#define SSD1306_I2C_PORT        PERIPH_I2C
-#define SSD1306_I2C_ADDR        0x3C
-#define SSD1306_TIMEOUT_MS      20
+#define SSD1306_I2C_PORT PERIPH_I2C
+#define SSD1306_I2C_ADDR 0x3C
+#define SSD1306_TIMEOUT_MS 20
 
 // Mirror the screen if needed
 // #define SSD1306_MIRROR_VERT
@@ -22,8 +22,8 @@
 #define SSD1306_INCLUDE_FONT_6x8
 #define SSD1306_INCLUDE_FONT_7x10
 #define SSD1306_INCLUDE_FONT_11x18
-//#define SSD1306_INCLUDE_FONT_16x26    (These fonts are too big to be useful)
-//#define SSD1306_INCLUDE_FONT_16x24
+// #define SSD1306_INCLUDE_FONT_16x26    (These fonts are too big to be useful)
+// #define SSD1306_INCLUDE_FONT_16x24
 
 // The width of the screen can be set using this
 // define. The default value is 128.

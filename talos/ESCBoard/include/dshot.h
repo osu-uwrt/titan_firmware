@@ -22,7 +22,8 @@
 // The minimum rate that dshot_update_thrusters must be called before disabling thrusters in milliseconds
 #define DSHOT_MIN_UPDATE_RATE_MS 200
 
-// The amount of time in milliseconds thrusters will be disabled for if update_thrusters isn't called within the update rate timeout
+// The amount of time in milliseconds thrusters will be disabled for if update_thrusters isn't called within the update
+// rate timeout
 #define DSHOT_UPDATE_DISABLE_TIME_MS 1000
 
 // The delay in milliseconds that thrusters will be disabled for on ESC power-up
@@ -32,8 +33,8 @@
 #define DSHOT_RATE 600
 
 // The conversion factor from the raw adc value to the vcc in millivolts
-#define VCC_CONVERSION_MULT_MV 36300 // (3300 * (10000 + 1000))
-#define VCC_CONVERSION_DIV_MV  4096 // (4096 * 1000)
+#define VCC_CONVERSION_MULT_MV 36300  // (3300 * (10000 + 1000))
+#define VCC_CONVERSION_DIV_MV 4096    // (4096 * 1000)
 
 // The voltage threshold upon which passing the ESCs will be considered powered
 #define ESC_POWER_THRESHOLD_MV 9000
@@ -59,21 +60,20 @@
 // ========================================
 
 struct dshot_uart_telemetry {
-    int missed_count;       // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
-    bool valid;             // If the packet is valid
-    uint8_t temperature;    // Temperature in C
-    uint16_t voltage;       // Voltage in hundredths of volts
-    uint16_t current;       // Current in hundredths of amps
-    uint16_t consumption;   // Consumption of mAh
-    uint16_t rpm;           // RPM in 100s of RPM
+    int missed_count;      // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
+    bool valid;            // If the packet is valid
+    uint8_t temperature;   // Temperature in C
+    uint16_t voltage;      // Voltage in hundredths of volts
+    uint16_t current;      // Current in hundredths of amps
+    uint16_t consumption;  // Consumption of mAh
+    uint16_t rpm;          // RPM in 100s of RPM
 };
 
 struct dshot_rpm_telemetry {
-    int missed_count;       // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
-    uint16_t rpm_period_us; // If the RPM period is valid
-    bool valid;             // If the packet is valid
+    int missed_count;        // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
+    uint16_t rpm_period_us;  // If the RPM period is valid
+    bool valid;              // If the packet is valid
 };
-
 
 // ========================================
 // Exported Variables - Do not write
@@ -97,7 +97,8 @@ extern struct dshot_uart_telemetry dshot_telemetry_data[];
 extern struct dshot_rpm_telemetry dshot_rpm_data[];
 
 /**
- * @brief Contains boolean for each thruster in NUM_THRUSTERS reporting if the rpm period is for the motor moving backwards.
+ * @brief Contains boolean for each thruster in NUM_THRUSTERS reporting if the rpm period is for the motor moving
+ * backwards.
  */
 extern bool dshot_rpm_reversed[];
 
@@ -116,7 +117,6 @@ extern bool esc_board_on;
  * If this is true, the thrusters are considered to be on (used for error reporting timeouts)
  */
 extern bool dshot_thrusters_on;
-
 
 // ========================================
 // Exported Methods

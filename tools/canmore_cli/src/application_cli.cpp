@@ -1,10 +1,11 @@
-#include <iostream>
-#include <sstream>
-#include <thread>
-#include "canmore_cpp/DebugClient.hpp"
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
 #include "DeviceMap.hpp"
+#include "canmore_cpp/DebugClient.hpp"
+
+#include <iostream>
+#include <sstream>
+#include <thread>
 
 static void reportNotice(CLIInterface<Canmore::DebugClient> &interface, std::string message) {
     auto uptime = interface.handle->getUptime();
@@ -13,7 +14,7 @@ static void reportNotice(CLIInterface<Canmore::DebugClient> &interface, std::str
     interface.writeLine(outStream.str());
 }
 
-class AppKeepaliveTask: public CLIBackgroundTask<Canmore::DebugClient> {
+class AppKeepaliveTask : public CLIBackgroundTask<Canmore::DebugClient> {
 public:
     AppKeepaliveTask(): hasRun(false) {}
 
@@ -43,10 +44,12 @@ public:
                 for (uint32_t i = 0; i < 32; i++) {
                     if (changedFaults & (1ul << i)) {
                         if (faultState & (1ul << i)) {
-                            reportNotice(interface, "Fault " + interface.handle->lookupFaultName(i) + " (" + std::to_string(i) + ") Raised");
+                            reportNotice(interface, "Fault " + interface.handle->lookupFaultName(i) + " (" +
+                                                        std::to_string(i) + ") Raised");
                         }
                         else {
-                            reportNotice(interface, "Fault " + interface.handle->lookupFaultName(i) + " (" + std::to_string(i) + ") Lowered");
+                            reportNotice(interface, "Fault " + interface.handle->lookupFaultName(i) + " (" +
+                                                        std::to_string(i) + ") Lowered");
                         }
                     }
                 }
@@ -67,14 +70,14 @@ private:
     uint32_t lastFaultState;
 };
 
-class AppEnterBootloaderCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppEnterBootloaderCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppEnterBootloaderCommand(): CanmoreCommandHandler("enterbl") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Reboots the device into bootloader mode.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Reboots the device into bootloader mode."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         interface.writeLine("Requesting reboot into bootloader mode...");
         interface.handle->enterBootloader();
@@ -83,14 +86,14 @@ public:
     }
 };
 
-class AppCrashlogCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppCrashlogCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCrashlogCommand(): CanmoreCommandHandler("crashlog") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the full device crash log.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the full device crash log."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto crashcounter = interface.handle->getCrashCounter();
         std::vector<Canmore::CrashLogEntry> crashlog;
@@ -105,14 +108,14 @@ public:
     }
 };
 
-class AppSafetyStatusCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppSafetyStatusCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppSafetyStatusCommand(): CanmoreCommandHandler("safetystatus") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the current safety status.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the current safety status."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto safetyStatus = interface.handle->getSafetyStatus();
         renderField("Safety Setup", (safetyStatus.safetySetup ? "Yes" : "No"));
@@ -122,14 +125,14 @@ public:
     }
 };
 
-class AppFaultsCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppFaultsCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppFaultsCommand(): CanmoreCommandHandler("faults") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the list of active faults.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the list of active faults."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         uint32_t activeFaults = interface.handle->getActiveFaults();
         if (activeFaults == 0) {
@@ -146,14 +149,14 @@ public:
     }
 };
 
-class AppRaiseFaultCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppRaiseFaultCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppRaiseFaultCommand(): CanmoreCommandHandler("raisefault") {}
 
-    std::string getArgList() const override {return "[fault id]";}
-    std::string getHelp() const override {return "Raises the requested fault id.";}
+    std::string getArgList() const override { return "[fault id]"; }
+    std::string getHelp() const override { return "Raises the requested fault id."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -178,14 +181,14 @@ public:
     }
 };
 
-class AppLowerFaultCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppLowerFaultCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppLowerFaultCommand(): CanmoreCommandHandler("lowerfault") {}
 
-    std::string getArgList() const override {return "[fault id]";}
-    std::string getHelp() const override {return "Lowers the requested fault id.";}
+    std::string getArgList() const override { return "[fault id]"; }
+    std::string getHelp() const override { return "Lowers the requested fault id."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -210,15 +213,14 @@ public:
     }
 };
 
-
-class AppFaultNamesCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppFaultNamesCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppFaultNamesCommand(): CanmoreCommandHandler("faultnames") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the list of all fault names.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the list of all fault names."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderHeader("All Fault Names:");
         for (uint32_t i = 0; i < 32; i++) {
@@ -227,40 +229,40 @@ public:
     }
 };
 
-class AppUptimeCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppUptimeCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppUptimeCommand(): CanmoreCommandHandler("uptime") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the current uptime.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the current uptime."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderField("Uptime", interface.handle->getUptime().format());
     }
 };
 
-class AppVersionCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppVersionCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppVersionCommand(): CanmoreCommandHandler("version") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Returns the current application version.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Returns the current application version."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderField("App Version", interface.handle->getVersion());
     }
 };
 
-class AppRebootCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppRebootCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppRebootCommand(): CanmoreCommandHandler("reboot") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Reboots the device.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Reboots the device."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         interface.writeLine("Sending reboot command...");
         interface.handle->reboot();
@@ -271,14 +273,14 @@ public:
     }
 };
 
-class AppMemoryStatsCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppMemoryStatsCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppMemoryStatsCommand(): CanmoreCommandHandler("memstats") {}
 
-    std::string getArgList() const override {return "";}
-    std::string getHelp() const override {return "Reports device memory statistics.";}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Reports device memory statistics."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto stats = interface.handle->getMemoryStats();
         uint32_t reservedMem = stats.totalMem - stats.heapUse;
@@ -287,7 +289,11 @@ public:
         renderField("Total heap memory available", std::to_string(stats.heapUse), 40);
         renderField("Stack memory reserved", std::to_string(stats.stackUse), 40);
         renderField("Static memory reserved", std::to_string(stats.staticUse), 40);
-        renderField("Memory Usage", std::to_string(100*(((double)(stats.arena - stats.keepcost + reservedMem))/((double)stats.totalMem))) + "%", 40);
+        renderField("Memory Usage",
+                    std::to_string(
+                        100 * (((double) (stats.arena - stats.keepcost + reservedMem)) / ((double) stats.totalMem))) +
+                        "%",
+                    40);
         renderField("Total non-mmapped bytes (arena)", std::to_string(stats.arena), 40);
         renderField("# of free chunks (ordblks)", std::to_string(stats.ordblks), 40);
         renderField("# of mapped regions (hblks)", std::to_string(stats.hblks), 40);
@@ -298,21 +304,24 @@ public:
     }
 };
 
-class AppCanDebugCommand: public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppCanDebugCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
 
-    std::string getArgList() const override {return "[action]";}
-    std::string getHelp() const override {return "Issues a can debug operation\nValid Actions:\n1: Issue intr en\n2: Issue fifo clear\n3: Reset CAN hardware";}
+    std::string getArgList() const override { return "[action]"; }
+    std::string getHelp() const override {
+        return "Issues a can debug operation\nValid Actions:\n1: Issue intr en\n2: Issue fifo clear\n3: Reset CAN "
+               "hardware";
+    }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const& args) override {
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
             return;
         }
 
-        std::string const& action = args.at(0);
+        std::string const &action = args.at(0);
         if (action == "0") {
             interface.writeLine("Issuing CAN Interrupt Enable Signal");
             interface.handle->canDbgIntrEn();
@@ -353,8 +362,10 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     std::cout << std::endl;
     renderHeader("Connecting to Application");
     renderName(devDescr.name);
-    if (devDescr.boardType != "unknown") renderField("Board Type", devDescr.boardType);
-    else if (flashId != 0) renderField("Unique ID", devDescr.hexSerialNum());
+    if (devDescr.boardType != "unknown")
+        renderField("Board Type", devDescr.boardType);
+    else if (flashId != 0)
+        renderField("Unique ID", devDescr.hexSerialNum());
     renderField("Version", handle->getVersion());
 
     auto lastCrash = handle->getLastResetEntry();

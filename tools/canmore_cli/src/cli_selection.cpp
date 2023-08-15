@@ -1,8 +1,9 @@
-#include <sstream>
-#include <iostream>
-#include "CanmoreCLI.hpp"
-#include "CLIInterface.hpp"
 #include "CLIBackends.hpp"
+#include "CLIInterface.hpp"
+#include "CanmoreCLI.hpp"
+
+#include <iostream>
+#include <sstream>
 #include <termios.h>
 #include <unistd.h>
 
@@ -25,7 +26,8 @@ void reportError(std::string msg) {
     // Report error
     std::cout << std::endl << CURSOR_DISABLE COLOR_ERROR << msg << COLOR_RESET << std::endl;
     std::cout << COLOR_HEADER "Press any enter to continue..." COLOR_RESET << std::flush;
-    while (getchar() != '\n');
+    while (getchar() != '\n')
+        ;
     std::cout << CURSOR_ENABLE << std::endl << std::endl;
 
     // Reset terminal
@@ -48,8 +50,7 @@ void runCli(std::shared_ptr<Canmore::Device> dev) {
             ss << "No compatible CLI backends for device mode '" << dev->getMode() << "'";
             reportError(ss.str());
         }
-    }
-    catch (Canmore::CanmoreError &e) {
+    } catch (Canmore::CanmoreError &e) {
         std::stringstream ss;
         ss << "Exception while executing CLI!" << std::endl;
         ss << "  what(): " << e.what();
@@ -57,4 +58,3 @@ void runCli(std::shared_ptr<Canmore::Device> dev) {
     }
     fseek(stdin, 0, SEEK_END);  // Clear stdin buffer before returning to GUI
 }
-

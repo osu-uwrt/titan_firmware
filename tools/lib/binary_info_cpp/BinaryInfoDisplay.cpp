@@ -1,8 +1,9 @@
+#include "BinaryInfo.hpp"
+
 #include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include "BinaryInfo.hpp"
 
 #define COLOR_TITLE "\033[1;35m"
 #define COLOR_ID "\033[0m"
@@ -11,19 +12,21 @@
 #define COLOR_BODY "\033[0;32m"
 #define COLOR_RESET "\033[0m"
 
-static void printRow(const char* name, const char* value, bool indent = false) {
+static void printRow(const char *name, const char *value, bool indent = false) {
     // Don't print empty field
     if (*value == 0) {
         return;
     }
 
-    if (indent) std::cout << "\t";
+    if (indent)
+        std::cout << "\t";
     std::cout << COLOR_HEADER << name << (strlen(name) < 7 ? ":\t" : ":");
-    if (!indent) std::cout << "\t";
+    if (!indent)
+        std::cout << "\t";
     std::cout << COLOR_NAME << value << COLOR_RESET << std::endl;
 }
 
-static void printRow(const char* name, std::vector<std::string> values, bool indent = false) {
+static void printRow(const char *name, std::vector<std::string> values, bool indent = false) {
     // Don't print empty field
     if (values.size() == 0) {
         return;
@@ -33,14 +36,15 @@ static void printRow(const char* name, std::vector<std::string> values, bool ind
         return;
     }
 
-    if (indent) std::cout << "\t";
+    if (indent)
+        std::cout << "\t";
     std::cout << COLOR_HEADER << name << ":" COLOR_RESET << std::endl;
     for (auto &value : values) {
         std::cout << COLOR_NAME "\t\t" << value << COLOR_RESET << std::endl;
     }
 }
 
-static void printRow(const char* name, std::map<uint,std::vector<std::string>> values) {
+static void printRow(const char *name, std::map<uint, std::vector<std::string>> values) {
     if (values.size() == 0) {
         return;
     }
@@ -52,7 +56,7 @@ static void printRow(const char* name, std::map<uint,std::vector<std::string>> v
     }
 }
 
-static void printRow(const char* name, int value) {
+static void printRow(const char *name, int value) {
     std::stringstream ss;
     ss << "0x" << std::hex << std::setw(8) << std::setfill('0') << value;
     auto str = ss.str();
@@ -79,7 +83,8 @@ void dumpAppInfo(AppInfo &app) {
     if (app.clientIds.size() == 1) {
         auto s = std::to_string(app.clientIds.at(0));
         printRow("Client ID", s.c_str());
-    } else if (app.clientIds.size() > 1) {
+    }
+    else if (app.clientIds.size() > 1) {
         std::cout << COLOR_HEADER << "Client ID List:" COLOR_RESET << std::endl;
         for (auto clientId : app.clientIds) {
             std::cout << COLOR_NAME "\t\t" << clientId << COLOR_RESET << std::endl;
@@ -105,4 +110,4 @@ void dumpAppInfo(AppInfo &app) {
     printRow("Pins", app.pins);
 }
 
-};
+};  // namespace BinaryInfo

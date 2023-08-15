@@ -13,8 +13,8 @@ set(UWRT_ROBOT puddles)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
-	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
@@ -25,7 +25,7 @@ titan_firmware_init()
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(backplane_firmware
-	${SOURCES}
+    ${SOURCES}
 )
 pico_generate_pio_header(backplane_firmware ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
 target_include_directories(backplane_firmware PUBLIC include)
@@ -50,13 +50,13 @@ target_compile_definitions(backplane_firmware PUBLIC SAFETY_ENABLE_PROFILER=1)
 # Define linking and targets
 pico_add_extra_outputs(backplane_firmware)
 target_link_libraries(backplane_firmware PUBLIC
-	driver_async_i2c
-	driver_depth
-	driver_led
-	driver_mcp3426
-	hardware_pio
-	micro_ros_eth
-	pico_stdlib
-	titan_logger
-	titan_safety
+    driver_async_i2c
+    driver_depth
+    driver_led
+    driver_mcp3426
+    hardware_pio
+    micro_ros_eth
+    pico_stdlib
+    titan_logger
+    titan_safety
 )

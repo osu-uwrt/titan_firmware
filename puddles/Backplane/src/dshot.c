@@ -1,4 +1,7 @@
-#include <stdio.h>
+#include "dshot.h"
+
+#include "bidir_dshot.pio.h"
+#include "safety_interface.h"
 
 #include "hardware/irq.h"
 #include "hardware/pio.h"
@@ -6,20 +9,18 @@
 #include "hardware/timer.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
-
 #include "titan/logger.h"
 
-#include "safety_interface.h"
-#include "dshot.h"
-#include "bidir_dshot.pio.h"
+#include <stdio.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dshot"
 
 // Sanity check parameters
-static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "DShot TX Rate must be greater than minimum frame time");
+static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US,
+              "DShot TX Rate must be greater than minimum frame time");
 
-#define INDEX_TO_PIO(thruster_index) (((thruster_index)/4) == 0 ? pio0 : (((thruster_index)/4) == 1 ? pio1 : NULL))
+#define INDEX_TO_PIO(thruster_index) (((thruster_index) / 4) == 0 ? pio0 : (((thruster_index) / 4) == 1 ? pio1 : NULL))
 #define INDEX_TO_SM(thruster_index) ((thruster_index) % 4)
 
 // ========================================
@@ -27,8 +28,8 @@ static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "
 // ========================================
 
 bool dshot_initialized = false;
-struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = {0};
-bool dshot_rpm_reversed[NUM_THRUSTERS] = {0};
+struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = { 0 };
+bool dshot_rpm_reversed[NUM_THRUSTERS] = { 0 };
 
 // ========================================
 // Static Variables
@@ -68,7 +69,7 @@ static bool dshot_thrusters_on = false;
 /**
  * @brief The cached commands to send for dshot
  */
-static uint dshot_thruster_cmds[NUM_THRUSTERS] = {0};
+static uint dshot_thruster_cmds[NUM_THRUSTERS] = { 0 };
 
 /**
  * @brief Sets the time thrusters are allowed to the latest possible value
@@ -100,14 +101,14 @@ static inline void dshot_clear_command_state(void) {
 // ========================================
 
 int8_t gcr_lookup[0x20] = {
-    -1,  -1,  -1,  -1,  // 0x00-0x03
-    -1,  -1,  -1,  -1,  // 0x04-0x07
+    -1, -1,  -1,  -1,   // 0x00-0x03
+    -1, -1,  -1,  -1,   // 0x04-0x07
     -1, 0x9, 0xA, 0xB,  // 0x08-0x0B
     -1, 0xD, 0xE, 0xF,  // 0x0C-0x0F
-    -1,  -1, 0x2, 0x3,  // 0x10-0x13
+    -1, -1,  0x2, 0x3,  // 0x10-0x13
     -1, 0x5, 0x6, 0x7,  // 0x14-0x17
     -1, 0x0, 0x8, 0x1,  // 0x18-0x1B
-    -1, 0x4, 0xC,  -1,  // 0x1C-0x1F
+    -1, 0x4, 0xC, -1,   // 0x1C-0x1F
 };
 
 int __time_critical_func(decode_erpm_period)(uint32_t packet) {
@@ -161,7 +162,6 @@ void __time_critical_func(dshot_telem_pio1_cb)(void) {
     profiler_pop(PROFILER_DSHOT_RX_IRQ1);
 }
 
-
 // ========================================
 // DShot TX
 // ========================================
@@ -177,9 +177,10 @@ void __time_critical_func(dshot_send_command_internal)(uint thruster_index, uint
     cmd <<= 4;
     cmd |= crc;
 
-    if (dshot_rpm_data[thruster_index].missed_count < TELEM_MAX_MISSED_PACKETS){
+    if (dshot_rpm_data[thruster_index].missed_count < TELEM_MAX_MISSED_PACKETS) {
         dshot_rpm_data[thruster_index].missed_count++;
-    } else {
+    }
+    else {
         dshot_rpm_data[thruster_index].valid = false;
     }
 
@@ -197,18 +198,19 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
     }
 
     if (time_reached(dshot_command_timeout) || safety_kill_get_asserting_kill() ||
-            !time_reached(dshot_time_thrusters_allowed)) {
+        !time_reached(dshot_time_thrusters_allowed)) {
         dshot_clear_command_state();
     }
 
     // Loop until the timer is successfully scheduled
-    // If for whatever reason a high latency, higher-priority IRQ fires during scheduling, it could miss, breaking the timer
+    // If for whatever reason a high latency, higher-priority IRQ fires during scheduling, it could miss, breaking the
+    // timer
     do {
         for (int i = 0; i < NUM_THRUSTERS; i++) {
             dshot_send_command_internal(i, dshot_thruster_cmds[i], false);
         }
         dshot_next_allowed_frame_tx = make_timeout_time_us(bidir_dshot_min_frame_period_us(DSHOT_RATE));
-    } while(hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
+    } while (hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
 
     profiler_pop(PROFILER_DSHOT_TX_IRQ);
 }
@@ -267,21 +269,24 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
     // Clear the thrusters on
     dshot_thrusters_on = false;
 
-    for (int i = 0; i < NUM_THRUSTERS; i++){
+    for (int i = 0; i < NUM_THRUSTERS; i++) {
         int16_t val = throttle_values[i];
 
         if (val == 0) {
             dshot_thruster_cmds[i] = 0;
-        } else if (val > 0 && val < 1000) {
+        }
+        else if (val > 0 && val < 1000) {
             // TODO: Fix this to track the zero crossing
             dshot_rpm_reversed[i] = false;
             dshot_thrusters_on = true;
-            dshot_thruster_cmds[i]= val + 48;
-        } else if (val < 0 && val > -1000) {
+            dshot_thruster_cmds[i] = val + 48;
+        }
+        else if (val < 0 && val > -1000) {
             dshot_rpm_reversed[i] = true;
             dshot_thrusters_on = true;
-            dshot_thruster_cmds[i]= (-val) + 1048;
-        } else {
+            dshot_thruster_cmds[i] = (-val) + 1048;
+        }
+        else {
             LOG_WARN("Invalid Thruster Command Sent: %d", val);
             safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, val);
             dshot_clear_command_state();
@@ -307,12 +312,14 @@ void dshot_init(void) {
     dshot_pio_offset = pio_add_program(pio0, &bidir_dshot_program);
     pio_add_program_at_offset(pio1, &bidir_dshot_program, dshot_pio_offset);
 
-    // I know... Macros.. Sue me, but it's way better than doing this all by hand IMO
-    #define INIT_THRUSTER(num) do { \
-       bi_decl_if_func_used(bi_1pin_with_name(THRUSTER_##num##_PIN, "Thruster " __XSTRING(num) " DShot")); \
-       pio_sm_claim(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1)); \
-       bidir_dshot_program_init(INDEX_TO_PIO(num-1), INDEX_TO_SM(num-1), dshot_pio_offset, DSHOT_RATE, THRUSTER_##num##_PIN); \
-    } while(0)
+// I know... Macros.. Sue me, but it's way better than doing this all by hand IMO
+#define INIT_THRUSTER(num)                                                                                             \
+    do {                                                                                                               \
+        bi_decl_if_func_used(bi_1pin_with_name(THRUSTER_##num##_PIN, "Thruster " __XSTRING(num) " DShot"));            \
+        pio_sm_claim(INDEX_TO_PIO(num - 1), INDEX_TO_SM(num - 1));                                                     \
+        bidir_dshot_program_init(INDEX_TO_PIO(num - 1), INDEX_TO_SM(num - 1), dshot_pio_offset, DSHOT_RATE,            \
+                                 THRUSTER_##num##_PIN);                                                                \
+    } while (0)
 
     INIT_THRUSTER(1);
     INIT_THRUSTER(2);
@@ -324,13 +331,13 @@ void dshot_init(void) {
     INIT_THRUSTER(8);
 
     pio_set_irq0_source_mask_enabled(pio0,
-        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
-        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
-        true);
+                                     PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
+                                         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
+                                     true);
     pio_set_irq0_source_mask_enabled(pio1,
-        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
-        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
-        true);
+                                     PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
+                                         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
+                                     true);
 
     irq_set_exclusive_handler(PIO0_IRQ_0, dshot_telem_pio0_cb);
     irq_set_exclusive_handler(PIO1_IRQ_0, dshot_telem_pio1_cb);

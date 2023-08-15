@@ -1,10 +1,11 @@
 #ifndef DYNAMIXEL__ASYNC_UART_H
 #define DYNAMIXEL__ASYNC_UART_H
 
+#include "hardware/pio.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "hardware/pio.h"
 
 enum async_uart_tx_err {
     /**

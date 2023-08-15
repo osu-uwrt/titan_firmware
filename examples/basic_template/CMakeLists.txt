@@ -13,8 +13,8 @@ set(PICO_BOARD pico)  # TODO: Set this to your target board
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
-	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
@@ -26,7 +26,7 @@ titan_firmware_init()
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(template_project
-	${SOURCES}
+    ${SOURCES}
 )
 target_include_directories(template_project PUBLIC include)
 
@@ -45,10 +45,10 @@ titan_use_upload_tool(template_project)
 # Define linking and targets
 pico_add_extra_outputs(template_project)
 target_link_libraries(template_project PUBLIC
-	pico_stdlib	# Pico SDK Standard Library
-	titan_logger	# A nice little logging library
-	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    pico_stdlib     # Pico SDK Standard Library
+    titan_logger    # A nice little logging library
+    titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
-	# TODO: Add any additional hardware here (ex. hardware_adc)
+    # TODO: Add any additional hardware here (ex. hardware_adc)
 )
 

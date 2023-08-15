@@ -10,7 +10,8 @@
 #define ROBOT_NAMESPACE "tempest"
 
 // Address Definitions
-#define ROBOT_COMPUTER_IP   {192, 168, 1, 22}
+#define ROBOT_COMPUTER_IP                                                                                              \
+    { 192, 168, 1, 22 }
 #define ROBOT_COMPUTER_UROS_PORT 8888
 
 #endif

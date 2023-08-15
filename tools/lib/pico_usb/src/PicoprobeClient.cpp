@@ -1,12 +1,14 @@
-#include <iostream>
-#include <chrono>
-#include "DeviceMap.hpp"
 #include "pico_usb/PicoprobeClient.hpp"
+
+#include "DeviceMap.hpp"
 #include "pico_usb/flash_getid.h"
 
 #include "hardware/regs/addressmap.h"
-#include "hardware/regs/ssi.h"
 #include "hardware/regs/io_qspi.h"
+#include "hardware/regs/ssi.h"
+
+#include <chrono>
+#include <iostream>
 
 using namespace PicoUSB;
 
@@ -14,10 +16,11 @@ PicoprobeClient::PicoprobeClient(std::string serialStr): target(serialStr), flas
     auto info = readFlashInfo();
     cachedFlashId = info.info.flash_id;
 
-    auto& map = DeviceMap::create();
+    auto &map = DeviceMap::create();
     auto flashInfo = map.lookupFlashChip(info.info.jedec_id);
     if (flashInfo.isUnknown) {
-        std::cerr << "Unknown flash chip ID '" << flashInfo.hexId() << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
+        std::cerr << "Unknown flash chip ID '" << flashInfo.hexId()
+                  << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
     }
     cachedFlashSize = flashInfo.capacity;
 
@@ -27,25 +30,27 @@ PicoprobeClient::PicoprobeClient(std::string serialStr): target(serialStr), flas
         if (firstApp.isBootloader) {
             BinaryInfo::extractAppInfo(*this, nestedApp, firstApp.blAppBase);
         }
+    } catch (std::exception &e) {
+    }  // Ignore any failures during discovery
+    catch (...) {
     }
-    catch (std::exception &e) {}    // Ignore any failures during discovery
-    catch (...) {}
 }
 
 void PicoprobeClient::reboot() {
     flushWriteBuffer();
 
-    // This ensures flash isn't in an unstable state before resetting, as this only resets the core, rather than the whole device
+    // This ensures flash isn't in an unstable state before resetting, as this only resets the core, rather than the
+    // whole device
     enterXIPMode();
     target.reboot();
 }
 
 void PicoprobeClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) {
-    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (UF2_PAGE_SIZE-1)) != 0) {
+    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (UF2_PAGE_SIZE - 1)) != 0) {
         throw std::logic_error("Invalid Write Address");
     }
 
-    if (writeBuffer.size() > 0 && writeBufferAddr + (writeBuffer.size()*4) != addr) {
+    if (writeBuffer.size() > 0 && writeBufferAddr + (writeBuffer.size() * 4) != addr) {
         flushWriteBuffer();
     }
     if (writeBuffer.size() == 0) {
@@ -70,7 +75,8 @@ void PicoprobeClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZ
 }
 
 void PicoprobeClient::flushWriteBuffer() {
-    if (writeBuffer.size() == 0) return;
+    if (writeBuffer.size() == 0)
+        return;
 
     enterCommandMode();
 
@@ -81,15 +87,15 @@ void PicoprobeClient::flushWriteBuffer() {
     // void flash_range_program(uint32_t addr, const uint8_t *data, size_t count)
     // Program data to a range of flash addresses starting at addr (offset from the start of flash) and count bytes
     // in size. addr must be aligned to a 256-byte boundary, and count must be a multiple of 256.
-    target.callFunction(target.lookupRomFunc('R', 'P'), writeBufferAddr - FLASH_BASE, scratch_addr, writeBuffer.size()*4);
+    target.callFunction(target.lookupRomFunc('R', 'P'), writeBufferAddr - FLASH_BASE, scratch_addr,
+                        writeBuffer.size() * 4);
 
     notifyCommandDone();
     writeBuffer.clear();
 }
 
-
 void PicoprobeClient::eraseSector(uint32_t addr) {
-    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (FLASH_ERASE_SIZE-1)) != 0) {
+    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (FLASH_ERASE_SIZE - 1)) != 0) {
         throw std::logic_error("Invalid Erase Address");
     }
 
@@ -114,7 +120,7 @@ void PicoprobeClient::eraseSector(uint32_t addr) {
 }
 
 void PicoprobeClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
-    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (UF2_PAGE_SIZE-1)) != 0) {
+    if (addr < FLASH_BASE || addr >= FLASH_BASE + getFlashSize() || (addr & (UF2_PAGE_SIZE - 1)) != 0) {
         throw std::logic_error("Invalid Read Address");
     }
 
@@ -122,7 +128,7 @@ void PicoprobeClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE
     enterXIPMode();
 
     auto result = target.readMemory(addr, bytesOut.size() / 4, 32);
-    for (size_t i = 0; i < bytesOut.size(); i+=4) {
+    for (size_t i = 0; i < bytesOut.size(); i += 4) {
         uint32_t word = result.at(i / 4);
         bytesOut.at(i) = word & 0xFF;
         bytesOut.at(i + 1) = (word >> 8) & 0xFF;
@@ -138,7 +144,7 @@ bool PicoprobeClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
 }
 
 flash_info_t PicoprobeClient::readFlashInfo() {
-    const uint32_t stubLocation = SRAM4_BASE; // Store stub in SCRATCH_X
+    const uint32_t stubLocation = SRAM4_BASE;  // Store stub in SCRATCH_X
 
     std::vector<uint32_t> getidStub(flash_getid_bin, flash_getid_bin + flash_getid_bin_len);
     target.writeMemory(stubLocation, getidStub, 8);
@@ -151,7 +157,7 @@ flash_info_t PicoprobeClient::readFlashInfo() {
 
     uint8_t *data_ptr = flashInfo.data;
     for (auto entry : infoData) {
-        *data_ptr++ = (uint8_t)entry;
+        *data_ptr++ = (uint8_t) entry;
     }
 
     return flashInfo;
@@ -197,8 +203,8 @@ void PicoprobeClient::flashCsForce(bool high) {
     uint32_t field_val = high ?
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_HIGH :
         IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_LOW;
-    uint32_t new_val = (target.readWord(ss_ctrl_io_addr) & ~(IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS)) | (field_val << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB);
-    target.writeWord(ss_ctrl_io_addr, new_val);
+    uint32_t new_val = (target.readWord(ss_ctrl_io_addr) & ~(IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS)) | (field_val <<
+IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB); target.writeWord(ss_ctrl_io_addr, new_val);
 }
 
 uint32_t PicoprobeClient::ssiTransfer(uint32_t tx, int timeout_ms) {

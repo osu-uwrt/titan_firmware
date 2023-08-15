@@ -1,13 +1,14 @@
-#include <assert.h>
+#include "safety_interface.h"
+
+#include "dshot.h"
+
+#include "driver/led.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
 #include <riptide_msgs2/msg/kill_switch_report.h>
 
-#include "driver/led.h"
-
-#include "dshot.h"
-#include "safety_interface.h"
+#include <assert.h>
 
 bool safety_interface_kill_switch_refreshed = false;
 static bool prev_kill_state = false;
@@ -24,7 +25,6 @@ static void safety_interface_gpio_callback(uint gpio, __unused uint32_t events) 
         safety_interface_refresh_physical_kill_switch();
     }
 }
-
 
 // ========================================
 // Implementations for External Interface Functions
@@ -62,7 +62,8 @@ void safety_interface_setup(void) {
     gpio_init(KILL_SW_SENSE);
     gpio_pull_up(KILL_SW_SENSE);
     gpio_set_dir(KILL_SW_SENSE, GPIO_IN);
-    gpio_set_irq_enabled_with_callback(KILL_SW_SENSE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &safety_interface_gpio_callback);
+    gpio_set_irq_enabled_with_callback(KILL_SW_SENSE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true,
+                                       &safety_interface_gpio_callback);
 }
 
 void safety_interface_init(void) {}
@@ -73,16 +74,17 @@ void safety_interface_tick(void) {
 
 void safety_interface_deinit(void) {}
 
-
 // ========================================
 // Constant Calculations - Does not need to be modified
 // ========================================
 
-struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] =
-    {[0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES-1] = { .enabled = false }};
-const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
-static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
+struct kill_switch_state kill_switch_states[riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES] = {
+    [0 ... riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES - 1] = { .enabled = false }
+};
+const int num_kill_switches = sizeof(kill_switch_states) / sizeof(*kill_switch_states);
+static_assert(sizeof(kill_switch_states) / sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 
-const char * safety_lookup_fault_id(uint32_t fault_id) {
-    return (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN");
+const char *safety_lookup_fault_id(uint32_t fault_id) {
+    return (fault_id < sizeof(fault_string_list) / sizeof(*fault_string_list) ? fault_string_list[fault_id] :
+                                                                                "UNKNOWN");
 }

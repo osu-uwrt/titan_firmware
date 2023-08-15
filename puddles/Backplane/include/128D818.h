@@ -1,3 +1,8 @@
+#ifndef BACKPLANE_128D818_H_
+#define BACKPLANE_128D818_H_
+
+#include <stdint.h>
+
 #define D818_ADDR 0x2F
 
 #define D818_REG_CONFIG_ADDR 0x00
@@ -9,7 +14,8 @@
 
 #define D818_CHANNEL_NUM 8
 
-
 void D818_init();
 void D818_read();
 float D818_query(uint8_t chan);
+
+#endif

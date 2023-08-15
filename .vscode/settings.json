@@ -10,10 +10,30 @@
         "${workspaceFolder}/tools/canmore_cli/"
     ],
     "cmake.statusbar.advanced": {
-        "ctest":{"visibility": "hidden"},
-        "kit": {"visibility": "icon"},
-        "launch": {"visibility": "hidden"},
-        "debug": {"visibility": "hidden"}
+        "ctest": {
+            "visibility": "hidden"
+        },
+        "kit": {
+            "visibility": "icon"
+        },
+        "launch": {
+            "visibility": "hidden"
+        },
+        "debug": {
+            "visibility": "hidden"
+        }
     },
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+    "cmake.configureOnOpen": true,
+    "cmake.generator": "Unix Makefiles",
+    "editor.detectIndentation": false,
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "editor.rulers": [
+        120
+    ],
+    "editor.tabSize": 4,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.formatting": "clangFormat"
 }

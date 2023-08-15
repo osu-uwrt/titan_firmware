@@ -19,7 +19,7 @@
 #define COLOR_ERROR "\033[1;31m"
 #define COLOR_PROMPT "\033[1;32m"
 
-void renderHeader(std::string const& title, int titleWidth = 40);
-void renderName(std::string const& name, bool selected = false);
-void renderField(std::string const& name, std::string const& value, int nameWidth = 16);
+void renderHeader(std::string const &title, int titleWidth = 40);
+void renderName(std::string const &name, bool selected = false);
+void renderField(std::string const &name, std::string const &value, int nameWidth = 16);
 bool keypressAvailable(unsigned int timeoutMs = 0);

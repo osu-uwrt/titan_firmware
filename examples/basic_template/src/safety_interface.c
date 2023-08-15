@@ -1,13 +1,14 @@
-#include <assert.h>
 #include "safety_interface.h"
+
+#include <assert.h>
 
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
 
 void safety_set_fault_led(bool on) {
-    // TODO: Define your fault LED pin here
-    #warning No fault LED defined
+// TODO: Define your fault LED pin here
+#warning No fault LED defined
 }
 
 void safety_handle_kill(void) {
@@ -42,15 +43,15 @@ void safety_interface_deinit(void) {
     // TODO: Modify this function to add code to be called during safety_deinit
 }
 
-
 // ========================================
 // Constant Calculations - Does not need to be modified
 // ========================================
 
 struct kill_switch_state kill_switch_states[NUM_KILL_SWITCHES];
-const int num_kill_switches = sizeof(kill_switch_states)/sizeof(*kill_switch_states);
-static_assert(sizeof(kill_switch_states)/sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
+const int num_kill_switches = sizeof(kill_switch_states) / sizeof(*kill_switch_states);
+static_assert(sizeof(kill_switch_states) / sizeof(*kill_switch_states) <= 32, "Too many kill switches defined");
 
-const char * safety_lookup_fault_id(uint32_t fault_id) {
-    return (fault_id < sizeof(fault_string_list)/sizeof(*fault_string_list) ? fault_string_list[fault_id] : "UNKNOWN");
+const char *safety_lookup_fault_id(uint32_t fault_id) {
+    return (fault_id < sizeof(fault_string_list) / sizeof(*fault_string_list) ? fault_string_list[fault_id] :
+                                                                                "UNKNOWN");
 }

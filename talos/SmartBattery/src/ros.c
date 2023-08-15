@@ -1,21 +1,20 @@
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
+#include "ros.h"
 
-#include <rmw_microros/rmw_microros.h>
-#include <rcl/rcl.h>
+#include "hardware/watchdog.h"
+#include "pico/stdlib.h"
+#include "titan/logger.h"
+#include "titan/version.h"
+
 #include <rcl/error_handling.h>
-#include <rclc/rclc.h>
+#include <rcl/rcl.h>
 #include <rclc/executor.h>
-#include <riptide_msgs2/msg/firmware_status.h>
+#include <rclc/rclc.h>
+#include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/battery_status.h>
 #include <riptide_msgs2/msg/electrical_command.h>
-#include <std_msgs/msg/int8.h>
+#include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
-
-#include "titan/version.h"
-#include "titan/logger.h"
-
-#include "ros.h"
+#include <std_msgs/msg/int8.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -53,27 +52,25 @@ riptide_msgs2__msg__ElectricalCommand electrical_command_msg;
 // Executor Callbacks
 // ========================================
 
-static void killswitch_subscription_callback(const void * msgin)
-{
-	const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
+static void killswitch_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-static void electrical_command_callback(const void * msgin){
-    const riptide_msgs2__msg__ElectricalCommand * msg = (const riptide_msgs2__msg__ElectricalCommand *)msgin;
+static void electrical_command_callback(const void *msgin) {
+    const riptide_msgs2__msg__ElectricalCommand *msg = (const riptide_msgs2__msg__ElectricalCommand *) msgin;
 
     // check if the command was a power cycle
-    if(msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER){
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER) {
         request_powercycle = true;
     }
 
     // also check for a reset
-    if(msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT){
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT) {
         LOG_INFO("Commanded robot reset, Engaging intentional WDR");
         watchdog_reboot(0, 0, 0);
     }
 }
-
 
 // ========================================
 // Public Task Methods (called in main tick)
@@ -83,7 +80,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
     status_msg.board_name.data = PICO_BOARD;
     status_msg.board_name.size = strlen(PICO_BOARD);
-    status_msg.board_name.capacity = status_msg.board_name.size + 1; // includes NULL byte
+    status_msg.board_name.capacity = status_msg.board_name.size + 1;  // includes NULL byte
     status_msg.bus_id = __CONCAT(CAN_BUS_NAME, _ID);
     status_msg.client_id = client_id;
     status_msg.uptime_ms = to_ms_since_boot(get_absolute_time());
@@ -98,19 +95,19 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
 
     for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
-            status_msg.kill_switches_enabled |= (1<<i);
+            status_msg.kill_switches_enabled |= (1 << i);
         }
 
         if (kill_switch_states[i].asserting_kill) {
-            status_msg.kill_switches_asserting_kill |= (1<<i);
+            status_msg.kill_switches_asserting_kill |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update) {
-            status_msg.kill_switches_needs_update |= (1<<i);
+            status_msg.kill_switches_needs_update |= (1 << i);
         }
 
         if (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout)) {
-            status_msg.kill_switches_timed_out |= (1<<i);
+            status_msg.kill_switches_timed_out |= (1 << i);
         }
     }
 
@@ -126,10 +123,11 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     if (ret != RCL_RET_OK) {
         failed_heartbeats++;
 
-        if(failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
+        if (failed_heartbeats > MAX_MISSSED_HEARTBEATS) {
             ros_connected = false;
         }
-    } else {
+    }
+    else {
         failed_heartbeats = 0;
     }
 
@@ -138,7 +136,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info){
+rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
     riptide_msgs2__msg__BatteryStatus status;
 
     // push in the common cell info
@@ -148,18 +146,19 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info){
 
     // test for port and stbd
     status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
-    if(bq_pack_present()){
+    if (bq_pack_present()) {
         if (bq_pack_side_det_port()) {
             status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
-        } else {
+        }
+        else {
             status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_STBD;
         }
     }
 
     // read cell info
-    status.pack_voltage = ((float)bq_pack_voltage()) / 1000.0;
-    status.pack_current = ((float)bq_pack_current()) / 1000.0;
-    status.average_current = ((float)bq_avg_current()) / 1000.0;
+    status.pack_voltage = ((float) bq_pack_voltage()) / 1000.0;
+    status.pack_current = ((float) bq_pack_current()) / 1000.0;
+    status.average_current = ((float) bq_avg_current()) / 1000.0;
     status.time_to_dischg = bq_time_to_empty();
     status.soc = bq_pack_soc();
 
@@ -186,41 +185,31 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
-    RCRETCHECK(rclc_publisher_init_default(
-        &heartbeat_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
-        HEARTBEAT_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&heartbeat_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), HEARTBEAT_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(
-        &firmware_status_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
-        FIRMWARE_STATUS_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&firmware_status_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
+                                           FIRMWARE_STATUS_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(
-        &battery_status_publisher,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, BatteryStatus),
-        BATTERY_STATUS_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(&battery_status_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, BatteryStatus),
+                                           BATTERY_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-        KILLSWITCH_SUBCRIBER_NAME));
+        &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(
-        &electrical_command_subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
-        ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(&electrical_command_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
+                                              ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg, &killswitch_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &electrical_command_subscriber, &electrical_command_msg, &electrical_command_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
+                                              &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &electrical_command_subscriber, &electrical_command_msg,
+                                              &electrical_command_callback, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -256,13 +245,12 @@ bool ros_ping(void) {
     return ros_connected;
 }
 
-bool power_cycle_requested(void){
+bool power_cycle_requested(void) {
     // clear the request as we are going to service it
-    if(request_powercycle){
+    if (request_powercycle) {
         request_powercycle = false;
         return true;
     }
 
     return false;
 }
-

@@ -1,16 +1,16 @@
+#include "bl_interface.h"
+#include "bl_server.h"
+#include "boot_app.h"
+
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 #include "hardware/watchdog.h"
 #include "pico/time.h"
 #include "titan/version.h"
 
-#include "boot_app.h"
-#include "bl_interface.h"
-#include "bl_server.h"
+#define DEBUG_UART_INSTANCE (__CONCAT(uart, RP2040_DEBUG_UART))
 
-#define DEBUG_UART_INSTANCE (__CONCAT(uart,RP2040_DEBUG_UART))
-
-#define RGB_MASK ((1<<STATUS_LEDR_PIN) | (1<<STATUS_LEDG_PIN) | (1<<STATUS_LEDB_PIN))
+#define RGB_MASK ((1 << STATUS_LEDR_PIN) | (1 << STATUS_LEDG_PIN) | (1 << STATUS_LEDB_PIN))
 
 #define WATCHDOG_TIMEOUT_MS 3000
 #define LINK_DELAY_MS 5000
@@ -18,23 +18,24 @@
 #define BOOTLOADER_TIMEOUT_SEC 30
 
 void tick_led(void) {
-    static absolute_time_t next_update = {0};
+    static absolute_time_t next_update = { 0 };
     static unsigned int led_state = 0;
     if (time_reached(next_update)) {
-        gpio_put(STATUS_LEDG_PIN, (led_state+1) % 2);
+        gpio_put(STATUS_LEDG_PIN, (led_state + 1) % 2);
 
         led_state++;
         if (led_state == 10) {
             led_state = 0;
             next_update = make_timeout_time_ms(750);
-        } else {
+        }
+        else {
             next_update = make_timeout_time_ms(75);
         }
     }
 }
 
 void tick_heartbeat(void) {
-    static absolute_time_t next_update = {0};
+    static absolute_time_t next_update = { 0 };
     if (time_reached(next_update)) {
         next_update = make_timeout_time_ms(500);
         bl_interface_heartbeat();
@@ -74,9 +75,8 @@ int main(void) {
         enter_bootloader = true;
         watchdog_hw->scratch[4] = 0;
     }
-    else if ((watchdog_caused_reboot() &&
-                watchdog_hw->scratch[4] == WATCHDOG_BOOTLOADER_NON_REBOOT_MAGIC) ||
-            watchdog_enable_caused_reboot()) {
+    else if ((watchdog_caused_reboot() && watchdog_hw->scratch[4] == WATCHDOG_BOOTLOADER_NON_REBOOT_MAGIC) ||
+             watchdog_enable_caused_reboot()) {
         notify_watchdog_reset = true;
     }
 

@@ -9,9 +9,10 @@
 
 // todo we should use fully encapsulate libusb
 
+#include "boot/picoboot.h"
+
 #include <assert.h>
 #include <libusb.h>
-#include "boot/picoboot.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,36 +35,40 @@ enum picoboot_device_result {
     dr_vidpid_stdio_usb,
 };
 
-enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_device_handle **dev_handle, struct picoboot_itf *itfOut);
+enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_device_handle **dev_handle,
+                                                 struct picoboot_itf *itfOut);
 
 int picoboot_reset(libusb_device_handle *usb_device, struct picoboot_itf *itf);
-int picoboot_cmd_status_verbose(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd_status *status,
-                                bool local_verbose);
+int picoboot_cmd_status_verbose(libusb_device_handle *usb_device, struct picoboot_itf *itf,
+                                struct picoboot_cmd_status *status, bool local_verbose);
 int picoboot_cmd_status(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd_status *status);
 int picoboot_exclusive_access(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint8_t exclusive);
 int picoboot_enter_cmd_xip(libusb_device_handle *usb_device, struct picoboot_itf *itf);
 int picoboot_exit_xip(libusb_device_handle *usb_device, struct picoboot_itf *itf);
-int picoboot_reboot(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t pc, uint32_t sp, uint32_t delay_ms);
+int picoboot_reboot(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t pc, uint32_t sp,
+                    uint32_t delay_ms);
 int picoboot_exec(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr);
 int picoboot_flash_erase(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint32_t len);
 int picoboot_vector(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr);
-int picoboot_write(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer, uint32_t len);
-int picoboot_read(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer, uint32_t len);
+int picoboot_write(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer,
+                   uint32_t len);
+int picoboot_read(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer,
+                  uint32_t len);
 int picoboot_poke(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint32_t data);
 int picoboot_peek(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint32_t *data);
 
-#define ROM_START   0x00000000
-#define ROM_END     0x00004000
+#define ROM_START 0x00000000
+#define ROM_END 0x00004000
 #define FLASH_START 0x10000000
-#define FLASH_END   0x11000000 // this is maximum
+#define FLASH_END 0x11000000  // this is maximum
 #define XIP_SRAM_BASE 0x15000000
 #define XIP_SRAM_END 0x15004000
 
-#define SRAM_START  0x20000000
-#define SRAM_END    0x20042000
+#define SRAM_START 0x20000000
+#define SRAM_END 0x20042000
 
-#define SRAM_UNSTRIPED_START  0x21000000
-#define SRAM_UNSTRIPED_END    0x21040000
+#define SRAM_UNSTRIPED_START 0x21000000
+#define SRAM_UNSTRIPED_END 0x21040000
 
 // we require 256 (as this is the page size supported by the device)
 #define LOG2_PAGE_SIZE 8u
@@ -104,14 +109,14 @@ static inline enum memory_type get_memory_type(uint32_t addr) {
 
 static inline bool is_transfer_aligned(uint32_t addr) {
     enum memory_type t = get_memory_type(addr);
-    return t != invalid && !(t == flash && addr & (PAGE_SIZE-1));
+    return t != invalid && !(t == flash && addr & (PAGE_SIZE - 1));
 }
 
 static inline bool is_size_aligned(uint32_t addr, int size) {
 #ifndef _MSC_VER
-    assert(__builtin_popcount(size)==1);
+    assert(__builtin_popcount(size) == 1);
 #endif
-    return !(addr & (size-1));
+    return !(addr & (size - 1));
 }
 
 #ifdef __cplusplus

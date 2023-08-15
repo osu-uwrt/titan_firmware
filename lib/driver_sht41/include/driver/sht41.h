@@ -26,6 +26,6 @@ struct sht41_read_req {
 
 bool sht41_init(/* ADD IN ERROR CALLBACK */);
 
-bool sht41_read_async(struct sht41_read_req* req);
+bool sht41_read_async(struct sht41_read_req *req);
 
 #endif

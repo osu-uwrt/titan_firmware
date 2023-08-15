@@ -1,11 +1,11 @@
 #ifndef SAFETY_INTERNAL_H_
 #define SAFETY_INTERNAL_H_
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "titan/logger.h"
 #include "titan/safety.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety"
@@ -22,12 +22,12 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=3000, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_TIMER_MS
-#define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
+#define SAFETY_WATCHDOG_SETUP_TIMER_MS 3000
 #endif
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=250, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS 250
 #endif
 
 // PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=titan_safety
@@ -37,19 +37,18 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=500, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS  500
+#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS 500
 #endif
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  100
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 100
 #endif
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0
 #endif
-
 
 // ========================================
 // External Interface Functions
@@ -82,7 +81,7 @@ void safety_handle_enable(void);
  * @param fault_id The fault id to lookup
  * @return const char* The fault name
  */
-const char * safety_lookup_fault_id(uint32_t fault_id);
+const char *safety_lookup_fault_id(uint32_t fault_id);
 
 /**
  * @brief Called for implementation specific code during safety_setup
@@ -96,7 +95,7 @@ void safety_interface_init(void);
 
 /**
  * @brief Called for implementation specific code during safety_deinit
-*/
+ */
 void safety_interface_deinit(void);
 
 /**
@@ -105,7 +104,6 @@ void safety_interface_deinit(void);
  * Put any code that must be called (else the watchdog will timeout) in here
  */
 void safety_interface_tick(void);
-
 
 // ========================================
 // Internal Functions

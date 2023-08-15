@@ -1,16 +1,15 @@
-#include "pico/binary_info.h"
-#include "pico/stdlib.h"
+#include "dshot.h"
+#include "ros.h"
+#include "safety_interface.h"
 
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
+#include "pico/binary_info.h"
+#include "pico/stdlib.h"
+#include "titan/binary_info.h"
 #include "titan/logger.h"
 #include "titan/version.h"
-#include "titan/binary_info.h"
-
-#include "dshot.h"
-#include "ros.h"
-#include "safety_interface.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -24,20 +23,19 @@
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
-absolute_time_t next_heartbeat = {0};
-absolute_time_t next_status_update = {0};
-absolute_time_t next_telem_pub = {0};
-absolute_time_t next_led_update = {0};
-absolute_time_t next_connect_ping = {0};
+absolute_time_t next_heartbeat = { 0 };
+absolute_time_t next_status_update = { 0 };
+absolute_time_t next_telem_pub = { 0 };
+absolute_time_t next_led_update = { 0 };
+absolute_time_t next_connect_ping = { 0 };
 
 uint8_t esc_board_num;
 uint8_t client_id;
-static void load_client_id(void){
+static void load_client_id(void) {
     // Read board detection pin
-    bi_decl_if_func_used(bi_1pin_with_name(BOARD_DET_PIN, "ESC Board Detection"))
-    gpio_init(BOARD_DET_PIN);
+    bi_decl_if_func_used(bi_1pin_with_name(BOARD_DET_PIN, "ESC Board Detection")) gpio_init(BOARD_DET_PIN);
     gpio_pull_down(BOARD_DET_PIN);
-    sleep_us(5);    // Give time for pull up to settle
+    sleep_us(5);  // Give time for pull up to settle
 
     // Report valid CAN IDs for this board
     bi_decl_if_func_used(bi_client_id(CAN_BUS_BOARD0_CLIENT_ID));
@@ -63,12 +61,13 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
     if (time_reached(time_tmp)) {
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
-            unsigned int i = 0; \
-            while(time_reached(time_tmp)) {
+            unsigned int i = 0;
+            while (time_reached(time_tmp)) {
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                     next_fire_ptr);
             if (error_on_miss)
                 safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
         }
@@ -124,7 +123,6 @@ static void tick_background_tasks() {
     }
 }
 
-
 int main() {
     // Initialize stdio
     stdio_init_all();
@@ -145,13 +143,13 @@ int main() {
 
     // Enter main loop
     bool ros_initialized = false;
-    while(true) {
+    while (true) {
         // Do background tasks
         tick_background_tasks();
 
         // Handle ROS state logic
-        if(is_ros_connected()) {
-            if(!ros_initialized) {
+        if (is_ros_connected()) {
+            if (!ros_initialized) {
                 LOG_INFO("ROS connected");
 
                 // Lower all ROS related faults as we've got a new ROS context
@@ -159,26 +157,30 @@ int main() {
                 safety_lower_fault(FAULT_ROS_BAD_COMMAND);
                 safety_lower_fault(FAULT_THRUSTER_TIMEOUT);
 
-                if(ros_init(esc_board_num) == RCL_RET_OK) {
+                if (ros_init(esc_board_num) == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
                     safety_init();
                     start_ros_timers();
-                } else {
+                }
+                else {
                     LOG_ERROR("ROS failed to initialize.");
                     ros_fini();
                 }
-            } else {
+            }
+            else {
                 ros_spin_executor();
                 tick_ros_tasks();
             }
-        } else if(ros_initialized){
+        }
+        else if (ros_initialized) {
             LOG_INFO("Lost connection to ROS");
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
             ros_initialized = false;
-        } else {
+        }
+        else {
             if (time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);

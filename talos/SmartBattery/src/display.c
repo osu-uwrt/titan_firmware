@@ -1,10 +1,11 @@
-#include <stdio.h>
-#include "pico/time.h"
-
-#include "driver/ssd1306.h"
+#include "display.h"
 
 #include "uwrt_logo.h"
-#include "display.h"
+
+#include "driver/ssd1306.h"
+#include "pico/time.h"
+
+#include <stdio.h>
 
 bool display_on = false;
 absolute_time_t display_poweroff_time;

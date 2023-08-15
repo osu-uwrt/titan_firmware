@@ -92,8 +92,8 @@ extern "C" {
  *                      - ERASE: Erases the 4KB page specified by target address. Address must be 4KB-aligned
  *                      - CRC: Computes a CRC-32 polynomial for the contents in Flash Buffer
  * Target Addr:     The target address for the command
- * BL Write Key:    Register to allow erasing/writing the bootloader region. If this contains the bootloader write value,
- *                  the bootloader can be erased/written with the command. If this contains any other value, attepting to
+ * BL Write Key:    Register to allow erasing/writing the bootloader region. If this contains the bootloader write
+ * value, the bootloader can be erased/written with the command. If this contains any other value, attepting to
  *                  erase/program this region will error with invalid address.
  * CRC:             Holds the result CRC calculated with the CRC command
  * Flash Size:      The flash size in bytes
@@ -104,7 +104,7 @@ extern "C" {
  * ============
  * This page is a 256-byte read/write buffer to hold contents of the flash commands specified above.
  *
-*/
+ */
 
 // Page Number Definitions
 #define CANMORE_BL_MCU_CONTROL_PAGE_NUM 0x00

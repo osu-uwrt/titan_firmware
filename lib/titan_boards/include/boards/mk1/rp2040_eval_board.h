@@ -9,27 +9,27 @@
 // ==============================
 
 // Dedicated I2C Header
-#define BUILTIN_I2C         0
-#define BUILTIN_SDA_PIN     0
-#define BUILTIN_SCL_PIN     1
+#define BUILTIN_I2C 0
+#define BUILTIN_SDA_PIN 0
+#define BUILTIN_SCL_PIN 1
 
 // On-Board Buttons
-#define BUILTIN_BTN1_PIN    2
-#define BUILTIN_BTN2_PIN    3
+#define BUILTIN_BTN1_PIN 2
+#define BUILTIN_BTN2_PIN 3
 
 // On-Board LED Pins
-#define BUILTIN_LED1_PIN    4
-#define BUILTIN_LED2_PIN    5
-#define BUILTIN_LED3_PIN    6
-#define BUILTIN_LED4_PIN    7
+#define BUILTIN_LED1_PIN 4
+#define BUILTIN_LED2_PIN 5
+#define BUILTIN_LED3_PIN 6
+#define BUILTIN_LED4_PIN 7
 
 // On-Board Ethernet Header
-#define ETH_SPI           1
-#define ETH_RST_PIN       9
-#define ETH_CLK_PIN      10
-#define ETH_MOSI_PIN     11
-#define ETH_MISO_PIN     12
-#define ETH_CS_PIN       13
+#define ETH_SPI 1
+#define ETH_RST_PIN 9
+#define ETH_CLK_PIN 10
+#define ETH_MOSI_PIN 11
+#define ETH_MISO_PIN 12
+#define ETH_CS_PIN 13
 
 // ==============================
 // Pico Default Defines

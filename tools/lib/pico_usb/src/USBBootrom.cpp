@@ -1,8 +1,8 @@
-#include <iostream>
+#include "DeviceMap.hpp"
 #include "pico_usb/USBDiscovery.hpp"
 #include "pico_usb/flash_getid.h"
 
-#include "DeviceMap.hpp"
+#include <iostream>
 
 using namespace PicoUSB;
 
@@ -13,7 +13,8 @@ static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> han
 
     if (config->bNumInterfaces == 1) {
         itf.interface = 0;
-    } else {
+    }
+    else {
         itf.interface = 1;
     }
     if (config->interface[itf.interface].altsetting[0].bInterfaceClass == 0xff &&
@@ -31,10 +32,9 @@ static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> han
 }
 
 RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> handle):
-        handle(handle), conn(handle->handle, claimPicobootItf(handle)) {
-
+    handle(handle), conn(handle->handle, claimPicobootItf(handle)) {
     // Try to find discover the flash ID
-    flash_info_t flash_data = {0};
+    flash_info_t flash_data = { 0 };
 
     try {
         // Load stub to read flash unique ID and JEDEC ID into end of memory
@@ -51,18 +51,17 @@ RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> 
 
         cachedFlashId = flash_data.info.flash_id;
 
-        auto& map = DeviceMap::create();
+        auto &map = DeviceMap::create();
         auto flashInfo = map.lookupFlashChip(flash_data.info.jedec_id);
         if (flashInfo.isUnknown) {
-            std::cerr << "Unknown flash chip ID '" << flashInfo.hexId() << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
+            std::cerr << "Unknown flash chip ID '" << flashInfo.hexId()
+                      << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
         }
         cachedFlashSize = flashInfo.capacity;
-    }
-    catch (picoboot::command_failure &e) {
+    } catch (picoboot::command_failure &e) {
         cachedFlashId = 0;
         cachedFlashSize = FLASH_END - FLASH_START;
-    }
-    catch (picoboot::connection_error &e) {
+    } catch (picoboot::connection_error &e) {
         cachedFlashId = 0;
         cachedFlashSize = FLASH_END - FLASH_START;
     }
@@ -73,9 +72,10 @@ RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> 
         if (firstApp.isBootloader) {
             BinaryInfo::extractAppInfo(*this, nestedApp, firstApp.blAppBase);
         }
+    } catch (std::exception &e) {
+    }  // Ignore any failures during discovery
+    catch (...) {
     }
-    catch (std::exception &e) {}    // Ignore any failures during discovery
-    catch (...) {}
 }
 
 void RP2040BootromInterface::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
@@ -98,7 +98,8 @@ void RP2040BootromInterface::writeBytes(uint32_t addr, std::array<uint8_t, UF2_P
 }
 
 void RP2040BootromInterface::eraseSector(uint32_t addr) {
-    static_assert(FLASH_SECTOR_ERASE_SIZE == FLASH_ERASE_SIZE, "Picoboot erase size definition does not UploadTool definition");
+    static_assert(FLASH_SECTOR_ERASE_SIZE == FLASH_ERASE_SIZE,
+                  "Picoboot erase size definition does not UploadTool definition");
     if (addr < FLASH_START || addr >= FLASH_END || (addr & (FLASH_SECTOR_ERASE_SIZE - 1)) != 0) {
         throw std::logic_error("Invalid Erase Address");
     }

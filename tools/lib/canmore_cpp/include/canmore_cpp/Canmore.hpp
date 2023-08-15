@@ -1,11 +1,11 @@
 #pragma once
 
-#include <stdexcept>
 #include <cstdint>
+#include <stdexcept>
 
 namespace Canmore {
 
-class CanmoreError: public std::runtime_error {
+class CanmoreError : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
@@ -15,4 +15,4 @@ union flash_id {
     uint8_t byte[8];
 };
 
-};
+};  // namespace Canmore

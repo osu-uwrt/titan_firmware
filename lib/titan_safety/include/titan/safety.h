@@ -1,10 +1,10 @@
 #ifndef TITAN__SAFETY_H_
 #define TITAN__SAFETY_H_
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "pico/time.h"
 
+#include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @file safety.h
@@ -23,7 +23,8 @@
  *
  *  - Crash Reporting: Hooks various parts of the low-level firmware to provide in-depth information about any crashes
  *      in the system to aid in debugging. This code hooks the systick handler to report an uptime, the hardfault,
- *      assertion, and panic handlers to provide crash information, and stores this information for SAFETY_NUM_CRASH_LOG_ENTRIES.
+ *      assertion, and panic handlers to provide crash information, and stores this information for
+ * SAFETY_NUM_CRASH_LOG_ENTRIES.
  *
  *  - Profiler: Records timestamps of various critical points in code to determine execution time for the various
  *      functions in firmware. This data is recorded and can be printed during a watchdoog reset and extracted during
@@ -48,21 +49,20 @@
 #define SAFETY_NUM_CRASH_LOG_ENTRIES 24
 #endif
 
-
 // ========================================
 // Fault Management Functions
 // ========================================
 
 // MAX_FAULT_ID is determined by the fault_list_reg size (32-bit)
-#define MAX_FAULT_ID          31
-#define FAULT_WATCHDOG_RESET   0
+#define MAX_FAULT_ID 31
+#define FAULT_WATCHDOG_RESET 0
 #define FAULT_WATCHDOG_WARNING 1
 // All other fault ids are implentation specific
 
 struct fault_data {
     absolute_time_t time;  // The time this fault mot recently occurred
     uint32_t extra_data;   // Extra data from the most recent firing of this fault
-    const char* filename;  // The filename where this fault most recently occurred
+    const char *filename;  // The filename where this fault most recently occurred
     uint16_t line;         // The line where this fault most recently occurred
     bool multiple_fires;   // Set if fault raised multiple times
     bool sticky_fault;     // Set on raised, but not cleared by lower
@@ -79,7 +79,7 @@ extern struct fault_data safety_fault_data[];
  *
  * Do not write to this variable, use safety_raise_fault/safety_lower_fault instead
  */
-extern volatile uint32_t * const fault_list_reg;
+extern volatile uint32_t *const fault_list_reg;
 
 /**
  * @brief Raises the specified fault id. Note the macros should be used to autopopulate
@@ -92,7 +92,7 @@ extern volatile uint32_t * const fault_list_reg;
  * @param filename The file the fault was raised
  * @param line The line the fault was raised
  */
-void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filename, uint16_t line);
+void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filename, uint16_t line);
 
 /**
  * @brief Raises the specific fault id.
@@ -107,7 +107,8 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char* filena
  * @param fault_id The fault id to be raised. Faults are defined above
  * @param arg Additional data to hold alongside fault information
  */
-#define safety_raise_fault_with_arg(fault_id, arg) safety_raise_fault_full(fault_id, (uint32_t)(arg), __FILE__, __LINE__)
+#define safety_raise_fault_with_arg(fault_id, arg)                                                                     \
+    safety_raise_fault_full(fault_id, (uint32_t) (arg), __FILE__, __LINE__)
 
 /**
  * @brief Lowers the specified fault id
@@ -124,18 +125,17 @@ void safety_lower_fault(uint32_t fault_id);
  * @param fault_id The fault id to lookup
  * @return const char* The fault name
  */
-const char * safety_lookup_fault_id(uint32_t fault_id);
-
+const char *safety_lookup_fault_id(uint32_t fault_id);
 
 // ========================================
 // Kill Switch Management Functions
 // ========================================
 
 struct kill_switch_state {
-    bool enabled;                   // If the specific kill switch is enabled
-    bool asserting_kill;            // If the kill switch is asserting a kill request (system disable)
-    bool needs_update;              // If the switch needs to be updated or it will be considered killed
-    absolute_time_t update_timeout; // The last update timestamp of the switch
+    bool enabled;                    // If the specific kill switch is enabled
+    bool asserting_kill;             // If the kill switch is asserting a kill request (system disable)
+    bool needs_update;               // If the switch needs to be updated or it will be considered killed
+    absolute_time_t update_timeout;  // The last update timestamp of the switch
 
     // The frame that asserted the kill switch
     // Prevents another node from de-asserting kill by publishing that it is not killed with the same switch id
@@ -157,7 +157,8 @@ extern struct kill_switch_state kill_switch_states[];
  *
  * @param switch_num The unique number for that kill switch. MUST BE < MAX_KILL_SWITCHES
  * @param asserting_kill If the kill switch is asserting a kill request (system disable)
- * @param needs_update Setting to true will require the kill switch to be updated within SAFETY_KILL_SWITCH_TIMEOUT_MS or else will assert kill
+ * @param needs_update Setting to true will require the kill switch to be updated within SAFETY_KILL_SWITCH_TIMEOUT_MS
+ * or else will assert kill
  */
 void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update);
 
@@ -181,13 +182,11 @@ bool safety_kill_get_asserting_kill(void);
  */
 absolute_time_t safety_kill_get_last_change(void);
 
-
 // ========================================
 // Safety Watchdog-Related Functions
 // ========================================
 
 struct crash_data {
-
     union {
         uint32_t i;
         struct __attribute__((__packed__)) {
@@ -195,7 +194,7 @@ struct crash_data {
             union {
                 uint8_t i;
                 struct {
-                    #define VALID_MAGIC_VALUE 0x5
+#define VALID_MAGIC_VALUE 0x5
                     uint8_t valid:4;
                     uint8_t log_wrapped:1;
                 };
@@ -286,7 +285,6 @@ void safety_deinit(void);
  * safety_setup must be called before this function can be used
  */
 void safety_tick(void);
-
 
 // ========================================
 // Profiler Functions

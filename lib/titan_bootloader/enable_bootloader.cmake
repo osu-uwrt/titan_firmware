@@ -40,7 +40,7 @@ function(titan_enable_bootloader TARGET TYPE)
     add_dependencies(${TARGET} titan_bootloader)
 
     # Configure the project to use the bootloader app linker script (so it has space for the bootloader)
-	pico_set_linker_script(${TARGET} ${TITAN_BOOTLOADER_SCRIPT_DIR}/bootloader_runtime/memmap_app.ld)
+    pico_set_linker_script(${TARGET} ${TITAN_BOOTLOADER_SCRIPT_DIR}/bootloader_runtime/memmap_app.ld)
 
     # Prep for uf2 generation
     if (NOT BOOTUF2CAT_FOUND)

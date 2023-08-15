@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-
 #include "picoboot_connection.h"
 
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+
 #if false && !defined(NDEBUG)
-#define output(format,...) printf(format, __VA_ARGS__)
+#define output(format, ...) printf(format, __VA_ARGS__)
 #else
-#define output(format,...) ((void)0)
+#define output(format, ...) ((void) 0)
 #endif
 
 static bool verbose;
@@ -22,9 +22,9 @@ static bool verbose;
 
 #define VENDOR_ID_RASPBERRY_PI 0x2e8au
 #define PRODUCT_ID_RP2_USBBOOT 0x0003u
-#define PRODUCT_ID_PICOPROBE   0x0004u
+#define PRODUCT_ID_PICOPROBE 0x0004u
 #define PRODUCT_ID_MICROPYTHON 0x0005u
-#define PRODUCT_ID_STDIO_USB   0x000au
+#define PRODUCT_ID_STDIO_USB 0x000au
 
 uint32_t crc32_for_byte(uint32_t remainder) {
     const uint32_t POLYNOMIAL = 0x4C11DB7;
@@ -51,7 +51,8 @@ uint32_t crc32_sw(const uint8_t *buf, uint count, uint32_t crc) {
     return crc;
 }
 
-enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_device_handle **dev_handle, struct picoboot_itf *itfOut) {
+enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_device_handle **dev_handle,
+                                                 struct picoboot_itf *itfOut) {
     struct libusb_device_descriptor desc;
     struct libusb_config_descriptor *config;
 
@@ -65,16 +66,16 @@ enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_d
             return dr_vidpid_unknown;
         }
         switch (desc.idProduct) {
-            case PRODUCT_ID_MICROPYTHON:
-                return dr_vidpid_micropython;
-            case PRODUCT_ID_PICOPROBE:
-                return dr_vidpid_picoprobe;
-            case PRODUCT_ID_STDIO_USB:
-                return dr_vidpid_stdio_usb;
-            case PRODUCT_ID_RP2_USBBOOT:
-                break;
-            default:
-                return dr_vidpid_unknown;
+        case PRODUCT_ID_MICROPYTHON:
+            return dr_vidpid_micropython;
+        case PRODUCT_ID_PICOPROBE:
+            return dr_vidpid_picoprobe;
+        case PRODUCT_ID_STDIO_USB:
+            return dr_vidpid_stdio_usb;
+        case PRODUCT_ID_RP2_USBBOOT:
+            break;
+        default:
+            return dr_vidpid_unknown;
         }
         ret = libusb_get_active_config_descriptor(device, &config);
         if (ret && verbose) {
@@ -83,7 +84,7 @@ enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_d
     }
 
     if (!ret) {
-        ret  = libusb_open(device, dev_handle);
+        ret = libusb_open(device, dev_handle);
         if (ret && verbose) {
             output("Failed to open device %d\n", ret);
         }
@@ -95,7 +96,8 @@ enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_d
     if (!ret) {
         if (config->bNumInterfaces == 1) {
             itfOut->interface = 0;
-        } else {
+        }
+        else {
             itfOut->interface = 1;
         }
         if (config->interface[itfOut->interface].altsetting[0].bInterfaceClass == 0xff &&
@@ -104,16 +106,20 @@ enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_d
             itfOut->in_ep = config->interface[itfOut->interface].altsetting[0].endpoint[1].bEndpointAddress;
         }
         if (itfOut->out_ep && itfOut->in_ep && !(itfOut->out_ep & 0x80u) && (itfOut->in_ep & 0x80u)) {
-            if (verbose) output("Found PICOBOOT interface\n");
+            if (verbose)
+                output("Found PICOBOOT interface\n");
             ret = libusb_claim_interface(*dev_handle, itfOut->interface);
             if (ret) {
-                if (verbose) output("Failed to claim interface\n");
+                if (verbose)
+                    output("Failed to claim interface\n");
                 return dr_vidpid_bootrom_no_interface;
             }
 
             return dr_vidpid_bootrom_ok;
-        } else {
-            if (verbose) output("Did not find PICOBOOT interface\n");
+        }
+        else {
+            if (verbose)
+                output("Did not find PICOBOOT interface\n");
             return dr_vidpid_bootrom_no_interface;
         }
     }
@@ -131,52 +137,54 @@ enum picoboot_device_result picoboot_open_device(libusb_device *device, libusb_d
 static bool is_halted(libusb_device_handle *usb_device, int ep) {
     uint8_t data[2];
 
-    int transferred = libusb_control_transfer(
-            usb_device,
-            /*LIBUSB_REQUEST_TYPE_STANDARD | */LIBUSB_RECIPIENT_ENDPOINT | LIBUSB_ENDPOINT_IN,
-            LIBUSB_REQUEST_GET_STATUS,
-            0, ep,
-            data, sizeof(data),
-            1000);
+    int transferred =
+        libusb_control_transfer(usb_device,
+                                /*LIBUSB_REQUEST_TYPE_STANDARD | */ LIBUSB_RECIPIENT_ENDPOINT | LIBUSB_ENDPOINT_IN,
+                                LIBUSB_REQUEST_GET_STATUS, 0, ep, data, sizeof(data), 1000);
     if (transferred != sizeof(data)) {
         output("Get status failed\n");
         return false;
     }
     if (data[0] & 1) {
-        if (verbose) output("%d was halted\n", ep);
+        if (verbose)
+            output("%d was halted\n", ep);
         return true;
     }
-    if (verbose) output("%d was not halted\n", ep);
+    if (verbose)
+        output("%d was not halted\n", ep);
     return false;
 }
 
 int picoboot_reset(libusb_device_handle *usb_device, struct picoboot_itf *itf) {
-    if (verbose) output("RESET\n");
+    if (verbose)
+        output("RESET\n");
     if (is_halted(usb_device, itf->in_ep))
         libusb_clear_halt(usb_device, itf->in_ep);
     if (is_halted(usb_device, itf->out_ep))
         libusb_clear_halt(usb_device, itf->out_ep);
-    int ret =
-            libusb_control_transfer(usb_device, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE,
-                                    PICOBOOT_IF_RESET, 0, itf->interface, NULL, 0, 1000);
+    int ret = libusb_control_transfer(usb_device, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE,
+                                      PICOBOOT_IF_RESET, 0, itf->interface, NULL, 0, 1000);
 
     if (ret != 0) {
         output("  ...failed\n");
         return ret;
     }
-    if (verbose) output("  ...ok\n");
+    if (verbose)
+        output("  ...ok\n");
     return 0;
 }
 
-int picoboot_cmd_status_verbose(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd_status *status, bool local_verbose) {
+int picoboot_cmd_status_verbose(libusb_device_handle *usb_device, struct picoboot_itf *itf,
+                                struct picoboot_cmd_status *status, bool local_verbose) {
     struct picoboot_cmd_status s;
-    if (!status) status = &s;
+    if (!status)
+        status = &s;
 
-    if (local_verbose) output("CMD_STATUS\n");
-    int ret =
-            libusb_control_transfer(usb_device,
-                                    LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE | LIBUSB_ENDPOINT_IN,
-                                    PICOBOOT_IF_CMD_STATUS, 0, itf->interface, (uint8_t *) status, sizeof(*status), 1000);
+    if (local_verbose)
+        output("CMD_STATUS\n");
+    int ret = libusb_control_transfer(
+        usb_device, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE | LIBUSB_ENDPOINT_IN,
+        PICOBOOT_IF_CMD_STATUS, 0, itf->interface, (uint8_t *) status, sizeof(*status), 1000);
 
     if (ret != sizeof(*status)) {
         output("  ...failed\n");
@@ -188,13 +196,15 @@ int picoboot_cmd_status_verbose(libusb_device_handle *usb_device, struct picoboo
     return 0;
 }
 
-int picoboot_cmd_status(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd_status *status) {
+int picoboot_cmd_status(libusb_device_handle *usb_device, struct picoboot_itf *itf,
+                        struct picoboot_cmd_status *status) {
     return picoboot_cmd_status_verbose(usb_device, itf, status, verbose);
 }
 
 int one_time_bulk_timeout;
 
-int picoboot_cmd(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd *cmd, uint8_t *buffer, uint buf_size) {
+int picoboot_cmd(libusb_device_handle *usb_device, struct picoboot_itf *itf, struct picoboot_cmd *cmd, uint8_t *buffer,
+                 uint buf_size) {
     int sent = 0;
     int ret;
 
@@ -216,20 +226,25 @@ int picoboot_cmd(libusb_device_handle *usb_device, struct picoboot_itf *itf, str
     if (cmd->dTransferLength != 0) {
         assert(buf_size >= cmd->dTransferLength);
         if (cmd->bCmdId & 0x80u) {
-            if (verbose) output("  receive %d...\n", cmd->dTransferLength);
+            if (verbose)
+                output("  receive %d...\n", cmd->dTransferLength);
             int received = 0;
             ret = libusb_bulk_transfer(usb_device, itf->in_ep, buffer, cmd->dTransferLength, &received, timeout);
             if (ret != 0 || received != (int) cmd->dTransferLength) {
                 output("  ...failed to receive data %d %d/%d\n", ret, received, cmd->dTransferLength);
-                if (!ret) ret = 1;
+                if (!ret)
+                    ret = 1;
                 return ret;
             }
-        } else {
-            if (verbose) output("  send %d...\n", cmd->dTransferLength);
+        }
+        else {
+            if (verbose)
+                output("  send %d...\n", cmd->dTransferLength);
             ret = libusb_bulk_transfer(usb_device, itf->out_ep, buffer, cmd->dTransferLength, &sent, timeout);
             if (ret != 0 || sent != (int) cmd->dTransferLength) {
                 output("  ...failed to send data %d %d/%d\n", ret, sent, cmd->dTransferLength);
-                if (!ret) ret = 1;
+                if (!ret)
+                    ret = 1;
                 picoboot_cmd_status_verbose(usb_device, itf, NULL, true);
                 return ret;
             }
@@ -240,17 +255,23 @@ int picoboot_cmd(libusb_device_handle *usb_device, struct picoboot_itf *itf, str
     int received = 0;
     uint8_t spoon[64];
     if (cmd->bCmdId & 0x80u) {
-        if (verbose) output("zero length out\n");
-        ret = libusb_bulk_transfer(usb_device, itf->out_ep, spoon, 1, &received, cmd->dTransferLength == 0 ? timeout : 3000);
-    } else {
-        if (verbose) output("zero length in\n");
-        ret = libusb_bulk_transfer(usb_device, itf->in_ep, spoon, 1, &received, cmd->dTransferLength == 0 ? timeout : 3000);
+        if (verbose)
+            output("zero length out\n");
+        ret = libusb_bulk_transfer(usb_device, itf->out_ep, spoon, 1, &received,
+                                   cmd->dTransferLength == 0 ? timeout : 3000);
+    }
+    else {
+        if (verbose)
+            output("zero length in\n");
+        ret = libusb_bulk_transfer(usb_device, itf->in_ep, spoon, 1, &received,
+                                   cmd->dTransferLength == 0 ? timeout : 3000);
     }
     return ret;
 }
 
 int picoboot_exclusive_access(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint8_t exclusive) {
-    if (verbose) output("EXCLUSIVE ACCESS %d\n", exclusive);
+    if (verbose)
+        output("EXCLUSIVE ACCESS %d\n", exclusive);
     struct picoboot_cmd cmd;
     cmd.bCmdId = PC_EXCLUSIVE_ACCESS;
     cmd.exclusive_cmd.bExclusive = exclusive;
@@ -261,7 +282,8 @@ int picoboot_exclusive_access(libusb_device_handle *usb_device, struct picoboot_
 
 int picoboot_exit_xip(libusb_device_handle *usb_device, struct picoboot_itf *itf) {
     struct picoboot_cmd cmd;
-    if (verbose) output("EXIT_XIP\n");
+    if (verbose)
+        output("EXIT_XIP\n");
     cmd.bCmdId = PC_EXIT_XIP;
     cmd.bCmdSize = 0;
     cmd.dTransferLength = 0;
@@ -270,16 +292,19 @@ int picoboot_exit_xip(libusb_device_handle *usb_device, struct picoboot_itf *itf
 
 int picoboot_enter_cmd_xip(libusb_device_handle *usb_device, struct picoboot_itf *itf) {
     struct picoboot_cmd cmd;
-    if (verbose) output("ENTER_CMD_XIP\n");
+    if (verbose)
+        output("ENTER_CMD_XIP\n");
     cmd.bCmdId = PC_ENTER_CMD_XIP;
     cmd.bCmdSize = 0;
     cmd.dTransferLength = 0;
     return picoboot_cmd(usb_device, itf, &cmd, NULL, 0);
 }
 
-int picoboot_reboot(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t pc, uint32_t sp, uint32_t delay_ms) {
+int picoboot_reboot(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t pc, uint32_t sp,
+                    uint32_t delay_ms) {
     struct picoboot_cmd cmd;
-    if (verbose) output("REBOOT %08x %08x %u\n", (uint) pc, (uint) sp, (uint) delay_ms);
+    if (verbose)
+        output("REBOOT %08x %08x %u\n", (uint) pc, (uint) sp, (uint) delay_ms);
     cmd.bCmdId = PC_REBOOT;
     cmd.bCmdSize = sizeof(cmd.reboot_cmd);
     cmd.dTransferLength = 0;
@@ -293,7 +318,8 @@ int picoboot_exec(libusb_device_handle *usb_device, struct picoboot_itf *itf, ui
     struct picoboot_cmd cmd;
     // shouldn't be necessary any more
     // addr |= 1u; // Thumb bit
-    if (verbose) output("EXEC %08x\n", (uint) addr);
+    if (verbose)
+        output("EXEC %08x\n", (uint) addr);
     cmd.bCmdId = PC_EXEC;
     cmd.bCmdSize = sizeof(cmd.address_only_cmd);
     cmd.dTransferLength = 0;
@@ -303,7 +329,8 @@ int picoboot_exec(libusb_device_handle *usb_device, struct picoboot_itf *itf, ui
 
 int picoboot_flash_erase(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint32_t len) {
     struct picoboot_cmd cmd;
-    if (verbose) output("FLASH_ERASE %08x+%08x\n", (uint) addr, (uint) len);
+    if (verbose)
+        output("FLASH_ERASE %08x+%08x\n", (uint) addr, (uint) len);
     cmd.bCmdId = PC_FLASH_ERASE;
     cmd.bCmdSize = sizeof(cmd.range_cmd);
     cmd.range_cmd.dAddr = addr;
@@ -314,7 +341,8 @@ int picoboot_flash_erase(libusb_device_handle *usb_device, struct picoboot_itf *
 
 int picoboot_vector(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr) {
     struct picoboot_cmd cmd;
-    if (verbose) output("VECTOR %08x\n", (uint) addr);
+    if (verbose)
+        output("VECTOR %08x\n", (uint) addr);
     cmd.bCmdId = PC_VECTORIZE_FLASH;
     cmd.bCmdSize = sizeof(cmd.address_only_cmd);
     cmd.range_cmd.dAddr = addr;
@@ -322,9 +350,11 @@ int picoboot_vector(libusb_device_handle *usb_device, struct picoboot_itf *itf, 
     return picoboot_cmd(usb_device, itf, &cmd, NULL, 0);
 }
 
-int picoboot_write(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer, uint32_t len) {
+int picoboot_write(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer,
+                   uint32_t len) {
     struct picoboot_cmd cmd;
-    if (verbose) output("WRITE %08x+%08x\n", (uint) addr, (uint) len);
+    if (verbose)
+        output("WRITE %08x+%08x\n", (uint) addr, (uint) len);
     cmd.bCmdId = PC_WRITE;
     cmd.bCmdSize = sizeof(cmd.range_cmd);
     cmd.range_cmd.dAddr = addr;
@@ -332,9 +362,11 @@ int picoboot_write(libusb_device_handle *usb_device, struct picoboot_itf *itf, u
     return picoboot_cmd(usb_device, itf, &cmd, buffer, len);
 }
 
-int picoboot_read(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer, uint32_t len) {
+int picoboot_read(libusb_device_handle *usb_device, struct picoboot_itf *itf, uint32_t addr, uint8_t *buffer,
+                  uint32_t len) {
     memset(buffer, 0xaa, len);
-    if (verbose) output("READ %08x+%08x\n", (uint) addr, (uint) len);
+    if (verbose)
+        output("READ %08x+%08x\n", (uint) addr, (uint) len);
     struct picoboot_cmd cmd;
     cmd.bCmdId = PC_READ;
     cmd.bCmdSize = sizeof(cmd.range_cmd);
@@ -352,7 +384,6 @@ int picoboot_read(libusb_device_handle *usb_device, struct picoboot_itf *itf, ui
     }
     return ret;
 }
-
 
 #if 0
 // Peek/poke via EXEC

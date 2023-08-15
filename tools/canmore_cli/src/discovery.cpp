@@ -1,14 +1,14 @@
-#include <algorithm>
-#include <iostream>
-#include <unordered_map>
-#include <sstream>
-#include <poll.h>
-#include <termios.h>
-#include <unistd.h>
-#include <signal.h>
-
 #include "CanmoreCLI.hpp"
 #include "TerminalDraw.hpp"
+
+#include <algorithm>
+#include <iostream>
+#include <poll.h>
+#include <signal.h>
+#include <sstream>
+#include <termios.h>
+#include <unistd.h>
+#include <unordered_map>
 
 using namespace Canmore;
 
@@ -19,7 +19,8 @@ using namespace Canmore;
 volatile bool receivedInt = false;
 static void intHandler(int sig) {
     // Restore default signal handler
-    // The keyboard input processor should handle this past one, if it doesn't let the user hit control c again and get out
+    // The keyboard input processor should handle this past one, if it doesn't let the user hit control c again and get
+    // out
     signal(sig, SIG_DFL);
     receivedInt = true;
 }
@@ -31,9 +32,9 @@ private:
     sighandler_t oldHandler;
 
 public:
-
     TerminalOverride() {
-        if (initialized) throw std::logic_error("Cannot call initialize terminal in nested configuration");
+        if (initialized)
+            throw std::logic_error("Cannot call initialize terminal in nested configuration");
         initialized = true;
 
         // Set signal handler to allow terminal to capture it and respond accordingly
@@ -75,30 +76,27 @@ public:
 };
 bool TerminalOverride::initialized = false;
 
-
-struct canmore_device_fixed_sort
-{
-    inline bool operator() (const std::shared_ptr<Device>& dev1, const std::shared_ptr<Device>& dev2)
-    {
-        return dev1->interfaceName == dev2->interfaceName ? (dev1->clientId < dev2->clientId) : (dev1->interfaceName < dev2->interfaceName);
+struct canmore_device_fixed_sort {
+    inline bool operator()(const std::shared_ptr<Device> &dev1, const std::shared_ptr<Device> &dev2) {
+        return dev1->interfaceName == dev2->interfaceName ? (dev1->clientId < dev2->clientId) :
+                                                            (dev1->interfaceName < dev2->interfaceName);
     }
 };
 
-struct canmore_device_lookup
-{    explicit canmore_device_lookup(std::shared_ptr<Device> &target) : target(target) {}
-    inline bool operator() (const std::shared_ptr<Device>& dev)
-    {
-        if (target == dev) return true;
-        if (!target || !dev) return false;
+struct canmore_device_lookup {
+    explicit canmore_device_lookup(std::shared_ptr<Device> &target): target(target) {}
+    inline bool operator()(const std::shared_ptr<Device> &dev) {
+        if (target == dev)
+            return true;
+        if (!target || !dev)
+            return false;
         return *target == *dev;
     }
     std::shared_ptr<Device> target;
 };
 
-struct canmore_device_hasher
-{
-    std::size_t operator()(const Device& k) const
-    {
+struct canmore_device_hasher {
+    std::size_t operator()(const Device &k) const {
         using std::hash;
 
         // Taken from stack overflow on how to combine hashes
@@ -108,18 +106,11 @@ struct canmore_device_hasher
     }
 };
 
-
-enum Keypress {
-    KEY_NONE = 0,
-    KEY_UP,
-    KEY_DOWN,
-    KEY_ENTER,
-    KEY_CTRL_C
-};
+enum Keypress { KEY_NONE = 0, KEY_UP, KEY_DOWN, KEY_ENTER, KEY_CTRL_C };
 
 bool keypressAvailable(unsigned int timeoutMs) {
-    struct pollfd pfd = {.fd = STDIN_FILENO, .events = POLLIN, .revents=0};
-    if (poll( &pfd, 1, timeoutMs) < 0) {
+    struct pollfd pfd = { .fd = STDIN_FILENO, .events = POLLIN, .revents = 0 };
+    if (poll(&pfd, 1, timeoutMs) < 0) {
         if (errno == EINTR && receivedInt)
             return false;
         else
@@ -129,14 +120,16 @@ bool keypressAvailable(unsigned int timeoutMs) {
 }
 
 static Keypress getKeypress(unsigned int timeoutMs = 500) {
-    if (!keypressAvailable(timeoutMs)) return (receivedInt ? KEY_CTRL_C : KEY_NONE);
+    if (!keypressAvailable(timeoutMs))
+        return (receivedInt ? KEY_CTRL_C : KEY_NONE);
 
     int c = getchar();
     if (c == '\033') {
         // Terminal input sequence
         // Note can't poll for whatever reason, just going to blindly poll and trust we're getting a valid sequence
         c = getchar();
-        if (c != '[') return KEY_NONE;  // Unknown terminal input sequence, they should all start with [
+        if (c != '[')
+            return KEY_NONE;  // Unknown terminal input sequence, they should all start with [
 
         std::string modifiers;
         while (true) {
@@ -151,10 +144,10 @@ static Keypress getKeypress(unsigned int timeoutMs = 500) {
             return KEY_UP;
         }
         else if (c == 'B' && modifiers.size() == 0) {
-           return KEY_DOWN;
+            return KEY_DOWN;
         }
     }
-    else if (c == '\n'){
+    else if (c == '\n') {
         return KEY_ENTER;
     }
 
@@ -175,7 +168,7 @@ static size_t remapDeviceIndex(std::vector<std::shared_ptr<Device>> &devicesNew,
     // Try to find device in new array
     auto result = std::find_if(devicesNew.begin(), devicesNew.end(), canmore_device_lookup(lastSelected));
     if (result != devicesNew.end()) {
-        return result - devicesNew.begin() + 1; // Return index + 1 (as quit is index 0)
+        return result - devicesNew.begin() + 1;  // Return index + 1 (as quit is index 0)
     }
 
     // If we couldn't find it, try to find the next closest
@@ -192,8 +185,8 @@ static size_t remapDeviceIndex(std::vector<std::shared_ptr<Device>> &devicesNew,
     }
 }
 
-void renderHeader(std::string const& title, int titleWidth) {
-    int requiredPadding = titleWidth - (int)title.size();
+void renderHeader(std::string const &title, int titleWidth) {
+    int requiredPadding = titleWidth - (int) title.size();
     int paddingBefore = requiredPadding > 0 ? requiredPadding / 2 : 0;
     int paddingAfter = requiredPadding > 0 ? (requiredPadding / 2) + (requiredPadding % 1) : 0;
     std::cout << COLOR_TITLE;
@@ -207,7 +200,7 @@ void renderHeader(std::string const& title, int titleWidth) {
     std::cout << COLOR_RESET CLEAR_LINE_AFTER << std::endl;
 }
 
-void renderName(std::string const& name, bool selected) {
+void renderName(std::string const &name, bool selected) {
     if (selected)
         std::cout << COLOR_NAME_SELECTED " > ";
     else
@@ -215,15 +208,16 @@ void renderName(std::string const& name, bool selected) {
     std::cout << name << COLOR_RESET CLEAR_LINE_AFTER << std::endl;
 }
 
-void renderField(std::string const& name, std::string const& value, int nameWidth) {
+void renderField(std::string const &name, std::string const &value, int nameWidth) {
     std::cout << COLOR_HEADER "        " << name << ':';
-    for (int i = 0; i < (nameWidth - ((int)name.size() + 1)); i++) {
+    for (int i = 0; i < (nameWidth - ((int) name.size() + 1)); i++) {
         std::cout << ' ';
     }
     std::cout << COLOR_BODY << value << COLOR_RESET CLEAR_LINE_AFTER << std::endl;
 }
 
-static void showDiscovered(const DeviceMap &devMap, std::unordered_map<Device, uint64_t, canmore_device_hasher> &flashIdCache,
+static void showDiscovered(const DeviceMap &devMap,
+                           std::unordered_map<Device, uint64_t, canmore_device_hasher> &flashIdCache,
                            std::vector<std::shared_ptr<Device>> &devices, size_t selectedIndex) {
     std::cout << CURSOR_GOTO_START;
     renderHeader("Select Device");
@@ -238,7 +232,8 @@ static void showDiscovered(const DeviceMap &devMap, std::unordered_map<Device, u
             uint64_t flashId;
             if (itr != flashIdCache.end()) {
                 flashId = itr->second;
-            } else {
+            }
+            else {
                 flashId = dev->getFlashId();
                 if (flashId != 0) {
                     flashIdCache.emplace(*dev, flashId);
@@ -247,12 +242,15 @@ static void showDiscovered(const DeviceMap &devMap, std::unordered_map<Device, u
             auto devDescr = devMap.lookupSerial(flashId);
 
             renderName(devDescr.name, selectedIndex == i);
-            if (devDescr.boardType != "unknown") renderField("Board Type", devDescr.boardType);
-            else if (flashId != 0) renderField("Unique ID", devDescr.hexSerialNum());
+            if (devDescr.boardType != "unknown")
+                renderField("Board Type", devDescr.boardType);
+            else if (flashId != 0)
+                renderField("Unique ID", devDescr.hexSerialNum());
             renderField("Interface", dev->getInterface());
             renderField("Mode", dev->getMode());
             renderField("Error State", dev->inErrorState ? COLOR_ERROR "Fault Present" : "Normal");
-            if (dev->termValid) renderField("Term Resistor", dev->termEnabled ? "On" : "Off");
+            if (dev->termValid)
+                renderField("Term Resistor", dev->termEnabled ? "On" : "Off");
         }
         std::cout << COLOR_RESET CLEAR_LINE_AFTER << std::endl;
     }
@@ -263,12 +261,12 @@ static void showDiscovered(const DeviceMap &devMap, std::unordered_map<Device, u
     // TODO: Gracefully handle scrolling
 }
 
-
 // ========================================
 // Main Discovery Program
 // ========================================
 
-std::shared_ptr<Device> getTargetDevice(const DeviceMap &devMap, std::vector<std::shared_ptr<Discovery>> discoverySources) {
+std::shared_ptr<Device> getTargetDevice(const DeviceMap &devMap,
+                                        std::vector<std::shared_ptr<Discovery>> discoverySources) {
     TerminalOverride termOver;
 
     int cnt = 0;
@@ -308,15 +306,17 @@ std::shared_ptr<Device> getTargetDevice(const DeviceMap &devMap, std::vector<std
 
         // Handle up/down keys before recomputing lastSelection
         if (key == KEY_UP) {
-            if (selectionIndex > 0) selectionIndex--;
+            if (selectionIndex > 0)
+                selectionIndex--;
         }
         if (key == KEY_DOWN) {
-            if (selectionIndex < discovered.size()) selectionIndex++;
+            if (selectionIndex < discovered.size())
+                selectionIndex++;
         }
 
         // Recompute lastSelection
         if (selectionIndex > 0)
-            lastSelection = discovered.at(selectionIndex-1);
+            lastSelection = discovered.at(selectionIndex - 1);
         else
             lastSelection = nullptr;
 

@@ -1,6 +1,7 @@
 #include "titan/canmore.h"
 
-static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *inst, struct reg_mapped_write_request *req) {
+static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *inst,
+                                                     struct reg_mapped_write_request *req) {
     if (req->page >= inst->num_pages) {
         return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
     }
@@ -12,7 +13,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
             return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
         }
 
-        if (page->type.mem_mapped_word.perm != REGISTER_PERM_READ_WRITE && page->type.mem_mapped_word.perm != REGISTER_PERM_WRITE_ONLY) {
+        if (page->type.mem_mapped_word.perm != REGISTER_PERM_READ_WRITE &&
+            page->type.mem_mapped_word.perm != REGISTER_PERM_WRITE_ONLY) {
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
@@ -28,7 +30,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
             return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
         }
 
-        if (page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_WRITE && page->type.mem_mapped_byte.perm != REGISTER_PERM_WRITE_ONLY) {
+        if (page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_WRITE &&
+            page->type.mem_mapped_byte.perm != REGISTER_PERM_WRITE_ONLY) {
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
@@ -36,7 +39,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
         // Note that this is done to ensure that it can be written if byte buffer length isn't divisible by 4
         // Also necessary in the event the buffer is not word aligned
         int extra_bytes = ((req->offset * word_size) + word_size) - page->type.mem_mapped_byte.size;
-        if (extra_bytes < 0) extra_bytes = 0;
+        if (extra_bytes < 0)
+            extra_bytes = 0;
         uint32_t write_word = req->data;
         size_t write_offset = req->offset * word_size;
         for (unsigned int i = 0; i < (word_size - extra_bytes); i++) {
@@ -54,7 +58,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
         const reg_mapped_server_register_def_t *reg = &page->type.reg_mapped.reg_array[req->offset];
 
         if (reg->reg_type == REGISTER_TYPE_MEMORY) {
-            if (reg->type.memory.perm != REGISTER_PERM_READ_WRITE && reg->type.memory.perm != REGISTER_PERM_WRITE_ONLY) {
+            if (reg->type.memory.perm != REGISTER_PERM_READ_WRITE &&
+                reg->type.memory.perm != REGISTER_PERM_WRITE_ONLY) {
                 return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
             }
 
@@ -70,7 +75,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
             uint32_t data = req->data;
             if (reg->type.exec.callback(reg, true, &data)) {
                 return REG_MAPPED_RESULT_SUCCESSFUL;
-            } else {
+            }
+            else {
                 return REG_MAPPED_RESULT_INVALID_DATA;
             }
         }
@@ -85,7 +91,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
     }
 }
 
-static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *inst, struct reg_mapped_read_request *req, uint32_t *data_out) {
+static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *inst, struct reg_mapped_read_request *req,
+                                                    uint32_t *data_out) {
     if (req->page >= inst->num_pages) {
         return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
     }
@@ -97,7 +104,8 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
             return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
         }
 
-        if (page->type.mem_mapped_word.perm != REGISTER_PERM_READ_WRITE && page->type.mem_mapped_word.perm != REGISTER_PERM_READ_ONLY) {
+        if (page->type.mem_mapped_word.perm != REGISTER_PERM_READ_WRITE &&
+            page->type.mem_mapped_word.perm != REGISTER_PERM_READ_ONLY) {
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
@@ -113,17 +121,19 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
             return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
         }
 
-        if (page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_WRITE && page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_ONLY) {
+        if (page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_WRITE &&
+            page->type.mem_mapped_byte.perm != REGISTER_PERM_READ_ONLY) {
             return REG_MAPPED_RESULT_INVALID_REGISTER_MODE;
         }
 
         // Handle unaligned buffers or reads at the end of the buffer
         int required_padding = ((req->offset * word_size) + word_size) - page->type.mem_mapped_byte.size;
-        if (required_padding < 0) required_padding = 0;
+        if (required_padding < 0)
+            required_padding = 0;
         uint32_t partial_read = 0;
         size_t read_offset = req->offset * word_size;
         for (unsigned int i = 0; i < (word_size - required_padding); i++) {
-            partial_read |= page->type.mem_mapped_byte.base_addr[read_offset++] << (8*i);
+            partial_read |= page->type.mem_mapped_byte.base_addr[read_offset++] << (8 * i);
         }
 
         *data_out = partial_read;
@@ -153,7 +163,8 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
 
             if (reg->type.exec.callback(reg, false, data_out)) {
                 return REG_MAPPED_RESULT_SUCCESSFUL;
-            } else {
+            }
+            else {
                 return REG_MAPPED_RESULT_INVALID_DATA;
             }
         }
@@ -176,17 +187,17 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
     }
 
     // Decode flags
-    union reg_mapped_request_flags flags = {.data = msg[0]};
+    union reg_mapped_request_flags flags = { .data = msg[0] };
     bool request_type_write = (flags.f.write ? true : false);
     bool request_type_bulk = (flags.f.bulk_req ? true : false);
     bool request_type_bulk_end = (flags.f.bulk_end ? true : false);
     bool request_type_multiword = (flags.f.multiword ? true : false);
 
     // Initialize decode variables
-    reg_mapped_request_t *req = (reg_mapped_request_t *)msg;
+    reg_mapped_request_t *req = (reg_mapped_request_t *) msg;
     uint8_t result_code = REG_MAPPED_RESULT_MALFORMED_REQUEST;
     uint32_t read_data = 0;
-    reg_mapped_response_t response = {0};
+    reg_mapped_response_t response = { 0 };
     size_t response_size;
 
     // Check message length
@@ -239,7 +250,8 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
             inst->bulk_last_seq_num = 0;
         }
         else {
-            // Check bulk request sequence number (but only if an error is not set as this will overwrite the last sequence number with the error)
+            // Check bulk request sequence number (but only if an error is not set as this will overwrite the last
+            // sequence number with the error)
             if (inst->bulk_error_code == 0) {
                 inst->bulk_last_seq_num++;
 
@@ -257,11 +269,11 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
     if (!inst->in_bulk_request || inst->bulk_error_code == 0) {
         if (request_type_write) {
             result_code = reg_mapped_server_handle_single_write(inst, &req->write_pkt);
-        } else {
+        }
+        else {
             result_code = reg_mapped_server_handle_single_read(inst, &req->read_pkt, &read_data);
         }
     }
-
 
 finish_request:
     if (request_type_bulk) {
@@ -269,7 +281,8 @@ finish_request:
         if (request_type_bulk_end) {
             if (inst->bulk_error_code != 0) {
                 response.write_bulk_pkt.result = inst->bulk_error_code;
-            } else {
+            }
+            else {
                 response.write_bulk_pkt.result = result_code;
             }
             response.write_bulk_pkt.seq_no = inst->bulk_last_seq_num;
@@ -283,11 +296,13 @@ finish_request:
         else if (inst->bulk_error_code == 0) {
             inst->bulk_error_code = result_code;
         }
-    } else {
+    }
+    else {
         if (request_type_write) {
             response.write_pkt.result = result_code;
             response_size = sizeof(response.write_pkt);
-        } else {
+        }
+        else {
             response.read_pkt.result = result_code;
             response.read_pkt.data = read_data;
             response_size = sizeof(response.read_pkt);

@@ -1,12 +1,11 @@
-#include <stdbool.h>
+#include "safety_internal.h"
 
+#include "hardware/watchdog.h"
 #include "pico/assert.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-#include "hardware/watchdog.h"
 
-#include "safety_internal.h"
-
+#include <stdbool.h>
 
 // ========================================
 // Safety Limetime Functions
@@ -65,13 +64,12 @@ void safety_tick(void) {
     profiler_reset(true);
 
     int64_t watchdog_time_remaining = absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time);
-    if (watchdog_time_remaining <
-            1000 * (safety_initialized ? SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS :
-                    SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS)) {
+    if (watchdog_time_remaining < 1000 * (safety_initialized ? SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS :
+                                                               SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS)) {
         safety_raise_fault_with_arg(FAULT_WATCHDOG_WARNING, watchdog_time_remaining);
     }
 
-    watchdog_timeout_time = make_timeout_time_ms(safety_initialized ? SAFETY_WATCHDOG_ACTIVE_TIMER_MS :
-                                                 SAFETY_WATCHDOG_SETUP_TIMER_MS);
+    watchdog_timeout_time =
+        make_timeout_time_ms(safety_initialized ? SAFETY_WATCHDOG_ACTIVE_TIMER_MS : SAFETY_WATCHDOG_SETUP_TIMER_MS);
     watchdog_update();
 }

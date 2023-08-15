@@ -20,4 +20,4 @@ void ssd1306_TestDrawBitmap(void);
 
 _END_STD_C
 
-#endif // __SSD1306_TEST_H__
+#endif  // __SSD1306_TEST_H__

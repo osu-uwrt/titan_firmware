@@ -1,10 +1,11 @@
 #ifndef DRIVER__DYNAMIXEL_H_
 #define DRIVER__DYNAMIXEL_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include "hardware/pio.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 /**
  * @file  driver/dynamixel.h
@@ -38,10 +39,7 @@ enum dynamixel_error_code {
     DYNAMIXEL_INVALID_ID,
 };
 
-enum dynamixel_error_source {
-    DYNAMIXEL_SOURCE_SCHEDULE = 0,
-    DYNAMIXEL_SOURCE_COMMS = 1
-};
+enum dynamixel_error_source { DYNAMIXEL_SOURCE_SCHEDULE = 0, DYNAMIXEL_SOURCE_COMMS = 1 };
 
 typedef union dynamixel_error {
     struct {
@@ -65,9 +63,9 @@ enum dynamixel_event {
      * This is also sent if the if the first attempt to connect to the servo fails
      */
     DYNAMIXEL_EVENT_DISCONNECTED,
-     /**
-      * @brief Reports periodic RAM read of the servo.
-      */
+    /**
+     * @brief Reports periodic RAM read of the servo.
+     */
     DYNAMIXEL_EVENT_RAM_READ,
     /**
      * @brief Reports that an EEPROM read was successful.
@@ -146,7 +144,6 @@ struct dynamixel_ram {
 
 typedef uint8_t dynamixel_id;
 
-
 typedef void (*dynamixel_error_cb)(dynamixel_error_t error);
 typedef void (*dynamixel_event_cb)(enum dynamixel_event, dynamixel_id id);
 
@@ -160,15 +157,14 @@ typedef void (*dynamixel_event_cb)(enum dynamixel_event, dynamixel_id id);
  * @param id_cnt Count of servos to monitor
  * @param error_cb Callback to report an error (events which cannot be gracefully handled by the dynamixel driver)
  * @param event_cb Callback to report any scheduler events
-*/
-void dynamixel_init(PIO pio, uint sm, uint pin,
-                    const dynamixel_id *id_list, size_t id_cnt,
-                    dynamixel_error_cb error_cb,
+ */
+void dynamixel_init(PIO pio, uint sm, uint pin, const dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb error_cb,
                     dynamixel_event_cb event_cb);
 
 /**
  * @brief Changes the requested dynamixel's ID
- * @note The dynamixel scheduler module should be able to handle this, but is recommended that the scheduler be reconfigured after calling this function
+ * @note The dynamixel scheduler module should be able to handle this, but is recommended that the scheduler be
+ * reconfigured after calling this function
  *
  * @param old The dynamixel's current ID
  * @param new The new ID for the dynamixel
@@ -203,7 +199,7 @@ void dynamixel_set_homing_offset(dynamixel_id id, int32_t home_offset);
  *
  * @param id the ID of the servo
  * @param enabled what to set the enable torque flag to.
-*/
+ */
 void dynamixel_enable_torque(dynamixel_id id, bool enabled);
 
 /**
@@ -220,7 +216,7 @@ void dynamixel_request_eeprom_rescan(dynamixel_id id);
  * @param id Dynamixel to read from
  * @return struct dynamixel_eeprom* Pointer to EEPROM, or NULL if the driver does not have EEPROM for that ID
  */
-struct dynamixel_eeprom* dynamixel_get_eeprom(dynamixel_id id);
+struct dynamixel_eeprom *dynamixel_get_eeprom(dynamixel_id id);
 
 /**
  * @brief Returns pointer to the RAM read from the dynamixel
@@ -229,7 +225,7 @@ struct dynamixel_eeprom* dynamixel_get_eeprom(dynamixel_id id);
  * @param id Dynamixel to read from
  * @return volatile struct dynamixel_ram* Pointer to RAM, or NULL if the driver does not have RAM for that ID
  */
-volatile struct dynamixel_ram* dynamixel_get_ram(dynamixel_id id);
+volatile struct dynamixel_ram *dynamixel_get_ram(dynamixel_id id);
 
 /**
  * @brief Returns if the corresponding dynamixel is connected.

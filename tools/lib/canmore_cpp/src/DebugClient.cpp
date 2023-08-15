@@ -1,5 +1,6 @@
-#include "titan/canmore.h"
 #include "canmore_cpp/DebugClient.hpp"
+
+#include "titan/canmore.h"
 
 using namespace Canmore;
 
@@ -28,22 +29,26 @@ void DebugClient::ping() {
 }
 
 uint32_t DebugClient::getActiveFaults() {
-    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                  CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
     return safetyStatusPage.readRegister(CANMORE_DBG_SAFETY_STATUS_FAULT_LIST_OFFSET);
 }
 
 SafetyStatus DebugClient::getSafetyStatus() {
-    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                  CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
     return SafetyStatus(safetyStatusPage.readRegister(CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET));
 }
 
 std::string DebugClient::lookupFaultName(uint32_t faultId) {
     auto entry = faultNameCache.find(faultId);
     if (entry == faultNameCache.end()) {
-        RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+        RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                      CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
         safetyStatusPage.writeRegister(CANMORE_DBG_SAFETY_STATUS_FAULT_NAME_IDX_OFFSET, faultId);
 
-        auto faultName = client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_FAULT_NAME_PAGE_NUM);
+        auto faultName =
+            client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_FAULT_NAME_PAGE_NUM);
         faultNameCache.emplace(faultId, faultName);
         return faultName;
     }
@@ -53,18 +58,20 @@ std::string DebugClient::lookupFaultName(uint32_t faultId) {
 }
 
 void DebugClient::raiseFault(uint32_t faultId) {
-    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                  CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
     safetyStatusPage.writeRegister(CANMORE_DBG_SAFETY_STATUS_RAISE_FAULT_OFFSET, faultId);
 }
 
 void DebugClient::lowerFault(uint32_t faultId) {
-    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                  CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
     safetyStatusPage.writeRegister(CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET, faultId);
 }
 
-
 Uptime DebugClient::getUptime() {
-    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL, CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
+    RegisterPage safetyStatusPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+                                  CANMORE_DBG_SAFETY_STATUS_PAGE_NUM);
 
     return Uptime(safetyStatusPage.readRegister(CANMORE_DBG_SAFETY_STATUS_UPTIME_OFFSET));
 }
@@ -82,12 +89,11 @@ CrashLogEntry DebugClient::getLastResetEntry() {
     crashLogPage.writeRegister(CANMORE_DBG_CRASH_LOG_PREV_INDEX_OFFSET, 0);
 
     // Read the crash log
-    return CrashLogEntry(
-        crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_RESET_REASON_OFFSET),
-        crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_FAULT_LIST_OFFSET),
-        crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_UPTIME_OFFSET),
-        crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_OFFSET),
-        crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET));
+    return CrashLogEntry(crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_RESET_REASON_OFFSET),
+                         crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_FAULT_LIST_OFFSET),
+                         crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_UPTIME_OFFSET),
+                         crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_OFFSET),
+                         crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET));
 }
 
 void DebugClient::getCrashLog(std::vector<CrashLogEntry> &crashLogOut) {
@@ -101,12 +107,11 @@ void DebugClient::getCrashLog(std::vector<CrashLogEntry> &crashLogOut) {
         crashLogPage.writeRegister(CANMORE_DBG_CRASH_LOG_PREV_INDEX_OFFSET, i);
 
         // Add this crash log entry
-        crashLogOut.emplace_back(
-            crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_RESET_REASON_OFFSET),
-            crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_FAULT_LIST_OFFSET),
-            crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_UPTIME_OFFSET),
-            crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_OFFSET),
-            crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET));
+        crashLogOut.emplace_back(crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_RESET_REASON_OFFSET),
+                                 crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_FAULT_LIST_OFFSET),
+                                 crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_UPTIME_OFFSET),
+                                 crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_OFFSET),
+                                 crashLogPage.readRegister(CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET));
     }
 }
 

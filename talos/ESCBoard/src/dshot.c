@@ -1,4 +1,9 @@
-#include <stdio.h>
+#include "dshot.h"
+
+#include "bidir_dshot.pio.h"
+#include "safety_interface.h"
+#include "uart_rx.pio.h"
+#include "uart_telemetry.h"
 
 #include "hardware/adc.h"
 #include "hardware/irq.h"
@@ -7,20 +12,16 @@
 #include "hardware/timer.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
-
 #include "titan/logger.h"
 
-#include "safety_interface.h"
-#include "dshot.h"
-#include "bidir_dshot.pio.h"
-#include "uart_rx.pio.h"
-#include "uart_telemetry.h"
+#include <stdio.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dshot"
 
 // Sanity check parameters
-static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "DShot TX Rate must be greater than minimum frame time");
+static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US,
+              "DShot TX Rate must be greater than minimum frame time");
 
 // ========================================
 // Global Variables
@@ -29,9 +30,9 @@ static_assert(bidir_dshot_min_frame_period_us(DSHOT_RATE) <= DSHOT_TX_RATE_US, "
 bool dshot_initialized = false;
 bool dshot_thrusters_on = false;
 bool esc_board_on = false;
-struct dshot_uart_telemetry dshot_telemetry_data[NUM_THRUSTERS] = {0};
-struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = {0};
-bool dshot_rpm_reversed[NUM_THRUSTERS] = {0};
+struct dshot_uart_telemetry dshot_telemetry_data[NUM_THRUSTERS] = { 0 };
+struct dshot_rpm_telemetry dshot_rpm_data[NUM_THRUSTERS] = { 0 };
+bool dshot_rpm_reversed[NUM_THRUSTERS] = { 0 };
 uint32_t vcc_reading_mv = 0;
 
 // ========================================
@@ -66,12 +67,12 @@ static uint dshot_pio_offset;
 /**
  * @brief The cached commands to send for dshot
  */
-static uint dshot_thruster_cmds[NUM_THRUSTERS] = {0};
+static uint dshot_thruster_cmds[NUM_THRUSTERS] = { 0 };
 
 /**
  * @brief Buffer for uart telemetry being actively received
  */
-struct uart_telem_buffer dshot_uart_telem_buffer = {.thruster = -1};
+struct uart_telem_buffer dshot_uart_telem_buffer = { .thruster = -1 };
 
 /**
  * @brief Sets the time thrusters are allowed to the latest possible value
@@ -127,19 +128,20 @@ void dshot_uart_prep_for_rx(uint thruster) {
     dshot_uart_telem_buffer.thruster = thruster;
     dshot_uart_telem_buffer.type = ESC_TELEM_FRAME;
 
-    if (dshot_telemetry_data[thruster].missed_count < TELEM_MAX_MISSED_PACKETS){
+    if (dshot_telemetry_data[thruster].missed_count < TELEM_MAX_MISSED_PACKETS) {
         dshot_telemetry_data[thruster].missed_count++;
-    } else {
+    }
+    else {
         dshot_telemetry_data[thruster].valid = false;
     }
 }
 
-uint8_t __time_critical_func(dshot_uart_crc_update)(uint8_t crc, uint8_t crc_seed){
+uint8_t __time_critical_func(dshot_uart_crc_update)(uint8_t crc, uint8_t crc_seed) {
     uint8_t crc_u, i;
     crc_u = crc;
     crc_u ^= crc_seed;
-    for ( i=0; i<8; i++)
-        crc_u = ( crc_u & 0x80 ) ? 0x7 ^ ( crc_u << 1 ) : ( crc_u << 1 );
+    for (i = 0; i < 8; i++)
+        crc_u = (crc_u & 0x80) ? 0x7 ^ (crc_u << 1) : (crc_u << 1);
     return (crc_u);
 }
 
@@ -149,13 +151,14 @@ void __time_critical_func(dshot_uart_telem_cb)(void) {
 
     for (int i = 0; i < 4; i++) {
         // Try to read if pending interrupt set
-        if ((pending_buffers & (1<<i)) == 0) {
+        if ((pending_buffers & (1 << i)) == 0) {
             continue;
         }
 
         // Check if this is data we are expecting
         uint8_t data = uart_rx_program_getc(DSHOT_TELEM_PIO_BLOCK, i);
-        if (dshot_uart_telem_buffer.thruster == i && dshot_uart_telem_buffer.recv_index < sizeof(dshot_uart_telem_buffer.buffer)) {
+        if (dshot_uart_telem_buffer.thruster == i &&
+            dshot_uart_telem_buffer.recv_index < sizeof(dshot_uart_telem_buffer.buffer)) {
             // Receive data and process it
             dshot_uart_telem_buffer.buffer.raw[dshot_uart_telem_buffer.recv_index++] = data;
             uint8_t last_crc = dshot_uart_telem_buffer.crc;
@@ -163,7 +166,7 @@ void __time_critical_func(dshot_uart_telem_cb)(void) {
 
             // Check if frame is complete
             if (dshot_uart_telem_buffer.recv_index == sizeof(dshot_uart_telem_buffer.buffer.telem_pkt)) {
-                dshot_uart_telem_buffer.thruster = -1;    // Mark as received
+                dshot_uart_telem_buffer.thruster = -1;  // Mark as received
                 struct esc_telem_pkt *pkt = &dshot_uart_telem_buffer.buffer.telem_pkt;
 
                 if (last_crc == pkt->crc) {
@@ -188,14 +191,14 @@ void __time_critical_func(dshot_uart_telem_cb)(void) {
 // ========================================
 
 int8_t gcr_lookup[0x20] = {
-    -1,  -1,  -1,  -1,  // 0x00-0x03
-    -1,  -1,  -1,  -1,  // 0x04-0x07
+    -1, -1,  -1,  -1,   // 0x00-0x03
+    -1, -1,  -1,  -1,   // 0x04-0x07
     -1, 0x9, 0xA, 0xB,  // 0x08-0x0B
     -1, 0xD, 0xE, 0xF,  // 0x0C-0x0F
-    -1,  -1, 0x2, 0x3,  // 0x10-0x13
+    -1, -1,  0x2, 0x3,  // 0x10-0x13
     -1, 0x5, 0x6, 0x7,  // 0x14-0x17
     -1, 0x0, 0x8, 0x1,  // 0x18-0x1B
-    -1, 0x4, 0xC,  -1,  // 0x1C-0x1F
+    -1, 0x4, 0xC, -1,   // 0x1C-0x1F
 };
 
 int __time_critical_func(decode_erpm_period)(uint32_t packet) {
@@ -236,7 +239,6 @@ void __time_critical_func(dshot_telem_cb)(void) {
     }
 }
 
-
 // ========================================
 // DShot TX
 // ========================================
@@ -252,9 +254,10 @@ void __time_critical_func(dshot_send_command_internal)(uint thruster_index, uint
     cmd <<= 4;
     cmd |= crc;
 
-    if (dshot_rpm_data[thruster_index].missed_count < TELEM_MAX_MISSED_PACKETS){
+    if (dshot_rpm_data[thruster_index].missed_count < TELEM_MAX_MISSED_PACKETS) {
         dshot_rpm_data[thruster_index].missed_count++;
-    } else {
+    }
+    else {
         dshot_rpm_data[thruster_index].valid = false;
     }
 
@@ -269,7 +272,7 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
     }
 
     if (time_reached(dshot_command_timeout) || safety_kill_get_asserting_kill() ||
-            !time_reached(dshot_time_thrusters_allowed) || !esc_board_on) {
+        !time_reached(dshot_time_thrusters_allowed) || !esc_board_on) {
         dshot_clear_command_state();
     }
 
@@ -277,7 +280,8 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
     static int telem_delay = 0;
 
     // Loop until the timer is successfully scheduled
-    // If for whatever reason a high latency, higher-priority IRQ fires during scheduling, it could miss, breaking the timer
+    // If for whatever reason a high latency, higher-priority IRQ fires during scheduling, it could miss, breaking the
+    // timer
     do {
         telem_delay++;
         if (telem_delay == TELEM_PACKET_DELAY) {
@@ -292,13 +296,13 @@ void __time_critical_func(dshot_transmit_timer_cb)(uint hardware_alarm_num) {
             if (telem_delay == 0 && telem_cur_thruster == i) {
                 dshot_uart_prep_for_rx(i);
                 dshot_send_command_internal(i, dshot_thruster_cmds[i], true);
-            } else {
+            }
+            else {
                 dshot_send_command_internal(i, dshot_thruster_cmds[i], false);
             }
-
         }
         dshot_next_allowed_frame_tx = make_timeout_time_us(bidir_dshot_min_frame_period_us(DSHOT_RATE));
-    } while(hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
+    } while (hardware_alarm_set_target(hardware_alarm_num, make_timeout_time_us(DSHOT_TX_RATE_US)));
 }
 
 // ========================================
@@ -349,21 +353,24 @@ void dshot_update_thrusters(const int16_t *throttle_values) {
     // Clear the thrusters on
     dshot_thrusters_on = false;
 
-    for (int i = 0; i < NUM_THRUSTERS; i++){
+    for (int i = 0; i < NUM_THRUSTERS; i++) {
         int16_t val = throttle_values[i];
 
         if (val == 0) {
             dshot_thruster_cmds[i] = 0;
-        } else if (val > 0 && val < 1000) {
+        }
+        else if (val > 0 && val < 1000) {
             // TODO: Fix this to track the zero crossing
             dshot_rpm_reversed[i] = false;
             dshot_thrusters_on = true;
-            dshot_thruster_cmds[i]= val + 48;
-        } else if (val < 0 && val > -1000) {
+            dshot_thruster_cmds[i] = val + 48;
+        }
+        else if (val < 0 && val > -1000) {
             dshot_rpm_reversed[i] = true;
             dshot_thrusters_on = true;
-            dshot_thruster_cmds[i]= (-val) + 1048;
-        } else {
+            dshot_thruster_cmds[i] = (-val) + 1048;
+        }
+        else {
             LOG_WARN("Invalid Thruster Command Sent: %d", val);
             safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, val);
             dshot_clear_command_state();
@@ -402,9 +409,9 @@ void dshot_init(void) {
     bidir_dshot_program_init(DSHOT_PIO_BLOCK, 2, dshot_pio_offset, DSHOT_RATE, ESC3_PWM_PIN);
     bidir_dshot_program_init(DSHOT_PIO_BLOCK, 3, dshot_pio_offset, DSHOT_RATE, ESC4_PWM_PIN);
     pio_set_irq0_source_mask_enabled(DSHOT_PIO_BLOCK,
-        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
-        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
-        true);
+                                     PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
+                                         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
+                                     true);
 
     irq_set_exclusive_handler(PIO0_IRQ_0, dshot_telem_cb);
     irq_set_enabled(PIO0_IRQ_0, true);
@@ -418,9 +425,9 @@ void dshot_init(void) {
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 3, uart_offset, ESC4_TELEM_PIN, 115200);
 
     pio_set_irq0_source_mask_enabled(DSHOT_TELEM_PIO_BLOCK,
-        PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
-        PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
-        true);
+                                     PIO_INTR_SM0_RXNEMPTY_BITS | PIO_INTR_SM1_RXNEMPTY_BITS |
+                                         PIO_INTR_SM2_RXNEMPTY_BITS | PIO_INTR_SM3_RXNEMPTY_BITS,
+                                     true);
 
     irq_set_exclusive_handler(PIO1_IRQ_0, dshot_uart_telem_cb);
     irq_set_enabled(PIO1_IRQ_0, true);

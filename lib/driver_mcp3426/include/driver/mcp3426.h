@@ -1,9 +1,10 @@
 #ifndef DRIVER__MCP3426_H_
 #define DRIVER__MCP3426_H_
 
+#include "driver/async_i2c.h"
+
 #include <stdbool.h>
 #include <stdint.h>
-#include "driver/async_i2c.h"
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_DRIVER_MCP3426, Enable/disable assertions in the MCP3426 Driver, type=bool, default=0, group=driver_mcp3426
 #ifndef PARAM_ASSERTIONS_ENABLED_DRIVER_MCP3426

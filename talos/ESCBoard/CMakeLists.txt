@@ -13,8 +13,8 @@ set(UWRT_ROBOT talos)
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
-	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
@@ -25,7 +25,7 @@ titan_firmware_init()
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
 add_executable(esc_board
-	${SOURCES}
+    ${SOURCES}
 )
 target_include_directories(esc_board PUBLIC include)
 pico_generate_pio_header(esc_board ${CMAKE_CURRENT_LIST_DIR}/src/bidir_dshot.pio)
@@ -45,13 +45,13 @@ titan_enable_bootloader(esc_board can)
 # Define linking and targets
 pico_add_extra_outputs(esc_board)
 target_link_libraries(esc_board PUBLIC
-	driver_led		# Status LED support
-	titan_logger	# A nice little logging library
-	titan_safety	# Handles critical code (Watchdog, Kill Switch, Fault Reporting)
-	micro_ros_can	# Micro ros suppot (supports _can, _usb, _eth)
+    driver_led      # Status LED support
+    titan_logger    # A nice little logging library
+    titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    micro_ros_can   # Micro ros suppot (supports _can, _usb, _eth)
 
-	pico_stdlib		# Pico SDK Standard Library
-	hardware_adc	# ADC Pin for VCC Measurement
-	hardware_pio	# PIO for DShot
+    pico_stdlib     # Pico SDK Standard Library
+    hardware_adc    # ADC Pin for VCC Measurement
+    hardware_pio    # PIO for DShot
 )
 

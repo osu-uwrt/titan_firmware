@@ -1,11 +1,11 @@
 #ifndef CANMORE__MSG_ENCODING_H_
 #define CANMORE__MSG_ENCODING_H_
 
+#include "canmore/protocol.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "canmore/protocol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,13 +19,12 @@ extern "C" {
  * This provides an encoder and decoder which are able to convert between raw message buffers and the CAN frames to be
  * sent over the CAN bus compliant to the CANmore protocol. See CANmore protocol specification header file for more
  * information.
-*/
+ */
 
 /**
  * @brief Maximum message sequence number supported by CANmore protocol
-*/
-#define CANMORE_MAX_MSG_SEQ_NUM  ((1<<CANMORE_NOC_LENGTH) - 1)
-
+ */
+#define CANMORE_MAX_MSG_SEQ_NUM ((1 << CANMORE_NOC_LENGTH) - 1)
 
 // ========================================
 // CANmore Message Encoder
@@ -35,7 +34,7 @@ extern "C" {
  * @brief Struct containing encoder state
  *
  * Do not modify this struct directly! Use the `canmore_msg_encode_` set of functions instead
-*/
+ */
 typedef struct canmore_msg_encoder_state {
     // The client id to be used when encoding frame IDs
     uint32_t client_id;
@@ -56,8 +55,9 @@ typedef struct canmore_msg_encoder_state {
  *
  * @param state Pointer to decoder state struct to store internal state
  * @param client_id The client id to be used when encoding frame IDs
- * @param direction The direction to be used when encoding frame IDs (CANMORE_DIRECTION_CLIENT_TO_AGENT / CANMORE_DIRECTION_AGENT_TO_CLIENT)
-*/
+ * @param direction The direction to be used when encoding frame IDs (CANMORE_DIRECTION_CLIENT_TO_AGENT /
+ * CANMORE_DIRECTION_AGENT_TO_CLIENT)
+ */
 void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, uint32_t direction);
 
 /**
@@ -67,7 +67,7 @@ void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, u
  * @param state Pointer to encoder state data struct
  * @param buffer Buffer containing message data to encode
  * @param len Length of message data to encode
-*/
+ */
 void canmore_msg_encode_load(canmore_msg_encoder_t *state, const uint8_t *buffer, size_t len);
 
 /**
@@ -75,7 +75,7 @@ void canmore_msg_encode_load(canmore_msg_encoder_t *state, const uint8_t *buffer
  *
  * @param state Pointer to encoder state data struct
  * @return True if data still needs to be sent, false if no data remaining to be transmitted
-*/
+ */
 bool canmore_msg_encode_done(canmore_msg_encoder_t *state);
 
 /**
@@ -87,9 +87,9 @@ bool canmore_msg_encode_done(canmore_msg_encoder_t *state);
  * @param id_out Pointer to write the frame ID to be transmitted
  * @param is_extended Pointer to write boolean, true if the frame ID written to `id_out` is an extended ID
  * @return True if frame was successfully encoded, false if otherwise
-*/
-bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, uint8_t *dlc_out, uint32_t *id_out, bool *is_extended);
-
+ */
+bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, uint8_t *dlc_out, uint32_t *id_out,
+                             bool *is_extended);
 
 // ========================================
 // CANmore Message Decoder
@@ -106,13 +106,13 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
 /**
  * @brief Callback for reporting a decoder error
  */
-typedef void (*canmore_msg_decoder_error_handler_t)(void* arg, unsigned int error_code);
+typedef void (*canmore_msg_decoder_error_handler_t)(void *arg, unsigned int error_code);
 
 /**
  * @brief Struct containing decoder state
  *
  * Do not modify this struct directly! Use the `canmore_msg_decode_` set of functions instead
-*/
+ */
 typedef struct canmore_msg_decoder_state {
     // Current crc18 decode value
     uint32_t crc18;
@@ -125,7 +125,7 @@ typedef struct canmore_msg_decoder_state {
     // Decoder error handler, can be NULL if no handler assigned
     canmore_msg_decoder_error_handler_t decode_error_handler;
     // Decoder error handler optional argument
-    void* decode_error_arg;
+    void *decode_error_arg;
 } canmore_msg_decoder_t;
 
 /**
@@ -134,13 +134,14 @@ typedef struct canmore_msg_decoder_state {
  * @param state Pointer to decoder state struct to store internal state
  * @param decode_error_handler Callback for reporting a decoder error, can be NULL if no handler assigned
  * @param decode_error_arg Argument to provide to decode error handler
-*/
-void canmore_msg_decode_init(canmore_msg_decoder_t *state, canmore_msg_decoder_error_handler_t decode_error_handler, void* decode_error_arg);
+ */
+void canmore_msg_decode_init(canmore_msg_decoder_t *state, canmore_msg_decoder_error_handler_t decode_error_handler,
+                             void *decode_error_arg);
 
 /**
  * @brief Resets the message decoder state to receive a new sequence of message frames
  * @param state Pointer to decoder state data struct
-*/
+ */
 void canmore_msg_decode_reset_state(canmore_msg_decoder_t *state);
 
 /**
@@ -152,7 +153,7 @@ void canmore_msg_decode_reset_state(canmore_msg_decoder_t *state);
  * @param data Buffer containing frame data
  * @param data_len Length of data in buffer
  * @return True if the frame was successfully decoded, false if error occurred
-*/
+ */
 bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len);
 
 /**
@@ -165,8 +166,9 @@ bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uin
  * @param crc The crc decoded from the extended frame ID
  * @param data_out Buffer to copy decoded message into (must be at least CANMORE_MAX_MSG_LENGTH bytes in size)
  * @return Length of data copied into data_out
-*/
-size_t canmore_msg_decode_last_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len, uint32_t crc, uint8_t *data_out);
+ */
+size_t canmore_msg_decode_last_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len,
+                                     uint32_t crc, uint8_t *data_out);
 
 #ifdef __cplusplus
 }

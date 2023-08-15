@@ -1,9 +1,11 @@
 #include "async_uart.h"
+
+#include "uart_multidrop.pio.h"
+
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "pico/sync.h"
 #include "pico/time.h"
-#include "uart_multidrop.pio.h"
 
 // PICO_CONFIG: ASYNC_UART_DMA_IRQ_NUM, DMA IRQ number to reserve for async uart interrupts, min=0, max=1, default=0, group=driver_dynamixel
 #ifndef ASYNC_UART_DMA_IRQ_NUM
@@ -15,11 +17,13 @@
 #define ASYNC_UART_PIO_IRQ_NUM 0
 #endif
 
-
-static_assert(ASYNC_UART_DMA_IRQ_NUM == 0 || ASYNC_UART_DMA_IRQ_NUM == 1, "ASYNC_UART_DMA_IRQ_NUM must be valid DMA IRQ number");
-static_assert(ASYNC_UART_PIO_IRQ_NUM == 0 || ASYNC_UART_PIO_IRQ_NUM == 1, "ASYNC_UART_PIO_IRQ_NUM must be valid PIO IRQ number");
+static_assert(ASYNC_UART_DMA_IRQ_NUM == 0 || ASYNC_UART_DMA_IRQ_NUM == 1,
+              "ASYNC_UART_DMA_IRQ_NUM must be valid DMA IRQ number");
+static_assert(ASYNC_UART_PIO_IRQ_NUM == 0 || ASYNC_UART_PIO_IRQ_NUM == 1,
+              "ASYNC_UART_PIO_IRQ_NUM must be valid PIO IRQ number");
 #define ASYNC_UART_DMA_IRQ __CONCAT(DMA_IRQ_, ASYNC_UART_DMA_IRQ_NUM)
-#define ASYNC_UQRT_PIO_IRQ(pio) (pio == pio0 ? __CONCAT(PIO0_IRQ_, ASYNC_UART_PIO_IRQ_NUM) : __CONCAT(PIO1_IRQ_, ASYNC_UART_PIO_IRQ_NUM))
+#define ASYNC_UQRT_PIO_IRQ(pio)                                                                                        \
+    (pio == pio0 ? __CONCAT(PIO0_IRQ_, ASYNC_UART_PIO_IRQ_NUM) : __CONCAT(PIO1_IRQ_, ASYNC_UART_PIO_IRQ_NUM))
 
 #define uart_multidrop_irq_tx_compl_num(sm) ((sm + uart_multidrop_irq_tx_compl_rel) % 4)
 #define uart_multidrop_irq_tx_compl(sm) (pis_interrupt0 + uart_multidrop_irq_tx_compl_num(sm))
@@ -41,12 +45,12 @@ struct async_uart_inst {
     size_t rx_data_len;
     alarm_id_t timeout_alarm;
 } local_inst;
-static struct async_uart_inst * const inst = &local_inst;
+static struct async_uart_inst *const inst = &local_inst;
 
 bool __time_critical_func(async_uart_check_and_finish_rx)(enum async_uart_rx_err error_code, bool report_if_fifoover) {
-    // To avoid any races, all operations clearing rx_active and depending on state data must occur within this critical section
-    // Not using a critical section to check/clear rx_active can result in multiple interrupts firing rx_cb
-    // Only clearing rx_active in the critical section might allow another transaction to be started in higher priority IRQ
+    // To avoid any races, all operations clearing rx_active and depending on state data must occur within this critical
+    // section Not using a critical section to check/clear rx_active can result in multiple interrupts firing rx_cb Only
+    // clearing rx_active in the critical section might allow another transaction to be started in higher priority IRQ
     // and rx_cb or other state data might get overwritten
     uint8_t prev_interrupts = save_and_disable_interrupts();
     __compiler_memory_barrier();
@@ -84,7 +88,7 @@ bool __time_critical_func(async_uart_check_and_finish_rx)(enum async_uart_rx_err
 
     // Mark RX complete
     inst->rx_active = false;
-    __compiler_memory_barrier();    // Required to ensure the saved variables won't get optimized after restore_interrupts
+    __compiler_memory_barrier();  // Required to ensure the saved variables won't get optimized after restore_interrupts
     restore_interrupts(prev_interrupts);
 
     // Now call callback outside critical section
@@ -123,7 +127,8 @@ void __time_critical_func(async_uart_pio_handler)(void) {
 
             // Mark tx complete
             inst->tx_active = false;
-            __compiler_memory_barrier();    // Required to ensure the saved variables won't get optimized after restore_interrupts
+            __compiler_memory_barrier();  // Required to ensure the saved variables won't get optimized after
+                                          // restore_interrupts
             restore_interrupts(prev_interrupts);
 
             if (tx_cb) {
@@ -159,13 +164,12 @@ void async_uart_init(PIO pio, unsigned int sm, unsigned int pin, unsigned int ba
     channel_config_set_read_increment(&tx_c, true);
     channel_config_set_write_increment(&tx_c, false);
     channel_config_set_dreq(&tx_c, pio_get_dreq(pio, sm, true));
-    dma_channel_configure(
-        inst->dma_tx_chan,  // Channel to be configured
-        &tx_c,              // The configuration we just created
-        &pio->txf[sm],      // The initial write address
-        NULL,               // The initial read address
-        0,                  // Number of transfers; in this case each is 1 byte.
-        false               // Start immediately.
+    dma_channel_configure(inst->dma_tx_chan,  // Channel to be configured
+                          &tx_c,              // The configuration we just created
+                          &pio->txf[sm],      // The initial write address
+                          NULL,               // The initial read address
+                          0,                  // Number of transfers; in this case each is 1 byte.
+                          false               // Start immediately.
     );
 
     // Configure tx dma channel
@@ -175,12 +179,12 @@ void async_uart_init(PIO pio, unsigned int sm, unsigned int pin, unsigned int ba
     channel_config_set_write_increment(&rx_c, true);
     channel_config_set_dreq(&rx_c, pio_get_dreq(pio, sm, false));
     dma_channel_configure(
-        inst->dma_rx_chan,  // Channel to be configured
-        &rx_c,              // The configuration we just created
-        NULL,               // The initial write address
-        (void*)(((uintptr_t)&pio->rxf[sm]) + 3),      // The initial read address (upper byte of PIO buffer)
-        0,                  // Number of transfers; in this case each is 1 byte.
-        false               // Start immediately.
+        inst->dma_rx_chan,                           // Channel to be configured
+        &rx_c,                                       // The configuration we just created
+        NULL,                                        // The initial write address
+        (void *) (((uintptr_t) &pio->rxf[sm]) + 3),  // The initial read address (upper byte of PIO buffer)
+        0,                                           // Number of transfers; in this case each is 1 byte.
+        false                                        // Start immediately.
     );
 
     // Configure IRQ for RX DMA
@@ -238,7 +242,8 @@ void async_uart_write(const uint8_t *data, size_t len, bool preserve_read, async
         // Execute txdata
         pio_sm_exec(inst->pio, inst->sm, pio_encode_jmp(inst->offset + uart_multidrop_offset_txdata));
         pio_interrupt_clear(inst->pio, uart_multidrop_irq_tx_compl_num(inst->sm));
-    } else {
+    }
+    else {
         pio_sm_exec(inst->pio, inst->sm, pio_encode_jmp(inst->offset + uart_multidrop_offset_rxdata));
     }
 

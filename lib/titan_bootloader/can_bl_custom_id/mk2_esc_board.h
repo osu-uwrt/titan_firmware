@@ -1,15 +1,15 @@
 #ifndef CAN_BL_CUSTOM_ID__MK2_ESC_BOARD_H
 #define CAN_BL_CUSTOM_ID__MK2_ESC_BOARD_H
 
-#include "titan/binary_info.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "titan/binary_info.h"
 
 // Determine client ID by the board detect pin
 static bool bl_board_get_client_id(int *client_id) {
     gpio_init(BOARD_DET_PIN);
     gpio_pull_down(BOARD_DET_PIN);
-    busy_wait_us(5);    // Give time for pull up to settle
+    busy_wait_us(5);  // Give time for pull up to settle
 
     // Define valid CAN IDs
     bi_decl_if_func_used(bi_client_id(CAN_BUS_BOARD0_CLIENT_ID));
@@ -21,6 +21,5 @@ static bool bl_board_get_client_id(int *client_id) {
 
     return true;
 }
-
 
 #endif

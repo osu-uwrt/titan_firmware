@@ -9,14 +9,14 @@ add_subdirectory(${REPO_DIR}/lib/titan_binary_info titan_binary_info)
 add_library(binary_info_cpp INTERFACE)
 
 target_sources(binary_info_cpp INTERFACE
-	${CMAKE_CURRENT_LIST_DIR}/BinaryInfo.cpp
-	${CMAKE_CURRENT_LIST_DIR}/BinaryInfoDisplay.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/BinaryInfo.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/BinaryInfoDisplay.cpp
 )
 
 target_include_directories(binary_info_cpp INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include/)
 
 target_link_libraries(binary_info_cpp INTERFACE
-	boot_uf2_headers
-	pico_binary_info
-	titan_binary_info
+    boot_uf2_headers
+    pico_binary_info
+    titan_binary_info
 )

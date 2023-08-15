@@ -1,0 +1,87 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AttributeMacros:
+  - __capability
+  - __packed
+  - __unused
+BitFieldColonSpacing: None
+BraceWrapping:
+  AfterCaseLabel:  false
+  AfterClass:      false
+  AfterControlStatement: Never
+  AfterEnum:       false
+  AfterExternBlock: false
+  AfterFunction:   false
+  AfterNamespace:  false
+  AfterObjCDeclaration: false
+  AfterStruct:     false
+  AfterUnion:      false
+  BeforeCatch:     false
+  BeforeElse:      true
+  BeforeLambdaBody: false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+BreakBeforeBraces: Custom
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: AfterColon
+BreakInheritanceList: AfterColon
+ColumnLimit: 120
+CommentPragmas: '(^ IWYU pragma:)|(^ ?PICO_CONFIG:)'
+Cpp11BracedListStyle: false
+
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Sorting from local to global scope, as this is best for catching weird dependency errors in your local libraries
+  # Separate ros types into their own section
+  - Regex:           '^<[a-z0-9_]*\/(msg|srv|action)\/'
+    Priority:        3
+    SortPriority:    4
+    CaseSensitive:   false
+  # Also put ROS core libraries in that seciton, but sorted above ros types
+  - Regex:           '^<(libyaml_vendor|rcutils|tracetools|ucdr|uxr|rmw[a-z0-9_]*|rcl[a-z0-9_]*|rosidl[a-z0-9_]*)\/'
+    Priority:        3
+    SortPriority:    3
+    CaseSensitive:   false
+  # Put all remaining system libraries (starting with <) at the end
+  - Regex:           '^<'
+    Priority:        5
+    SortPriority:    5
+    CaseSensitive:   false
+  # Next put pico-sdk headers in its own section
+  - Regex:           '^"(pico|hardware)\/'
+    Priority:        2
+    SortPriority:    2
+    CaseSensitive:   false
+  # Put titan firmware library headers in same section as pico-sdk
+  - Regex:           '^"(titan|driver|micro_ros_pico|canmore)\/'
+    Priority:        2
+    SortPriority:    2
+    CaseSensitive:   false
+  # Finally put the remaining headers at the top (this should only be project headers)
+  - Regex:           '.*'
+    Priority:        1
+    SortPriority:    1
+    CaseSensitive:   false
+
+IndentCaseLabels: false
+IndentExternBlock: NoIndent
+IndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+LineEnding: LF
+NamespaceIndentation: Inner
+SortIncludes: CaseSensitive
+SortUsingDeclarations: LexicographicNumeric
+SpaceAfterCStyleCast: true
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeCtorInitializerColon: false
+SpacesBeforeTrailingComments: 2
+SpacesInContainerLiterals: false
+TabWidth: 4
+UseTab: Never

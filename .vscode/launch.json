@@ -8,24 +8,22 @@
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",
-
             // Configure toolchain path
             // Note this MUST begin with arm-non-eabi-gdb, but most distros nowadays just have gdb-multiarch
             // Run 'sudo ln -s gdb-multiarch /usr/bin/arm-none-eabi-gdb' and it'll make it happy
-            // This is just since Cortex Debug assumes your toolchain prefix based on your gdb executable name
-            "gdbPath" : "arm-none-eabi-gdb",
-
+            // This is just since Cortex Debug assumes your toolchain prefix based on your gdb executable
+            "gdbPath": "arm-none-eabi-gdb",
             // Configure OpenOCD
-            "openOCDLaunchCommands": ["adapter speed 2000"],
+            "openOCDLaunchCommands": [
+                "adapter speed 2000"
+            ],
             "configFiles": [
                 "interface/cmsis-dap.cfg",
                 "target/rp2040.cfg"
             ],
-
             // Using our custom upload task (since bootloader gets squirly when you upload the raw elf)
             "preLaunchTask": "Upload",
             "overrideLaunchCommands": [],
-
             // Configure how we want vscode to interact with things
             "device": "RP2040",
             "svdFile": "${workspaceRoot}/lib/pico-sdk/src/rp2040/hardware_regs/rp2040.svd",

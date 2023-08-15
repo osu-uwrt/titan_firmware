@@ -1,31 +1,29 @@
 #pragma once
 
+#include "TerminalDraw.hpp"
+
 #include <chrono>
 #include <list>
 #include <map>
 #include <memory>
-#include <vector>
 #include <sstream>
 #include <termios.h>
-
-#include "TerminalDraw.hpp"
+#include <vector>
 
 template <class T> class CLIInterface;
 
-template <class T>
-class CLICommandHandler {
+template <class T> class CLICommandHandler {
 public:
-    CLICommandHandler(std::string const& commandName): commandName(commandName){}
+    CLICommandHandler(std::string const &commandName): commandName(commandName) {}
     const std::string commandName;
 
-    virtual void callback(CLIInterface<T> &interface, std::vector<std::string> const& args) = 0;
+    virtual void callback(CLIInterface<T> &interface, std::vector<std::string> const &args) = 0;
 
-    virtual std::string getArgList() const {return "[???]";}
-    virtual std::string getHelp() const {return "No description available";}
+    virtual std::string getArgList() const { return "[???]"; }
+    virtual std::string getHelp() const { return "No description available"; }
 };
 
-template <class T>
-class CLIBackgroundTask {
+template <class T> class CLIBackgroundTask {
 public:
     // If this background task returns false, the CLI will exit
     // Useful for checking connection in the background and exiting on lost connection
@@ -34,11 +32,12 @@ public:
 
 class CLICore {
 public:
-    CLICore(): prompt("> "), promptShown(false), historyItr(cmdHistory.end()) {initTerminal();}
-    ~CLICore() {cleanupTerminal();}
+    CLICore(): prompt("> "), promptShown(false), historyItr(cmdHistory.end()) { initTerminal(); }
+    ~CLICore() { cleanupTerminal(); }
 
-    void writeLine(std::string const& line);
-    std::string getCommand(std::vector<std::string> &argsOut);  // Note this function may return whenever with an empty string to allow a background task to refresh
+    void writeLine(std::string const &line);
+    std::string getCommand(std::vector<std::string> &argsOut);  // Note this function may return whenever with an empty
+                                                                // string to allow a background task to refresh
 
     std::string prompt;
     std::string exitMessage;
@@ -54,30 +53,39 @@ private:
     struct termios oldt;
 };
 
-template <class T>
-class CLIInterface {
-    class HelpCommand: public CLICommandHandler<T> {
+template <class T> class CLIInterface {
+    class HelpCommand : public CLICommandHandler<T> {
     public:
         HelpCommand(): CLICommandHandler<T>("help") {}
-        void callback(CLIInterface<T> &interface, std::vector<std::string> const& args) override {interface.showHelp(args.empty() ? "" : args.at(0));}
-        std::string getArgList() const override {return "[COMMAND]";}
-        std::string getHelp() const override {return "Shows this help message.\nIf COMMAND is provided, only help for that command is printed.";}
+        void callback(CLIInterface<T> &interface, std::vector<std::string> const &args) override {
+            interface.showHelp(args.empty() ? "" : args.at(0));
+        }
+        std::string getArgList() const override { return "[COMMAND]"; }
+        std::string getHelp() const override {
+            return "Shows this help message.\nIf COMMAND is provided, only help for that command is printed.";
+        }
     };
 
-    class ClearCommand: public CLICommandHandler<T> {
+    class ClearCommand : public CLICommandHandler<T> {
     public:
         ClearCommand(): CLICommandHandler<T>("clear") {}
-        void callback(CLIInterface<T> &interface, std::vector<std::string> const& args) override {(void) args; interface.writeLine(CLEAR_TERMINAL CURSOR_GOTO_START);}
-        std::string getArgList() const override {return "";}
-        std::string getHelp() const override {return "Clears the terminal.";}
+        void callback(CLIInterface<T> &interface, std::vector<std::string> const &args) override {
+            (void) args;
+            interface.writeLine(CLEAR_TERMINAL CURSOR_GOTO_START);
+        }
+        std::string getArgList() const override { return ""; }
+        std::string getHelp() const override { return "Clears the terminal."; }
     };
 
-    class ExitCommand: public CLICommandHandler<T> {
+    class ExitCommand : public CLICommandHandler<T> {
     public:
         ExitCommand(): CLICommandHandler<T>("exit") {}
-        void callback(CLIInterface<T> &interface, std::vector<std::string> const& args) override {(void) args; interface.close("");}
-        std::string getArgList() const override {return "";}
-        std::string getHelp() const override {return "Closes the CLI and returns to device selection screen.";}
+        void callback(CLIInterface<T> &interface, std::vector<std::string> const &args) override {
+            (void) args;
+            interface.close("");
+        }
+        std::string getArgList() const override { return ""; }
+        std::string getHelp() const override { return "Closes the CLI and returns to device selection screen."; }
     };
 
 public:
@@ -96,7 +104,8 @@ public:
 
         // Background task refreshing
         std::chrono::time_point lastRefresh = std::chrono::steady_clock::now();
-        if (bgTask) bgTask->callback(*this);
+        if (bgTask)
+            bgTask->callback(*this);
 
         std::vector<std::string> args;
         should_exit = false;
@@ -112,16 +121,17 @@ public:
             }
 
             if (std::chrono::steady_clock::now() - lastRefresh > std::chrono::milliseconds(1500) && !should_exit) {
-                if (bgTask) bgTask->callback(*this);
+                if (bgTask)
+                    bgTask->callback(*this);
                 lastRefresh = std::chrono::steady_clock::now();
             }
         }
     }
 
-    void showHelp(std::string const& cmdName, bool onlyUsage = false) {
+    void showHelp(std::string const &cmdName, bool onlyUsage = false) {
         if (cmdName.empty()) {
             for (auto entry : handlers) {
-                //writeLine("");
+                // writeLine("");
                 auto handler = entry.second;
                 writeLine(COLOR_NAME + handler->commandName + " " COLOR_BODY + handler->getArgList() + COLOR_RESET);
                 writeMultiline(handler->getHelp());
@@ -136,7 +146,8 @@ public:
                 auto handler = itr->second;
                 if (onlyUsage) {
                     writeLine("Usage: " + handler->commandName + " " + handler->getArgList());
-                } else {
+                }
+                else {
                     writeLine(handler->commandName + " " + handler->getArgList());
                     writeMultiline(handler->getHelp());
                 }
@@ -144,13 +155,13 @@ public:
         }
     }
 
-    void writeLine(std::string const& line) {
+    void writeLine(std::string const &line) {
         // Must be used to write lines from background task
         // This ensures that the currently inputted command is preserved while output is entered
         cliCore.writeLine(line);
     }
 
-    void writeMultiline(std::string const& text, std::string const& indent = "\t") {
+    void writeMultiline(std::string const &text, std::string const &indent = "\t") {
         if (text.size() > 0) {
             std::istringstream iss(text);
             std::string line;
@@ -160,7 +171,7 @@ public:
         }
     }
 
-    void close(std::string const& message="") {
+    void close(std::string const &message = "") {
         cliCore.exitMessage = message;
         should_exit = true;
     }
@@ -175,9 +186,7 @@ protected:
         handlers.emplace(handler->commandName, handler);
     }
 
-    void setBackgroundTask(std::shared_ptr<CLIBackgroundTask<T>> bgTask) {
-        this->bgTask = bgTask;
-    }
+    void setBackgroundTask(std::shared_ptr<CLIBackgroundTask<T>> bgTask) { this->bgTask = bgTask; }
 
 private:
     bool should_exit;

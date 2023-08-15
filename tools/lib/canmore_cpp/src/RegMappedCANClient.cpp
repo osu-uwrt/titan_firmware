@@ -1,44 +1,39 @@
-#include <algorithm>
-#include <system_error>
-#include <cstring>
-
-#include <poll.h>
-#include <unistd.h>
-
-#include <net/if.h>
-#include <sys/socket.h>
-
-#include <linux/can.h>
-#include <linux/can/raw.h>
+#include "canmore_cpp/RegMappedClient.hpp"
 
 #include "titan/canmore.h"
-#include "canmore_cpp/RegMappedClient.hpp"
+
+#include <algorithm>
+#include <cstring>
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <system_error>
+#include <unistd.h>
 
 using namespace Canmore;
 
-RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t channel) :
-    ifIndex(ifIndex), clientId(clientId), channel(channel), socketFd(-1)
-{
+RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t channel):
+    ifIndex(ifIndex), clientId(clientId), channel(channel), socketFd(-1) {
     // Open socket
-	if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW)) < 0) {
+    if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
-	}
+    }
 
     // Bind to requested interface
     struct sockaddr_can addr = {};
-	addr.can_family = AF_CAN;
-	addr.can_ifindex = ifIndex;
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifIndex;
 
-	if (bind(socketFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(socketFd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         throw std::system_error(errno, std::generic_category(), "CAN bind");
-	}
+    }
 
     // Configure filter for specific client/channel
-	struct can_filter rfilter[] = {{
-        .can_id = CANMORE_CALC_UTIL_ID_C2A(clientId, channel),
-        .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_SFF_MASK)
-    }};
-	if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
+    struct can_filter rfilter[] = { { .can_id = CANMORE_CALC_UTIL_ID_C2A(clientId, channel),
+                                      .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_SFF_MASK) } };
+    if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
         throw std::system_error(errno, std::generic_category(), "CAN setsockopt");
     }
 
@@ -63,7 +58,7 @@ void RegMappedCANClient::sendRaw(const std::vector<uint8_t> data) {
     }
 }
 
-bool RegMappedCANClient::clientTx(const uint8_t* buf, size_t len) {
+bool RegMappedCANClient::clientTx(const uint8_t *buf, size_t len) {
     if (len > CAN_MAX_DLEN) {
         return false;
     }
@@ -74,8 +69,8 @@ bool RegMappedCANClient::clientTx(const uint8_t* buf, size_t len) {
     memcpy(frame.data, buf, len);
 
     if (write(socketFd, &frame, sizeof(frame)) != sizeof(frame)) {
-		return false;
-	}
+        return false;
+    }
 
     return true;
 }
@@ -95,10 +90,10 @@ bool RegMappedCANClient::clientRx(uint8_t *buf, size_t len, unsigned int timeout
     }
 
     struct can_frame frame;
- 	if (read(socketFd, &frame, sizeof(frame)) != sizeof(frame)) {
+    if (read(socketFd, &frame, sizeof(frame)) != sizeof(frame)) {
         // Error reading from socket
-		return false;
-	}
+        return false;
+    }
 
     if (frame.can_id != CANMORE_CALC_UTIL_ID_C2A(clientId, channel)) {
         // Invalid client ID
@@ -110,14 +105,15 @@ bool RegMappedCANClient::clientRx(uint8_t *buf, size_t len, unsigned int timeout
         return false;
     }
 
-	memcpy(buf, frame.data, len);
+    memcpy(buf, frame.data, len);
 
     return true;
 }
 
 bool RegMappedCANClient::clearRx(void) {
     struct can_frame frame;
-    while (read(socketFd, &frame, sizeof(frame)) > 0) {}
+    while (read(socketFd, &frame, sizeof(frame)) > 0) {
+    }
 
     return true;
 }

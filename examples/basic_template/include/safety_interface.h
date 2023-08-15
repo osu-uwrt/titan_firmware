@@ -7,15 +7,14 @@
 
 //      FAULT_WATCHDOG_RESET      0
 //      FAULT_WATCHDOG_WARNING    1
-#define FAULT_TIMER_MISSED        2
+#define FAULT_TIMER_MISSED 2
 // TODO: Define any additional faults here
 
-static const char * const fault_string_list[] = {
+static const char *const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET",
     "FAULT_WATCHDOG_WARNING",
     "FAULT_TIMER_MISSED",
 };
-
 
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {

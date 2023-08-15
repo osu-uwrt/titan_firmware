@@ -186,9 +186,9 @@ extern "C" {
  * Reset Reason:    The reason for the previous reset. Not valid until Prev Index is written
  * Prev Fault List: The fault list from the previous reset. Not valid until Prev Index is written
  * Prev Uptime:     The uptime from the previous reset. Not valid until Prev Index is written
- * Prev Scratch 1:  The scratch 1 register for the previous reset (or reason for clean boot if reset reason is clean boot).
- *                  Not valid until Prev Index is written
- * Prev Scratch 2:  The scratch 2 register for the previous reset. Not valid until Prev Index is written
+ * Prev Scratch 1:  The scratch 1 register for the previous reset (or reason for clean boot if reset reason is clean
+ * boot). Not valid until Prev Index is written Prev Scratch 2:  The scratch 2 register for the previous reset. Not
+ * valid until Prev Index is written
  *
  * Fault Name
  * ==============
@@ -278,7 +278,6 @@ extern "C" {
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_UNK_WDG_VALUE 5
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTLOADER_VALUE 6
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET 0x08
-
 
 #ifdef __cplusplus
 }

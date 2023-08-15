@@ -1,9 +1,10 @@
-#include <sstream>
-#include <iostream>
 #include "pico_usb/PicoprobeClient.hpp"
 
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/resets.h"
+
+#include <iostream>
+#include <sstream>
 
 using namespace PicoUSB;
 
@@ -27,17 +28,22 @@ void RP2040OCDTarget::initCommon() {
     // Warn about invalid versions
     auto version = openocd->getVersion();
 
-    if (showedVersionWarning) {}
+    if (showedVersionWarning) {
+    }
     else if (!version.valid) {
-        std::cerr << "[WARNING] Unable to parse OpenOCD version. This program has been tested to work with version v0.12" << std::endl;
+        std::cerr
+            << "[WARNING] Unable to parse OpenOCD version. This program has been tested to work with version v0.12"
+            << std::endl;
         showedVersionWarning = true;
     }
     else if (version.major > 0 || version.minor > 12) {
-        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is newer than tested versions v0.12. This wrapper may not function correctly." << std::endl;
+        std::cerr << "[WARNING] OpenOCD install (detected " << version.str()
+                  << ") is newer than tested versions v0.12. This wrapper may not function correctly." << std::endl;
         showedVersionWarning = true;
     }
     else if (version.minor < 12) {
-        std::cerr << "[WARNING] OpenOCD install (detected " << version.str() << ") is outdated! This wrapper may not function correctly. Please use v0.12." << std::endl;
+        std::cerr << "[WARNING] OpenOCD install (detected " << version.str()
+                  << ") is outdated! This wrapper may not function correctly. Please use v0.12." << std::endl;
         showedVersionWarning = true;
     }
 
@@ -45,7 +51,8 @@ void RP2040OCDTarget::initCommon() {
     if (!openocd->ranCustomProbeInit) {
         // Configure picoprobe if a custom probe init wasn't requested
         openocd->sendCommand("adapter driver cmsis-dap");
-        if (probeSerial.size() > 0) openocd->sendCommand("adapter serial " + probeSerial);
+        if (probeSerial.size() > 0)
+            openocd->sendCommand("adapter serial " + probeSerial);
         openocd->sendCommand("adapter speed 5000");
     }
 
@@ -71,10 +78,7 @@ void RP2040OCDTarget::initNormal() {
     }
 
     // Clear resets on required elements for flash programming
-    const uint32_t rst_mask =
-            RESETS_RESET_IO_QSPI_BITS |
-            RESETS_RESET_PADS_QSPI_BITS |
-            RESETS_RESET_TIMER_BITS;
+    const uint32_t rst_mask = RESETS_RESET_IO_QSPI_BITS | RESETS_RESET_PADS_QSPI_BITS | RESETS_RESET_TIMER_BITS;
     writeWord(RESETS_BASE + REG_ALIAS_CLR_BITS, rst_mask);
     if ((readWord(RESETS_BASE) & rst_mask) != 0) {
         throw PicoprobeError("Failed to un-reset required subsystems");
@@ -85,7 +89,8 @@ void RP2040OCDTarget::initRescue() {
     initCommon();
 
     // Create and init rescue DAP
-    openocd->sendCommand("dap create rp2040.rescue_dap -chain-position rp2040.cpu -dp-id 0x01002927 -instance-id 0xf -ignore-syspwrupack");
+    openocd->sendCommand("dap create rp2040.rescue_dap -chain-position rp2040.cpu -dp-id 0x01002927 -instance-id 0xf "
+                         "-ignore-syspwrupack");
     openocd->init();
 
     // De-assert rescue signal now that openocd has initialized
@@ -94,8 +99,8 @@ void RP2040OCDTarget::initRescue() {
     // Readback to ensure the de-assert was successful
     auto result = openocd->sendCommand("rp2040.rescue_dap dpreg 0x4");
 
-    const char* parseStart = result.c_str();
-    char* parseEnd;
+    const char *parseStart = result.c_str();
+    char *parseEnd;
     auto dpreg4 = std::strtoul(parseStart, &parseEnd, 16);
 
     if (result.size() == 0 || parseStart + result.size() != parseEnd) {
@@ -108,7 +113,7 @@ void RP2040OCDTarget::initRescue() {
 }
 
 uint32_t RP2040OCDTarget::readWord(uint32_t addr, int width) {
-     // Create command to send
+    // Create command to send
     std::stringstream cmdStream;
     cmdStream << "read_memory 0x" << std::hex << addr << std::dec << " " << width << " 1";
 
@@ -169,7 +174,6 @@ void RP2040OCDTarget::writeMemory(uint32_t addr, std::vector<uint32_t> data, int
     openocd->sendCommand(cmdStream.str());
 }
 
-
 #define BOOTROM_MAGIC_ADDR 0x00000010
 #define BOOTROM_FUNC_TABLE_PTR_ADDR 0x00000014
 
@@ -189,13 +193,15 @@ void RP2040OCDTarget::readoutRom() {
         uint16_t code = entry.at(0);
         uint16_t ptr = entry.at(1);
 
-        if (code == 0) break;
+        if (code == 0)
+            break;
         funcTable.emplace(code, ptr);
         tablePtr += 4;
     }
 }
 
-uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3, int timeout_ms) {
+uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3,
+                                       int timeout_ms) {
     // Construct input register state
     uint32_t bkptAddr = lookupRomFunc('D', 'E');  // _debug_trampoline_end
     addr |= 1;  // Make sure to add the bit to addr to avoid hardfault from non-thumb address
@@ -246,5 +252,3 @@ uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, 
     parseStream >> newR0;
     return newR0;
 }
-
-

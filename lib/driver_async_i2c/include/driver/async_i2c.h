@@ -1,10 +1,10 @@
 #ifndef DRIVER__ASYNC_I2C_H_
 #define DRIVER__ASYNC_I2C_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-
 #include "hardware/i2c.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @file driver/async_i2c.h
@@ -40,18 +40,19 @@ struct async_i2c_request;
 typedef void (*async_i2c_cb_t)(const struct async_i2c_request *);
 typedef void (*async_i2c_abort_cb_t)(const struct async_i2c_request *, uint32_t);
 struct async_i2c_request {
-    uint8_t i2c_num;                                        // I2C hardware number
-    uint8_t address;                                        // I2C Address
-    bool nostop;                                            // Sets nostop field in pico i2c requests
-    const uint8_t *tx_buffer;                               // Buffer to transmit (must be at least bytes_to_send size)
-    uint8_t *rx_buffer;                                     // Buffer to receive (must be at least bytes_to_receive size)
-    uint16_t bytes_to_send;                                 // Number of bytes to transmit
-    uint16_t bytes_to_receive;                              // Number of bytes to receive (receive phase occurs after transmit)
-    async_i2c_cb_t completed_callback;                      // Callback upon successful completion of request (can be NULL)
-    async_i2c_abort_cb_t failed_callback;                   // Callback upon failure of request (can be NULL)
-    const struct async_i2c_request *next_req_on_success;    // Next request to send upon succesful completion of request (can be NULL if no chaining required)
-    void* user_data;                                        // User data to access in callback
-    absolute_time_t timeout;                                // Timeout for request to end, or nil_time if it should default to normal timeout
+    uint8_t i2c_num;                       // I2C hardware number
+    uint8_t address;                       // I2C Address
+    bool nostop;                           // Sets nostop field in pico i2c requests
+    const uint8_t *tx_buffer;              // Buffer to transmit (must be at least bytes_to_send size)
+    uint8_t *rx_buffer;                    // Buffer to receive (must be at least bytes_to_receive size)
+    uint16_t bytes_to_send;                // Number of bytes to transmit
+    uint16_t bytes_to_receive;             // Number of bytes to receive (receive phase occurs after transmit)
+    async_i2c_cb_t completed_callback;     // Callback upon successful completion of request (can be NULL)
+    async_i2c_abort_cb_t failed_callback;  // Callback upon failure of request (can be NULL)
+    const struct async_i2c_request *next_req_on_success;  // Next request to send upon succesful completion of request
+                                                          // (can be NULL if no chaining required)
+    void *user_data;                                      // User data to access in callback
+    absolute_time_t timeout;  // Timeout for request to end, or nil_time if it should default to normal timeout
 };
 
 /**
@@ -60,18 +61,12 @@ struct async_i2c_request {
  * tx_buf and rx_buf must not be modified while in_progress is true
  * fn_callback is called on a successful request
  */
-#define ASYNC_I2C_READ_WRITE_REQ(i2c_inst, target_address, tx_buf, rx_buf, tx_size, rx_size, fn_callback) {\
-    .i2c = i2c_inst, \
-    .address = target_address, \
-    .nostop = false, \
-    .tx_buffer = tx_buf, \
-    .rx_buffer = rx_buf, \
-    .bytes_to_send = tx_size, \
-    .bytes_to_receive = rx_size, \
-    .completed_callback = fn_callback, \
-    .failed_callback = NULL, \
-    .next_req_on_success = NULL, \
-    .user_data = NULL}
+#define ASYNC_I2C_READ_WRITE_REQ(i2c_inst, target_address, tx_buf, rx_buf, tx_size, rx_size, fn_callback)              \
+    {                                                                                                                  \
+        .i2c = i2c_inst, .address = target_address, .nostop = false, .tx_buffer = tx_buf, .rx_buffer = rx_buf,         \
+        .bytes_to_send = tx_size, .bytes_to_receive = rx_size, .completed_callback = fn_callback,                      \
+        .failed_callback = NULL, .next_req_on_success = NULL, .user_data = NULL                                        \
+    }
 
 /**
  * @brief Creates a write request
@@ -79,18 +74,12 @@ struct async_i2c_request {
  * tx_buf must not be modified while in_progress is true
  * fn_callback is called on a successful request
  */
-#define ASYNC_I2C_WRITE_REQ(hw_id, address, tx_buf, tx_size, fn_callback) {\
-    .i2c = i2c_inst, \
-    .address = target_address, \
-    .nostop = false, \
-    .tx_buffer = tx_buf, \
-    .rx_buffer = NULL, \
-    .bytes_to_send = tx_size, \
-    .bytes_to_receive = 0, \
-    .completed_callback = fn_callback, \
-    .failed_callback = NULL, \
-    .next_req_on_success = NULL \
-    .user_data = NULL}
+#define ASYNC_I2C_WRITE_REQ(hw_id, address, tx_buf, tx_size, fn_callback)                                              \
+    {                                                                                                                  \
+        .i2c = i2c_inst, .address = target_address, .nostop = false, .tx_buffer = tx_buf, .rx_buffer = NULL,           \
+        .bytes_to_send = tx_size, .bytes_to_receive = 0, .completed_callback = fn_callback, .failed_callback = NULL,   \
+        .next_req_on_success = NULL.user_data = NULL                                                                   \
+    }
 
 /**
  * @brief Creates a read request
@@ -98,20 +87,12 @@ struct async_i2c_request {
  * rx_buf must not be modified while in_progress is true
  * fn_callback is called on a successful request
  */
-#define ASYNC_I2C_READ_REQ(i2c_inst, target_address, rx_buf, rx_size, fn_callback) {\
-    .i2c = i2c_inst, \
-    .address = target_address, \
-    .nostop = false, \
-    .tx_buffer = NULL, \
-    .rx_buffer = rx_buf, \
-    .bytes_to_send = 0, \
-    .bytes_to_receive = rx_size, \
-    .completed_callback = fn_callback, \
-    .failed_callback = NULL, \
-    .next_req_on_success = NULL \
-    .user_data = NULL}
-
-
+#define ASYNC_I2C_READ_REQ(i2c_inst, target_address, rx_buf, rx_size, fn_callback)                                     \
+    {                                                                                                                  \
+        .i2c = i2c_inst, .address = target_address, .nostop = false, .tx_buffer = NULL, .rx_buffer = rx_buf,           \
+        .bytes_to_send = 0, .bytes_to_receive = rx_size, .completed_callback = fn_callback, .failed_callback = NULL,   \
+        .next_req_on_success = NULL.user_data = NULL                                                                   \
+    }
 
 /**
  * @brief Bool if async_i2c_init has been called
@@ -141,14 +122,14 @@ bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *i
  * @param len Length of data in bytes to send
  * @param nostop  If true, master retains control of the bus at the end of the transfer (no Stop is issued),
  *           and the next transfer will begin with a Restart rather than a Start.
- * @param until The absolute time that the block will wait until the entire transaction is complete. Note, an individual timeout of
- *           this value divided by the length of data is applied for each byte transfer, so if the first or subsequent
+ * @param until The absolute time that the block will wait until the entire transaction is complete. Note, an individual
+ * timeout of this value divided by the length of data is applied for each byte transfer, so if the first or subsequent
  *           bytes fails to transfer within that sub timeout, the function will return with an error.
  *
  * @return Number of bytes read, or PICO_ERROR_GENERIC if an error occurred.
  */
-int async_i2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len,
-                                   bool nostop, absolute_time_t until);
+int async_i2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, bool nostop,
+                                   absolute_time_t until);
 
 /**
  * @brief Queue an i2c read request and block until the request completes, or until timeout until occurs.
@@ -162,8 +143,8 @@ int async_i2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t 
  * @param until The absolute time that the block will wait until the entire transaction is complete.
  * @return Number of bytes read, or PICO_ERROR_GENERIC if an error occurred.
  */
-int async_i2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len,
-                                  bool nostop, absolute_time_t until);
+int async_i2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop,
+                                  absolute_time_t until);
 
 /**
  * @brief Initialize async i2c and the corresponding i2c hardware
@@ -177,7 +158,7 @@ int async_i2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, s
  * @param baudrate The data rate of the i2c bus in Hz
  * @param bus_timeout_ms The timeout from start of a transaction in ms
  */
-void async_i2c_init(int i2c0_sda, int i2c0_scl, int i2c1_sda, int i2c1_scl,
-                    unsigned int baudrate, unsigned int bus_timeout_ms);
+void async_i2c_init(int i2c0_sda, int i2c0_scl, int i2c1_sda, int i2c1_scl, unsigned int baudrate,
+                    unsigned int bus_timeout_ms);
 
 #endif

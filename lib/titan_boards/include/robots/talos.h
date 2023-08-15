@@ -13,13 +13,13 @@
 // Note that each can bus is defined by `BUS_NAME`_`PARAMETER_NAME`
 // The following parameters are required: ENABLE_FD, RATE, and FD_RATE (if ENABLE_FD is 1)
 // These names are referred to in the board definition files
-#define INTERNAL_CAN_ENABLE_FD  1
-#define INTERNAL_CAN_RATE       1000000
-#define INTERNAL_CAN_FD_RATE    5000000
-#define INTERNAL_CAN_ID         1
+#define INTERNAL_CAN_ENABLE_FD 1
+#define INTERNAL_CAN_RATE 1000000
+#define INTERNAL_CAN_FD_RATE 5000000
+#define INTERNAL_CAN_ID 1
 
-#define EXTERNAL_CAN_ENABLE_FD  0
-#define EXTERNAL_CAN_RATE       250000
-#define EXTERNAL_CAN_ID         2
+#define EXTERNAL_CAN_ENABLE_FD 0
+#define EXTERNAL_CAN_RATE 250000
+#define EXTERNAL_CAN_ID 2
 
 #endif

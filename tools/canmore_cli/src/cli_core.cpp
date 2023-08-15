@@ -1,8 +1,9 @@
+#include "CLIInterface.hpp"
+
 #include <iostream>
 #include <sstream>
 #include <termios.h>
 #include <unistd.h>
-#include "CLIInterface.hpp"
 
 void CLICore::initTerminal() {
     // Backup old flags
@@ -29,7 +30,7 @@ void CLICore::cleanupTerminal() {
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
-void CLICore::writeLine(std::string const& line) {
+void CLICore::writeLine(std::string const &line) {
     if (promptShown) {
         std::cout << CURSOR_RETURN << line << CLEAR_LINE_AFTER << std::endl;
         std::cout << prompt;
@@ -54,7 +55,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
     // Allow early exits for command refreshes
     std::chrono::time_point start = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(1550)) {
-        if (!keypressAvailable(1500)) break;
+        if (!keypressAvailable(1500))
+            break;
 
         int c = getchar();
 
@@ -69,7 +71,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
             std::cout << std::endl;
             promptShown = false;
 
-            if (cmdBuffer.empty()) break;
+            if (cmdBuffer.empty())
+                break;
 
             std::string line(cmdBuffer.begin(), cmdBuffer.end());
             cmdBuffer.clear();
@@ -98,13 +101,13 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
         // Check for backspace (according to what the terminal should send)
         else if (c == oldt.c_cc[VERASE]) {
             if (!cmdBuffer.empty()) {
-                std::cout << "\b" CLEAR_LINE_AFTER  << std::flush;
+                std::cout << "\b" CLEAR_LINE_AFTER << std::flush;
                 cmdBuffer.pop_back();
             }
         }
 
         else if (c == '\t') {
-            //std::cout << "TAB*" << std::flush;
+            // std::cout << "TAB*" << std::flush;
         }
 
         // Handle escape sequences
@@ -124,7 +127,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
                 if (ec == 'A' && modifiers.size() == 0) {
                     if (historyItr != cmdHistory.begin()) {
                         historyItr = std::prev(historyItr);
-                        // No need to check if historyIndex is 0, as we've incremented it, so we should never overflow our bounds
+                        // No need to check if historyIndex is 0, as we've incremented it, so we should never overflow
+                        // our bounds
                         cmdBuffer.clear();
                         cmdBuffer.insert(cmdBuffer.begin(), historyItr->begin(), historyItr->end());
                         std::cout << CURSOR_RETURN << prompt << *historyItr << CLEAR_LINE_AFTER << std::flush;

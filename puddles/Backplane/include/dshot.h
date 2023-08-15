@@ -22,7 +22,8 @@
 // The minimum rate that dshot_update_thrusters must be called before disabling thrusters in milliseconds
 #define DSHOT_MIN_UPDATE_RATE_MS 200
 
-// The amount of time in milliseconds thrusters will be disabled for if update_thrusters isn't called within the update rate timeout
+// The amount of time in milliseconds thrusters will be disabled for if update_thrusters isn't called within the update
+// rate timeout
 #define DSHOT_UPDATE_DISABLE_TIME_MS 1000
 
 // The delay in milliseconds that thrusters will be disabled for on ESC power-up
@@ -42,11 +43,10 @@
 // ========================================
 
 struct dshot_rpm_telemetry {
-    int missed_count;       // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
-    uint16_t rpm_period_us; // If the RPM period is valid
-    bool valid;             // If the packet is valid
+    int missed_count;        // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
+    uint16_t rpm_period_us;  // If the RPM period is valid
+    bool valid;              // If the packet is valid
 };
-
 
 // ========================================
 // Exported Variables - Do not write
@@ -64,10 +64,10 @@ extern bool dshot_initialized;
 extern struct dshot_rpm_telemetry dshot_rpm_data[];
 
 /**
- * @brief Contains boolean for each thruster in NUM_THRUSTERS reporting if the rpm period is for the motor moving backwards.
+ * @brief Contains boolean for each thruster in NUM_THRUSTERS reporting if the rpm period is for the motor moving
+ * backwards.
  */
 extern bool dshot_rpm_reversed[];
-
 
 // ========================================
 // Exported Methods
@@ -101,6 +101,5 @@ void dshot_notify_physical_kill_switch_change(bool asserting_kill);
  * @brief Initialize dshot and starts outputting thruster neutral commands
  */
 void dshot_init(void);
-
 
 #endif  // DSHOT_H

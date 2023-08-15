@@ -1,8 +1,8 @@
-#include <stdio.h>
-#include "pico/stdlib.h"
 #include "hardware/watchdog.h"
-
+#include "pico/stdlib.h"
 #include "titan/version.h"
+
+#include <stdio.h>
 
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 

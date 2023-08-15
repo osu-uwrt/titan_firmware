@@ -13,18 +13,18 @@
 #define CAN_BUS_NAME INTERNAL_CAN
 #define CAN_BUS_CLIENT_ID 4
 
-#define FAN_SW_PIN          0
-#define TACH4_PIN           1
-#define TACH3_PIN           2
-#define TACH2_PIN           3
-#define TACH1_PIN           4
-#define PELT_SW_PIN         5
-#define ORIN_SW_PIN         6
-#define RGB_DATA_PIN        9
+#define FAN_SW_PIN 0
+#define TACH4_PIN 1
+#define TACH3_PIN 2
+#define TACH2_PIN 3
+#define TACH1_PIN 4
+#define PELT_SW_PIN 5
+#define ORIN_SW_PIN 6
+#define RGB_DATA_PIN 9
 
-#define BOARD_I2C           0
-#define BOARD_SDA_PIN      28
-#define BOARD_SCL_PIN      29
+#define BOARD_I2C 0
+#define BOARD_SDA_PIN 28
+#define BOARD_SCL_PIN 29
 
 #ifndef PICO_DEFAULT_I2C
 #define PICO_DEFAULT_I2C BOARD_I2C

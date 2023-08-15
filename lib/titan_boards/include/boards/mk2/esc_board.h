@@ -17,15 +17,15 @@
 // Define custom client lookup for the bootloader (since we need to detect which board we're on)
 #define TITAN_BOOTLOADER_CUSTOM_CLIENT_LOOKUP "can_bl_custom_id/mk2_esc_board.h"
 
-#define ESC4_PWM_PIN        0
-#define ESC4_TELEM_PIN      1
-#define ESC3_PWM_PIN        2
-#define ESC3_TELEM_PIN      3
-#define ESC2_PWM_PIN        4
-#define ESC2_TELEM_PIN      5
-#define ESC1_PWM_PIN        6
-#define ESC1_TELEM_PIN      7
-#define VCC_MEAS_PIN        28
-#define BOARD_DET_PIN       29
+#define ESC4_PWM_PIN 0
+#define ESC4_TELEM_PIN 1
+#define ESC3_PWM_PIN 2
+#define ESC3_TELEM_PIN 3
+#define ESC2_PWM_PIN 4
+#define ESC2_TELEM_PIN 5
+#define ESC1_PWM_PIN 6
+#define ESC1_TELEM_PIN 7
+#define VCC_MEAS_PIN 28
+#define BOARD_DET_PIN 29
 
 #endif

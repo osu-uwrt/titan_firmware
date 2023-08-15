@@ -19,10 +19,7 @@
 #define DEPTH_BAD_READS_FAULT_COUNT 3
 #endif
 
-enum depth_sensor_type {
-    MS5837_02BA,
-    MS5837_30BA
-};
+enum depth_sensor_type { MS5837_02BA, MS5837_30BA };
 
 enum depth_error_event {
     /**

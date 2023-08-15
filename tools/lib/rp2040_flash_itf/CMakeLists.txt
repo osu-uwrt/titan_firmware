@@ -18,7 +18,7 @@ add_custom_target(device_definitions ALL DEPENDS ${DEVICE_DEFINITIONS_GEN_OUT} )
 add_library(rp2040_flash_itf INTERFACE)
 
 target_sources(rp2040_flash_itf INTERFACE
-	${CMAKE_CURRENT_LIST_DIR}/src/DeviceMap.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/DeviceMap.cpp
 )
 
 target_include_directories(rp2040_flash_itf INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)

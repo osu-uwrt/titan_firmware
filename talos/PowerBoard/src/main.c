@@ -1,18 +1,17 @@
-#include "pico/binary_info.h"
-#include "pico/stdlib.h"
+#include "analog_io.h"
+#include "ros.h"
+#include "safety_interface.h"
 
 #include "driver/async_i2c.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "driver/mcp3426.h"
 #include "micro_ros_pico/transport_can.h"
+#include "pico/binary_info.h"
+#include "pico/stdlib.h"
 #include "titan/binary_info.h"
 #include "titan/logger.h"
 #include "titan/version.h"
-
-#include "ros.h"
-#include "safety_interface.h"
-#include "analog_io.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -27,12 +26,12 @@
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
-absolute_time_t next_heartbeat = {0};
-absolute_time_t next_status_update = {0};
-absolute_time_t next_led_update = {0};
-absolute_time_t next_connect_ping = {0};
-absolute_time_t next_killswitch_publish = {0};
-absolute_time_t next_electrical_reading_publish = {0};
+absolute_time_t next_heartbeat = { 0 };
+absolute_time_t next_status_update = { 0 };
+absolute_time_t next_led_update = { 0 };
+absolute_time_t next_connect_ping = { 0 };
+absolute_time_t next_killswitch_publish = { 0 };
+absolute_time_t next_electrical_reading_publish = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -49,12 +48,13 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
     if (time_reached(time_tmp)) {
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
-            unsigned int i = 0; \
-            while(time_reached(time_tmp)) {
+            unsigned int i = 0;
+            while (time_reached(time_tmp)) {
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"), next_fire_ptr);
+            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                     next_fire_ptr);
             if (error_on_miss)
                 safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
         }
@@ -105,12 +105,13 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if(timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) || safety_interface_kill_switch_refreshed) {
+    if (timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ||
+        safety_interface_kill_switch_refreshed) {
         safety_interface_kill_switch_refreshed = false;
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
 
-    if(timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
+    if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_electrical_readings());
     }
 }
@@ -130,12 +131,10 @@ static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t
     safety_raise_fault_with_arg(FAULT_ADC_ERROR, error_code);
 }
 
-
 int main() {
     // Initialize stdio
     stdio_init_all();
     LOG_INFO("%s", FULL_BUILD_TAG);
-
 
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
@@ -168,39 +167,43 @@ int main() {
 
     // Enter main loop
     bool ros_initialized = false;
-    while(true) {
+    while (true) {
         // Do background tasks
         tick_background_tasks();
 
         // Handle ROS state logic
-        if(is_ros_connected()) {
-            if(!ros_initialized) {
+        if (is_ros_connected()) {
+            if (!ros_initialized) {
                 LOG_INFO("ROS connected");
 
                 // Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
                 safety_lower_fault(FAULT_ROS_BAD_COMMAND);
 
-                if(ros_init() == RCL_RET_OK) {
+                if (ros_init() == RCL_RET_OK) {
                     ros_initialized = true;
                     led_ros_connected_set(true);
                     safety_init();
                     start_ros_timers();
-                } else {
+                }
+                else {
                     LOG_ERROR("ROS failed to initialize.");
                     ros_fini();
                 }
-            } else {
+            }
+            else {
                 ros_spin_executor();
                 tick_ros_tasks();
             }
-        } else if(ros_initialized){
+        }
+        else if (ros_initialized) {
             LOG_INFO("Lost connection to ROS");
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
             ros_initialized = false;
-        } else {
+        }
+        else {
             if (time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
