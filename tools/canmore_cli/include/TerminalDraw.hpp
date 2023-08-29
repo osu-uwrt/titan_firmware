@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #define BUFFER_ALT_ENABLE "\033[?1049h"
 #define BUFFER_ALT_DISABLE "\033[?1049l"
 #define CURSOR_ENABLE "\033[?25h"

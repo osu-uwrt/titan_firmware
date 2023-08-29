@@ -50,7 +50,7 @@ for target in $images; do
     mkdir build
     pushd build > /dev/null
     cmake ..
-    make -j
+    make -j$(nproc)
     popd > /dev/null
     popd > /dev/null
 done

@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Builds the titan_firmware tools and places them in the install dir
-# This is useful to deploy on the robot computer to allow uploading OTA images and debugging the systems while running
-
 if [ -z "$BASH" ]; then
     echo "This script must be ran in bash"
     exit 1
@@ -11,6 +8,9 @@ fi
 if [ -z "$1" ]; then
     echo "Invalid syntax!"
     echo "Usage: $0 [install dir]"
+    echo
+    echo "Builds the titan_firmware tools and places them in [install dir]"
+    echo "This is useful to deploy on the robot computer to allow uploading OTA images and debugging the systems while running"
     exit 1
 fi
 
