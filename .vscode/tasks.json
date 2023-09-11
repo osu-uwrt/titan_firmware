@@ -2,11 +2,11 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Upload",
-            "detail": "Uploads Active CMake Project",
+            "label": "Upload SWD",
+            "detail": "Uploads Active CMake Project over SWD",
             "type": "shell",
             "isBackground": false,
-            "command": "make upload",
+            "command": "make swd_flash",
             "options": {
                 "cwd": "${command:cmake.launchTargetDirectory}"
             },

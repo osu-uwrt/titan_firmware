@@ -6,7 +6,6 @@
 * [USB Interface](#usb-interface)
 * [SWD/TagConnect Interface](#swdtagconnect-interface)
 * [Bootloader Interface](#bootloader-interface)
-* [Connecting to MicroROS](#connecting-to-microros)
 
 ## Building the Project
 
@@ -189,6 +188,8 @@ device, launch minicom with the following arguments (where `ttyACMx` is replaced
 
     minicom -D /dev/ttyACMx
 
+To exit minicom, press `Ctrl+A`, then `X`. Select `Yes` to confirm.
+
 Note that because USB serial comes up with the device, you will loose any logs which are sent out before you connect
 to the serial port. This may cause you to lose early boot logs. If you would like to see these, use the SWD/TagConnect
 interface.
@@ -275,6 +276,9 @@ The sequence to connect is:
 2. Plug the TagConnect cable into the socket on the board under test
 3. Connect the picoprobe to your computer's USB port
 
+**If you are using WSL, be sure to follow Microsoft's guide for
+[Connecting USB Devices](https://learn.microsoft.com/en-us/windows/wsl/connect-usb).
+
 ### Uploading Firmware
 
 Firmware can be uploaded by using upload tool with the picoprobe connected by running the following command:
@@ -289,23 +293,138 @@ tool with the environment variable `UPLOADTOOL_OPENOCD_EN_STDERR=1`
 
 ### Accessing Serial Terminal
 
+The picoprobe presents a USB to serial adapter which allows viewing of all debug prints in firmware (so long as stdio
+uart is enabled in your project's CMakeLists). The UART TX is sent over the TagConnect cable, allowing for easy access
+to this debug terminal. Note that this only supports UART TX, not RX, so minicom cannot send data back to the RP2040.
 
+To open this debug terminal, you must first find the serial port for the picoprobe. Run:
+
+    ls /dev/ttyACM*
+
+If you have the picoprobe connected, and only one entry appears, then that is your serial port. If multiple items
+appear, you may need to try several items on this list to find the correct one. To connect to a device, launch minicom
+with the following arguments (where `ttyACMx` is replaced with a device found above). By default, stdio uart is at
+115200 baud unless otherwise configured in the project CMakeLists.
+
+    minicom -D /dev/ttyACMx -b 115200
+
+To exit minicom, press `Ctrl+A`, then `X`. Select `Yes` to confirm.
 
 ### Debugging with VSCode
 
+You can debug firmware using the *Run and Debug* menu in VSCode. Ensure that you have the correct active project
+selected on the bottom status bar. Then, on Primary Side Bar (on the right), press the Play/Bug icon. You can then press
+the play button at the top of the panel for "Pico Debug". You should see the project compile, then another terminal
+wlil open for the upload process. If the upload fails with an openocd error, try connecting manually by following the
+steps in [Debugging via Command Line](#debugging-via-command-line). If this works, try enabling stderr as explained in
+[Uploading Firmware](#uploading-firmware)
+
+After the upload finishes, you should be started at a breakpoint on main. You are now free to debug using VSCode.
+
 ### Debugging via Command Line
 
+Before attempting to debug with openocd, ensure that the version running on the target and the .elf file in your build
+directory are from the same build. If not, you will run into very weird issues while debugging.
 
+To begin this process, you must start openocd. Open a new terminal and run:
+
+    openocd -f interface/cmsis-dap.cfg -c 'adapter speed 2000' -f target/rp2040.cfg
+
+If the connection succeeds, you should see a message reporting that a GDB server is listening on port 3333. After this
+succeeds, you can then open a new tab and connect with GDB. Navigate to the build directory and run:
+
+    # To be ran in the build directory
+    gdb-multiarch -ex "target extended-remote :3333" your_filename.elf
+
+You can now debug the firmware as you would any other application with gdb. A useful gdb command is
+`monitor reset halt`. This will tell openocd to reset and halt the device, so you can debug from the start of execution.
+
+**Note: You cannot have openocd running and upload over SWD using upload tool, as they both require access to the
+picoprobe.**
 
 ## Bootloader Interface
 
 ### Interface Setup
 
+You do not need to install any tools to upload and interface over CAN bus, although it is recommended to install the
+can-utils package to aid in debugging:
+
+    sudo apt install can-utils
+
+Ethernet does not require any additional tools to work.
+
 ### Connection Setup
+
+#### Ethernet
+
+The only requirement for the Ethernet interface is that both devices are on the same subnet. This means that if you are
+using WSL, you must either configure Hyper-V to use a bridged adapter (quite difficult and probably not worth it), or
+pass through a USB to Ethernet adapter to WSL.
+
+Another thing to verify is that you have a valid IP address on the same subnet as the target device. If you connect
+through the team router, this should be handled automatically for you. If you connect an Ethernet cable directly into
+your computer, you will need to set a static IP address. For desktop ubuntu installs, this must be done via the settings
+application.
+
+#### CAN Bus
+
+To connect over CAN bus, you must connect the CAN bus adapter into the bus. This is typically done over the Orin CAN
+link on the Camera Cage Breakout Board. Unplug the cable running to the Orin, and connect the USB to CAN bus adapter
+to the Camera Cage BB instead. You can then plug the USB to CAN adapter into your computer. For smart battery housings,
+this cable is connected into the charge cable.
+
+Ensure that you see a `can0` interface appear in your network interface list by running:
+
+    ip addr
+
+You will now need to set the proper baud rate. Refer to the robot definition header file in
+`lib/titan_boards/include/robots` for the most up to date baud rates. As of writing this document, the internal baud
+rate is 1 Mbps (1000000) and the external CAN bus is ran at 250 kbps (250000). For example, to configure the adapter
+for the internal CAN bus, run:
+
+    ip link set can0 up qlen 1000 type can bitrate 1000000
+
+If a microcontroller is powered up and configured for CAN bus, running this command should display traffic:
+
+    candump can0
 
 ### Uploading Firmware
 
+You can run the following command to upload the OTA image over the bootloader:
+
+    make upload_ota
+
 ### Uploading in Boot Delay
+
+If you upload firmware which crashes the microcontroller before it is able to receive a firmware update command, it
+can be recovered by catching it in the boot delay. Whenever the microcontroller powers up, the LED will flash white
+for half a second. This is the bootloader briefly waiting for a request to break into the bootloader, before continuing
+boot.
+
+To catch the device in boot delay, run upload tool with the following command, passing in the ota uf2 file:
+
+    # Run in the tools/upload_tool/build directory
+    ./upload_tool -w ../path/to/fixed/uf2_ota.uf2
+
+This will ask for the interface, and client ID. For CAN bus devices, this is defined in the board header file. For
+Ethernet devices, this is the number after the last dot in the IP address.
+
+You now need to power cycle the microcontroller to allow the bootloader to run. If it is successfully caught in boot
+delay, it should begin uploading the firmware.
 
 ### Debugging with Canmore CLI
 
+CANmore CLI is a tool which exposes many of the debug features in firmware over the Ethernet/CAN bus interface. This
+tool will auto-discover all microcontrollers accessible to the computer, and present a list to select from.
+
+To launch CANmore CLI, navigate to the `tools/canmore_cli` and build as you would any other CMake project. There
+should be a `canmore_cli` executable in the folder after the build completes. After selecting a microcontroller, type
+`help` to view a list of commands available.
+
+Note that connecting over a TagConnect, exposing GDB and the serial terminal, is often much more powerful than CANmore
+CLI. However, this tool is extremely useful when debugging issues found in the water, as this allows crash data and
+other telemetry to be pulled from topside. This tool is bundled with the deployment tools (read more in the Deployment
+docs), to aid in debugging of issues found in the water. It can also be used to restart misbehaving microcontrollers.
+
+One other use for this tool is printing complex safety structures in an easy-to-view format, such as fault, profiler,
+or crash data, which dumping from GDB often requires many conversions by hand.

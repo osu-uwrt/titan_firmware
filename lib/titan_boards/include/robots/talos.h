@@ -11,7 +11,7 @@
 
 // CAN Bus Definitions
 // Note that each can bus is defined by `BUS_NAME`_`PARAMETER_NAME`
-// The following parameters are required: ENABLE_FD, RATE, and FD_RATE (if ENABLE_FD is 1)
+// The following parameters are required: ID, ENABLE_FD, RATE, and FD_RATE (if ENABLE_FD is 1)
 // These names are referred to in the board definition files
 #define INTERNAL_CAN_ENABLE_FD 1
 #define INTERNAL_CAN_RATE 1000000

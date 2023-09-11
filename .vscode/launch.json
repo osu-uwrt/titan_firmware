@@ -22,7 +22,7 @@
                 "target/rp2040.cfg"
             ],
             // Using our custom upload task (since bootloader gets squirly when you upload the raw elf)
-            "preLaunchTask": "Upload",
+            "preLaunchTask": "Upload SWD",
             "overrideLaunchCommands": [],
             // Configure how we want vscode to interact with things
             "device": "RP2040",

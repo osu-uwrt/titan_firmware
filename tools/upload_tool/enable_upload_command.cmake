@@ -40,4 +40,11 @@ function(titan_use_upload_tool target)
                 DEPENDS upload_tool
                 DEPENDS ${target})
 
+    add_custom_target(swd_flash
+                COMMAND echo
+                COMMAND "${UPLOAD_TOOL_PATH}" -o "${UF2_DEFAULT_NAME}"
+                COMMAND echo
+                DEPENDS upload_tool
+                DEPENDS ${target})
+
 endfunction()
