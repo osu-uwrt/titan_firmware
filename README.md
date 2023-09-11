@@ -19,8 +19,13 @@ Firmware for OSU UWRT's RP2040 microcontrollers. Written in C using the [Pico SD
 
 ## Repository Structure
 
+* `docs/`: Documentation for working with Titan Firmware
 * `examples/`: Contains example code as a starting point for new projects
 * `lib/`: Common code shared across several projects. Libraries are split into driver and titan library types.
 * `puddles/`: Code for the puddles vehicle microcontrollers
 * `talos/`: Code for the talos vehicle microcontrollers
 * `tools/`: Scripts and applications written to run on the host development system to aid in development and deployment. Contains CanmoreCLI and Upload Tool applications.
+
+## Getting Started
+
+### Read the setup documentation [here](docs/01_Setup.md).
