@@ -94,4 +94,6 @@ rcl_ret_t ros_publish_killswitch();
 
 rcl_ret_t ros_publish_electrical_readings();
 
+rcl_ret_t ros_publish_auxswitch();
+
 #endif

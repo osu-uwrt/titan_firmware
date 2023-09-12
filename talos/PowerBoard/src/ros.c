@@ -37,6 +37,8 @@
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 
+#define AUX_SWITCH_PUBLISHER_NAME "state/aux"
+
 bool ros_connected = false;
 
 // Core Variables
@@ -53,6 +55,7 @@ rcl_publisher_t electrical_reading_publisher;
 riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
 rcl_subscription_t elec_command_subscriber;
 riptide_msgs2__msg__ElectricalCommand elec_command_msg;
+rcl_publisher_t aux_switch_publisher;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -150,6 +153,14 @@ rcl_ret_t ros_publish_electrical_readings() {
     }
 
     RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_auxswitch() {
+    std_msgs__msg__Bool auxswitch_msg;
+    auxswitch_msg.data = gpio_get(AUX_SWITCH_PIN);
+    RCSOFTRETCHECK(rcl_publish(&aux_switch_publisher, &auxswitch_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -260,6 +271,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(&electrical_reading_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
                                            ELECTRICAL_READING_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(
+        &aux_switch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), AUX_SWITCH_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
