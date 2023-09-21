@@ -1,8 +1,8 @@
 #ifndef DRIVER__SHT41_H_
 #define DRIVER__SHT41_H_
 
+#include <stdbool.h>
 #include <stdint.h>
-
 /**
  * @file driver/sht41.h
  *

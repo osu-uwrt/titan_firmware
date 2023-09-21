@@ -55,5 +55,6 @@ target_link_libraries(power_board PUBLIC
     hardware_adc
     driver_async_i2c
     driver_mcp3426
+    driver_sht41
 )
 
