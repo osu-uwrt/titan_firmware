@@ -1,12 +1,19 @@
 #include "UploadTool.hpp"
 #include "canmore_cpp/Discovery.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
 
 namespace UploadTool {
+
+struct rp2040_device_fixed_sort {
+    inline bool operator()(const std::shared_ptr<RP2040Device> &dev1, const std::shared_ptr<RP2040Device> &dev2) {
+        return dev1->getInterface() < dev2->getInterface();
+    }
+};
 
 std::string hexWord(uint32_t word) {
     std::stringstream ss;
@@ -172,6 +179,10 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
             }
         }
     }
+
+    std::sort(goodMatches.begin(), goodMatches.end(), rp2040_device_fixed_sort());
+    std::sort(otherMatches.begin(), otherMatches.end(), rp2040_device_fixed_sort());
+    std::sort(invalidMatches.begin(), invalidMatches.end(), rp2040_device_fixed_sort());
 
     if (goodMatches.size() > 0) {
         std::cout << COLOR_TITLE "===========Compatible Targets===========" COLOR_RESET << std::endl;

@@ -32,11 +32,11 @@ public:
     Device(std::string interfaceName, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
         interfaceName(interfaceName), clientId(clientId), termValid(heartbeatData.pkt.term_valid),
         termEnabled(heartbeatData.pkt.term_enabled), inErrorState(heartbeatData.pkt.error),
-        mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::duration_cast<std::chrono::milliseconds>(
+        mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                           std::chrono::system_clock::now().time_since_epoch())) {}
 
     // Constructor to allow creating Device for time comparisons
-    Device(std::chrono::milliseconds time):
+    Device(std::chrono::nanoseconds time):
         interfaceName(""), clientId(0), termValid(false), termEnabled(false), inErrorState(false), mode(0),
         discoveryTime(time) {}
 
@@ -61,7 +61,7 @@ public:
     const bool termEnabled;
     const bool inErrorState;
     const unsigned int mode;
-    const std::chrono::milliseconds discoveryTime;
+    const std::chrono::nanoseconds discoveryTime;
 
     // Set operators
     bool operator<(const Device &y) const { return discoveryTime < y.discoveryTime; }
@@ -121,7 +121,7 @@ public:
         Device::getAdditionalInfo(infoOut);
 
         // Show the bootloader version for Bootloader Mode devices
-        infoOut.emplace_back("Bootloader Version", this->getBLVersion());
+        infoOut.emplace_back("BL Version", this->getBLVersion());
     }
 
     // RP2040Device overrides
