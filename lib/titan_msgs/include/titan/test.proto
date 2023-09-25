@@ -1,0 +1,183 @@
+syntax = "proto3";
+package titan_fw;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  fixed32 protocol_version = 1010;
+}
+
+message comm_msg {
+  option (protocol_version) = 3458619208;
+
+  enum topic_types {
+    CONNECT = 0;
+    STATE_FIRMWARE = 1;
+    STATE_DSHOT = 2;
+    STATE_KILL = 3;
+    COMMAND_ELECTRICAL = 4;
+    ODOMETRY_FILTERED = 5;
+    _DIAGNOSTICS = 6;
+    CHALLENGING_MSG = 7;
+  }
+  oneof data {
+    fixed32 connect_ver = 3;
+    riptide_msgs2.FirmwareStatus firmware_status = 4;
+    riptide_msgs2.DshotPartialTelemetry dshot_partial_telemetry = 5;
+    std_msgs.Bool std_bool = 6;
+    riptide_msgs2.ElectricalCommand electrical_command = 7;
+    nav_msgs.Odometry odometry = 8;
+    diagnostic_msgs.DiagnosticStatus diagnostic_status = 9;
+    my_fw_msg_test.ChallengingTest challenging_test = 10;
+  }
+
+  topic_types topic = 1;
+  uint32 ack = 2;
+}
+
+message riptide_msgs2 {
+  message FirmwareStatus {
+    string board_name = 1;
+    uint32 bus_id = 2;
+    uint32 client_id = 3;
+    uint32 version_major = 4;
+    uint32 version_minor = 5;
+    uint32 version_release_type = 6;
+    uint32 uptime_ms = 7;
+    uint32 faults = 8;
+    uint32 kill_switches_enabled = 9;
+    uint32 kill_switches_asserting_kill = 10;
+    uint32 kill_switches_needs_update = 11;
+    uint32 kill_switches_timed_out = 12;
+  }
+  message DshotPartialTelemetry {
+    bool escs_powered = 1;
+    float vcc_voltage = 2;
+    uint32 start_thruster_num = 3;
+    repeated riptide_msgs2.DshotSingleTelemetry esc_telemetry = 4;
+  }
+  message DshotSingleTelemetry {
+    bool present = 1;
+    uint32 temperature_c = 2;
+    sint32 rpm = 3;
+    float voltage = 4;
+    float current = 5;
+    float consumption_ah = 6;
+  }
+  message ElectricalCommand {
+    uint32 command = 1;
+  }
+}
+
+message std_msgs {
+  message Bool {
+    bool data = 1;
+  }
+  message Header {
+    builtin_interfaces.Time stamp = 1;
+    string frame_id = 2;
+  }
+}
+
+message nav_msgs {
+  message Odometry {
+    std_msgs.Header header = 1;
+    string child_frame_id = 2;
+    geometry_msgs.PoseWithCovariance pose = 3;
+    geometry_msgs.TwistWithCovariance twist = 4;
+  }
+}
+
+message builtin_interfaces {
+  message Time {
+    sint32 sec = 1;
+    uint32 nanosec = 2;
+  }
+}
+
+message geometry_msgs {
+  message PoseWithCovariance {
+    geometry_msgs.Pose pose = 1;
+    repeated double covariance = 2;
+  }
+  message Pose {
+    geometry_msgs.Point position = 1;
+    geometry_msgs.Quaternion orientation = 2;
+  }
+  message Point {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+  }
+  message Quaternion {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+    double w = 4;
+  }
+  message TwistWithCovariance {
+    geometry_msgs.Twist twist = 1;
+    repeated double covariance = 2;
+  }
+  message Twist {
+    geometry_msgs.Vector3 linear = 1;
+    geometry_msgs.Vector3 angular = 2;
+  }
+  message Vector3 {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+  }
+}
+
+message diagnostic_msgs {
+  message DiagnosticStatus {
+    int32 level = 1;
+    string name = 2;
+    string message_ = 3;
+    string hardware_id = 4;
+    repeated diagnostic_msgs.KeyValue values = 5;
+  }
+  message KeyValue {
+    string key = 1;
+    string value = 2;
+  }
+}
+
+message my_fw_msg_test {
+  message ChallengingTest {
+    uint32 primitive_field = 1;
+    repeated uint32 fixed_primitive_array = 2;
+    repeated uint32 bounded_primitive_sequence = 3;
+    repeated uint32 unbounded_primitive_sequence = 4;
+    bytes unbounded_bytes = 5;
+    bytes bounded_bytes = 6;
+    bytes fixed_bytes = 7;
+    string unbounded_string = 8;
+    string bounded_string = 9;
+    repeated string unbounded_string_array = 10;
+    repeated string unbounded_string_bounded_array = 11;
+    repeated string bounded_string_unboudned_array = 12;
+    repeated string bounded_string_bounded_array = 13;
+    repeated string unbounded_string_fixed_array = 14;
+    repeated string bounded_string_fixed_array = 15;
+    bool a_bool = 16;
+    int32 my_boat = 17;
+    uint32 my_char = 18;
+    float my_float = 19;
+    double my_double = 20;
+    sint32 my_int8 = 21;
+    uint32 my_uint8 = 22;
+    sint32 my_int16 = 23;
+    uint32 my_uint16 = 24;
+    sint32 my_int32 = 25;
+    uint32 my_uint32 = 26;
+    sint64 my_int64 = 27;
+    uint64 my_uint64 = 28;
+    float test_with_default = 29;
+    diagnostic_msgs.DiagnosticStatus child_msg = 30;
+    repeated nav_msgs.Odometry child_msg_array_fixed = 31;
+    repeated nav_msgs.Odometry child_msg_bounded_seq = 32;
+    repeated nav_msgs.Odometry child_msg_unbounded = 33;
+  }
+}

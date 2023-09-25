@@ -4,12 +4,12 @@ cmake_minimum_required(VERSION 3.13)
 # These can be found in lib/uwrt_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD pico)
+set(PICO_BOARD mk2/power_board)  # TODO: Set this to your target board
 
 # The Target Robot
 # These can be found in lib/uwrt_boards/include/robots
 # Store any robot dependent configuration values in these files
-set(UWRT_ROBOT talos)
+set(UWRT_ROBOT talos)  # TODO: Uncommand and set this to your target robot, or remove if not targetting a vehicle
 
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
@@ -18,33 +18,37 @@ execute_process(COMMAND git rev-parse --show-cdup
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
-# Define project
-project(protobuf_example C CXX ASM)
+# Define Project
+# TODO: Rename project and executable to your project name
+project(template_project C CXX ASM)
 titan_firmware_init()
 
-# Setup nanopb
-include_directories(${NANOPB_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-NANOPB_GENERATE_CPP(PROTO_SRCS PROTO_HDRS protos.proto)
-
 # Define executable
-add_executable(protobuf_example main.c ${PROTO_HDRS} ${PROTO_SRCS})
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
+add_executable(template_project
+    ${SOURCES}
+)
+target_include_directories(template_project PUBLIC include)
 
 # Set version: major minor (see titan/version.h for more info)
-titan_generate_version_tag(protobuf_example 1 0)
+titan_generate_version_tag(template_project 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_usb(protobuf_example 1)
-pico_enable_stdio_uart(protobuf_example 0)
-pico_set_program_name(protobuf_example "Protobuf Example")
-
-# Wait for 2 seconds for serial to connect
-target_compile_definitions(protobuf_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
+pico_enable_stdio_uart(template_project 1)  # TODO: Disable if running on board without tagconnect or UART headers
+#pico_enable_stdio_usb(template_project 1)  # TODO: Enable if you don't have hardware uart
+pico_set_program_name(template_project "Template Project")  # TODO: Set the project name
 
 # Enable the 'make upload' and 'make serial' commands for project
-titan_use_upload_tool(protobuf_example)
-#titan_enable_bootloader(pico_sdk_example can)
+titan_use_upload_tool(template_project)
+#titan_enable_bootloader(template_project can)  # TODO: Enable and select transport if using bootloader
 
 # Define linking and targets
-pico_add_extra_outputs(protobuf_example)
-target_link_libraries(protobuf_example PUBLIC pico_stdlib)
+pico_add_extra_outputs(template_project)
+target_link_libraries(template_project PUBLIC
+    pico_stdlib     # Pico SDK Standard Library
+    titan_logger    # A nice little logging library
+    titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    titan_msgs
+    # TODO: Add any additional hardware here (ex. hardware_adc)
+)
+
