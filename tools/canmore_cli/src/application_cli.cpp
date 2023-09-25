@@ -3,6 +3,7 @@
 #include "DeviceMap.hpp"
 #include "canmore_cpp/DebugClient.hpp"
 
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -285,22 +286,42 @@ public:
         auto stats = interface.handle->getMemoryStats();
         uint32_t reservedMem = stats.totalMem - stats.heapUse;
 
-        renderField("Total memory on chip", std::to_string(stats.totalMem), 40);
-        renderField("Total heap memory available", std::to_string(stats.heapUse), 40);
-        renderField("Stack memory reserved", std::to_string(stats.stackUse), 40);
-        renderField("Static memory reserved", std::to_string(stats.staticUse), 40);
-        renderField("Memory Usage",
-                    std::to_string(
-                        100 * (((double) (stats.arena - stats.keepcost + reservedMem)) / ((double) stats.totalMem))) +
-                        "%",
-                    40);
-        renderField("Total non-mmapped bytes (arena)", std::to_string(stats.arena), 40);
-        renderField("# of free chunks (ordblks)", std::to_string(stats.ordblks), 40);
-        renderField("# of mapped regions (hblks)", std::to_string(stats.hblks), 40);
-        renderField("Bytes in mapped regions (hblkhd)", std::to_string(stats.hblkhd), 40);
-        renderField("Total allocated space (uordblks)", std::to_string(stats.uordblks), 40);
-        renderField("Total free space (fordblks)", std::to_string(stats.fordblks), 40);
-        renderField("Topmost releasable block (keepcost)", std::to_string(stats.keepcost), 40);
+        renderField("Memory Usage", formatPercent(stats.arena - stats.keepcost + reservedMem, stats.totalMem), 40);
+        renderField("Total memory on chip", formatMemory(stats.totalMem), 40);
+        renderField("Static memory reserved", formatMemory(stats.staticUse), 40);
+        renderField("Stack memory reserved", formatMemory(stats.stackUse), 40);
+        renderField("Total heap memory", formatMemory(stats.heapUse), 40);
+        renderField("Heap reserved [Used & Free] (arena)", formatMemory(stats.arena), 40);
+        renderField("# of free chunks (ordblks)", std::to_string(stats.ordblks) + " blocks", 40);
+        renderField("Total allocated (uordblks)", formatMemory(stats.uordblks), 40);
+        renderField("Total free space (fordblks)", formatMemory(stats.fordblks), 40);
+        renderField("Free space at top of heap (keepcost)", formatMemory(stats.keepcost), 40);
+        if (stats.hblks > 0 || stats.hblkhd > 0) {
+            renderField("# of mem-mapped regions (hblks)", std::to_string(stats.hblks) + " blocks", 40);
+            renderField("Bytes in mem-mapped regions (hblkhd)", formatMemory(stats.hblkhd), 40);
+        }
+    }
+
+private:
+    std::string formatMemory(unsigned int bytes) {
+        std::stringstream output;
+        output << std::fixed << std::setprecision(2);
+        if (bytes > 1024 * 1024) {
+            output << (float) bytes / (1024 * 1024) << " MB";
+        }
+        else if (bytes > 1024) {
+            output << (float) bytes / 1024 << " KB";
+        }
+        else {
+            output << bytes << " bytes";
+        }
+        return output.str();
+    }
+
+    std::string formatPercent(double numerator, double denominator) {
+        std::stringstream output;
+        output << std::fixed << std::setprecision(2) << 100 * (numerator / denominator) << " %";
+        return output.str();
     }
 };
 
