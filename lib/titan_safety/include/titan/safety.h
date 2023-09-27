@@ -24,7 +24,7 @@
  *  - Crash Reporting: Hooks various parts of the low-level firmware to provide in-depth information about any crashes
  *      in the system to aid in debugging. This code hooks the systick handler to report an uptime, the hardfault,
  *      assertion, and panic handlers to provide crash information, and stores this information for
- * SAFETY_NUM_CRASH_LOG_ENTRIES.
+ *      SAFETY_NUM_CRASH_LOG_ENTRIES.
  *
  *  - Profiler: Records timestamps of various critical points in code to determine execution time for the various
  *      functions in firmware. This data is recorded and can be printed during a watchdoog reset and extracted during
@@ -65,7 +65,7 @@ struct fault_data {
     const char *filename;  // The filename where this fault most recently occurred
     uint16_t line;         // The line where this fault most recently occurred
     bool multiple_fires;   // Set if fault raised multiple times
-    bool sticky_fault;     // Set on raised, but not cleared by lower
+    bool sticky_fault;     // Set on raised, but not cleared by lower, can be used to see if other data in this is valid
 };
 
 /*

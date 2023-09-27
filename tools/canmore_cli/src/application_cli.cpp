@@ -130,24 +130,160 @@ class AppFaultsCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppFaultsCommand(): CanmoreCommandHandler("faults") {}
 
-    std::string getArgList() const override { return ""; }
-    std::string getHelp() const override { return "Returns the list of active faults."; }
+    std::string getArgList() const override { return "[-a]"; }
+    std::string getHelp() const override {
+        return "Returns the list of active faults.\nPassing -a requests all faults";
+    }
 
     void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        (void) args;
+        // Command Parsing
+        bool show_all = false;
+        for (auto &arg : args) {
+            if (arg == "-a") {
+                show_all = true;
+            }
+            else {
+                interface.writeLine("Unexpected arg: " + arg);
+                interface.showHelp(commandName, true);
+            }
+        }
+
+        // Extract Fault Data
         uint32_t activeFaults = interface.handle->getActiveFaults();
-        if (activeFaults == 0) {
-            renderName("No faults active");
+        std::vector<Canmore::FaultData> faultList;
+        if (show_all) {
+            for (uint32_t i = 0; i < 32; i++) {
+                faultList.push_back(interface.handle->lookupFaultData(i));
+            }
         }
         else {
-            renderHeader("Active Faults");
             for (uint32_t i = 0; i < 32; i++) {
                 if (activeFaults & (1ul << i)) {
-                    renderField("Fault " + std::to_string(i), interface.handle->lookupFaultName(i));
+                    faultList.push_back(interface.handle->lookupFaultData(i));
                 }
             }
         }
+
+        // Render fault data
+        if (faultList.size() > 0) {
+            FaultRenderer renderer(faultList, show_all);
+            std::string headerRow = renderer.renderHeader();
+
+            // Render header
+            renderHeader((show_all ? "All Faults" : "Active Faults"), headerRow.length() - 13);  // Subtract ansi codes
+            interface.writeLine(headerRow);
+
+            // Render faults
+            for (auto row : renderer) {
+                interface.writeLine(row);
+            }
+        }
+        else {
+            interface.writeLine(COLOR_HEADER "    No faults" COLOR_RESET CLEAR_LINE_AFTER);
+        }
     }
+
+    class FaultRenderer {
+    public:
+        FaultRenderer(const std::vector<Canmore::FaultData> &faultArray, bool showSticky):
+            faultArray(faultArray), showSticky(showSticky) {
+            // Compute the widths for dynamic fields
+            for (auto &entry : faultArray) {
+                if (entry.name.size() > nameWidth) {
+                    nameWidth = entry.name.size();
+                }
+                if (entry.filename.size() > filenameWidth) {
+                    filenameWidth = entry.filename.size();
+                }
+                size_t entryTsSize = entry.formatTimestamp().size();
+                if (entryTsSize > timestampWidth) {
+                    timestampWidth = entryTsSize;
+                }
+            }
+        }
+
+        std::string renderHeader() const {
+            std::stringstream out;
+            out << COLOR_HEADER << std::left << std::setfill(' ');
+            out << " | " << std::setw(faultIdWidth) << "Id";
+            out << " | " << std::setw(nameWidth) << "Name";
+            if (showSticky) {
+                out << " | " << std::setw(stickyWidth) << "Sticky";
+            }
+            out << " | " << std::setw(timestampWidth) << "Timestamp";
+            out << " | " << std::setw(filenameWidth) << "File";
+            out << " | " << std::setw(lineWidth) << "Line";
+            out << " | " << std::setw(extraDataWidth) << "Extra Data";
+            out << " |" COLOR_RESET CLEAR_LINE_AFTER;
+            return out.str();
+        }
+
+        std::string renderField(const Canmore::FaultData &data) const {
+            std::stringstream out;
+            out << COLOR_BODY << std::right << std::setfill(' ');
+            out << " | " << std::setw(faultIdWidth) << data.faultId << std::setw(0);
+            out << " | " << std::setw(nameWidth) << data.name;
+            if (showSticky) {
+                out << " | " << std::setw(stickyWidth) << (data.sticky ? "Yes" : "No");
+            }
+            out << " | " << std::setw(timestampWidth) << (data.sticky ? data.formatTimestamp() : "-");
+            out << " | " << std::setw(filenameWidth) << (data.sticky ? data.filename : "-");
+            out << " | " << std::setw(lineWidth);
+            if (data.sticky) {
+                out << data.line << std::setw(0);
+            }
+            else {
+                out << "-";
+            }
+            out << " | ";
+            if (data.sticky) {
+                if (data.extraData != 0) {
+                    out << "0x" << std::setw(extraDataWidth - 2) << std::hex << std::uppercase << std::setfill('0')
+                        << data.extraData << std::setw(0) << std::dec << std::setfill(' ');
+                }
+                else {
+                    out << std::setw(extraDataWidth) << "0";
+                }
+            }
+            else {
+                out << std::setw(extraDataWidth) << "-";
+            }
+            out << " |" COLOR_RESET CLEAR_LINE_AFTER;
+            return out.str();
+        }
+
+        class RendererIterator {
+            friend class FaultRenderer;
+
+        public:
+            std::string operator*() { return renderer.renderField(*itr); }
+            void operator++() { itr++; }
+            bool operator!=(const RendererIterator &otherItr) { return otherItr.itr != itr; }
+
+        protected:
+            RendererIterator(const FaultRenderer &renderer, const std::vector<Canmore::FaultData>::const_iterator &itr):
+                renderer(renderer), itr(itr) {}
+
+        private:
+            const FaultRenderer &renderer;
+            std::vector<Canmore::FaultData>::const_iterator itr;
+        };
+
+        RendererIterator begin() { return RendererIterator(*this, faultArray.begin()); }
+        RendererIterator end() { return RendererIterator(*this, faultArray.end()); }
+
+    private:
+        std::vector<Canmore::FaultData> faultArray;
+        bool showSticky;
+        size_t nameWidth = 4;  // Initial values for variable fields taken from header width
+        size_t filenameWidth = 4;
+        size_t timestampWidth = 9;
+        // Constant width fields (either header max or the fixed value length)
+        const size_t faultIdWidth = 2;
+        const size_t stickyWidth = 6;
+        const size_t lineWidth = 6;
+        const size_t extraDataWidth = 10;
+    };
 };
 
 class AppRaiseFaultCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
@@ -211,22 +347,6 @@ public:
 
         interface.writeLine("Lowering fault " + interface.handle->lookupFaultName(faultId));
         interface.handle->lowerFault(faultId);
-    }
-};
-
-class AppFaultNamesCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
-public:
-    AppFaultNamesCommand(): CanmoreCommandHandler("faultnames") {}
-
-    std::string getArgList() const override { return ""; }
-    std::string getHelp() const override { return "Returns the list of all fault names."; }
-
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        (void) args;
-        renderHeader("All Fault Names:");
-        for (uint32_t i = 0; i < 32; i++) {
-            renderField("Fault " + std::to_string(i), interface.handle->lookupFaultName(i));
-        }
     }
 };
 
@@ -370,7 +490,6 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppFaultsCommand>());
     registerCommand(std::make_shared<AppRaiseFaultCommand>());
     registerCommand(std::make_shared<AppLowerFaultCommand>());
-    registerCommand(std::make_shared<AppFaultNamesCommand>());
     registerCommand(std::make_shared<AppSafetyStatusCommand>());
     registerCommand(std::make_shared<AppMemoryStatsCommand>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
