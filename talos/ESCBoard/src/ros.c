@@ -38,10 +38,6 @@
 bool ros_connected = false;
 bool dshot_command_received = false;
 
-// Constant for converting electrical RPM to mechanical RPM
-// Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
-const int num_pole_pairs = 7;
-
 // Core Variables
 rcl_node_t node;
 rcl_allocator_t allocator;

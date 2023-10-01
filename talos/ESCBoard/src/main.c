@@ -1,3 +1,4 @@
+#include "core1.h"
 #include "dshot.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -6,6 +7,7 @@
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "titan/binary_info.h"
 #include "titan/logger.h"
@@ -134,6 +136,10 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     dshot_init();
+
+    // Launch core 1
+    multicore_launch_core1(core1_main);
+    multicore_fifo_push_blocking(multicore_fifo_pop_blocking());
 
     // Initialize ROS Transport
     if (!transport_can_init(client_id)) {

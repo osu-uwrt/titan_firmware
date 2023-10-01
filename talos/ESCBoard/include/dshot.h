@@ -52,8 +52,15 @@
 // The PIO block to reserve for uart telemetry from ESCs
 #define DSHOT_TELEM_PIO_BLOCK pio1
 
+// Max time to receive RPM data from ESC's after command is sent
+#define RPM_RX_TIMEOUT_US 250
+
 // The hardware alarm to use for periodic transfers
 #define dshot_hardware_alarm_num 1
+
+// Constant for converting electrical RPM to mechanical RPM
+// Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
+#define num_pole_pairs 7
 
 // ========================================
 // Data Types
