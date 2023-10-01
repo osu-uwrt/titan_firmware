@@ -1,12 +1,40 @@
 #include "ThrusterController.h"
 
+#define SPLINES 10
+
 //calc ff dshot value
 int32_t ThrusterController::feedForward(int32_t targetRPM){
-    //replace with cubic spline later
-    int32_t ffControl = targetRPM * .001 * 1000000;
+    //use matlab script in this folder to generate bounds and coefficents from points
+
+    // where to switch from one coefficent to the next
+    //these are rpm values
+    int32_t ffBounds[SPLINES - 1] = {0,0,0,0,0,0,0,0,0};
+    
+    // x^3 x^2 x 1  - these coefficents are multiplied by a million
+    int32_t ffCoefficents[SPLINES][6] =  {{0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}, 
+                                {0,0,0,0}};
+
+    int8_t splineNum;
+    for(splineNum = 0; splineNum < (SPLINES - 1); splineNum++){
+        //find the correct spline coefficents
+        if(targetRPM < ffBounds[splineNum]){
+            break;
+        }
+    }
+
+    //evaluate spline
+    int32_t value = ffCoefficents[splineNum][0] * targetRPM * targetRPM * targetRPM + ffCoefficents[splineNum][1] * targetRPM *targetRPM + ffCoefficents[splineNum][2] * targetRPM + ffCoefficents[splineNum][3];
 
     //divide by 1000000 to account for scaled consts
-    return ffControl / 1000000;
+    return value / 1000000;
 }
 
 //call this each cycle

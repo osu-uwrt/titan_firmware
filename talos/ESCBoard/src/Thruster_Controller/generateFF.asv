@@ -1,0 +1,21 @@
+%use this matlab script to generate coefficents for the thruster control
+
+%fill in points array with points in form of [[rpm, dshot]]
+dshotArray = [-1, -1; -.5, -.5; 0, 0; 1, 1; 2, 2; 3, 3; 4, 4; 5, 5; 6, 6; 9, 9; 10, 10];
+
+arraySize = size(dshotArray);
+A = zeros((arraySize(1) - 1) * 4, (arraySize(1) - 1) * 4);
+B = zeros((arraySize(1) - 1) * 4, 1);
+
+for i=0:(length(dshotArray) - 1)
+    xVal = dshotArray(i,1);
+   
+    %apply 1st point continuity eq
+   A(i * 4 + 1, i * 4 + 1) = xVal^3;
+   A(i * 4 + 2, i * 4 + 2) = xVal^2;
+   A(i * 4 + 3, i * 4 + 3) = xVal^1;
+   A(i * 4 + 4, i * 4 + 4) = 1;
+
+   B = dshotArray()
+    
+end
