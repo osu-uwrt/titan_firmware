@@ -16,7 +16,7 @@ fi
 
 set -e
 
-INSTALL_DIR="$1"
+INSTALL_DIR="$(realpath "$1")"
 WORK_DIR="$(mktemp -d -t titan_fw_build_XXXXXXXXXX)"
 
 build_tool() {

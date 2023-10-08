@@ -77,6 +77,7 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 }
 
 bool __time_critical_func(safety_kill_get_asserting_kill)(void) {
+    // This function must be safe to be called from interrupts and across cores
     return last_state_asserting_kill;
 }
 

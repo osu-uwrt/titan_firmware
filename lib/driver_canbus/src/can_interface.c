@@ -18,7 +18,7 @@ volatile bool canbus_msg_opened = false;
 // Callback Functions
 // ========================================
 
-bool canbus_device_in_error_state = false;
+volatile bool canbus_device_in_error_state = false;
 
 // Callback handling
 static canbus_receive_error_cb_t canbus_receive_error_cb = NULL;
@@ -55,6 +55,7 @@ static void report_canmore_msg_decode_error(__unused void *arg, unsigned int err
 }
 
 void canbus_set_device_in_error(bool device_in_error_state) {
+    // Note this function must be safe to call from any core and in interrupts
     canbus_device_in_error_state = device_in_error_state;
 }
 

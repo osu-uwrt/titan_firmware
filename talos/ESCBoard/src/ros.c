@@ -1,5 +1,6 @@
 #include "ros.h"
 
+#include "core1.h"
 #include "dshot.h"
 
 #include "pico/stdlib.h"
@@ -16,6 +17,8 @@
 #include <riptide_msgs2/msg/dshot_rpm_feedback.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
+#include <std_msgs/msg/int32.h>
 #include <std_msgs/msg/int8.h>
 
 #undef LOGGING_UNIT_NAME
@@ -29,11 +32,21 @@
 #define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
-#define DSHOT_COMMAND_SUCRIBER_NAME "command/dshot"
+#define DSHOT_COMMAND_SUCRIBER_NAME "command/thruster_rpm"
 #define THRUSTER_MOVING_BORAD0_PUBLISHER_NAME "state/thrusters/moving_brd0"
 #define THRUSTER_MOVING_BORAD1_PUBLISHER_NAME "state/thrusters/moving_brd1"
 #define DSHOT_RPM_PUBLISHER_NAME "state/thrusters/rpm"
+#define DSHOT_CMD_PUBLISHER_NAME "state/thrusters/cmd"
 #define DSHOT_TELEMETRY_PUBLISHER_NAME "state/thrusters/telemetry"
+#define DSHOT_CONTROLLER_RATE_BOARD0_PUBLISHER_NAME "state/thrusters/rate0"
+#define DSHOT_CONTROLLER_RATE_BOARD1_PUBLISHER_NAME "state/thrusters/rate1"
+
+#define DSHOT_TUNE_SET_RAW "dshot_tune/set_raw"
+#define DSHOT_TUNE_P_GAIN "dshot_tune/p_gain"
+#define DSHOT_TUNE_I_GAIN "dshot_tune/i_gain"
+#define DSHOT_TUNE_I_BOUND "dshot_tune/i_bound"
+#define DSHOT_TUNE_HARD_LIMIT "dshot_tune/hard_limit"
+#define DSHOT_TUNE_MIN_COMMAND "dshot_tune/min_command"
 
 bool ros_connected = false;
 bool dshot_command_received = false;
@@ -54,8 +67,22 @@ std_msgs__msg__Bool killswitch_msg;
 rcl_publisher_t thrusters_moving_publisher;
 rcl_publisher_t dshot_telem_publisher;
 rcl_publisher_t dshot_rpm_publisher;
+rcl_publisher_t dshot_cmd_publisher;
+rcl_publisher_t dshot_control_loop_rate_publisher;
 rcl_subscription_t dshot_subscriber;
+rcl_subscription_t dshot_tune_set_raw_subscriber;
+rcl_subscription_t dshot_tune_p_gain_subscriber;
+rcl_subscription_t dshot_tune_i_gain_subscriber;
+rcl_subscription_t dshot_tune_i_bound_subscriber;
+rcl_subscription_t dshot_tune_hard_limit_subscriber;
+rcl_subscription_t dshot_tune_min_command_subscriber;
 riptide_msgs2__msg__DshotCommand dshot_msg;
+std_msgs__msg__Bool dshot_tune_set_raw_msg;
+std_msgs__msg__Int32 dshot_tune_p_gain_msg;
+std_msgs__msg__Int32 dshot_tune_i_gain_msg;
+std_msgs__msg__Int32 dshot_tune_i_bound_msg;
+std_msgs__msg__Int32 dshot_tune_hard_limit_msg;
+std_msgs__msg__Int32 dshot_tune_min_command_msg;
 
 // ========================================
 // ROS Callbacks
@@ -70,8 +97,38 @@ static void dshot_subscription_callback(const void *msgin) {
     const riptide_msgs2__msg__DshotCommand *msg = (const riptide_msgs2__msg__DshotCommand *) msgin;
     extern uint8_t esc_board_num;
     uint offset = (esc_board_num == 1 ? 4 : 0);
-    dshot_update_thrusters(&msg->values[offset]);
+    core1_update_target_rpm(&msg->values[offset]);
     dshot_command_received = true;
+}
+
+static void dshot_tune_set_raw_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+    core1_set_raw_mode(msg->data);
+}
+
+static void dshot_tune_p_gain_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+    core1_set_p_gain(msg->data);
+}
+
+static void dshot_tune_i_gain_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+    core1_set_i_gain(msg->data);
+}
+
+static void dshot_tune_i_bound_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+    core1_set_i_bound(msg->data);
+}
+
+static void dshot_tune_hard_limit_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+    core1_set_hard_limit(msg->data);
+}
+
+static void dshot_tune_min_command_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+    core1_set_min_command(msg->data);
 }
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
@@ -136,45 +193,26 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
 
 rcl_ret_t ros_send_rpm(uint8_t board_id) {
     riptide_msgs2__msg__DshotRPMFeedback rpm_msg = { 0 };
+    riptide_msgs2__msg__DshotRPMFeedback cmd_msg = { 0 };
     uint8_t valid_mask = 0;
     uint thruster_base = (board_id == 0 ? 0 : 4);
 
     for (int i = 0; i < NUM_THRUSTERS; i++) {
-        int16_t rpm = 0;
+        int16_t rpm;
+        int16_t cmd;
 
-        if (dshot_rpm_data[i].valid) {
+        if (core1_get_current_rpm(i, &rpm, &cmd)) {
             valid_mask |= 1 << (thruster_base + i);
-
-            rpm = INT16_MAX;
-            unsigned int period_us = dshot_rpm_data[i].rpm_period_us;
-
-            // Check if the period isn't reporting not moving
-            if (period_us == (0x1FF << 0x7)) {
-                rpm = 0;
-            }
-            else if (period_us != 0) {
-                // Convert period to RPM if it's valid
-                uint32_t erpm = (60 * 1000000) / period_us;
-                uint32_t rpm_unsigned = erpm / num_pole_pairs;
-
-                // Make sure it won't overflow
-                if (rpm_unsigned < INT16_MAX) {
-                    rpm = rpm_unsigned;
-                }
-            }
-
-            // Get the RPM sign
-            if (dshot_rpm_reversed[i]) {
-                rpm *= -1;
-            }
+            rpm_msg.rpm[thruster_base + i] = rpm;
+            cmd_msg.rpm[thruster_base + i] = cmd;
         }
-
-        rpm_msg.rpm[thruster_base + i] = rpm;
     }
 
     rpm_msg.rpm_valid_mask = valid_mask;
+    cmd_msg.rpm_valid_mask = valid_mask;
 
     RCSOFTRETCHECK(rcl_publish(&dshot_rpm_publisher, &rpm_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&dshot_cmd_publisher, &cmd_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -186,14 +224,15 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
     telem_msg.start_thruster_num = (board_id == 0 ? 0 : 4);
 
     for (int i = 0; i < NUM_THRUSTERS; i++) {
-        if (dshot_telemetry_data[i].valid) {
+        struct dshot_uart_telemetry telem_data;
+        if (dshot_get_telemetry(i, &telem_data)) {
             telem_msg.esc_telemetry[i].present = true;
-            telem_msg.esc_telemetry[i].temperature_c = dshot_telemetry_data[i].temperature;
-            telem_msg.esc_telemetry[i].voltage = dshot_telemetry_data[i].voltage / 100.0;
-            telem_msg.esc_telemetry[i].current = dshot_telemetry_data[i].current / 100.0;
-            telem_msg.esc_telemetry[i].consumption_ah = dshot_telemetry_data[i].consumption / 1000.0;
+            telem_msg.esc_telemetry[i].temperature_c = telem_data.temperature;
+            telem_msg.esc_telemetry[i].voltage = telem_data.voltage / 100.0;
+            telem_msg.esc_telemetry[i].current = telem_data.current / 100.0;
+            telem_msg.esc_telemetry[i].consumption_ah = telem_data.consumption / 1000.0;
             telem_msg.esc_telemetry[i].rpm =
-                (dshot_rpm_reversed[i] ? -1 : 1) * dshot_telemetry_data[i].rpm * 100 / num_pole_pairs;
+                (telem_data.rpm_reversed ? -1 : 1) * telem_data.rpm * 100 / ESC_NUM_POLE_PAIRS;
         }
         else {
             telem_msg.esc_telemetry[i].present = false;
@@ -209,7 +248,11 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
 
     std_msgs__msg__Bool moving_msg;
     moving_msg.data = dshot_thrusters_on;
-    RCSOFTCHECK(rcl_publish(&thrusters_moving_publisher, &moving_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&thrusters_moving_publisher, &moving_msg, NULL));
+
+    std_msgs__msg__Float32 dshot_control_loop_rate_msg;
+    dshot_control_loop_rate_msg.data = core1_get_loop_rate();
+    RCSOFTRETCHECK(rcl_publish(&dshot_control_loop_rate_publisher, &dshot_control_loop_rate_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -226,6 +269,8 @@ rcl_ret_t ros_init(uint8_t board_id) {
     const char *node_name = (board_id == 0 ? PICO_TARGET_NAME "_0" : PICO_TARGET_NAME "_1");
     const char *moving_publisher_name =
         (board_id == 0 ? THRUSTER_MOVING_BORAD0_PUBLISHER_NAME : THRUSTER_MOVING_BORAD1_PUBLISHER_NAME);
+    const char *rate_publisher_name =
+        (board_id == 0 ? DSHOT_CONTROLLER_RATE_BOARD0_PUBLISHER_NAME : DSHOT_CONTROLLER_RATE_BOARD1_PUBLISHER_NAME);
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
@@ -246,6 +291,9 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_publisher_init_best_effort(&dshot_rpm_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotRPMFeedback),
                                                DSHOT_RPM_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_best_effort(&dshot_cmd_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotRPMFeedback),
+                                               DSHOT_CMD_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_best_effort(&dshot_telem_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotPartialTelemetry),
@@ -254,14 +302,47 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_publisher_init_best_effort(
         &thrusters_moving_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), moving_publisher_name));
 
+    RCRETCHECK(rclc_publisher_init_best_effort(&dshot_control_loop_rate_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               rate_publisher_name));
+
+    // Dshot tuning subscribers
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_set_raw_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), DSHOT_TUNE_SET_RAW));
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_p_gain_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), DSHOT_TUNE_P_GAIN));
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_i_gain_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), DSHOT_TUNE_I_GAIN));
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_i_bound_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), DSHOT_TUNE_I_BOUND));
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_hard_limit_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              DSHOT_TUNE_HARD_LIMIT));
+    RCRETCHECK(rclc_subscription_init_default(&dshot_tune_min_command_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              DSHOT_TUNE_MIN_COMMAND));
+
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 8;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_subscriber, &dshot_msg, &dshot_subscription_callback,
                                               ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_set_raw_subscriber, &dshot_tune_set_raw_msg,
+                                              &dshot_tune_set_raw_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_p_gain_subscriber, &dshot_tune_p_gain_msg,
+                                              &dshot_tune_p_gain_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_i_gain_subscriber, &dshot_tune_i_gain_msg,
+                                              &dshot_tune_i_gain_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_i_bound_subscriber, &dshot_tune_i_bound_msg,
+                                              &dshot_tune_i_bound_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_hard_limit_subscriber, &dshot_tune_hard_limit_msg,
+                                              &dshot_tune_hard_limit_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &dshot_tune_min_command_subscriber,
+                                              &dshot_tune_min_command_msg,
+                                              &dshot_tune_min_command_subscription_callback, ON_NEW_DATA));
 
     return RCL_RET_OK;
 }
@@ -272,9 +353,16 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&dshot_rpm_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&dshot_cmd_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&dshot_telem_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&dshot_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_set_raw_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_p_gain_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_i_gain_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_i_bound_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_hard_limit_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&dshot_tune_min_command_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));

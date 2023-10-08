@@ -11,12 +11,13 @@
 #define FAULT_ROS_ERROR 3
 #define FAULT_TIMER_MISSED 4
 #define FAULT_ROS_BAD_COMMAND 5
-#define FAULT_THRUSTER_TIMEOUT 6
+#define FAULT_RPM_CMD_TIMEOUT 6
+#define FAULT_RAW_MODE 7
 
 static const char *const fault_string_list[] = { "FAULT_WATCHDOG_RESET",     "FAULT_WATCHDOG_WARNING",
                                                  "FAULT_CAN_INTERNAL_ERROR", "FAULT_ROS_ERROR",
                                                  "FAULT_TIMER_MISSED",       "FAULT_ROS_BAD_COMMAND",
-                                                 "FAULT_THRUSTER_TIMEOUT" };
+                                                 "FAULT_RPM_CMD_TIMEOUT",    "FAULT_RAW_MODE" };
 
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {

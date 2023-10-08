@@ -61,6 +61,9 @@ extern struct kill_switch_state kill_switch_states[];
 /**
  * @brief Called to set the fault led light
  *
+ * @attention This function must be safe to call in interrupts and on any core. It is gaurenteed that this function that
+ * it will not be called concurrently.
+ *
  * @param on Logic level of the light
  */
 void safety_set_fault_led(bool on);
@@ -123,6 +126,13 @@ void safety_internal_crash_reporting_handle_init(void);
  * @brief Notifies kill switch management that safety has been initialized
  */
 void safety_internal_kill_handle_init(void);
+
+/**
+ * @brief Performs core initialization required for the safety fault system.
+ *
+ * @attention Must be called before raising any faults
+ */
+void safety_internal_fault_setup(void);
 
 /**
  * @brief Ticks fault reporting

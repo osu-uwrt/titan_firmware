@@ -8,6 +8,8 @@
 
 void safety_set_fault_led(bool on) {
     // TODO: Add code to change fault LED here
+    // Note: This function must be safe to call in interrupts and in ANY core. It is gaurenteed that this function will
+    // not be called concurrently.
 }
 
 void safety_handle_kill(void) {
