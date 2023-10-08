@@ -10,14 +10,9 @@
  *
  */
 
-typedef void (*sht41_on_read_callback)();
+enum sht41_error_code { SHT41_ERROR_TIMER_SCHEDULE_FULL = 1, SHT41_ERROR_CRC_INVALID, SHT41_ERROR_I2C_COMPLAINT };
 
-typedef union sht41_error {
-    // TODO put in error code, error source struct field
-    // TODO data field
-} sht41_error_t;
-
-typedef void (*sht41_error_cb)(sht41_error_t error);  // FIXME needs inspection
+typedef void (*sht41_error_cb)(const struct async_i2c_request *req, uint32_t error_code);  // FIXME needs inspection
 
 void sht41_init(sht41_error_cb board_error_cb);
 

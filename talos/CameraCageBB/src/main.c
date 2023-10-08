@@ -5,6 +5,7 @@
 #include "driver/canbus.h"
 #include "driver/depth.h"
 #include "driver/led.h"
+#include "driver/sht41.h"
 #include "driver/status_strip.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
@@ -120,6 +121,10 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
+static void sht41_sensor_error_cb(enum sht41_error_code error, uint32_t error_code) {
+    LOG_ERROR("sht41 error type: %d\n", error);
+}
+
 int main() {
     // Initialize stdio
     stdio_init_all();
@@ -137,6 +142,8 @@ int main() {
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
 
     depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
+
+    sht41_init(sht41_sensor_error_cb);
 
     // Status Strip Initialization
     bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));
