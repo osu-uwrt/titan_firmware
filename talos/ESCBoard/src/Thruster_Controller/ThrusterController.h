@@ -29,8 +29,8 @@ typedef struct thruster_controller_state {
  * @param state Pointer to controller state to initialize
  */
 static inline void thruster_controller_init_defaults(thruster_controller_state_t *state) {
-    state->Pgain = 10000;
-    state->Igain = 1;
+    state->Pgain = 0;
+    state->Igain = ;
     state->Ibound = 200;
     state->hardLimit = 725;
     state->minCommand = 0;  // TODO: Set these
