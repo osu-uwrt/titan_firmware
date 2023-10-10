@@ -1,6 +1,6 @@
 #include "ThrusterController.h"
 
-#define SPLINES 10
+#define SPLINES 100
 
 // calc ff dshot value
 static int32_t thruster_controller_feed_forward(int32_t targetRPM) {
@@ -36,7 +36,9 @@ static int32_t thruster_controller_feed_forward(int32_t targetRPM) {
     
 
     // divide by 1000000 to account for scaled consts
-    return value / 1000000;
+    //return value / 1000000;
+
+    return 50;
 }
 
 // call this each cycle
