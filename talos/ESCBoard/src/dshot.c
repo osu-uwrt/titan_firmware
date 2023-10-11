@@ -15,8 +15,6 @@
 // Global Variables
 // ========================================
 
-const unsigned int dshot_min_frame_time_us = bidir_dshot_min_frame_period_us(DSHOT_RATE);
-
 bool dshot_initialized = false;
 volatile uint32_t vcc_reading_mv = 0;
 volatile bool dshot_thrusters_on = false;
