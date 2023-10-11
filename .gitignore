@@ -27,5 +27,9 @@ __pycache__/
 #######################
 /scratch_projects/
 
+#######################
+# Thruster cal data   #
+#######################
+
 COLCON_IGNORE
 

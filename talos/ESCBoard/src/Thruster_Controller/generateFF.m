@@ -42,7 +42,14 @@ while(keepPrompting)
     filename = uigetfile(".csv");
     legendNames = [legendNames, filename];
     
-    dshotTable = readtable(filename);
+    dshotTable = sortrows(readtable(filename));
+    
+    %remove duplicate x-values from array
+    dshotDuplicates = diff(dshotTable{:, 1}) == 0;
+    rpmDuplicates = diff(dshotTable{:, 2}) == 0;
+    dshotTable(dshotDuplicates, :) = [];
+    dshotTable(rpmDuplicates, :) = [];
+    
     dshotValues = dshotTable{:, 1};
     rpms = dshotTable{:, 2};
     forces = dshotTable{:, 3};
@@ -84,10 +91,6 @@ figure(FIGURE_DSHOT_VS_RPM);
 legend(legendNames);
 
 function coefficents = analyzeDshotArray(fig, dshotArray)
-    %remove duplicate x-values from array
-    zeroLocs = diff(dshotArray(:, 1)) == 0;
-    dshotArray(zeroLocs, :) = [];
-
     arraySize = size(dshotArray);
     A = zeros((arraySize(1) - 1) * 4, (arraySize(1) - 1) * 4);
     B = zeros((arraySize(1) - 1) * 4, 1);
