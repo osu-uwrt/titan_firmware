@@ -304,6 +304,14 @@ static void __time_critical_func(core1_main)() {
         // starving other thrusters, if say thruster 3 was the first received, but processing took longer than
         // min_frame_time, it'll tick one last time to see we received 1 during that time and process it before breaking
         // out of the loop.
+
+        //Alex put this here - please make pretty
+                                
+        int8_t thrusterSigns[NUM_THRUSTERS] = {-1, 1, 1, 1};
+        if (esc_board_num == CAN_BUS_BOARD1_CLIENT_ID){
+             thrusterSigns[NUM_THRUSTERS] = {-1, 1, 1, 1};
+        }
+
         bool serviced = false;
         while (waiting != 0 && (!time_reached(min_frame_time) || serviced)) {
             serviced = false;
@@ -315,7 +323,8 @@ static void __time_critical_func(core1_main)() {
                     if (dshot_get_rpm(i, &rpm[i]) && (waiting & (1 << i))) {
                         rpm_valid[i] = true;
                         // If the decode was successful, tick the controller
-                        throttle_commands[i] = thruster_controller_tick(&controller_state[i], target_rpm_cached[i],
+
+                        throttle_commands[i] = thruster_controller_tick(&controller_state[i], target_rpm_cached[i] * thrusterSigns[i],
                                                                         rpm[i], time_difference);
                     }
                     // Clear waiting, even on unsuccessful response
