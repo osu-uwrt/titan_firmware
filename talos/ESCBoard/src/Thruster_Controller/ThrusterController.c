@@ -48,9 +48,16 @@ static int32_t thruster_controller_feed_forward(int32_t targetRPM) {
 }
 
 // call this each cycle
-int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t currentRPM,
-                                 int32_t deltaTime) {
-    // rpm error - this value should be practically less than 10,000
+int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t CurrentRPM,
+                                 int32_t deltaTime, uint8_t inverted) {
+    // rpm error - this value should be practically less than 10,000\
+
+    // if inverted, change sign of input
+    int32_t currentRPM = CurrentRPM;
+    if (inverted) {
+        currentRPM = -1 * CurrentRPM;
+    }
+
     int32_t currentError = targetRPM - currentRPM;
 
     // limit max error to ensure not overrunning int value
@@ -90,6 +97,13 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
     else {
         // reset error sum (I) as the control has slipped bound
         state->sumOfError = 0;
+        state->lastIReset = targetRPM;
+    }
+
+    if (!(state->lastIReset - targetRPM < state->Igain && state->lastIReset - targetRPM > -state->Igain)) {
+        // reset error sum (I) as the target has changed significantly
+        state->sumOfError = 0;
+        state->lastIReset = targetRPM;
     }
 
     // calculate total control
@@ -109,6 +123,11 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
 
     if (dShotControl < 0 && dShotControl > -state->minCommand) {
         dShotControl = 0;
+    }
+
+    // if the thruster is inverted return the negative dshot
+    if (inverted) {
+        return (int16_t) (-1 * dShotControl);
     }
 
     // Safe to directly cast because hard limit is a 16-bit int, which will restrict dShotControl
