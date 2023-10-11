@@ -52,8 +52,10 @@
 // The PIO block to reserve for uart telemetry from ESCs
 #define DSHOT_TELEM_PIO_BLOCK pio1
 
-// Max time to wait for RPM data from ESC's after command is sent
-#define RPM_RX_TIMEOUT_US 250
+// Minimum time per dshot tick. Sending it too fast will result in packets being dropped by the ESC
+// This implies the maximum time that we'd expect a bidirectional dshot message to take, since we can't transmit while
+// expecting the ESC might still respond, as this would cause contention
+#define DSHOT_MIN_FRAME_TIME_US 400
 
 // Constant for converting electrical RPM to mechanical RPM
 // Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
@@ -116,11 +118,6 @@ extern volatile bool esc_board_was_off;
  * @note Safe to be read from either core.
  */
 extern volatile bool dshot_thrusters_on;
-
-/**
- * @brief The minimum time required before sending another dshot update in microseconds.
- */
-extern const unsigned int dshot_min_frame_time_us;
 
 // ========================================
 // Exported Methods (Available to Core 0)

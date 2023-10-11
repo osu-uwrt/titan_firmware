@@ -280,10 +280,8 @@ static void __time_critical_func(core1_main)() {
         // Send command, and compute min and max update timestamps
         // Note this command comes from the last controller tick (unless its been killed)
         dshot_update_thrusters(throttle_commands);
-        // Our receive timeout when to abort on an ESC not responding, and just tick the control loop again
-        absolute_time_t rpm_rx_timeout = make_timeout_time_us(RPM_RX_TIMEOUT_US);
-        // Dshot protocol sets a maximum update rate. This enforces this update rate
-        absolute_time_t minimum_tx_time = make_timeout_time_us(dshot_min_frame_time_us);
+        // Time at which we are okay to send the next packet. Sending too fast will cause the ESC to drop the message
+        absolute_time_t min_frame_time = make_timeout_time_us(DSHOT_MIN_FRAME_TIME_US);
 
         // Save last command to be sent later
         int16_t last_command[NUM_THRUSTERS];
@@ -302,7 +300,13 @@ static void __time_critical_func(core1_main)() {
         // The RX timeout is in the event one ESC stops responding, the control loop won't lock up
         int rpm[NUM_THRUSTERS];
         bool rpm_valid[NUM_THRUSTERS] = { 0 };
-        while (waiting != 0 && !time_reached(rpm_rx_timeout)) {
+        // Serviced keeps track if the control loop was ticked the inner while loop, prevents a slow controller from
+        // starving other thrusters, if say thruster 3 was the first received, but processing took longer than
+        // min_frame_time, it'll tick one last time to see we received 1 during that time and process it before breaking
+        // out of the loop.
+        bool serviced = false;
+        while (waiting != 0 && (!time_reached(min_frame_time) || serviced)) {
+            serviced = false;
             for (int i = 0; i < NUM_THRUSTERS; i++) {
                 if (dshot_rpm_available(i)) {
                     // Only tick controller if we can decode, and it hasn't been ticked yet this loop
@@ -316,6 +320,7 @@ static void __time_critical_func(core1_main)() {
                     }
                     // Clear waiting, even on unsuccessful response
                     waiting &= ~(1 << i);
+                    serviced = true;
                 }
             }
         }
@@ -366,8 +371,8 @@ static void __time_critical_func(core1_main)() {
         // ========================================
 
         // If the control loop finishes before the minimum frame time, wait before sending the next command
-        if (!time_reached(minimum_tx_time)) {
-            sleep_until(minimum_tx_time);
+        if (!time_reached(min_frame_time)) {
+            sleep_until(min_frame_time);
         }
     }
 }
