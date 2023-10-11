@@ -1,7 +1,6 @@
 %use this matlab script to generate coefficents for the thruster control
 format compact
 
-global EPSILON;
 EPSILON = 1000000;
 
 FIGURE_RPM_VS_FORCE = 1;
@@ -75,38 +74,29 @@ while(keep_prompting)
     [Bp_rpm, R, Radj] = leastm_lab(Xp_rpm, pos_dshot);
     [Bn_rpm, R, Radj] = leastm_lab(Xn_rpm, neg_dshot);
 
-    % Plot results
-    plot_force = [neg_force; pos_force];
-    plot_rpm = [neg_rpm; pos_rpm];
-    plot_XBforce = [Xn_force * Bn_force; Xp_force * Bp_force];
-    plot_dshot = [neg_dshot; pos_dshot];
-    plot_XBrpm = [Xn_rpm * Bn_rpm; Xp_rpm * Bp_rpm];
-    
     % Plot Force to RPM curve
     % Plotting data
     figure(FIGURE_RPM_VS_FORCE)
-    
-%     plot(pos_force,pos_rpm,'.')
-    plot(plot_force, plot_rpm, '.')
+    plot(pos_force,pos_rpm,'.')
+    plot(neg_force,neg_rpm,'.')
     % Plotting curve fit
-%     plot(pos_force,Xp_force*Bp_force)
-    plot(plot_force, plot_XBforce)
+    plot(pos_force,Xp_force*Bp_force)
+    plot(neg_force,Xn_force*Bn_force)
     
 
     % RPM to dshot curve
     figure(FIGURE_DSHOT_VS_RPM)
     % Plotting data
-%     plot(pos_rpm,pos_dshot,".");
-    plot(plot_rpm, plot_dshot,".");
+    plot(pos_rpm,pos_dshot,".");
+    plot(neg_rpm,neg_dshot,".");
     % Plotting curve fit
-%     plot(pos_rpm,Xp_rpm*Bp_rpm)
-    plot(plot_rpm, plot_XBrpm)
+    plot(pos_rpm,Xp_rpm*Bp_rpm)
+    plot(neg_rpm,Xn_rpm*Bn_rpm)
     
     %print B coefficients
     printArr("Positive force B", Bp_force);
     printArr("Negative force B", Bn_force);
-    printArr("Positive RPM B", Bp_rpm);
-    printArr("Negative RPM B", Bn_rpm);
+    prin
 
     keep_prompting = input("Add another csv file? Type 1 for yes and 0 for no: ");
 end
@@ -119,10 +109,8 @@ legend(legend_names);
 
 
 function printArr(msg, arr)
-    global EPSILON
-    fprintf("%s: %d", msg, round(real(arr(1)) * EPSILON));
+    fprintf("%s: %d", msg, round(arr(1) * EPSILON));
     for i = 2:length(arr)
-        fprintf(", %d", round(real(arr(i)) * EPSILON));
+        fprintf(", %d", round(arr(i) * EPSILON));
     end
-    fprintf("\n");
 end
