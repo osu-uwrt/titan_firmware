@@ -30,7 +30,7 @@ typedef struct thruster_controller_state {
  */
 static inline void thruster_controller_init_defaults(thruster_controller_state_t *state) {
     state->Pgain = 100000;
-    state->Igain = 0;
+    state->Igain = 30;
     state->Ibound = 200;
     state->hardLimit = 725;
     state->minCommand = 0;  // TODO: Set these

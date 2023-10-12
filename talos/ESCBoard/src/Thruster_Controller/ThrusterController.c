@@ -37,10 +37,10 @@ static int32_t thruster_controller_feed_forward(int32_t targetRPM) {
 
     int64_t dShotValue = 0;
     if (targetRPM > 0) {
-        dShotValue = 10410122 + 115879 * targetRPM + 39 * (targetRPM * targetRPM);
+        dShotValue = 12369874 + 103410 * targetRPM + 42 * (targetRPM * targetRPM);
     }
     else {
-        dShotValue = -13931009 + 102048 * targetRPM - 41 * (targetRPM * targetRPM);
+        dShotValue = -14791378 + 98938 * targetRPM - 42 * (targetRPM * targetRPM);
     }
 
     // divide by 1000000 to account for scaled consts
