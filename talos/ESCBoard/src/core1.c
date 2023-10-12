@@ -308,13 +308,13 @@ static void __time_critical_func(core1_main)() {
         // Alex put this here - please make pretty
 
         // 1 2 3 4
-        uint8_t thrusterInvert[NUM_THRUSTERS] = { false, false, false, false };
+        uint8_t thrusterInvert[NUM_THRUSTERS] = { true, false, false, false };
         if (gpio_get(BOARD_DET_PIN)) {
             // 5 6 7 8
             thrusterInvert[0] = true;
-            thrusterInvert[1] = false;
+            thrusterInvert[1] = true;
             thrusterInvert[2] = false;
-            thrusterInvert[3] = false;
+            thrusterInvert[3] = true;
         }
 
         bool serviced = false;

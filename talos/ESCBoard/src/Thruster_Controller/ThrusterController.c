@@ -100,7 +100,7 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
         state->lastIReset = targetRPM;
     }
 
-    if (!(state->lastIReset - targetRPM < state->Igain && state->lastIReset - targetRPM > -state->Igain)) {
+    if (!(state->lastIReset - targetRPM < 50 && state->lastIReset - targetRPM > -50)) {
         // reset error sum (I) as the target has changed significantly
         state->sumOfError = 0;
         state->lastIReset = targetRPM;
