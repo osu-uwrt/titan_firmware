@@ -57,6 +57,14 @@ while(keep_prompting)
     neg_force = forces(1:switch_index-1);
     pos_force = forces(switch_index:end);
 
+    if mean(pos_force) < 0
+        pos_force = pos_force * -1;
+    end
+
+    if mean(neg_force) > 0
+        neg_force = neg_force * -1;
+    end
+
     % Base Functions
     % Create X matrix for force curve fit as a function of form C + CX + Ctanh(X) + C(X)^(1/4)
     Xp_force = [ones(length(pos_force),1) pos_force tanh(pos_force) pos_force.^(1/4)];
