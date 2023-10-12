@@ -21,6 +21,10 @@ typedef struct thruster_controller_state {
     // === State ===
     // sum of error for I
     int32_t sumOfError;
+
+    // the last target at which the I was reset
+    int32_t lastIReset;
+
 } thruster_controller_state_t;
 
 /**
@@ -29,13 +33,14 @@ typedef struct thruster_controller_state {
  * @param state Pointer to controller state to initialize
  */
 static inline void thruster_controller_init_defaults(thruster_controller_state_t *state) {
-    state->Pgain = 100000;
+    state->Pgain = 0;
     state->Igain = 30;
     state->Ibound = 200;
     state->hardLimit = 725;
     state->minCommand = 0;  // TODO: Set these
 
     state->sumOfError = 0;
+    state->lastIReset = 0;
 }
 
 static inline void thruster_controller_zero(thruster_controller_state_t *state) {
@@ -49,9 +54,10 @@ static inline void thruster_controller_zero(thruster_controller_state_t *state) 
  * @param targetRPM Holds the target RPM for the controller to achieve
  * @param currentRPM Holds the current RPM of the thruster
  * @param deltaTime The time between two ticks
+ * @param inverted if the thruster blades are in the backwards direction
  * @return int16_t The dshot command to send (between -hardLimit and hardLimit)
  */
-int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t currentRPM,
-                                 int32_t deltaTime);
+int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t CurrentRPM,
+                                 int32_t deltaTime, uint8_t inverted);
 
 #endif
