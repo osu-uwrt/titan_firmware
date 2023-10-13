@@ -58,14 +58,22 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
         currentRPM = -1 * CurrentRPM;
     }
 
-    int32_t currentError = targetRPM - currentRPM;
+    // update the rolling rpm
+    thruster_controller_process_rolling_average(state, currentRPM);
+    int32_t controlValue = (state->rollingAvg / 10000);
+
+    // instantatious error
+    int32_t instantError = targetRPM - currentRPM;
+
+    // rolling average error
+    int32_t currentError = targetRPM - controlValue;
 
     // limit max error to ensure not overrunning int value
-    if (currentError > 2100000000 / state->Pgain) {
-        currentError = 2100000000 / state->Pgain;
+    if (currentError > INT32_MAX / state->Pgain) {
+        currentError = INT32_MAX / state->Pgain;
     }
-    else if (currentError < -2100000000 / state->Pgain) {
-        currentError = -2100000000 / state->Pgain;
+    else if (currentError < -INT32_MAX / state->Pgain) {
+        currentError = -INT32_MAX / state->Pgain;
     }
 
     // calculate ff control
@@ -81,18 +89,18 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
         // only if within bound
 
         // add current to sum of error
-        state->sumOfError += currentError * deltaTime;
+        state->sumOfError += instantError * deltaTime;
 
         // check to ensure int value is not overrun - very possible when tuning gains
-        if (state->sumOfError > 2100000000 / state->Igain) {
-            state->sumOfError = 2100000000 / state->Igain;
+        if (state->sumOfError > INT64_MAX / state->Igain) {
+            state->sumOfError = INT64_MAX / state->Igain;
         }
-        else if (state->sumOfError < -2100000000 / state->Igain) {
-            state->sumOfError = -2100000000 / state->Igain;
+        else if (state->sumOfError < INT64_MIN / state->Igain) {
+            state->sumOfError = INT64_MIN / state->Igain;
         }
 
         // divide by 1000000 is scaling for const
-        iControl = (state->sumOfError * state->Igain) / 1000000;
+        iControl = (state->sumOfError * state->Igain) / 1000000000;
     }
     else {
         // reset error sum (I) as the control has slipped bound
@@ -132,4 +140,31 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
 
     // Safe to directly cast because hard limit is a 16-bit int, which will restrict dShotControl
     return (int16_t) dShotControl;
+}
+
+void thruster_controller_process_rolling_average(thruster_controller_state_t *state, int32_t currentRPM) {
+    // updates the buffer
+
+    // multiply by a million for scaling
+    int32_t rpm = currentRPM * 10000;
+
+    if (state->avgBufferFilled) {
+        // buffer has been written over before
+        state->rollingAvg = state->rollingAvg + (rpm - state->avgBuffer[state->valueToSet]) / CONTROL_AVG_LENGTH;
+    }
+    else {
+        // buffer hasnt been writte, just add
+        state->rollingAvg = state->rollingAvg + (rpm) / CONTROL_AVG_LENGTH;
+
+        // flip flage when reached the end
+        if (state->valueToSet == 99) {
+            state->avgBufferFilled = 1;
+        }
+    }
+
+    // add current value
+    state->avgBuffer[state->valueToSet] = rpm;
+
+    // set next value next time
+    state->valueToSet = (state->valueToSet + 1) % 100;
 }
