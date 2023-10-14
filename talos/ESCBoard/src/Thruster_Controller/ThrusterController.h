@@ -60,6 +60,10 @@ static inline void thruster_controller_init_defaults(thruster_controller_state_t
 
 static inline void thruster_controller_zero(thruster_controller_state_t *state) {
     state->sumOfError = 0;
+    state->valueToSet = 0;
+    state->rollingAvg = 0;
+    state->avgBufferFilled = 0;
+    state->lastIReset = 0;
 }
 
 /**

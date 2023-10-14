@@ -44,7 +44,7 @@
 #define TELEM_PACKET_DELAY 100
 
 // Number of packets that can be missed before the telemetry packet is marked as invalid
-#define TELEM_MAX_MISSED_PACKETS 3
+#define TELEM_MAX_MISSED_PACKETS 10
 
 // The PIO Block to reserve for DShot communication
 #define DSHOT_PIO_BLOCK pio0
@@ -55,7 +55,7 @@
 // Minimum time per dshot tick. Sending it too fast will result in packets being dropped by the ESC
 // This implies the maximum time that we'd expect a bidirectional dshot message to take, since we can't transmit while
 // expecting the ESC might still respond, as this would cause contention
-#define DSHOT_MIN_FRAME_TIME_US 400
+#define DSHOT_MIN_FRAME_TIME_US 1000
 
 // Constant for converting electrical RPM to mechanical RPM
 // Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2

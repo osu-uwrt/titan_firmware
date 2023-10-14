@@ -100,6 +100,8 @@ typedef union sio_fifo_req {
 } sio_fifo_req_t;
 static_assert(sizeof(sio_fifo_req_t) == sizeof(uint32_t), "FIFO Command did not pack properly");
 
+thruster_controller_state_t controller_state[NUM_THRUSTERS] = { 0 };
+
 /**
  * @brief Main loop for the thruster control loop. Entry point for core 1.
  */
@@ -121,7 +123,6 @@ static void __time_critical_func(core1_main)() {
     // If the RPM command expires, this will be set to DSHOT_UPDATE_DISABLE_TIME_MS to prevent thruster jitter
     absolute_time_t command_timeout_penalty = nil_time;
     // Holds the state of the thruster controller
-    thruster_controller_state_t controller_state[NUM_THRUSTERS] = { 0 };
     for (int i = 0; i < NUM_THRUSTERS; i++) {
         thruster_controller_init_defaults(&controller_state[i]);
     }
@@ -374,6 +375,7 @@ static void __time_critical_func(core1_main)() {
                     // We let the thruster miss a few telemetry packets and just run the an old command, but if we miss
                     // too many, we need to clear the command since the control loop hasn't been able refresh in a while
                     throttle_commands[i] = 0;
+                    thruster_controller_zero(&controller_state[i]);
                 }
             }
             current_thruster_cmd[i] = last_command[i];
