@@ -1,6 +1,8 @@
 #ifndef DRIVER__SHT41_H_
 #define DRIVER__SHT41_H_
 
+#include "driver/async_i2c.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 /**

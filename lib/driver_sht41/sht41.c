@@ -2,6 +2,8 @@
 
 #include "driver/async_i2c.h"
 
+#include <stdio.h>
+
 #define SHT41_I2C_ADDR 0x44
 #define SHT41_WRITE_CMD 0xFD
 #define SHT41_READ_LENGTH 6
@@ -19,7 +21,7 @@ static int64_t start_read_req(__unused alarm_id_t id, void *user_data);
 
 static void on_read(const struct async_i2c_request *req);
 
-static void i2c_error_complaint(__unused const struct async_i2c_request *req, uint32_t error_code);
+// static void i2c_error_complaint(__unused const struct async_i2c_request *req, uint32_t error_code);
 
 static void on_error(const struct async_i2c_request *req, uint32_t error_code);
 
@@ -60,7 +62,7 @@ static struct sht41_data {
     int16_t temp;
     int16_t rh;
     absolute_time_t reading_expiration;  // TODO nned to init in the init()
-} last_reading;
+} last_reading = { 0 };
 
 static bool msg_in_progress = false;
 
@@ -69,18 +71,19 @@ static sht41_error_cb error_cb;
 static uint8_t err_count = 2;
 
 static int64_t start_write_req(__unused alarm_id_t id, void *user_data) {
+    printf("repeating timer alarm rcv\n");
     wr_req.user_data = user_data;
     async_i2c_enqueue(&wr_req, &msg_in_progress);
-    return SHT41_POLL_TIME_MS;
+    return SHT41_POLL_TIME_MS * 1000;
 }
 
 static void on_write(const struct async_i2c_request *req) {
-    printf("begin on_write\n");  // FIXME debug only
+    // printf("begin on_write\n");  // FIXME debug only
     if (add_alarm_in_ms(SHT41_SAMPLING_TIME_MS, &start_read_req, req->user_data, true) < 0) {
         printf("Timer queue is full\n");  // FIXME debug only
         on_error(req, 0x0);
     }
-    printf("alarm timer is added\n");  // FIXME debug only
+    printf("10 ms alarm timer is added\n");  // FIXME debug only
 }
 
 static uint8_t crc_check(uint8_t *data, uint8_t len) {
@@ -114,7 +117,7 @@ static void on_read(const struct async_i2c_request *req) {
     }
     local->temp = req->rx_buffer[0] << 8 | req->rx_buffer[1];
 
-    if (req->rx_buffer[5] != crc_check(req->rx_buffer + 5, 2)) {
+    if (req->rx_buffer[5] != crc_check(req->rx_buffer + 3, 2)) {
         printf("rh crc is invalid");  // FIXME debug only
         on_error(req, 0x5);
     }
@@ -149,26 +152,27 @@ static void on_error(const struct async_i2c_request *req, uint32_t error_code) {
     err_count++;
     if (err_count >= 3) {
         if (error_cb) {
-            error_callback(req, error_code);
+            error_cb(req, error_code);
         }
     }
 }
 
 void sht41_init(sht41_error_cb board_error_cb) {
     error_cb = board_error_cb;
+    last_reading.reading_expiration = get_absolute_time();
     wr_req.timeout = nil_time;
     rd_req.timeout = nil_time;
 
     // Without using repeating alarm_timer_interrupts
-    wr_req.user_data = (void *) &last_reading;
-    printf("enqueuing wr_req\n");  // FIXME debug only
-    async_i2c_enqueue(&wr_req, &msg_in_progress);
+    // wr_req.user_data = (void *) &last_reading;
+    // printf("enqueuing wr_req\n");  // FIXME debug only
+    // async_i2c_enqueue(&wr_req, &msg_in_progress);
 
     // Using repeating alarm_timer_interrupts
-    // if (add_alarm_in_ms(SHT41_POLL_TIME_MS, &start_write_req, (void *) &last_reading, true) < 0) {
-    //     printf("Timer queue is full\n");  // FIXME debug only
-    //     on_error(&wr_req, 0x0);
-    // }
+    if (add_alarm_in_ms(SHT41_POLL_TIME_MS, &start_write_req, (void *) &last_reading, true) < 0) {
+        printf("Timer queue is full\n");  // FIXME debug only
+        on_error(&wr_req, 0x0);
+    }
     // error_cb if timer interrupt queue is full
 }
 
