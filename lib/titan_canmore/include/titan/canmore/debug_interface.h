@@ -29,7 +29,9 @@ extern "C" {
  *       +----------------+
  * 0x0A: |   Fault Name   |  RO  (Mem-mapped)
  *       +----------------+
- * 0x0B: | Profiler Data  |  RO  (Mem-mapped)
+ * 0x0B: |   Fault Data   |  (Reg)
+ *       +----------------+
+ * 0x0C: | Fault Filename |  RO  (Mem-mapped)
  *       +----------------+
  *
  *
@@ -54,7 +56,6 @@ extern "C" {
  *       +----------------+
  * 0x07: |   Reboot MCU   | WO
  *       +----------------+
- *
  *
  * Magic:           Magic value to identify valid control block
  *                  Should contain the word 0x10ad2040
@@ -105,7 +106,6 @@ extern "C" {
  * 0x0B: |    Keepcost    | RO
  *       +----------------+
  *
- *
  * Capture:         Captures the current memory usage into the other registers in this page.
  *                  Must be called before reading any of the other registers in this page.
  * Total Mem:       Total memory available in the device
@@ -132,13 +132,12 @@ extern "C" {
  *       +----------------+
  * 0x02: |     Uptime     | RO
  *       +----------------+
- * 0x03: | Fault Name Idx | RW
+ * 0x03: |    Fault Idx   | RW
  *       +----------------+
  * 0x04: |   Raise Fault  | WO
  *       +----------------+
  * 0x05: |   Lower Fault  | WO
  *       +----------------+
- *
  *
  * Global State:    Contains bit flags reporting the global safety state
  *      Bit 0:        Safety Setup
@@ -147,9 +146,10 @@ extern "C" {
  *      Bit 3:        Safety Fault Present
  * Fault List:      Bitwise list of all faults present
  * Uptime:          System uptime in centiseconds
- * Fault Name Idx:  Index for fault name to be present in Fault Name Page
+ * Fault Idx:       Index for fault in fault name, data, and filename page
  * Raise Fault:     Raises the requested fault id
  * Lower Fault:     Lowers the requested fault id
+ *
  *
  * Crash Log
  * ==============
@@ -190,10 +190,44 @@ extern "C" {
  * boot). Not valid until Prev Index is written Prev Scratch 2:  The scratch 2 register for the previous reset. Not
  * valid until Prev Index is written
  *
+ *
  * Fault Name
  * ==============
- * Contains string of the fault name specified in the Fault Name Idx Register. Note until the Fault Name Idx register
- * is written this page cannot be read.
+ * Contains string of the fault name specified in the Fault Idx Register. Note until the Fault Idx register is written
+ * this page cannot be read.
+ *
+ *
+ * Fault Data
+ * ==============
+ * Contains data for the fault selected by the Fault Idx Register. Note until the Fault Idx register is written this
+ * page cannot be read.
+ *
+ *       +----------------+
+ * 0x00: |     Sticky     | RO
+ *       +----------------+
+ * 0x01: |   Time Lower   | RO
+ *       +----------------+
+ * 0x02: |   Time Upper   | RO
+ *       +----------------+
+ * 0x03: |   Extra Data   | RW
+ *       +----------------+
+ * 0x04: |  Line Number   | RO
+ *       +----------------+
+ * 0x05: | Multiple Fires | RO
+ *       +----------------+
+ *
+ * Sticky:          True if the fault has ever been raised. All other fault data is invalid if this is false
+ * Time Lower:      The lower 32-bits of the timestamp when the fault was raised (in us)
+ * Time Upper:      The upper 32-bits of the timestamp when the fault was raised (in us)
+ * Extra Data:      Optional extra data that was passed with the fault being raised
+ * Line Number:     The line number where the fault was raised
+ * Multiple Fires:  True if the fault was raised multiple times (data was overwritten)
+ *
+ *
+ * Fault Filename
+ * ==============
+ * Contains the filename that the last fault was raised. This page cannot be read until the Fault Idx register is
+ * written. Additionally this will be invalid unless Fault Data::Sticky is true.
  *
  */
 
@@ -204,7 +238,8 @@ extern "C" {
 #define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
 #define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
 #define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
-#define CANMORE_DBG_PROFILER_PAGE_NUM 0x0B  // TODO Add in
+#define CANMORE_DBG_FAULT_DATA_PAGE_NUM 0x0B
+#define CANMORE_DBG_FAULT_FILENAME_PAGE_NUM 0x0C
 
 // MCU Control Register Definitions
 #define CANMORE_DBG_MCU_CONTROL_MAGIC_OFFSET 0x00
@@ -243,7 +278,7 @@ extern "C" {
 #define CANMORE_DBG_SAFETY_STATUS_FAULT_LIST_OFFSET 0x01
 #define CANMORE_DBG_SAFETY_STATUS_UPTIME_OFFSET 0x02
 #define CANMORE_DBG_SAFETY_STATUS_UPTIME_TICKS_PER_SECOND 100
-#define CANMORE_DBG_SAFETY_STATUS_FAULT_NAME_IDX_OFFSET 0x03
+#define CANMORE_DBG_SAFETY_STATUS_FAULT_IDX_OFFSET 0x03
 #define CANMORE_DBG_SAFETY_STATUS_RAISE_FAULT_OFFSET 0x04
 #define CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET 0x05
 
@@ -278,6 +313,14 @@ extern "C" {
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_UNK_WDG_VALUE 5
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTLOADER_VALUE 6
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET 0x08
+
+// Fault Data Page
+#define CANMORE_DBG_FAULT_DATA_STICKY_OFFSET 0x00
+#define CANMORE_DBG_FAULT_DATA_TIME_LOWER_OFFSET 0x01
+#define CANMORE_DBG_FAULT_DATA_TIME_UPPER_OFFSET 0x02
+#define CANMORE_DBG_FAULT_DATA_EXTRA_DATA_OFFSET 0x03
+#define CANMORE_DBG_FAULT_DATA_LINE_NUMBER_OFFSET 0x04
+#define CANMORE_DBG_FAULT_DATA_MULTIPLE_FIRES_OFFSET 0x05
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,8 @@
 # Titan Firmware
 Firmware for OSU UWRT's RP2040 microcontrollers. Written in C using the [Pico SDK](https://github.com/raspberrypi/pico-sdk).
 
+### Read the setup documentation [here](docs/01_Setup.md).
+
 ## Features
 * **[micro-ROS](https://micro.ros.org/)**: Runs ROS, used by the software stack, directly in firmware to simplify application development. Supports multiple transports:
     * CAN Bus: Used on all Talos MCUs
@@ -25,7 +27,3 @@ Firmware for OSU UWRT's RP2040 microcontrollers. Written in C using the [Pico SD
 * `puddles/`: Code for the puddles vehicle microcontrollers
 * `talos/`: Code for the talos vehicle microcontrollers
 * `tools/`: Scripts and applications written to run on the host development system to aid in development and deployment. Contains CanmoreCLI and Upload Tool applications.
-
-## Getting Started
-
-### Read the setup documentation [here](docs/01_Setup.md).

@@ -139,7 +139,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
 }
 
 rcl_ret_t ros_send_rpm(uint8_t board_id) {
-    riptide_msgs2__msg__DshotRPMFeedback rpm_msg;
+    riptide_msgs2__msg__DshotRPMFeedback rpm_msg = { 0 };
     uint8_t valid_mask = 0;
     uint thruster_base = (board_id == 0 ? 0 : 4);
 

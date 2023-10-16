@@ -219,6 +219,48 @@ struct MemoryStats {
     uint32_t keepcost;
 };
 
+struct FaultData {
+    uint32_t faultId;
+    std::string name;
+    bool sticky;
+    uint64_t timestamp;
+    uint32_t extraData;
+    std::string filename;
+    uint16_t line;
+
+    FaultData(uint32_t faultId, const std::string &name, bool sticky, uint32_t timestampLower, uint32_t timestampUpper,
+              uint32_t extraData, const std::string &filename, uint16_t line):
+        faultId(faultId),
+        name(name), sticky(sticky), timestamp((((uint64_t) timestampUpper) << 32) + timestampLower),
+        extraData(extraData), filename(filename), line(line) {}
+
+    std::string formatTimestamp() const {
+        std::stringstream out;
+        out << std::setfill('0');
+
+        // Timestamp in microseconds
+        uint64_t timestamp_seconds = timestamp / 1000000;
+        uint64_t timestamp_us = timestamp % 1000000;
+
+        // Only display hours if we've gone that far
+        if (timestamp_seconds > 3600) {
+            out << std::setw(2) << timestamp_seconds / 3600 << ":";
+            timestamp_seconds %= 3600;
+        }
+
+        uint64_t timestamp_minutes = timestamp_seconds / 60;
+        timestamp_seconds %= 60;
+        if (timestamp_minutes > 0) {
+            out << std::setw(2) << timestamp_minutes << ":";
+        }
+        out << std::setw(2) << timestamp_seconds;
+
+        // Add the microseconds
+        out << "." << std::setw(6) << timestamp_us;
+        return out.str();
+    }
+};
+
 class DebugClient {
 public:
     DebugClient(std::shared_ptr<RegMappedClient> client);
@@ -236,6 +278,7 @@ public:
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
 
     std::string lookupFaultName(uint32_t faultId);
+    FaultData lookupFaultData(uint32_t faultId);
     uint32_t getActiveFaults();
     void raiseFault(uint32_t faultId);
     void lowerFault(uint32_t faultId);

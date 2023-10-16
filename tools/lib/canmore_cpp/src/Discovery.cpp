@@ -6,7 +6,7 @@
 
 using namespace Canmore;
 
-#define STALE_DISCOVERY_MS 5000
+#define STALE_DISCOVERY_MS 1200
 
 Discovery::Discovery(): socketFd(-1), threadEventFd(-1) {}
 
@@ -111,7 +111,6 @@ void Discovery::pruneDiscoveredDevices() {
         std::chrono::milliseconds(STALE_DISCOVERY_MS);
     auto searchDev = std::make_shared<Device>(lastValidTime);
     auto it = discoveredDevices.lower_bound(searchDev);
-    // TODO: Debug flakey discovery
 
     // Remove devices not in this range
     discoveredDevices.erase(discoveredDevices.begin(), it);
