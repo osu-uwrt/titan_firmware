@@ -102,6 +102,11 @@ static void tick_ros_tasks() {
     if (depth_reading_valid() && timer_ready(&next_water_temp_publish, WATER_TEMP_PUBLISH_INTERVAL_MS, false)) {
         RCSOFTRETVCHECK(ros_update_water_temp_publisher());
     }
+
+    if (sht41_temp_rh_set_on_read) {
+        sht41_temp_rh_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
 }
 
 static void tick_background_tasks() {
@@ -121,8 +126,12 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
-static void sht41_sensor_error_cb(enum sht41_error_code error, uint32_t error_code) {
-    LOG_ERROR("sht41 error type: %d\n", error);
+static void sht41_sensor_error_cb(const sht41_error_code error_type, uint32_t i2c_error_code) {
+    if (error_type == SHT41_ERROR_I2C_COMPLAINT)
+        LOG_ERROR("Error in sht41 driver: %d, error_code: 0x%08lx", error_type, i2c_error_code);
+    else {
+        LOG_ERROR("Error in sht41 driver: %d", error_type);
+    }
 }
 
 int main() {
