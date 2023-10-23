@@ -278,9 +278,9 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
     if (sht41_is_valid()) {
         std_msgs__msg__Float32 sht41_msg;
         sht41_msg.data = sht41_read_temp();
-        RCSOFTRETVCHECK(rcl_publish(&temp_status_publisher, &sht41_msg, NULL));
+        RCSOFTRETCHECK(rcl_publish(&temp_status_publisher, &sht41_msg, NULL));
         sht41_msg.data = sht41_read_rh();
-        RCSOFTRETVCHECK(rcl_publish(&humidity_status_publisher, &sht41_msg, NULL));
+        RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_msg, NULL));
     }
 
     return RCL_RET_OK;

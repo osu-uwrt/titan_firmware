@@ -126,12 +126,8 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
-static void sht41_sensor_error_cb(const sht41_error_code error_type, uint32_t i2c_error_code) {
-    if (error_type == SHT41_ERROR_I2C_COMPLAINT)
-        LOG_ERROR("Error in sht41 driver: %d, error_code: 0x%08lx", error_type, i2c_error_code);
-    else {
-        LOG_ERROR("Error in sht41 driver: %d", error_type);
-    }
+static void sht41_sensor_error_cb(const sht41_error_code error_type) {
+    safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
 }
 
 int main() {
@@ -152,7 +148,7 @@ int main() {
 
     depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
-    sht41_init(&sht41_sensor_error_cb);
+    sht41_init(&sht41_sensor_error_cb, BOARD_I2C, SHT41_I2C_ADDR);
 
     // Status Strip Initialization
     bi_decl_if_func_used(bi_1pin_with_name(RGB_DATA_PIN, "Status RGB Strip"));
