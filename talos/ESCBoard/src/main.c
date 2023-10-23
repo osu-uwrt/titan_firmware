@@ -134,7 +134,7 @@ int main() {
     load_client_id();
     led_init();
     micro_ros_init_error_handling();
-    core1_init();
+    core1_init(esc_board_num);
 
     // Initialize ROS Transport
     if (!transport_can_init(client_id)) {

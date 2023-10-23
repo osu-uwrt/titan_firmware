@@ -90,9 +90,15 @@ static void dshot_uart_prep_for_rx(uint thruster, bool rpm_reversed) {
 
     if (dshot_telemetry_data[thruster].missed_count < TELEM_MAX_MISSED_PACKETS) {
         dshot_telemetry_data[thruster].missed_count++;
+        if (dshot_telemetry_data[thruster].total_missed < UINT16_MAX) {
+            dshot_telemetry_data[thruster].total_missed++;
+        }
     }
     else {
         dshot_telemetry_data[thruster].valid = false;
+        if (dshot_telemetry_data[thruster].total_invalid < UINT16_MAX) {
+            dshot_telemetry_data[thruster].total_invalid++;
+        }
     }
     spin_unlock(dshot_telemtry_lock, irq);
 }
@@ -143,6 +149,9 @@ static void __time_critical_func(dshot_uart_telem_cb)(void) {
                     // Clear missed packet count and mark data as valid
                     dshot_telemetry_data[i].missed_count = 0;
                     dshot_telemetry_data[i].valid = true;
+                    if (dshot_telemetry_data[i].total_success < UINT16_MAX) {
+                        dshot_telemetry_data[i].total_success++;
+                    }
                 }
             }
         }
@@ -325,6 +334,15 @@ bool dshot_get_telemetry(int thruster_num, struct dshot_uart_telemetry *telem_ou
     if (valid) {
         *telem_out = dshot_telemetry_data[thruster_num];
     }
+    else {
+        telem_out->valid = false;
+        telem_out->total_missed = dshot_telemetry_data[thruster_num].total_missed;
+        telem_out->total_invalid = dshot_telemetry_data[thruster_num].total_invalid;
+        telem_out->total_success = dshot_telemetry_data[thruster_num].total_success;
+    }
+    dshot_telemetry_data[thruster_num].total_missed = 0;
+    dshot_telemetry_data[thruster_num].total_invalid = 0;
+    dshot_telemetry_data[thruster_num].total_success = 0;
     spin_unlock(dshot_telemtry_lock, irq);
 
     return valid;

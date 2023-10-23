@@ -47,14 +47,41 @@ static int32_t thruster_controller_feed_forward(int32_t targetRPM) {
     return dShotValue / 1000000;  // value / 1000000;
 }
 
+static void thruster_controller_process_rolling_average(thruster_controller_state_t *state, int32_t currentRPM) {
+    // updates the buffer
+
+    // multiply by a million for scaling
+    int32_t rpm = currentRPM * 10000;
+
+    if (state->avgBufferFilled) {
+        // buffer has been written over before
+        state->rollingAvg = state->rollingAvg + (rpm - state->avgBuffer[state->valueToSet]) / CONTROL_AVG_LENGTH;
+    }
+    else {
+        // buffer hasnt been writte, just add
+        state->rollingAvg = state->rollingAvg + (rpm) / CONTROL_AVG_LENGTH;
+
+        // flip flage when reached the end
+        if (state->valueToSet == (CONTROL_AVG_LENGTH - 1)) {
+            state->avgBufferFilled = true;
+        }
+    }
+
+    // add current value
+    state->avgBuffer[state->valueToSet] = rpm;
+
+    // set next value next time
+    state->valueToSet = (state->valueToSet + 1) % CONTROL_AVG_LENGTH;
+}
+
 // call this each cycle
 int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t CurrentRPM,
-                                 int32_t deltaTime, uint8_t inverted) {
+                                 int32_t deltaTime) {
     // rpm error - this value should be practically less than 10,000\
 
     // if inverted, change sign of input
     int32_t currentRPM = CurrentRPM;
-    if (inverted) {
+    if (state->inverted) {
         currentRPM = -1 * CurrentRPM;
     }
 
@@ -134,37 +161,10 @@ int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t tar
     }
 
     // if the thruster is inverted return the negative dshot
-    if (inverted) {
+    if (state->inverted) {
         return (int16_t) (-1 * dShotControl);
     }
 
     // Safe to directly cast because hard limit is a 16-bit int, which will restrict dShotControl
     return (int16_t) dShotControl;
-}
-
-void thruster_controller_process_rolling_average(thruster_controller_state_t *state, int32_t currentRPM) {
-    // updates the buffer
-
-    // multiply by a million for scaling
-    int32_t rpm = currentRPM * 10000;
-
-    if (state->avgBufferFilled) {
-        // buffer has been written over before
-        state->rollingAvg = state->rollingAvg + (rpm - state->avgBuffer[state->valueToSet]) / CONTROL_AVG_LENGTH;
-    }
-    else {
-        // buffer hasnt been writte, just add
-        state->rollingAvg = state->rollingAvg + (rpm) / CONTROL_AVG_LENGTH;
-
-        // flip flage when reached the end
-        if (state->valueToSet == 99) {
-            state->avgBufferFilled = 1;
-        }
-    }
-
-    // add current value
-    state->avgBuffer[state->valueToSet] = rpm;
-
-    // set next value next time
-    state->valueToSet = (state->valueToSet + 1) % 100;
 }

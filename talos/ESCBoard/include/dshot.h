@@ -26,7 +26,7 @@
 #define DSHOT_UPDATE_DISABLE_TIME_MS 1000
 
 // The delay in milliseconds that thrusters will be disabled for on ESC power-up
-#define ESC_WAKEUP_DELAY_MS 5000
+#define ESC_POWERUP_DELAY_MS 5000
 
 // The dshot rate in KHz, must be a valid dshot rate (DSHOT150, DSHOT300, DSHOT600, DSHOT1200)
 #define DSHOT_RATE 600
@@ -44,6 +44,7 @@
 #define TELEM_PACKET_DELAY 100
 
 // Number of packets that can be missed before the telemetry packet is marked as invalid
+// TODO: Figure out what's up with ESC 5 (idx. 4) and why this had to be turned up
 #define TELEM_MAX_MISSED_PACKETS 10
 
 // The PIO Block to reserve for DShot communication
@@ -55,7 +56,8 @@
 // Minimum time per dshot tick. Sending it too fast will result in packets being dropped by the ESC
 // This implies the maximum time that we'd expect a bidirectional dshot message to take, since we can't transmit while
 // expecting the ESC might still respond, as this would cause contention
-#define DSHOT_MIN_FRAME_TIME_US 1000
+// Effectively controls the max dshot control loop rate
+#define DSHOT_MIN_FRAME_TIME_US 400
 
 // Constant for converting electrical RPM to mechanical RPM
 // Found on forum: https://discuss.bluerobotics.com/t/t200-thruster-questions-poles-max-voltage-e-bike-controller/2442/2
@@ -66,14 +68,17 @@
 // ========================================
 
 struct dshot_uart_telemetry {
-    int missed_count;      // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
-    bool valid;            // If the packet is valid
-    bool rpm_reversed;     // True if the RPM value is negative (guessed by software, as telemetry gives absolute value)
-    uint8_t temperature;   // Temperature in C
-    uint16_t voltage;      // Voltage in hundredths of volts
-    uint16_t current;      // Current in hundredths of amps
-    uint16_t consumption;  // Consumption of mAh
-    uint16_t rpm;          // Electrical RPM in 100s of RPM
+    uint16_t missed_count;   // Missed packet counter (incremented every TX attempt, zeroed after successful rx)
+    uint16_t total_missed;   // Count of attempted packets that were missed, but not enough to be invalid since last
+    uint16_t total_invalid;  // Count of attempted packets that resulted in the telemtry being invalid since last fetch
+    uint16_t total_success;  // Count of total successful uart telemetry packets received since last fetch
+    bool valid;              // If the packet is valid
+    bool rpm_reversed;       // True if the RPM value is negative (guessed by software, as ESC gives absolute value)
+    uint8_t temperature;     // Temperature in C
+    uint16_t voltage;        // Voltage in hundredths of volts
+    uint16_t current;        // Current in hundredths of amps
+    uint16_t consumption;    // Consumption of mAh
+    uint16_t rpm;            // Electrical RPM in 100s of RPM
 };
 
 // ========================================
@@ -125,6 +130,8 @@ extern volatile bool dshot_thrusters_on;
 
 /**
  * @brief Attempts to retreive telemetry for the requested thruster number.
+ * If this was successful, telem_out will have been filled with all telemetry. If not, only valid, total_missed, and
+ * total_invalid will be set.
  *
  * @note This function is safe to be called from any context, including both cores and in interrupts.
  *

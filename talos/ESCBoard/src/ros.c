@@ -33,13 +33,9 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DSHOT_COMMAND_SUCRIBER_NAME "command/thruster_rpm"
-#define THRUSTER_MOVING_BORAD0_PUBLISHER_NAME "state/thrusters/moving_brd0"
-#define THRUSTER_MOVING_BORAD1_PUBLISHER_NAME "state/thrusters/moving_brd1"
 #define DSHOT_RPM_PUBLISHER_NAME "state/thrusters/rpm"
 #define DSHOT_CMD_PUBLISHER_NAME "state/thrusters/cmd"
 #define DSHOT_TELEMETRY_PUBLISHER_NAME "state/thrusters/telemetry"
-#define DSHOT_CONTROLLER_RATE_BOARD0_PUBLISHER_NAME "state/thrusters/rate0"
-#define DSHOT_CONTROLLER_RATE_BOARD1_PUBLISHER_NAME "state/thrusters/rate1"
 
 #define DSHOT_TUNE_SET_RAW "dshot_tune/set_raw"
 #define DSHOT_TUNE_P_GAIN "dshot_tune/p_gain"
@@ -64,11 +60,9 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 
-rcl_publisher_t thrusters_moving_publisher;
 rcl_publisher_t dshot_telem_publisher;
 rcl_publisher_t dshot_rpm_publisher;
 rcl_publisher_t dshot_cmd_publisher;
-rcl_publisher_t dshot_control_loop_rate_publisher;
 rcl_subscription_t dshot_subscriber;
 rcl_subscription_t dshot_tune_set_raw_subscriber;
 rcl_subscription_t dshot_tune_p_gain_subscriber;
@@ -197,15 +191,16 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
     uint8_t valid_mask = 0;
     uint thruster_base = (board_id == 0 ? 0 : 4);
 
-    for (int i = 0; i < NUM_THRUSTERS; i++) {
-        int16_t rpm;
-        int16_t cmd;
+    struct core1_telem telem_data;
+    core1_get_telem(&telem_data);
 
-        if (core1_get_current_rpm(i, &rpm, &cmd)) {
+    for (int i = 0; i < NUM_THRUSTERS; i++) {
+        if (telem_data.thruster[i].rpm_valid) {
             valid_mask |= 1 << (thruster_base + i);
-            rpm_msg.rpm[thruster_base + i] = rpm;
-            cmd_msg.rpm[thruster_base + i] = cmd;
+            rpm_msg.rpm[thruster_base + i] = telem_data.thruster[i].rpm;
         }
+
+        cmd_msg.rpm[thruster_base + i] = telem_data.thruster[i].cmd;
     }
 
     rpm_msg.rpm_valid_mask = valid_mask;
@@ -219,40 +214,56 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
 
 rcl_ret_t ros_send_telemetry(uint8_t board_id) {
     riptide_msgs2__msg__DshotPartialTelemetry telem_msg;
+
+    // Capture the telemetry from core1
+    struct core1_telem core1_telem_data;
+    core1_get_telem(&core1_telem_data);
+
+    // Copy in all global telemetry data
     telem_msg.vcc_voltage = (vcc_reading_mv / 1000.f);
     telem_msg.escs_powered = esc_board_on;
+    telem_msg.thrusters_moving = dshot_thrusters_on;
     telem_msg.start_thruster_num = (board_id == 0 ? 0 : 4);
+    telem_msg.disabled_flags = core1_telem_data.disabled_flags;
+    telem_msg.packet_delta_us = core1_telem_data.time_delta_us;
+    telem_msg.tick_cnt = core1_telem_data.controller_tick_cnt;
 
+    // Copy in thruster-specific telemtry data
     for (int i = 0; i < NUM_THRUSTERS; i++) {
-        struct dshot_uart_telemetry telem_data;
-        if (dshot_get_telemetry(i, &telem_data)) {
-            telem_msg.esc_telemetry[i].present = true;
-            telem_msg.esc_telemetry[i].temperature_c = telem_data.temperature;
-            telem_msg.esc_telemetry[i].voltage = telem_data.voltage / 100.0;
-            telem_msg.esc_telemetry[i].current = telem_data.current / 100.0;
-            telem_msg.esc_telemetry[i].consumption_ah = telem_data.consumption / 1000.0;
+        struct dshot_uart_telemetry uart_telem_data;
+        if (dshot_get_telemetry(i, &uart_telem_data)) {
+            // ESC is only online if we have both RPM and telemtry coming out of it
+            telem_msg.esc_telemetry[i].esc_online = core1_telem_data.thruster[i].rpm_valid;
+
+            // Copy in the uart telemetry data
+            telem_msg.esc_telemetry[i].temperature_c = uart_telem_data.temperature;
+            telem_msg.esc_telemetry[i].voltage = uart_telem_data.voltage / 100.0;
+            telem_msg.esc_telemetry[i].current = uart_telem_data.current / 100.0;
+            telem_msg.esc_telemetry[i].consumption_ah = uart_telem_data.consumption / 1000.0;
             telem_msg.esc_telemetry[i].rpm =
-                (telem_data.rpm_reversed ? -1 : 1) * telem_data.rpm * 100 / ESC_NUM_POLE_PAIRS;
+                (uart_telem_data.rpm_reversed ? -1 : 1) * uart_telem_data.rpm * 100 / ESC_NUM_POLE_PAIRS;
         }
         else {
-            telem_msg.esc_telemetry[i].present = false;
+            telem_msg.esc_telemetry[i].esc_online = false;
             telem_msg.esc_telemetry[i].temperature_c = 0;
             telem_msg.esc_telemetry[i].voltage = 0;
             telem_msg.esc_telemetry[i].current = 0;
             telem_msg.esc_telemetry[i].consumption_ah = 0;
             telem_msg.esc_telemetry[i].rpm = 0;
         }
+
+        // Copy in uart profiling data
+        telem_msg.esc_telemetry[i].uart_disabled_cnt = uart_telem_data.total_invalid;
+        telem_msg.esc_telemetry[i].uart_missed_cnt = uart_telem_data.total_missed;
+        telem_msg.esc_telemetry[i].uart_success_cnt = uart_telem_data.total_success;
+
+        // Copy in profiling data from control loop
+        telem_msg.esc_telemetry[i].thruster_ready = core1_telem_data.thruster[i].thruster_ready;
+        telem_msg.esc_telemetry[i].dshot_missed_cnt = core1_telem_data.thruster[i].ticks_missed;
+        telem_msg.esc_telemetry[i].dshot_offline_cnt = core1_telem_data.thruster[i].ticks_offline;
     }
 
     RCSOFTRETCHECK(rcl_publish(&dshot_telem_publisher, &telem_msg, NULL));
-
-    std_msgs__msg__Bool moving_msg;
-    moving_msg.data = dshot_thrusters_on;
-    RCSOFTRETCHECK(rcl_publish(&thrusters_moving_publisher, &moving_msg, NULL));
-
-    std_msgs__msg__Float32 dshot_control_loop_rate_msg;
-    dshot_control_loop_rate_msg.data = core1_get_loop_rate();
-    RCSOFTRETCHECK(rcl_publish(&dshot_control_loop_rate_publisher, &dshot_control_loop_rate_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -267,10 +278,6 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
     const char *node_name = (board_id == 0 ? PICO_TARGET_NAME "_0" : PICO_TARGET_NAME "_1");
-    const char *moving_publisher_name =
-        (board_id == 0 ? THRUSTER_MOVING_BORAD0_PUBLISHER_NAME : THRUSTER_MOVING_BORAD1_PUBLISHER_NAME);
-    const char *rate_publisher_name =
-        (board_id == 0 ? DSHOT_CONTROLLER_RATE_BOARD0_PUBLISHER_NAME : DSHOT_CONTROLLER_RATE_BOARD1_PUBLISHER_NAME);
     RCRETCHECK(rclc_node_init_default(&node, node_name, ROBOT_NAMESPACE, &support));
 
     // Node Initialization
@@ -298,13 +305,6 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_publisher_init_best_effort(&dshot_telem_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DshotPartialTelemetry),
                                                DSHOT_TELEMETRY_PUBLISHER_NAME));
-
-    RCRETCHECK(rclc_publisher_init_best_effort(
-        &thrusters_moving_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), moving_publisher_name));
-
-    RCRETCHECK(rclc_publisher_init_best_effort(&dshot_control_loop_rate_publisher, &node,
-                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                               rate_publisher_name));
 
     // Dshot tuning subscribers
     RCRETCHECK(rclc_subscription_init_default(&dshot_tune_set_raw_subscriber, &node,

@@ -9,76 +9,73 @@
 #include "pico/multicore.h"
 
 // ========================================
-// Target RPM Shared Memory
+// Shared Memory Definitions
 // ========================================
 
 /**
- * @brief Spin lock to protect Target RPM state when transferring across cores
+ * @brief Shared memory for sending commands from core 0 to core 1.
+ *
+ * @attention This can only be modified or read when lock is held
  */
-static spin_lock_t *target_rpm_lock;
+static volatile struct core1_cmd_shared_mem {
+    /**
+     * @brief Spin lock to protect command state transferring across cores
+     */
+    spin_lock_t *lock;
+
+    /**
+     * @brief The target RPM for the controller. Provided by ROS.
+     */
+    int16_t rpm[NUM_THRUSTERS];
+
+    /**
+     * @brief he time after which the target RPM command is considered stale, and the thrusters should be disabled.
+     * Prevents runaway robots.
+     */
+    absolute_time_t rpm_expiration;
+} target_req = { 0 };
 
 /**
- * @brief The target RPM from ROS for the controller to run.
+ * @brief Shared memory for sending telemetry from core 1 back to core 0.
  *
- * @attention Can only be modified or read when target_rpm_lock is held.
+ * @attention This can only be modified or read when lock is held
  */
-static volatile int16_t target_rpm[NUM_THRUSTERS] = { 0 };
+static volatile struct core1_telem_shared_mem {
+    /**
+     * @brief Spin lock to protect telemetry state transferring across cores
+     */
+    spin_lock_t *lock;
 
-/**
- * @brief The target RPM is set to the raw dshot command.
- *
- * This is useful when tuning the controller feed-forward, as it bypasses the controller and issues raw dshot commands.
- *
- * @attention Can only be modified or read when target_rpm_lock is held.
- */
-static volatile bool target_rpm_is_raw_cmd = false;
+    /**
+     * @brief Incremented every control loop tick. Can be used to compute controller rate
+     */
+    uint16_t controller_tick_cnt;
 
-/**
- * @brief The time after which the target RPM command is considered stale, and the thrusters should be disabled.
- * Prevents runaway robots.
- *
- * @attention Can only be modified or read when target_rpm_lock is held.
- */
-static volatile absolute_time_t target_rpm_expiration = { 0 };
+    /**
+     * @brief Bitwise flags for reasons that the controller could be disabled.
+     * If this is non-zero, all commands are ignored and the ESCs will be sent a zero command
+     */
+    uint8_t disabled_flags;
 
-/**
- * @brief Incremented every control loop tick. Can be used to compute controller rate
- *
- * @attention Can only modified or read when target_rpm_lock is held
- */
-static volatile unsigned int control_loop_tick_cnt;
-
-// ========================================
-// Current RPM Shared Memory
-// ========================================
-
-/**
- * @brief Spin lock to prevent Current RPM state when transferring across cores
- */
-static spin_lock_t *current_rpm_lock;
-
-/**
- * @brief Contains the last received RPM data from the ESC
- *
- * @attention Can only be modified or read when current_rpm_lock is held.
- */
-static volatile struct dshot_rpm_telem {
-    int16_t rpm;
-    uint8_t missed_count;
-    bool valid;
-} current_rpm[NUM_THRUSTERS];
-
-/**
- * @brief Contains the last command sent to the thrusters.
- *
- * @attention Can only be modified or read when current_rpm_lock is held.
- */
-static volatile int16_t current_thruster_cmd[NUM_THRUSTERS] = { 0 };
+    /**
+     * @brief Contains the last received RPM data from the ESC
+     */
+    struct thruster_state {
+        int16_t cmd;               // The command currently being sent to the thruster
+        int16_t rpm;               // Last captured RPM feedback from dshot (only valid if rpm_valid true)
+        bool rpm_valid;            // True if rpm field is considered valid
+        bool thruster_ready;       // Set to false if the
+        uint8_t rpm_missed_count;  // Number of missed RPM packets. Used to compute rpm_valid
+        uint16_t ticks_missed;     // Total # controller ticks this thruster missed (but still alive)
+        uint16_t ticks_offline;    // Total # controller ticks this thruster was taken offline due to no RPM feedback
+    } thruster[NUM_THRUSTERS];
+} telem_state = { 0 };
 
 // ========================================
 // Core 1 Main Loop
 // ========================================
 
+// Must be 24-bits as the enum is 8-bit when packing into a 32-bit word
 #define FIFO_REQ_VALUE_WIDTH 24
 
 /**
@@ -93,6 +90,11 @@ typedef union sio_fifo_req {
             CONTROLLER_PARAM_I_BOUND,
             CONTROLLER_PARAM_HARD_LIMIT,
             CONTROLLER_PARAM_MIN_CMD,
+            CONTROLLER_PARAM_INVERT_MASK,
+            CONTROLLER_PARAM_RAW_MODE,
+
+            // Must be last
+            CONTROLLER_PARAM__COUNT
         } type;
         uint32_t value : FIFO_REQ_VALUE_WIDTH;
     };
@@ -100,7 +102,12 @@ typedef union sio_fifo_req {
 } sio_fifo_req_t;
 static_assert(sizeof(sio_fifo_req_t) == sizeof(uint32_t), "FIFO Command did not pack properly");
 
-thruster_controller_state_t controller_state[NUM_THRUSTERS] = { 0 };
+/**
+ * @brief Contains the controller state. Must be in static context so we don't fill up the stack with the variable.
+ *
+ * @attention This should only be accessed from core1_main
+ */
+static thruster_controller_state_t controller_state[NUM_THRUSTERS] = { 0 };
 
 /**
  * @brief Main loop for the thruster control loop. Entry point for core 1.
@@ -114,24 +121,25 @@ static void __time_critical_func(core1_main)() {
     // Control Loop State Variables
     // ========================================
 
+    // The target RPM is interpreted as raw dshot commands. Useful when tuning the feed-forward controller
+    bool in_raw_mode = false;
     // The throttle command computed on the last tick
     int16_t throttle_commands[NUM_THRUSTERS] = { 0 };
     // The time of the last controller tick. Used to compute I gains
     absolute_time_t last_tick = nil_time;
-    // The time after which the ESCs are considered to be started ujp
-    absolute_time_t esc_startup_finished = make_timeout_time_ms(ESC_WAKEUP_DELAY_MS);
+    // The time after which the ESCs are considered to be started up
+    absolute_time_t esc_startup_finished = make_timeout_time_ms(ESC_POWERUP_DELAY_MS);
     // If the RPM command expires, this will be set to DSHOT_UPDATE_DISABLE_TIME_MS to prevent thruster jitter
     absolute_time_t command_timeout_penalty = nil_time;
-    // Holds the state of the thruster controller
-    for (int i = 0; i < NUM_THRUSTERS; i++) {
-        thruster_controller_init_defaults(&controller_state[i]);
-    }
+    // Bitwise array to keep track of which parameters of the controller still have to be configured
+    // Keeps track of what params are needed before the controller has been fully configured by ROS
+    // The controller will be kept disabled until all parameters have been set at least once
+    static_assert(CONTROLLER_PARAM__COUNT < 32, "Cannot fit all controller params into 32-bit int");
+    uint32_t controller_missing_params = (1 << CONTROLLER_PARAM__COUNT) - 1;
 
     // ========================================
     // Main Control Loop
     // ========================================
-
-    bool in_raw_mode = false;
 
     while (1) {
         // Time difference used for I gains, computed later in control loop if I gains should be enabled in this tick
@@ -143,81 +151,140 @@ static void __time_critical_func(core1_main)() {
 
         // Make copy of target request under lock
         // Prevents race conditions if Core 0 is modifying the state while we're in the middle of processing
-        uint32_t irq = spin_lock_blocking(target_rpm_lock);
-        bool target_rpm_expired = time_reached(target_rpm_expiration);
-        bool target_rpm_is_raw_cmd_cached = target_rpm_is_raw_cmd;
+        uint32_t irq = spin_lock_blocking(target_req.lock);
+        bool target_rpm_expired = time_reached(target_req.rpm_expiration);
         int16_t target_rpm_cached[NUM_THRUSTERS];
         for (int i = 0; i < NUM_THRUSTERS; i++) {
-            target_rpm_cached[i] = target_rpm[i];
+            target_rpm_cached[i] = target_req.rpm[i];
         }
-
-        // Update tick profiler
-        if (control_loop_tick_cnt < UINT32_MAX) {
-            control_loop_tick_cnt++;
-        }
-        spin_unlock(target_rpm_lock, irq);
+        spin_unlock(target_req.lock, irq);
 
         // Handle any commands that have queued in the multicore fifo since the last tick
         // This updates the controller tunings at a deterministic point of the control loop
-        if (multicore_fifo_rvalid()) {
+        bool param_modified = false;
+        while (multicore_fifo_rvalid()) {
+            param_modified = true;
+
             sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
             if (req.type == CONTROLLER_PARAM_P_GAIN) {
                 for (int i = 0; i < NUM_THRUSTERS; i++) {
                     controller_state[i].Pgain = req.value;
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_P_GAIN);
             }
             else if (req.type == CONTROLLER_PARAM_I_GAIN) {
                 for (int i = 0; i < NUM_THRUSTERS; i++) {
                     controller_state[i].Igain = req.value;
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_I_GAIN);
             }
             else if (req.type == CONTROLLER_PARAM_I_BOUND) {
                 for (int i = 0; i < NUM_THRUSTERS; i++) {
                     controller_state[i].Ibound = req.value;
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_I_BOUND);
             }
             else if (req.type == CONTROLLER_PARAM_HARD_LIMIT) {
                 for (int i = 0; i < NUM_THRUSTERS; i++) {
                     controller_state[i].hardLimit = req.value;
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_HARD_LIMIT);
             }
             else if (req.type == CONTROLLER_PARAM_MIN_CMD) {
                 for (int i = 0; i < NUM_THRUSTERS; i++) {
                     controller_state[i].minCommand = req.value;
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_MIN_CMD);
             }
+            else if (req.type == CONTROLLER_PARAM_INVERT_MASK) {
+                for (int i = 0; i < NUM_THRUSTERS; i++) {
+                    controller_state[i].inverted = (req.value & (1 << i) ? true : false);
+                }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_INVERT_MASK);
+            }
+            else if (req.type == CONTROLLER_PARAM_RAW_MODE) {
+                if (req.value) {
+                    in_raw_mode = true;
+                    safety_raise_fault(FAULT_RAW_MODE);
+                }
+                else {
+                    in_raw_mode = false;
+                    safety_lower_fault(FAULT_RAW_MODE);
+                }
+            }
+        }
+
+        if (param_modified) {
             // Zero controller after adjusting tunings
             for (int i = 0; i < NUM_THRUSTERS; i++) {
                 thruster_controller_zero(&controller_state[i]);
             }
         }
 
-        if (target_rpm_is_raw_cmd_cached && !in_raw_mode) {
-            in_raw_mode = true;
-            safety_raise_fault(FAULT_RAW_MODE);
-        }
-        else if (!target_rpm_is_raw_cmd_cached && in_raw_mode) {
-            in_raw_mode = false;
-            safety_lower_fault(FAULT_RAW_MODE);
-        }
-
         // ========================================
-        // Phase 2: Control Loop Overrides (Kill/Raw Mode)
+        // Phase 2: Check Kill Conditions
         // ========================================
 
-        // Capture if the ADC read callback saw that the ESC board turned off
-        bool board_off_cached = esc_board_was_off;
-        esc_board_was_off = false;
-
+        uint8_t disabled_flags = 0;
         // Check for conditions which require the controller to be disabled for safety reasons
         //  - Kill switch is pulled
         //  - ESC Board does not have power (or it power cycled)
-        //  - RPM command has gone stale
         //  - ESC startup delay (ESC board received power, but has yet to chime)
+        //  - RPM command has gone stale
         //  - RPM timeout lockout (After RPM times out, don't accept any commands for a brief period to prevent jitter)
+        //  - The controller has not yet been configured
 
-        if (safety_kill_get_asserting_kill() || target_rpm_expired || !time_reached(esc_startup_finished) ||
-            !time_reached(command_timeout_penalty) || !esc_board_on || board_off_cached) {
+        // Condition: Kill switch is pulled
+        if (safety_kill_get_asserting_kill()) {
+            disabled_flags |= (1 << CORE1_DISABLED_SAFETY_KILLED);
+        }
+
+        // Condition: ESC Board does not have power (or it power cycled)
+        if (esc_board_was_off || !esc_board_on) {
+            // If the ADC read callback saw that the ESC board turned off, or the board is currently off
+            esc_board_was_off = false;
+            disabled_flags |= (1 << CORE1_DISABLED_ESC_BOARD_OFF);
+
+            // Set the startup delay. Once the ESC board, comes back on, this timeout will prevent commands while the
+            // ESCs are still chiming.
+            esc_startup_finished = make_timeout_time_ms(ESC_POWERUP_DELAY_MS);
+        }
+
+        // Condition: ESC startup delay (ESC board received power, but has yet to chime)
+        // But only check if ESC board was off to not make disabled flags confusing
+        else if (!time_reached(esc_startup_finished)) {
+            disabled_flags |= (1 << CORE1_DISABLED_ESC_POWERON_DELAY);
+        }
+
+        // Condition: RPM command has gone stale
+        if (target_rpm_expired) {
+            disabled_flags |= (1 << CORE1_DISABLED_TGT_RPM_STALE);
+
+            // If the thrusters were moving when the target RPM expired, then raise a fault, since the controller
+            // timed out while commanding thrust. This is an issue with the ROS side, as it means it wasn't updating
+            // us fast enough. Set the timeout penalty to prevent jitter
+            if (dshot_thrusters_on) {
+                safety_raise_fault(FAULT_RPM_CMD_TIMEOUT);
+                command_timeout_penalty = make_timeout_time_ms(DSHOT_UPDATE_DISABLE_TIME_MS);
+            }
+        }
+
+        // Condition: RPM timeout lockout (Don't accept any commands for a brief period after timeout to prevent jitter)
+        if (!time_reached(command_timeout_penalty)) {
+            disabled_flags |= (1 << CORE1_DISABLED_TGT_RPM_STALE_PENALTY);
+        }
+
+        // Condition: The controller has not yet been configured
+        if (controller_missing_params) {
+            disabled_flags |= (1 << CORE1_DISABLED_CONTROLLER_UNCONFIGURED);
+        }
+
+        // ========================================
+        // Phase 3: Control Loop Overrides (Kill/Raw Mode)
+        // ========================================
+
+        // Kill controller if any disabled flag has been set
+        if (disabled_flags != 0) {
             // Clear command and controller state. When the controller starts up again, it should be starting the same
             // as though it was a clean boot.
             for (int i = 0; i < NUM_THRUSTERS; i++) {
@@ -225,26 +292,10 @@ static void __time_critical_func(core1_main)() {
                 thruster_controller_zero(&controller_state[i]);
             }
             last_tick = nil_time;
-
-            // If the reason for entering this shutdown code was the target rpm expiration, raise a fault
-            // This logic works as dshot_thrusters_on is only true if this is the first control loop since the
-            // controller was disabled. So, if target RPM command is expired, and its the first time entering the
-            // disable logic, then the reason it was disabled must be for the target RPM expiring.
-            if (dshot_thrusters_on && target_rpm_expired) {
-                safety_raise_fault(FAULT_RPM_CMD_TIMEOUT);
-                command_timeout_penalty = make_timeout_time_ms(DSHOT_UPDATE_DISABLE_TIME_MS);
-            }
-
-            // If the ESC board is currently not on, or we saw that a previous reading registered that it was off,
-            // set the startup delay. Once the ESC board, comes back on, this timeout will prevent commands for the
-            // startup delay.
-            if (!esc_board_on || esc_board_was_off) {
-                esc_startup_finished = make_timeout_time_ms(ESC_WAKEUP_DELAY_MS);
-            }
         }
 
         // If the controller is in raw mode, ignore the controller and send the throttle commands to it directly
-        else if (target_rpm_is_raw_cmd_cached) {
+        else if (in_raw_mode) {
             for (int i = 0; i < NUM_THRUSTERS; i++) {
                 int16_t throttle = target_rpm_cached[i];
                 if (throttle >= -999 && throttle <= 999) {
@@ -266,6 +317,7 @@ static void __time_critical_func(core1_main)() {
         else {
             // If controller hasn't been disabled, compute tick difference
             // Compute the time delta between sending commands to the controller
+            // This must be done as close as possible to dshot_update_thrusters
             absolute_time_t current_time = get_absolute_time();
             if (!is_nil_time(last_tick)) {
                 // Only enable I gains if we have a proper time difference from the last control loop
@@ -275,7 +327,7 @@ static void __time_critical_func(core1_main)() {
         }
 
         // ========================================
-        // Phase 3: Dshot Command Transmit
+        // Phase 4: Dshot Command Transmit
         // ========================================
 
         // Send command, and compute min and max update timestamps
@@ -284,14 +336,14 @@ static void __time_critical_func(core1_main)() {
         // Time at which we are okay to send the next packet. Sending too fast will cause the ESC to drop the message
         absolute_time_t min_frame_time = make_timeout_time_us(DSHOT_MIN_FRAME_TIME_US);
 
-        // Save last command to be sent later
+        // Save last command to be stored under lock later
         int16_t last_command[NUM_THRUSTERS];
         for (int i = 0; i < NUM_THRUSTERS; i++) {
             last_command[i] = throttle_commands[i];
         }
 
         // ========================================
-        // Phase 4: Dshot RPM Receive
+        // Phase 5: Dshot RPM Receive
         // ========================================
 
         // Create mask of thrusters waiting for response
@@ -305,19 +357,6 @@ static void __time_critical_func(core1_main)() {
         // starving other thrusters, if say thruster 3 was the first received, but processing took longer than
         // min_frame_time, it'll tick one last time to see we received 1 during that time and process it before breaking
         // out of the loop.
-
-        // Alex put this here - please make pretty
-
-        // 1 2 3 4
-        uint8_t thrusterInvert[NUM_THRUSTERS] = { true, false, false, false };
-        if (gpio_get(BOARD_DET_PIN)) {
-            // 5 6 7 8
-            thrusterInvert[0] = true;
-            thrusterInvert[1] = true;
-            thrusterInvert[2] = false;
-            thrusterInvert[3] = true;
-        }
-
         bool serviced = false;
         while (waiting != 0 && (!time_reached(min_frame_time) || serviced)) {
             serviced = false;
@@ -329,9 +368,9 @@ static void __time_critical_func(core1_main)() {
                     if (dshot_get_rpm(i, &rpm[i]) && (waiting & (1 << i))) {
                         rpm_valid[i] = true;
                         // If the decode was successful, tick the controller
-
+                        // Store the resulting command to be executed for next tick
                         throttle_commands[i] = thruster_controller_tick(&controller_state[i], target_rpm_cached[i],
-                                                                        rpm[i], time_difference, thrusterInvert[i]);
+                                                                        rpm[i], time_difference);
                     }
                     // Clear waiting, even on unsuccessful response
                     waiting &= ~(1 << i);
@@ -341,35 +380,60 @@ static void __time_critical_func(core1_main)() {
         }
 
         // ========================================
-        // Phase 5: RPM Post Processing
+        // Phase 6: Telemetry Writeback
         // ========================================
 
-        irq = spin_lock_blocking(current_rpm_lock);
+        irq = spin_lock_blocking(telem_state.lock);
+
+        // Store the disabled flags
+        telem_state.disabled_flags = disabled_flags;
+
+        // Update total controller tick count
+        if (telem_state.controller_tick_cnt < UINT16_MAX) {
+            telem_state.controller_tick_cnt++;
+        }
+
         for (int i = 0; i < NUM_THRUSTERS; i++) {
+            // TODO: Handle an ESC being online, but a thruster is unplugged
+            telem_state.thruster[i].thruster_ready = true;
+
+            // Store the command we just sent
+            telem_state.thruster[i].cmd = last_command[i];
+
             // Writeback RPM data if valid
             if (rpm_valid[i]) {
                 if (rpm[i] > INT16_MAX) {
-                    current_rpm[i].rpm = INT16_MAX;
+                    telem_state.thruster[i].rpm = INT16_MAX;
                 }
                 else if (rpm[i] < INT16_MIN) {
-                    current_rpm[i].rpm = INT16_MIN;
+                    telem_state.thruster[i].rpm = INT16_MIN;
                 }
                 else {
-                    current_rpm[i].rpm = (int16_t) rpm[i];
+                    telem_state.thruster[i].rpm = (int16_t) rpm[i];
                 }
-                current_rpm[i].missed_count = 0;
-                current_rpm[i].valid = true;
+                telem_state.thruster[i].rpm_missed_count = 0;
+                telem_state.thruster[i].rpm_valid = true;
             }
             // Keep track if RPM not valid
             else {
-                if (current_rpm[i].missed_count < TELEM_MAX_MISSED_PACKETS) {
+                if (telem_state.thruster[i].rpm_missed_count < TELEM_MAX_MISSED_PACKETS) {
                     // Increment missed count if we couldn't read it (and only in if statement to prevent overflows)
-                    current_rpm[i].missed_count++;
+                    telem_state.thruster[i].rpm_missed_count++;
+
+                    // Keep track of ticks where we lost a packet
+                    if (telem_state.thruster[i].ticks_missed < UINT16_MAX) {
+                        telem_state.thruster[i].ticks_missed++;
+                    }
                 }
                 else {
                     // If we've missed too many, mark RPM as invalid
-                    current_rpm[i].rpm = 0;
-                    current_rpm[i].valid = false;
+                    telem_state.thruster[i].rpm = 0;
+                    telem_state.thruster[i].rpm_valid = false;
+
+                    // Keep track of ticks we took the thruster offline
+                    if (telem_state.thruster[i].ticks_offline < UINT16_MAX) {
+                        telem_state.thruster[i].ticks_offline++;
+                    }
 
                     // Additionally, clear the last command
                     // We let the thruster miss a few telemetry packets and just run the an old command, but if we miss
@@ -378,12 +442,11 @@ static void __time_critical_func(core1_main)() {
                     thruster_controller_zero(&controller_state[i]);
                 }
             }
-            current_thruster_cmd[i] = last_command[i];
         }
-        spin_unlock(current_rpm_lock, irq);
+        spin_unlock(telem_state.lock, irq);
 
         // ========================================
-        // Phase 6: Dshot Min Delay Frame Wait
+        // Phase 7: Dshot Min Delay Frame Wait
         // ========================================
 
         // If the control loop finishes before the minimum frame time, wait before sending the next command
@@ -397,10 +460,30 @@ static void __time_critical_func(core1_main)() {
 // Core 0 Interface Functions
 // ========================================
 
-void core1_init(void) {
-    target_rpm_lock = spin_lock_init(spin_lock_claim_unused(true));
-    current_rpm_lock = spin_lock_init(spin_lock_claim_unused(true));
+void core1_init(uint8_t board_id) {
+    target_req.lock = spin_lock_init(spin_lock_claim_unused(true));
+    telem_state.lock = spin_lock_init(spin_lock_claim_unused(true));
     multicore_launch_core1(core1_main);
+
+    // TODO: Move to parameters when ready
+
+    // Inverted mask is in order index 0b3210 (highest thruster first)
+    uint8_t inverted_mask;
+    if (board_id == 0) {
+        // Thrusters 4321
+        inverted_mask = 0b0001;
+    }
+    else {
+        // Thrusters 8765
+        inverted_mask = 0b1011;
+    }
+    core1_set_thruster_inverted_mask(inverted_mask);
+
+    core1_set_p_gain(100000);
+    core1_set_i_gain(1000);
+    core1_set_i_bound(300);
+    core1_set_hard_limit(725);
+    core1_set_min_command(0);
 }
 
 void core1_update_target_rpm(const int16_t *rpm) {
@@ -408,48 +491,52 @@ void core1_update_target_rpm(const int16_t *rpm) {
     absolute_time_t expiration = make_timeout_time_ms(DSHOT_MIN_UPDATE_RATE_MS);
 
     // Update shared variables under lock
-    uint32_t irq = spin_lock_blocking(target_rpm_lock);
-    target_rpm_expiration = expiration;
+    uint32_t irq = spin_lock_blocking(target_req.lock);
+    target_req.rpm_expiration = expiration;
     for (int i = 0; i < NUM_THRUSTERS; i++) {
-        target_rpm[i] = rpm[i];
+        target_req.rpm[i] = rpm[i];
     }
-    spin_unlock(target_rpm_lock, irq);
+    spin_unlock(target_req.lock, irq);
 }
 
-float core1_get_loop_rate(void) {
-    uint32_t irq = spin_lock_blocking(target_rpm_lock);
-    unsigned int last_tick_count = control_loop_tick_cnt;
-    control_loop_tick_cnt = 0;
-    spin_unlock(target_rpm_lock, irq);
-
+void core1_get_telem(struct core1_telem *telem_out) {
+    // Compute time difference from last read, out of critical section to lower latency
     static absolute_time_t last_rate_read = { 0 };
     absolute_time_t now = get_absolute_time();
-    float time_diff_us = absolute_time_diff_us(last_rate_read, now);
+    int64_t time_diff_us64 = absolute_time_diff_us(last_rate_read, now);
     last_rate_read = now;
 
-    return ((float) last_tick_count) * 1.0E6 / time_diff_us;
-}
-
-void core1_set_raw_mode(bool raw_mode) {
-    uint32_t irq = spin_lock_blocking(target_rpm_lock);
-    target_rpm_is_raw_cmd = raw_mode;
-    spin_unlock(target_rpm_lock, irq);
-}
-
-bool core1_get_current_rpm(int thruster_num, int16_t *rpm_out, int16_t *cmd_out) {
-    invalid_params_if(DSHOT, thruster_num >= NUM_THRUSTERS);
-
-    uint32_t irq = spin_lock_blocking(current_rpm_lock);
-    bool valid = current_rpm[thruster_num].valid;
-    if (valid) {
-        if (rpm_out)
-            *rpm_out = current_rpm[thruster_num].rpm;
+    // Limit to uint32_t
+    if (time_diff_us64 > UINT32_MAX) {
+        telem_out->time_delta_us = UINT32_MAX;
     }
-    if (cmd_out)
-        *cmd_out = current_thruster_cmd[thruster_num];
-    spin_unlock(current_rpm_lock, irq);
-    return valid;
+    else if (time_diff_us64 < 0) {
+        telem_out->time_delta_us = 0;
+    }
+    else {
+        telem_out->time_delta_us = (uint32_t) time_diff_us64;
+    }
+
+    // Copy telemetry from shared memory under lock
+    uint32_t irq = spin_lock_blocking(telem_state.lock);
+
+    telem_out->controller_tick_cnt = telem_state.controller_tick_cnt;
+    telem_out->disabled_flags = telem_state.disabled_flags;
+    for (int i = 0; i < NUM_THRUSTERS; i++) {
+        telem_out->thruster[i].cmd = telem_state.thruster[i].cmd;
+        telem_out->thruster[i].rpm = telem_state.thruster[i].rpm;
+        telem_out->thruster[i].rpm_valid = telem_state.thruster[i].rpm_valid;
+        telem_out->thruster[i].thruster_ready = telem_state.thruster[i].thruster_ready;
+        telem_out->thruster[i].ticks_missed = telem_state.thruster[i].ticks_missed;
+        telem_out->thruster[i].ticks_offline = telem_state.thruster[i].ticks_offline;
+    }
+
+    spin_unlock(telem_state.lock, irq);
 }
+
+// ========================================
+// Core 0 Exported Parameter Control Funcs
+// ========================================
 
 bool core1_set_p_gain(int32_t value) {
     if (value < 0 || value >= (1 << FIFO_REQ_VALUE_WIDTH))
@@ -489,4 +576,18 @@ bool core1_set_min_command(int32_t value) {
     sio_fifo_req_t req = { .type = CONTROLLER_PARAM_MIN_CMD, .value = value };
     multicore_fifo_push_blocking(req.raw);
     return true;
+}
+
+bool core1_set_thruster_inverted_mask(int32_t value) {
+    if (value < 0 || value >= (1 << NUM_THRUSTERS))
+        return false;
+    static_assert(NUM_THRUSTERS <= FIFO_REQ_VALUE_WIDTH, "Cannot fit all thrusters into fifo request");
+    sio_fifo_req_t req = { .type = CONTROLLER_PARAM_INVERT_MASK, .value = value };
+    multicore_fifo_push_blocking(req.raw);
+    return true;
+}
+
+void core1_set_raw_mode(bool raw_mode) {
+    sio_fifo_req_t req = { .type = CONTROLLER_PARAM_RAW_MODE, .value = (raw_mode ? 1 : 0) };
+    multicore_fifo_push_blocking(req.raw);
 }
