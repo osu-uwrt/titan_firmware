@@ -1,8 +1,8 @@
 #ifndef DRIVER__SHT41_H_
 #define DRIVER__SHT41_H_
 
+#include <stdbool.h>
 #include <stdint.h>
-
 /**
  * @file driver/sht41.h
  *
@@ -10,22 +10,20 @@
  *
  */
 
-struct sht41_data {
-    int16_t temp;
-    int16_t rh;
-};
-
 typedef void (*sht41_on_read_callback)();
 
-struct sht41_read_req {
-    uint8_t i2c_num;
-    struct sht41_data *data;
-    sht41_on_read_callback callback;
-    void *user_data;
-};
+typedef union sht41_error {
+    // TODO put in error code, error source struct field
+    // TODO data field
+} sht41_error_t;
 
-bool sht41_init(/* ADD IN ERROR CALLBACK */);
+typedef void (*sht41_error_cb)(sht41_error_t error);  // FIXME needs inspection
 
-bool sht41_read_async(struct sht41_read_req *req);
+void sht41_init(sht41_error_cb board_error_cb);
 
+bool sht41_is_valid(void);
+
+int16_t sht41_read_temp(void);
+
+int16_t sht41_read_rh(void);
 #endif
