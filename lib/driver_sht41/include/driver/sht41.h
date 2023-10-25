@@ -68,14 +68,14 @@ bool sht41_is_valid(void);
 /**
  * @brief read temperature
  *
- * @return int16_t temperature
+ * @return float temperature in Celsius
  */
-int16_t sht41_read_temp(void);
+float sht41_read_temp(void);
 
 /**
  * @brief read humidity
  *
- * @return int16_t humidity
+ * @return float humidity in %RH
  */
-int16_t sht41_read_rh(void);
+float sht41_read_rh(void);
 #endif

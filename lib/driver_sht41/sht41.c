@@ -10,7 +10,7 @@
 #define ACCEPTABLE_ERR_COUNT 3
 
 // Global varibles
-volatile bool temp_rh_set_on_read = false;
+volatile bool sht41_temp_rh_set_on_read = false;
 
 // fnc prototypes
 static int64_t sht41_start_write_req(__unused alarm_id_t id, void *user_data);
@@ -53,8 +53,8 @@ static uint8_t rx_buf[SHT41_READ_LENGTH];
 //                                            .user_data = NULL };
 
 static struct sht41_data {
-    int16_t temp;
-    int16_t rh;
+    float temp;
+    float rh;
     absolute_time_t reading_expiration;
     struct async_i2c_request read_req;
     struct async_i2c_request write_req;
@@ -135,7 +135,7 @@ static void sht41_on_error(const sht41_error_code error_type) {
 }
 
 // called by the i2c
-static void on_async_i2c_error(__unused struct async_i2c_request *req, __unused uint32_t error_code) {
+static void on_async_i2c_error(__unused const struct async_i2c_request *req, __unused uint32_t error_code) {
     sht41_on_error(SHT41_ERROR_I2C_COMPLAINT);
 }
 
@@ -184,10 +184,10 @@ bool sht41_is_valid(void) {
     return !time_reached(last_reading.reading_expiration);
 }
 
-int16_t sht41_read_temp(void) {
-    return last_reading.temp;
+float sht41_read_temp(void) {
+    return -45.0 + 175.0 * last_reading.temp / (65536.0 - 1.0);
 }
 
-int16_t sht41_read_rh(void) {
-    return last_reading.rh;
+float sht41_read_rh(void) {
+    return -6.0 + 125.0 * last_reading.rh / (65536.0 - 1.0);
 }

@@ -94,4 +94,5 @@ rcl_ret_t ros_update_depth_publisher();
 
 rcl_ret_t ros_update_water_temp_publisher();
 
+rcl_ret_t ros_update_temp_humidity_publisher();
 #endif
