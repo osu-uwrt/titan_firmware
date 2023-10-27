@@ -192,7 +192,7 @@ rcl_ret_t ros_send_rpm(uint8_t board_id) {
     uint thruster_base = (board_id == 0 ? 0 : 4);
 
     struct core1_telem telem_data;
-    core1_get_telem(&telem_data);
+    core1_get_telem(&telem_data, false);
 
     for (int i = 0; i < NUM_THRUSTERS; i++) {
         if (telem_data.thruster[i].rpm_valid) {
@@ -217,7 +217,7 @@ rcl_ret_t ros_send_telemetry(uint8_t board_id) {
 
     // Capture the telemetry from core1
     struct core1_telem core1_telem_data;
-    core1_get_telem(&core1_telem_data);
+    core1_get_telem(&core1_telem_data, true);
 
     // Copy in all global telemetry data
     telem_msg.vcc_voltage = (vcc_reading_mv / 1000.f);

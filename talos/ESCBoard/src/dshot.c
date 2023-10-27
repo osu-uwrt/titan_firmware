@@ -82,24 +82,28 @@ static void __time_critical_func(vcc_meas_cb)(void) {
 
 static void dshot_uart_prep_for_rx(uint thruster, bool rpm_reversed) {
     uint32_t irq = spin_lock_blocking(dshot_telemtry_lock);
+    // If we have a telemtry packet still out there, add the miss count
+    int last_thruster = dshot_uart_telem_buffer.thruster;
+    if (last_thruster >= 0 && last_thruster < NUM_THRUSTERS) {
+        if (dshot_telemetry_data[last_thruster].missed_count < TELEM_MAX_MISSED_UART_PACKETS) {
+            dshot_telemetry_data[last_thruster].missed_count++;
+            if (dshot_telemetry_data[last_thruster].total_missed < UINT16_MAX) {
+                dshot_telemetry_data[last_thruster].total_missed++;
+            }
+        }
+        else {
+            dshot_telemetry_data[last_thruster].valid = false;
+            if (dshot_telemetry_data[last_thruster].total_invalid < UINT16_MAX) {
+                dshot_telemetry_data[last_thruster].total_invalid++;
+            }
+        }
+    }
+
     dshot_uart_telem_buffer.crc = 0;
     dshot_uart_telem_buffer.recv_index = 0;
     dshot_uart_telem_buffer.thruster = thruster;
     dshot_uart_telem_buffer.type = ESC_TELEM_FRAME;
     dshot_uart_telem_buffer.rpm_reversed = rpm_reversed;
-
-    if (dshot_telemetry_data[thruster].missed_count < TELEM_MAX_MISSED_PACKETS) {
-        dshot_telemetry_data[thruster].missed_count++;
-        if (dshot_telemetry_data[thruster].total_missed < UINT16_MAX) {
-            dshot_telemetry_data[thruster].total_missed++;
-        }
-    }
-    else {
-        dshot_telemetry_data[thruster].valid = false;
-        if (dshot_telemetry_data[thruster].total_invalid < UINT16_MAX) {
-            dshot_telemetry_data[thruster].total_invalid++;
-        }
-    }
     spin_unlock(dshot_telemtry_lock, irq);
 }
 
@@ -134,7 +138,6 @@ static void __time_critical_func(dshot_uart_telem_cb)(void) {
 
             // Check if frame is complete
             if (dshot_uart_telem_buffer.recv_index == sizeof(dshot_uart_telem_buffer.buffer.telem_pkt)) {
-                dshot_uart_telem_buffer.thruster = -1;  // Mark as received
                 struct esc_telem_pkt *pkt = &dshot_uart_telem_buffer.buffer.telem_pkt;
 
                 if (last_crc == pkt->crc) {
@@ -152,6 +155,7 @@ static void __time_critical_func(dshot_uart_telem_cb)(void) {
                     if (dshot_telemetry_data[i].total_success < UINT16_MAX) {
                         dshot_telemetry_data[i].total_success++;
                     }
+                    dshot_uart_telem_buffer.thruster = -1;
                 }
             }
         }
@@ -380,6 +384,9 @@ void dshot_init(void) {
     // Initialize Telemetry Pins
     uint uart_offset = pio_add_program(DSHOT_TELEM_PIO_BLOCK, &uart_rx_program);
     pio_claim_sm_mask(DSHOT_TELEM_PIO_BLOCK, 0xF);  // Claim all state machines in pio block
+    // TODO: So there's a lot of noise on the ESC rail, and the weak pull up in the RP2040 isn't strong enough to
+    // address it. This causes noise to be present on the rail, and random packets come in. Every once and a while this
+    // noise will evaluate to a valid CRC and it'll report an invalid telemetry
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 0, uart_offset, ESC1_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 1, uart_offset, ESC2_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 2, uart_offset, ESC3_TELEM_PIN, 115200);

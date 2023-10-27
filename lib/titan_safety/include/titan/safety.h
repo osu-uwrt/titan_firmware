@@ -128,6 +128,8 @@ void safety_lower_fault(uint32_t fault_id);
 /**
  * @brief Looks up fault id name for a given fault id
  *
+ * @note Safe to be called from any context, including interrupts and on any core.
+ *
  * @param fault_id The fault id to lookup
  * @return const char* The fault name
  */
@@ -158,8 +160,9 @@ extern struct kill_switch_state kill_switch_states[];
 /**
  * @brief Updates a kill switch state
  *
- * @note safety_init must be called before this function can be used
  * @note Safe to be called from interrupts.
+ *
+ * @attention This must only be called on core 0
  *
  * @param switch_num The unique number for that kill switch. MUST BE < MAX_KILL_SWITCHES
  * @param asserting_kill If the kill switch is asserting a kill request (system disable)
@@ -171,7 +174,6 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 /**
  * @brief Returns if the kill switch is asserting a safety kill
  *
- * @note safety_setup must be called before this function can be used
  * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @attention Ensure that this value cannot be raced between the reading of the current value, and any events which
@@ -185,7 +187,7 @@ bool safety_kill_get_asserting_kill(void);
 /**
  * @brief Gets the time of the last kill switch change
  *
- * @attention safety_setup must be called before this function can be used
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @return absolute_time_t The time of last kill switch change as an absolute time
  */
@@ -238,6 +240,8 @@ extern struct crash_data crash_data;
  * @brief Resets into bootloader mode.
  * This issues a watchdog reset with the proper flags set to enter bootloader mode.
  *
+ * @attention This must only be called on core 0
+ *
  * @note This function does not return
  */
 void safety_enter_bootloader(void);
@@ -269,14 +273,17 @@ extern bool safety_initialized;
  * Will also print data on the last reset cause and any crash data from that
  *
  * @note Can only be called once
+ *
+ * @attention This function MUST be called before any other safety functions. Failure to do so may result in corruption
+ * or loss of current or previous boot's safety state
  */
 void safety_setup(void);
 
 /**
  * @brief Initializes safety for normal operation
- * This will tighten the timing for the watchdog timer, and is required to use the kill switch features
+ * This will tighten the timing for the watchdog timer, and is required for the kill switch to be enabled
  *
- * @note safety_setup must be called before this function can be used. Do not call again without calling safety_deinit.
+ * @attention Do not call again without calling safety_deinit
  */
 void safety_init(void);
 
@@ -284,7 +291,7 @@ void safety_init(void);
  * @brief Deinitializes safety for setup
  * This will loosen the timing for the watchdog timer.
  *
- * @note safety_init must be called before this function can be used
+ * @attention safety_init must be called before this function can be used
  */
 void safety_deinit(void);
 
@@ -292,7 +299,6 @@ void safety_deinit(void);
  * @brief Ticks safety
  * This must be called within the period of the watchdog timer or a reset will occur
  *
- * @note safety_setup must be called before this function can be used
  */
 void safety_tick(void);
 

@@ -43,9 +43,12 @@
 // where dshot_packet_period is the time between each packet's transmission
 #define TELEM_PACKET_DELAY 100
 
-// Number of packets that can be missed before the telemetry packet is marked as invalid
-// TODO: Figure out what's up with ESC 5 (idx. 4) and why this had to be turned up
-#define TELEM_MAX_MISSED_PACKETS 10
+// Number of packets that can be missed before the uart telemetry packet is marked as invalid
+#define TELEM_MAX_MISSED_UART_PACKETS 3
+
+// Number of packets that can be missed before the dshot command is marked as invalid and thruster output is killed
+// TODO: Figure out what's up with ESC 6 (idx. 5) and why this had to be turned up
+#define TELEM_MAX_MISSED_DSHOT_PACKETS 20
 
 // The PIO Block to reserve for DShot communication
 #define DSHOT_PIO_BLOCK pio0

@@ -211,6 +211,7 @@ static void __time_critical_func(core1_main)() {
                     in_raw_mode = false;
                     safety_lower_fault(FAULT_RAW_MODE);
                 }
+                controller_missing_params &= ~(1 << CONTROLLER_PARAM_RAW_MODE);
             }
         }
 
@@ -315,6 +316,14 @@ static void __time_critical_func(core1_main)() {
 
         // Normal control path
         else {
+            for (int i = 0; i < NUM_THRUSTERS; i++) {
+                // Force controller off if 0 rpm requested
+                if (target_rpm_cached[i] == 0) {
+                    throttle_commands[i] = 0;
+                    thruster_controller_zero(&controller_state[i]);
+                }
+            }
+
             // If controller hasn't been disabled, compute tick difference
             // Compute the time delta between sending commands to the controller
             // This must be done as close as possible to dshot_update_thrusters
@@ -394,9 +403,6 @@ static void __time_critical_func(core1_main)() {
         }
 
         for (int i = 0; i < NUM_THRUSTERS; i++) {
-            // TODO: Handle an ESC being online, but a thruster is unplugged
-            telem_state.thruster[i].thruster_ready = true;
-
             // Store the command we just sent
             telem_state.thruster[i].cmd = last_command[i];
 
@@ -413,10 +419,13 @@ static void __time_critical_func(core1_main)() {
                 }
                 telem_state.thruster[i].rpm_missed_count = 0;
                 telem_state.thruster[i].rpm_valid = true;
+
+                // TODO: Handle an ESC being online, but a thruster is unplugged
+                telem_state.thruster[i].thruster_ready = true;
             }
             // Keep track if RPM not valid
             else {
-                if (telem_state.thruster[i].rpm_missed_count < TELEM_MAX_MISSED_PACKETS) {
+                if (telem_state.thruster[i].rpm_missed_count < TELEM_MAX_MISSED_DSHOT_PACKETS) {
                     // Increment missed count if we couldn't read it (and only in if statement to prevent overflows)
                     telem_state.thruster[i].rpm_missed_count++;
 
@@ -429,6 +438,7 @@ static void __time_critical_func(core1_main)() {
                     // If we've missed too many, mark RPM as invalid
                     telem_state.thruster[i].rpm = 0;
                     telem_state.thruster[i].rpm_valid = false;
+                    telem_state.thruster[i].thruster_ready = false;
 
                     // Keep track of ticks we took the thruster offline
                     if (telem_state.thruster[i].ticks_offline < UINT16_MAX) {
@@ -484,6 +494,7 @@ void core1_init(uint8_t board_id) {
     core1_set_i_bound(300);
     core1_set_hard_limit(725);
     core1_set_min_command(0);
+    core1_set_raw_mode(false);
 }
 
 void core1_update_target_rpm(const int16_t *rpm) {
@@ -499,7 +510,7 @@ void core1_update_target_rpm(const int16_t *rpm) {
     spin_unlock(target_req.lock, irq);
 }
 
-void core1_get_telem(struct core1_telem *telem_out) {
+void core1_get_telem(struct core1_telem *telem_out, bool clear_telem) {
     // Compute time difference from last read, out of critical section to lower latency
     static absolute_time_t last_rate_read = { 0 };
     absolute_time_t now = get_absolute_time();
@@ -521,6 +532,10 @@ void core1_get_telem(struct core1_telem *telem_out) {
     uint32_t irq = spin_lock_blocking(telem_state.lock);
 
     telem_out->controller_tick_cnt = telem_state.controller_tick_cnt;
+    if (clear_telem) {
+        telem_state.controller_tick_cnt = 0;
+    }
+
     telem_out->disabled_flags = telem_state.disabled_flags;
     for (int i = 0; i < NUM_THRUSTERS; i++) {
         telem_out->thruster[i].cmd = telem_state.thruster[i].cmd;
@@ -529,6 +544,11 @@ void core1_get_telem(struct core1_telem *telem_out) {
         telem_out->thruster[i].thruster_ready = telem_state.thruster[i].thruster_ready;
         telem_out->thruster[i].ticks_missed = telem_state.thruster[i].ticks_missed;
         telem_out->thruster[i].ticks_offline = telem_state.thruster[i].ticks_offline;
+
+        if (clear_telem) {
+            telem_state.thruster[i].ticks_missed = 0;
+            telem_state.thruster[i].ticks_offline = 0;
+        }
     }
 
     spin_unlock(telem_state.lock, irq);

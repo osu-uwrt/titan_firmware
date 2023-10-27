@@ -77,7 +77,7 @@ static void thruster_controller_process_rolling_average(thruster_controller_stat
 // call this each cycle
 int16_t thruster_controller_tick(thruster_controller_state_t *state, int32_t targetRPM, int32_t CurrentRPM,
                                  int32_t deltaTime) {
-    // rpm error - this value should be practically less than 10,000\
+    // rpm error - this value should be practically less than 10,000
 
     // if inverted, change sign of input
     int32_t currentRPM = CurrentRPM;

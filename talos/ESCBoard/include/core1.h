@@ -36,7 +36,7 @@ struct core1_telem {
 // Exported functions
 void core1_init(uint8_t board_id);
 void core1_update_target_rpm(const int16_t *rpm);
-void core1_get_telem(struct core1_telem *telem_out);
+void core1_get_telem(struct core1_telem *telem_out, bool clear_telem);
 
 void core1_set_raw_mode(bool raw_mode);
 bool core1_set_thruster_inverted_mask(int32_t value);
