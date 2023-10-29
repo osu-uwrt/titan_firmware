@@ -3,6 +3,7 @@
 #include "analog_io.h"
 
 #include "driver/mcp3426.h"
+#include "driver/sht41.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -17,6 +18,7 @@
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
 
 #include <math.h>
@@ -36,6 +38,8 @@
 #define ELECTRICAL_READING_NAME "state/electrical"
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
+#define TEMP_STATUS_PUBLISHER_NAME "state/temp/powerboard"
+#define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/powerboard"
 
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
 
@@ -56,6 +60,8 @@ riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
 rcl_subscription_t elec_command_subscriber;
 riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 rcl_publisher_t aux_switch_publisher;
+rcl_publisher_t temp_status_publisher;
+rcl_publisher_t humidity_status_publisher;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -243,6 +249,16 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_update_temp_humidity_publisher() {
+    if (sht41_is_valid) {
+        std_msgs__msg__Float32 sht41_msg;
+        sht41_msg.data = sht41_read_temp();
+        RCSOFTRETCHECK(rcl_publish(&temp_status_publisher, &sht41_msg, NULL));
+        sht41_msg.data = sht41_read_rh();
+        RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_msg, NULL));
+    }
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -283,6 +299,13 @@ rcl_ret_t ros_init() {
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
                                               ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               TEMP_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
     const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
@@ -309,6 +332,8 @@ void ros_spin_executor(void) {
 void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));

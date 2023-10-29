@@ -12,12 +12,6 @@
  *
  */
 
-// i2c address for sht41 driver
-#define SHT41_I2C_ADDR 0x44
-
-// time needed for sht41 driver to complete sampling temperature and humidity
-#define SHT41_SAMPLING_TIME_MS 15
-
 // PICO_CONFIG: SHT41_POLL_TIME_MS, time in between reading temperature and humidity, type=int, default=500, group=driver_sht41
 #ifndef SHT41_POLL_TIME_MS
 #define SHT41_POLL_TIME_MS 500
@@ -52,10 +46,9 @@ typedef void (*sht41_error_cb)(const sht41_error_code error_type);
  * @brief Initializes sht41 driver
  *
  * @param board_error_cb callback on error
- * @param board the i2c bus number for sht41 driver
- * @param addr the i2c address for sht41 driver
+ * @param i2c_bus_num the i2c bus number for sht41 driver
  */
-void sht41_init(sht41_error_cb board_error_cb, uint8_t board, uint8_t addr);
+void sht41_init(sht41_error_cb board_error_cb, uint8_t i2c_bus_num);
 
 /**
  * @brief check the validity of data based on the last time it's retrieved

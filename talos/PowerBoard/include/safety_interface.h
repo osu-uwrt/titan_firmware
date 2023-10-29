@@ -12,6 +12,7 @@
 #define FAULT_TIMER_MISSED 4
 #define FAULT_ROS_BAD_COMMAND 5
 #define FAULT_ADC_ERROR 6
+#define FAULT_SHT41_ERROR 7
 
 static const char *const fault_string_list[] = {
     "FAULT_WATCHDOG_RESET", "FAULT_WATCHDOG_WARNING", "FAULT_CAN_INTERNAL_ERROR", "FAULT_ROS_ERROR",

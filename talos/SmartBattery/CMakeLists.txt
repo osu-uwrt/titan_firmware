@@ -47,6 +47,7 @@ target_link_libraries(smart_battery PUBLIC
     driver_async_i2c  # Async I2C Driver
     driver_led        # Status LED support
     driver_ssd1306    # SSD1306 LCD Support
+    driver_sht41      # SHT41 temp and humidity support
     titan_logger      # A nice little logging library
     titan_safety      # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
     micro_ros_can     # Micro ros suppot (supports _can, _usb, _eth)
