@@ -34,8 +34,8 @@ static void sht41_on_error(const sht41_error_code error_type);
 static const uint8_t write_cmd[] = { SHT41_WRITE_CMD };
 
 static struct sht41_data {
-    int16_t temp;
-    int16_t rh;
+    uint16_t temp;
+    uint16_t rh;
     absolute_time_t reading_expiration;
     struct async_i2c_request write_read_req;
     bool msg_in_progress;
@@ -49,6 +49,13 @@ static uint8_t err_count = ACCEPTABLE_ERR_COUNT - 1;
 static int64_t sht41_start_write_req(__unused alarm_id_t id, void *user_data) {
     struct sht41_data *local = (struct sht41_data *) user_data;
     local->write_read_req.user_data = user_data;
+
+    local->write_read_req.tx_buffer = write_cmd;
+    local->write_read_req.rx_buffer = NULL;
+    local->write_read_req.bytes_to_send = 1;
+    local->write_read_req.bytes_to_receive = 0;
+    local->write_read_req.completed_callback = &sht41_on_write;
+
     async_i2c_enqueue(&local->write_read_req, &local->msg_in_progress);
 
     return SHT41_POLL_TIME_MS * 1000;

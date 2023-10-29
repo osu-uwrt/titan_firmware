@@ -250,13 +250,14 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
 }
 
 rcl_ret_t ros_update_temp_humidity_publisher() {
-    if (sht41_is_valid) {
+    if (sht41_is_valid()) {
         std_msgs__msg__Float32 sht41_msg;
         sht41_msg.data = sht41_read_temp();
         RCSOFTRETCHECK(rcl_publish(&temp_status_publisher, &sht41_msg, NULL));
         sht41_msg.data = sht41_read_rh();
         RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_msg, NULL));
     }
+    return RCL_RET_OK;
 }
 
 // ========================================

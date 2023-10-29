@@ -15,7 +15,8 @@
 
 static const char *const fault_string_list[] = { "FAULT_WATCHDOG_RESET",     "FAULT_WATCHDOG_WARNING",
                                                  "FAULT_CAN_INTERNAL_ERROR", "FAULT_ROS_ERROR",
-                                                 "FAULT_TIMER_MISSED",       "FAULT_BQ40_ERROR" };
+                                                 "FAULT_TIMER_MISSED",       "FAULT_BQ40_ERROR",
+                                                 "FAULT_SHT41_ERROR" };
 
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {

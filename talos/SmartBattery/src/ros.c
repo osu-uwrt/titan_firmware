@@ -182,6 +182,8 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
         sht41_data.data = sht41_read_rh();
         RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_data, NULL));
     }
+
+    return RCL_RET_OK;
 }
 
 // ========================================
