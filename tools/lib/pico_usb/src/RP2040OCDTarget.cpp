@@ -99,13 +99,19 @@ void RP2040OCDTarget::initRescue() {
     // Readback to ensure the de-assert was successful
     auto result = openocd->sendCommand("rp2040.rescue_dap dpreg 0x4");
 
+    char whitespaces[] = " \t\f\v\n\r";
+
+    size_t found = result.find_last_not_of(whitespaces);
+
+    result.erase(found + 1);
+
     const char *parseStart = result.c_str();
     char *parseEnd;
     auto dpreg4 = std::strtoul(parseStart, &parseEnd, 16);
 
-    // if (result.size() == 0 || parseStart + result.size() != parseEnd) {
-    //     throw PicoprobeError("Failed to connect to RP2040");
-    // }
+    if (result.size() == 0 || parseStart + result.size() != parseEnd) {
+        throw PicoprobeError("Failed to connect to RP2040");
+    }
 
     if (dpreg4 & 0xf0000000) {
         throw PicoprobeError("Failed to de-assert rescue DAP reset");
