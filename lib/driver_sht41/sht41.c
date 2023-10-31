@@ -11,7 +11,7 @@
 #define SHT41_SAMPLING_TIME_MS 15
 
 // acceptable error count before calling back to board
-#define ACCEPTABLE_ERR_COUNT 3
+#define SHT41_ACCEPTABLE_ERR_COUNT 3
 
 // i2c address for sht41 driver
 #define SHT41_I2C_ADDR 0x44
@@ -37,26 +37,25 @@ static struct sht41_data {
     uint16_t temp;
     uint16_t rh;
     absolute_time_t reading_expiration;
-    struct async_i2c_request write_read_req;
+    struct async_i2c_request i2c_req;
     bool msg_in_progress;
     uint8_t rx_buf[SHT41_READ_LENGTH];
 } last_reading = { 0 };
 
 static sht41_error_cb error_cb;
 
-static uint8_t err_count = ACCEPTABLE_ERR_COUNT - 1;
+static uint8_t err_count = 0;
 
 static int64_t sht41_start_write_req(__unused alarm_id_t id, void *user_data) {
     struct sht41_data *local = (struct sht41_data *) user_data;
-    local->write_read_req.user_data = user_data;
 
-    local->write_read_req.tx_buffer = write_cmd;
-    local->write_read_req.rx_buffer = NULL;
-    local->write_read_req.bytes_to_send = 1;
-    local->write_read_req.bytes_to_receive = 0;
-    local->write_read_req.completed_callback = &sht41_on_write;
+    local->i2c_req.tx_buffer = write_cmd;
+    local->i2c_req.rx_buffer = NULL;
+    local->i2c_req.bytes_to_send = sizeof(write_cmd);
+    local->i2c_req.bytes_to_receive = 0;
+    local->i2c_req.completed_callback = &sht41_on_write;
 
-    async_i2c_enqueue(&local->write_read_req, &local->msg_in_progress);
+    async_i2c_enqueue(&local->i2c_req, &local->msg_in_progress);
 
     return SHT41_POLL_TIME_MS * 1000;
 }
@@ -85,13 +84,13 @@ static uint8_t crc_check(uint8_t *data, uint8_t len) {
 static int64_t sht41_start_read_req(__unused alarm_id_t id, void *user_data) {
     struct sht41_data *local = (struct sht41_data *) user_data;
 
-    last_reading.write_read_req.tx_buffer = NULL;
-    last_reading.write_read_req.rx_buffer = local->rx_buf;  // FIXME double check
-    last_reading.write_read_req.bytes_to_send = 0;
-    last_reading.write_read_req.bytes_to_receive = 6;
-    last_reading.write_read_req.completed_callback = &sht41_on_read;
+    local->i2c_req.tx_buffer = NULL;
+    local->i2c_req.rx_buffer = local->rx_buf;
+    local->i2c_req.bytes_to_send = 0;
+    local->i2c_req.bytes_to_receive = SHT41_READ_LENGTH;
+    local->i2c_req.completed_callback = &sht41_on_read;
 
-    async_i2c_enqueue(&local->write_read_req, &local->msg_in_progress);
+    async_i2c_enqueue(&local->i2c_req, &local->msg_in_progress);
     return 0;
 }
 
@@ -115,7 +114,7 @@ static void sht41_on_read(const struct async_i2c_request *req) {
 
 static void sht41_on_error(const sht41_error_code error_type) {
     err_count++;
-    if (err_count >= ACCEPTABLE_ERR_COUNT) {
+    if (err_count >= SHT41_ACCEPTABLE_ERR_COUNT) {
         if (error_cb) {
             error_cb(error_type);
         }
@@ -127,27 +126,33 @@ static void on_async_i2c_error(__unused const struct async_i2c_request *req, __u
     sht41_on_error(SHT41_ERROR_I2C_COMPLAINT);
 }
 
+static void initialize_sht41_data(struct sht41_data *data, uint8_t i2c_bus_num) {
+    data->reading_expiration = nil_time;
+    data->msg_in_progress = false;
+
+    /* Initializing i2c_req inside data */
+    data->i2c_req.i2c_num = i2c_bus_num;
+    data->i2c_req.address = SHT41_I2C_ADDR;
+    data->i2c_req.nostop = false;
+    data->i2c_req.tx_buffer = write_cmd;
+    data->i2c_req.rx_buffer = NULL;
+    data->i2c_req.bytes_to_send = sizeof(write_cmd);
+    data->i2c_req.bytes_to_receive = 0;
+    data->i2c_req.completed_callback = &sht41_on_write;
+    data->i2c_req.failed_callback = &on_async_i2c_error;
+    data->i2c_req.next_req_on_success = NULL;
+    data->i2c_req.timeout = nil_time;
+    data->i2c_req.user_data = data;
+}
+
 void sht41_init(sht41_error_cb board_error_cb, uint8_t i2c_bus_num) {
     error_cb = board_error_cb;
-    last_reading.reading_expiration = get_absolute_time();
-    last_reading.msg_in_progress = false;
 
-    /*Initializing write_read_req inside last_reading*/
-    last_reading.write_read_req.i2c_num = i2c_bus_num;
-    last_reading.write_read_req.address = SHT41_I2C_ADDR;
-    last_reading.write_read_req.nostop = false;
-    last_reading.write_read_req.tx_buffer = write_cmd;
-    last_reading.write_read_req.rx_buffer = NULL;
-    last_reading.write_read_req.bytes_to_send = 1;
-    last_reading.write_read_req.bytes_to_receive = 0;
-    last_reading.write_read_req.completed_callback = &sht41_on_write;
-    last_reading.write_read_req.failed_callback = &on_async_i2c_error;
-    last_reading.write_read_req.next_req_on_success = NULL;
-    last_reading.write_read_req.timeout = nil_time;
-    last_reading.write_read_req.user_data = NULL;
+    initialize_sht41_data(&last_reading, i2c_bus_num);
 
     if (add_alarm_in_ms(SHT41_POLL_TIME_MS, &sht41_start_write_req, (void *) &last_reading, true) < 0) {
-        sht41_on_error(SHT41_ERROR_TIMER_SCHEDULE_FULL);
+        err_count = SHT41_ACCEPTABLE_ERR_COUNT - 2;
+        sht41_on_error(SHT41_ERROR_INITIAL_TIMER_SCHEDULE_FULL);
     }
 }
 
