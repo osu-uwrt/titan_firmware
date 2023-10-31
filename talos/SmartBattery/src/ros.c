@@ -1,5 +1,6 @@
 #include "ros.h"
 
+#include "driver/sht41.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -14,6 +15,7 @@
 #include <riptide_msgs2/msg/electrical_command.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
 
 #undef LOGGING_UNIT_NAME
@@ -29,6 +31,8 @@
 #define BATTERY_STATUS_PUBLISHER_NAME "state/battery"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
+#define TEMP_STATUS_PUBLISHER_NAME "status/temp/smartbattery"
+#define HUMIDITY_STATUS_PUBLISHER_NAME "status/humidity/smartbattery"
 
 bool ros_connected = false;
 bool request_powercycle = false;
@@ -42,7 +46,7 @@ rcl_publisher_t heartbeat_publisher;
 int failed_heartbeats = 0;
 
 // Node specific Variables
-rcl_publisher_t firmware_status_publisher, battery_status_publisher;
+rcl_publisher_t firmware_status_publisher, battery_status_publisher, temp_status_publisher, humidity_status_publisher;
 rcl_subscription_t killswtich_subscriber, electrical_command_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 riptide_msgs2__msg__ElectricalCommand electrical_command_msg;
@@ -170,6 +174,18 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_update_temp_humidity_publisher() {
+    if (sht41_is_valid()) {
+        std_msgs__msg__Float32 sht41_data;
+        sht41_data.data = sht41_read_temp();
+        RCSOFTRETCHECK(rcl_publish(&temp_status_publisher, &sht41_data, NULL));
+        sht41_data.data = sht41_read_rh();
+        RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_data, NULL));
+    }
+
+    return RCL_RET_OK;
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -195,6 +211,14 @@ rcl_ret_t ros_init(uint8_t board_id) {
     RCRETCHECK(rclc_publisher_init_default(&battery_status_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, BatteryStatus),
                                            BATTERY_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               TEMP_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               HUMIDITY_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
@@ -228,7 +252,9 @@ void ros_fini(void) {
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

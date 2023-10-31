@@ -455,7 +455,7 @@ static bool async_i2c_queue_full(void) {
 
 bool async_i2c_enqueue(const struct async_i2c_request *request, volatile bool *in_progress) {
     valid_params_if(ASYNC_I2C, async_i2c_validate_request(request));
-    invalid_params_if(ASYNC_I2C, *in_progress);
+    hard_assert(!*in_progress);
     hard_assert_if(ASYNC_I2C, !async_i2c_initialized);
 
     // Disable interrupts during operation to prevent corruption

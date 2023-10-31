@@ -6,6 +6,7 @@
 #include "driver/async_i2c.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
+#include "driver/sht41.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -116,6 +117,11 @@ static void tick_ros_tasks() {
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_update_battery_status(bq_pack_info));
     }
+
+    if (sht41_temp_rh_set_on_read) {
+        sht41_temp_rh_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
 }
 
 static void tick_background_tasks() {
@@ -156,6 +162,10 @@ static void tick_background_tasks() {
     display_check_poweroff();
 }
 
+static void sht41_sensor_error_cb(const sht41_error_code error_type) {
+    safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
+}
+
 int main() {
     // Latch RP2040 power to on
     gpio_init(PWR_CTRL_PIN);
@@ -175,6 +185,7 @@ int main() {
     micro_ros_init_error_handling();
     async_i2c_init(PERIPH_SDA_PIN, PERIPH_SCL_PIN, -1, -1, 400000, 20);
     display_init();
+    sht41_init(&sht41_sensor_error_cb, PERIPH_I2C);
 
     sleep_ms(1000);
     safety_tick();

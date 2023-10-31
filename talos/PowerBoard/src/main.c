@@ -6,6 +6,7 @@
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "driver/mcp3426.h"
+#include "driver/sht41.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
@@ -121,6 +122,11 @@ static void tick_ros_tasks() {
     if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
     }
+
+    if (sht41_temp_rh_set_on_read) {
+        sht41_temp_rh_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
 }
 
 static void tick_background_tasks() {
@@ -136,6 +142,10 @@ static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t
     (void) req;
     LOG_DEBUG("Error in mcp3426 driver request: 0x%p, error_code: 0x%08lx", req, error_code);
     safety_raise_fault_with_arg(FAULT_ADC_ERROR, error_code);
+}
+
+static void sht41_sensor_error_cb(const sht41_error_code error_type) {
+    safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
 }
 
 int main() {
@@ -166,6 +176,7 @@ int main() {
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
     mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
+    sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
 
     // Initialize ROS Transports
     uint can_id = CAN_BUS_CLIENT_ID;

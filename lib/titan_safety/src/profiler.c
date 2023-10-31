@@ -83,7 +83,7 @@ void profiler_dump(void) {
         time_found = false;
         uint32_t found_profiler_id = 0;
         bool is_push_entry = false;
-        absolute_time_t next_time;
+        absolute_time_t next_time = nil_time;
 
         for (int i = 0; i < PROFILER_NUM_DEFS; i++) {
             // Check if a time is present and not printed
