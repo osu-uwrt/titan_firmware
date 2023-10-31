@@ -485,7 +485,7 @@ void core1_init(uint8_t board_id) {
     }
     else {
         // Thrusters 8765
-        inverted_mask = 0b1011;
+        inverted_mask = 0b1001;
     }
     core1_set_thruster_inverted_mask(inverted_mask);
 
