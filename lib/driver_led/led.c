@@ -132,9 +132,7 @@ void led_update_pins() {
 void led_fault_set(bool value) {
     status.fault = value;
 
-    // TODO: Figure out how to make this safe across cores
-    // Only update LED pins if on core 0
-    if (status.initialized && get_core_num() == 0)
+    if (status.initialized)
         led_update_pins();
 }
 
