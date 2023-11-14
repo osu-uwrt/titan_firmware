@@ -276,13 +276,13 @@ MCP251XFD_Config mcp251xfd_device_config = {
     .INTsOutMode = MCP251XFD_PINS_PUSHPULL_OUT,
     .TXCANOutMode = MCP251XFD_PINS_PUSHPULL_OUT,
     //--- Interrupts ---
-    .SysInterruptFlags = MCP251XFD_INT_TX_EVENT     // Enable global TX interrupts (controlled via FIFO)
-                         | MCP251XFD_INT_RX_EVENT   // Enable global RX interrupts (controlled via FIFO)
-                         | MCP251XFD_INT_TEF_EVENT  // Enable TEF events (so we can watch when we send messages)
-                                                    // Device Errors
-                         | MCP251XFD_INT_RX_OVERFLOW_EVENT   // Device error if message dropped from code being slow
-                         | MCP251XFD_INT_RAM_ECC_EVENT       // Report any RAM ECC errors
-                         | MCP251XFD_INT_SPI_CRC_EVENT       // Report any SPI CRC errors
+    .SysInterruptFlags = MCP251XFD_INT_TX_EVENT             // Enable global TX interrupts (controlled via FIFO)
+                         | MCP251XFD_INT_RX_EVENT           // Enable global RX interrupts (controlled via FIFO)
+                         | MCP251XFD_INT_TEF_EVENT          // Enable TEF events (so we can watch when we send messages)
+                                                            // Device Errors
+                         | MCP251XFD_INT_RX_OVERFLOW_EVENT  // Device error if message dropped from code being slow
+                         | MCP251XFD_INT_RAM_ECC_EVENT      // Report any RAM ECC errors
+                         | MCP251XFD_INT_SPI_CRC_EVENT      // Report any SPI CRC errors
                          | MCP251XFD_INT_SYSTEM_ERROR_EVENT  // Report any errors on device
                                                              // Bus Errors
                          | MCP251XFD_INT_BUS_ERROR_EVENT  // Notify on transitioning for bus errors (avoids spamming on

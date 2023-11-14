@@ -18,7 +18,7 @@ volatile bool canbus_msg_opened = false;
 // Callback Functions
 // ========================================
 
-bool canbus_device_in_error_state = false;
+volatile bool canbus_device_in_error_state = false;
 
 // Callback handling
 static canbus_receive_error_cb_t canbus_receive_error_cb = NULL;

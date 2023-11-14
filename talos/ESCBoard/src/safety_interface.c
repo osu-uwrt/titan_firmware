@@ -1,7 +1,5 @@
 #include "safety_interface.h"
 
-#include "dshot.h"
-
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "titan/logger.h"
@@ -31,7 +29,7 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    dshot_stop_thrusters();
+    // Not stopping dshot, Core 1 should poll the safety state before each tick of the control loop
     led_killswitch_set(false);
 }
 

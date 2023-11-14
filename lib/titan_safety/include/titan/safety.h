@@ -68,16 +68,18 @@ struct fault_data {
     bool sticky_fault;     // Set on raised, but not cleared by lower, can be used to see if other data in this is valid
 };
 
-/*
+/**
  * @brief Array of fault_data for every fault.
  * Contains MAX_FAULT_ID+1 entries.
+ *
+ * @attention Do not write to this variable
  */
 extern struct fault_data safety_fault_data[];
 
 /**
  * @brief A pointer to the list of all the active faults as bits
  *
- * Do not write to this variable, use safety_raise_fault/safety_lower_fault instead
+ * @attention Do not write to this variable, use safety_raise_fault/safety_lower_fault instead
  */
 extern volatile uint32_t *const fault_list_reg;
 
@@ -85,7 +87,7 @@ extern volatile uint32_t *const fault_list_reg;
  * @brief Raises the specified fault id. Note the macros should be used to autopopulate
  * filename and line.
  *
- * This function is safe to be used in interrupt callbacks
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @param fault_id The id to be raised. Faults are defined above
  * @param arg Additional data to store alongside fault information
@@ -97,12 +99,16 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filena
 /**
  * @brief Raises the specific fault id.
  *
+ * @note Safe to be called from any context, including interrupts and on any core.
+ *
  * @param fault_id The fault id to be raised. Faults are defined above
  */
 #define safety_raise_fault(fault_id) safety_raise_fault_full(fault_id, 0, __FILE__, __LINE__)
 
 /**
  * @brief Raises the specific fault id.
+ *
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @param fault_id The fault id to be raised. Faults are defined above
  * @param arg Additional data to hold alongside fault information
@@ -113,7 +119,7 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filena
 /**
  * @brief Lowers the specified fault id
  *
- * This function can be used in interrupt callbacks
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @param fault_id The id to be lowered. Faults are defined above
  */
@@ -121,6 +127,8 @@ void safety_lower_fault(uint32_t fault_id);
 
 /**
  * @brief Looks up fault id name for a given fault id
+ *
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @param fault_id The fault id to lookup
  * @return const char* The fault name
@@ -145,15 +153,16 @@ struct kill_switch_state {
 /**
  * @brief State of all of the kill switches for reading
  *
- * Do not write to this variable, use safety_kill_switch_update instead
+ * @attention Do not write to this variable, use safety_kill_switch_update instead
  */
 extern struct kill_switch_state kill_switch_states[];
 
 /**
  * @brief Updates a kill switch state
  *
- * safety_init must be called before this function can be used
- * This function can be used in interrupt callbacks
+ * @note Safe to be called from interrupts.
+ *
+ * @attention This must only be called on core 0
  *
  * @param switch_num The unique number for that kill switch. MUST BE < MAX_KILL_SWITCHES
  * @param asserting_kill If the kill switch is asserting a kill request (system disable)
@@ -165,8 +174,10 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 /**
  * @brief Returns if the kill switch is asserting a safety kill
  *
- * safety_init must be called before this function can be used
- * This function can be used in interrupt callbacks
+ * @note Safe to be called from any context, including interrupts and on any core.
+ *
+ * @attention Ensure that this value cannot be raced between the reading of the current value, and any events which
+ * can be killed, as kill switch events may fire between reading this value and before the critical function.
  *
  * @return true  Any action requiring a kill switch insertion should not run
  * @return false All kill switches are reporting okay and the operation can run
@@ -176,7 +187,7 @@ bool safety_kill_get_asserting_kill(void);
 /**
  * @brief Gets the time of the last kill switch change
  *
- * safety_init must be called before this function can be used
+ * @note Safe to be called from any context, including interrupts and on any core.
  *
  * @return absolute_time_t The time of last kill switch change as an absolute time
  */
@@ -228,14 +239,17 @@ extern struct crash_data crash_data;
 /**
  * @brief Resets into bootloader mode.
  * This issues a watchdog reset with the proper flags set to enter bootloader mode.
- * This function does not return
+ *
+ * @attention This must only be called on core 0
+ *
+ * @note This function does not return
  */
 void safety_enter_bootloader(void);
 
 /**
  * @brief Prints the full watchdog crash log to the system log
  *
- * safety_setup must be called before this function can be used
+ * @note safety_setup must be called before this function can be used
  */
 void safety_print_crash_log(void);
 
@@ -258,15 +272,18 @@ extern bool safety_initialized;
  * This enables a watchdog timer, but with a multi-second long tick for setup
  * Will also print data on the last reset cause and any crash data from that
  *
- * Can only be called once
+ * @note Can only be called once
+ *
+ * @attention This function MUST be called before any other safety functions. Failure to do so may result in corruption
+ * or loss of current or previous boot's safety state
  */
 void safety_setup(void);
 
 /**
  * @brief Initializes safety for normal operation
- * This will tighten the timing for the watchdog timer, and is required to use the kill switch features
+ * This will tighten the timing for the watchdog timer, and is required for the kill switch to be enabled
  *
- * safety_setup must be called before this function can be used
+ * @attention Do not call again without calling safety_deinit
  */
 void safety_init(void);
 
@@ -274,7 +291,7 @@ void safety_init(void);
  * @brief Deinitializes safety for setup
  * This will loosen the timing for the watchdog timer.
  *
- * safety_init must be called before this function can be used
+ * @attention safety_init must be called before this function can be used
  */
 void safety_deinit(void);
 
@@ -282,7 +299,6 @@ void safety_deinit(void);
  * @brief Ticks safety
  * This must be called within the period of the watchdog timer or a reset will occur
  *
- * safety_setup must be called before this function can be used
  */
 void safety_tick(void);
 

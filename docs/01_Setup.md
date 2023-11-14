@@ -84,15 +84,6 @@ Both `titan_firmware` and the `pico-sdk` submodule need to have their submodules
     git submodule update --init
     cd ../..
 
-The final configuration step on the repository is to ignore changes to your local `.vscode/settings.json`. VSCode
-sometimes modifies this file when you do perform certain actions, and to avoid any accidental commits to this file,
-this command will keep any local changes to this file ignored:
-
-    git update-index --skip-worktree .vscode/settings.json
-
-Note that if you ever need to pull or commit changes to this file, you should run the command above with
-`--no-skip-worktree`. Ensure that you clean out any unnecessary changes to your settings before you commit.
-
 ## 4. MicroROS Building
 
 Most of the firmware images in this repository use [Micro-ROS](https://micro.ros.org/) to communicate with the primary

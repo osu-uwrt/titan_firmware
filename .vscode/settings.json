@@ -35,5 +35,6 @@
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "C_Cpp.formatting": "clangFormat"
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.autoAddFileAssociations": false
 }
