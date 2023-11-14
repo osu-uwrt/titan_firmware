@@ -10,6 +10,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#if !defined(ETHERNET_IP)
+#error Selected PICO_BOARD does not define ETHERNET_IP - Does this board support etherent?
+#elif !defined(ETHERNET_GATEWAY)
+#error Selected PICO_BOARD does not define ETHERNET_GATEWAY
+#elif !defined(ETHERNET_MASK)
+#error Selected PICO_BOARD does not define ETHERNET_MASK
+#else
+
 typedef uint8_t IPAddress[4];
 static uint8_t mac[] = { 0x2A, 0xCD, 0x00, 0x00, 0x00, 0x00 };
 static const IPAddress device_ip = ETHERNET_IP;
@@ -167,3 +175,5 @@ void bl_interface_transmit(uint8_t *msg, size_t len) {
 
     eth_udp_endPacket(&control_socket);
 }
+
+#endif
