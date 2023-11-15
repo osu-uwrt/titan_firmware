@@ -13,7 +13,7 @@ struct core1_battery_status {
     int16_t avg_current;
     uint16_t time_to_empty;
     uint8_t soc;
-    bool present;
+    uint32_t safety_status_reg;
 };
 
 struct core1_operation_status {
@@ -39,23 +39,30 @@ enum bq_reg_addr {
     BQ_READ_GPIO = 0x48,
     BQ_READ_SAFE_STAT = 0x51,
     BQ_READ_OPER_STAT = 0x54,
-    BQ_READ_CELL_SERI = 0x21,
+    BQ_READ_CELL_SERI = 0x1C,
     BQ_READ_CELL_DATE = 0x1B,
     BQ_READ_CELL_NAME = 0x21,
     // BQ_READ_CHRG_STAT = 0x55,
     // BQ_READ_MFG_STATS = 0x57,
 };
 
-void core1_init(void);
+typedef enum {
+    BQ_ERROR_START_UP_TOO_LONG = 1,
+    BQ_ERROR_NOT_CONNECTED,  // FIXME redudant with the above?
+    BQ_ERROR_I2C_TRANSACTION,
+} core1_bq_error_code;
+
+void core1_init(uint8_t expected_serial);
 
 bool core1_get_pack_mfg_info(struct mfg_info *pack_info_out);
 
-void core1_get_shared_status(struct core1_battery_status *status_out);
+void core1_get_battery_status(struct core1_battery_status *status_out);
+
+bool core1_check_present(void);
+
+bool core1_check_safety_status(uint32_t *safe_status_reg);
 
 void core1_open_dsg_temp(const uint32_t open_time_ms);
 
-bool core1_check_safety_status(void);
-
-void core1_get_safety_status_reg(uint8_t *data, uint8_t len);
-
+// TODO bq_pack_side_det_port(), bq_update_soc_leds()
 #endif
