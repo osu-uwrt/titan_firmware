@@ -46,7 +46,7 @@ void run_bootloader(void) {
     // Configure LED pins
     gpio_put(STATUS_LEDR_PIN, 1);
     gpio_put(STATUS_LEDB_PIN, 0);
-    uart_puts(DEBUG_UART_INSTANCE, "Entering bootloader...\n");
+    uart_puts(DEBUG_UART_INSTANCE, "Entering bootloader...\r\n");
 
     absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
 
@@ -94,7 +94,7 @@ int main(void) {
     uart_init(DEBUG_UART_INSTANCE, BOOTLOADER_DEBUG_BAUD_RATE);
     gpio_set_function(RP2040_DEBUG_TX_PIN, GPIO_FUNC_UART);
     uart_puts(DEBUG_UART_INSTANCE, FULL_BUILD_TAG);
-    uart_putc(DEBUG_UART_INSTANCE, '\n');
+    uart_puts(DEBUG_UART_INSTANCE, "\r\n");
 
     // Initialize CAN Bus
     if (!bl_interface_init()) {

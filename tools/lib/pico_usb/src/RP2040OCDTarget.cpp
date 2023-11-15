@@ -78,11 +78,16 @@ void RP2040OCDTarget::initNormal() {
     }
 
     // Clear resets on required elements for flash programming
-    const uint32_t rst_mask = RESETS_RESET_IO_QSPI_BITS | RESETS_RESET_PADS_QSPI_BITS | RESETS_RESET_TIMER_BITS;
+    const uint32_t rst_mask = RESETS_RESET_IO_QSPI_BITS | RESETS_RESET_PADS_QSPI_BITS | RESETS_RESET_TIMER_BITS |
+                              RESETS_RESET_IO_BANK0_BITS | RESETS_RESET_PADS_BANK0_BITS;
     writeWord(RESETS_BASE + REG_ALIAS_CLR_BITS, rst_mask);
     if ((readWord(RESETS_BASE) & rst_mask) != 0) {
         throw PicoprobeError("Failed to un-reset required subsystems");
     }
+
+    // Disable pull resistors on UART port for Mk 2 electronics (GPIO16)
+    // This prevents garbage from appearing in the serial terminal during upload
+    writeWord(PADS_BANK0_BASE + REG_ALIAS_CLR_BITS + 0x44, 0b1100);
 }
 
 void RP2040OCDTarget::initRescue() {

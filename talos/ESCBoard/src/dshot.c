@@ -384,9 +384,6 @@ void dshot_init(void) {
     // Initialize Telemetry Pins
     uint uart_offset = pio_add_program(DSHOT_TELEM_PIO_BLOCK, &uart_rx_program);
     pio_claim_sm_mask(DSHOT_TELEM_PIO_BLOCK, 0xF);  // Claim all state machines in pio block
-    // TODO: So there's a lot of noise on the ESC rail, and the weak pull up in the RP2040 isn't strong enough to
-    // address it. This causes noise to be present on the rail, and random packets come in. Every once and a while this
-    // noise will evaluate to a valid CRC and it'll report an invalid telemetry
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 0, uart_offset, ESC1_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 1, uart_offset, ESC2_TELEM_PIN, 115200);
     uart_rx_program_init(DSHOT_TELEM_PIO_BLOCK, 2, uart_offset, ESC3_TELEM_PIN, 115200);
