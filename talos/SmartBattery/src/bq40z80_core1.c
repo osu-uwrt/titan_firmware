@@ -40,25 +40,82 @@ typedef union sio_fifo_req {
 } sio_fifo_req_t;
 
 static_assert(sizeof(sio_fifo_req_t) == sizeof(uint32_t), "FIFO Command did not pack properly");
+
+// ================================================
+// Shared Memory Definitions
+// ================================================
+/**
+ * @brief Shared memory for sending battery status from core 1 to core 0
+ *
+ * @attention Only be modified or read when lock is held
+ *
+ */
 static volatile struct core1_status_shared_mem {
+    /**
+     * @brief spin lock to protect battery status transferring across cores
+     *
+     */
     spin_lock_t *lock;
 
+    /**
+     * @brief basic battery status from bq40z80 including:
+     * voltage, current, avg_current, time_to_empty, soc, safety_status_reg, port_detected
+     *
+     */
     struct core1_battery_status status;
 
+    /**
+     * @brief flag whether the battery is present
+     *
+     */
     bool pres_flag;
 
+    /**
+     * @brief flag whether any safety status bit is raised
+     *
+     */
     bool safety_status_flag;
 } shared_status = { 0 };
 
 static volatile struct core1_mfg_info_shared_mem {
+    /**
+     * @brief spin lock to protect manufacturer info transferring across cores
+     *
+     */
     spin_lock_t *lock;
 
+    /**
+     * @brief manufacturer info from bq40z80 including:
+     * device name, device date, device serial number
+     *
+     */
     struct mfg_info pack_info;
 } shared_mfg_info = { 0 };
 
 // FNC prototypes
+/**
+ * @brief perform i2c pio transfer
+ *
+ * @param bq_reg bq command
+ * @param rx_buf output buffer
+ * @param len length of the rx_buf
+ * @return int return code of i2c transfer, 0 as successful, otherwise failed
+ */
 static int bq_handle_i2c_transfer(uint8_t *bq_reg, uint8_t *rx_buf, uint len);
+/**
+ * @brief perform i2c pio write
+ *
+ * @param tx_buf input buffer which is typically bq command
+ * @param len length of the tx_buf
+ * @return int return code of i2c transfer, 0 as successful, otherwise failed
+ */
 static int bq_write_only_transfer(uint8_t *tx_buf, uint len);
+/**
+ * @brief format command before sending them to bq_write_only_transfer
+ *
+ * @param command
+ * @return int return code of i2c transfer, 0 as successful, otherwise failed
+ */
 static int send_mac_command(uint16_t command);
 
 static int sbs_read_u1(uint8_t *data, uint8_t cmd);
@@ -67,15 +124,50 @@ static int sbs_read_u2(uint16_t *data, uint8_t cmd);
 static int sbs_read_i2(int16_t *data, uint8_t cmd);
 static int sbs_read_h4(uint32_t *data, uint8_t cmd);
 
+/**
+ * @brief initialize PIO hardware for i2c usage, GPIO for BQ_LEDS, and BMS_WAKE_PIN
+ *
+ */
 static void bq_core1_init();
 
+/**
+ * @brief try to connect to bq40z80 by checking if the serial number from i2c transfer matched sbh_mcu_serial
+ *
+ * @return true connect successfully
+ * @return false failed to connect, that is start up, for a duration of START_UP_TIME_EXPIRED_MS
+ */
 static bool try_connect(void);
 
+/**
+ * @brief read bq registers (voltage, current, avg_current, soc, time_to_empty, port_detected, safety_status, present)
+ * and pass them to output variables bat_out and opr_out
+ *
+ * @param bat_out battery status output variable
+ * @param opr_out operation status output variable
+ * @return int return code of i2c transfer, 0 as successful, otherwise failed
+ */
 static int bq_core1_read_registers(struct core1_battery_status *bat_out, struct core1_operation_status *opr_out);
 
+/**
+ * @brief read manufacturer info (name, date, serial number) and pass them to output varibles
+ *
+ * @param pack_info_out manufacturer info output variable
+ * @return int return code of i2c transfer, 0 as successful, otherwise failed
+ */
 static int bq_core1_get_mfg_info(struct mfg_info *pack_info_out);
 
+/**
+ * @brief flush data to shared_mfg_info via locking spin lock
+ *
+ * @param pack_info
+ */
 static void core1_flush_mfg_info(struct mfg_info *pack_info);
+/**
+ * @brief flush data to shared_status via locking spin lock
+ *
+ * @param bat_stat
+ * @param opr_stat
+ */
 static void core1_flush_battery_info(struct core1_battery_status *bat_stat, struct core1_operation_status *opr_stat);
 
 static void bq_error(const core1_bq_error_code type, const int i2c_error_code) {
@@ -118,6 +210,7 @@ static void __time_critical_func(core1_main)(void) {
                         read_once_cached = true;
                     }
                     else {
+                        // failed to i2c transfer for RETRANSMIT_COUNT time
                         connected = false;
                         bq_error(BQ_ERROR_I2C_TRANSACTION, ret_code);
                     }
@@ -139,6 +232,7 @@ static void __time_critical_func(core1_main)(void) {
                 retries++;
             }
             if (retries < RETRANSMIT_COUNT) {
+                // i2c transfer succeed
                 core1_flush_battery_info(&local_bat_stat, &local_opr_stat);
 
                 // ====================================================
@@ -163,7 +257,7 @@ static void __time_critical_func(core1_main)(void) {
                             sleep_us(100);
                             watchdog_update();
                         }
-                        // FIXME double check on this part
+                        // FIXME double check on this part and use sbs_read_u2 for conciseness
                         uint8_t data[2] = { 0, 0 };
                         uint8_t bq_reg[1] = { BQ_READ_PACK_STAT };
                         bq_handle_i2c_transfer(bq_reg, data, 2);
@@ -185,6 +279,7 @@ static void __time_critical_func(core1_main)(void) {
                 }
             }
             else {
+                // failed to i2c transfer for RETRANSMIT_COUNT time
                 connected = false;
                 bq_error(BQ_ERROR_I2C_TRANSACTION, ret_code);
             }
@@ -303,6 +398,7 @@ static bool try_connect(void) {
 }
 static int bq_core1_read_registers(struct core1_battery_status *bat_out, struct core1_operation_status *opr_out) {
     int ret_code = 0;
+    uint16_t gpio_read;
     uint32_t op_status;
     ret_code |= sbs_read_u2(&bat_out->voltage, BQ_READ_PACK_VOLT);
     ret_code |= sbs_read_i2(&bat_out->current, BQ_READ_PACK_CURR);
@@ -310,9 +406,11 @@ static int bq_core1_read_registers(struct core1_battery_status *bat_out, struct 
     ret_code |= sbs_read_u2(&bat_out->time_to_empty, BQ_READ_TIME_EMPT);
     ret_code |= sbs_read_u1(&bat_out->soc, BQ_READ_RELAT_SOC);
     ret_code |= sbs_read_h4(&op_status, BQ_READ_OPER_STAT);
-    opr_out->present = op_status & 0x1;
-    opr_out->discharge = (op_status & 0x2) >> 1;
-    if ((opr_out->safety_status = (op_status & 0x800) >> 11))
+    ret_code |= sbs_read_u2(&gpio_read, BQ_READ_GPIO);
+    bat_out->port_detected = (gpio_read & 0x8) != 0;
+    opr_out->present = (op_status & 0x1) != 0;
+    opr_out->discharge = (op_status & 0x2) != 0;
+    if ((opr_out->safety_status = (op_status & 0x800) != 0))
         ret_code |= sbs_read_h4(&bat_out->safety_status_reg, BQ_READ_SAFE_STAT);
 
     return ret_code;
@@ -368,6 +466,7 @@ static void core1_flush_battery_info(struct core1_battery_status *bat_stat, stru
     shared_status.status.avg_current = bat_stat->avg_current;
     shared_status.status.time_to_empty = bat_stat->time_to_empty;
     shared_status.status.soc = bat_stat->soc;
+    shared_status.status.port_detected = bat_stat->port_detected;
     shared_status.status.safety_status_reg = bat_stat->safety_status_reg;
     spin_unlock(shared_status.lock, irq);
 }
@@ -411,6 +510,7 @@ void core1_get_battery_status(struct core1_battery_status *status_out) {
     status_out->avg_current = shared_status.status.avg_current;
     status_out->time_to_empty = shared_status.status.time_to_empty;
     status_out->soc = shared_status.status.soc;
+    status_out->port_detected = shared_status.status.port_detected;
     spin_unlock(shared_status.lock, irq);
 }
 
@@ -429,6 +529,24 @@ bool core1_check_safety_status(uint32_t *safe_status_reg) {
         *safe_status_reg = shared_status.status.safety_status_reg;
     spin_unlock(shared_status.lock, irq);
     return status_out;
+}
+
+void core1_update_soc_leds(void) {
+    uint8_t soc_cached;
+    uint32_t irq = spin_lock_blocking(shared_status.lock);
+    soc_cached = shared_status.status.soc;
+    spin_unlock(shared_status.lock, irq);
+
+    uint8_t state = 0;
+    if (soc_cached > WARN_SOC_THRESH) {
+        state = 2;
+    }
+    else if (soc_cached > STOP_SOC_THRESH) {
+        state = 1;
+    }
+    for (uint8_t led = 0; led < 3; led++) {
+        gpio_put(BQ_LEDS[led], led == state);
+    }
 }
 
 void core1_open_dsg_temp(const uint32_t open_time_ms) {

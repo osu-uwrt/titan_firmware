@@ -7,6 +7,9 @@
 #define BQ_ADDR 0x0B
 #define PIO_SM 0
 
+#define WARN_SOC_THRESH 60
+#define STOP_SOC_THRESH 30
+
 struct core1_battery_status {
     uint16_t voltage;
     int16_t current;
@@ -14,6 +17,7 @@ struct core1_battery_status {
     uint16_t time_to_empty;
     uint8_t soc;
     uint32_t safety_status_reg;
+    bool port_detected;
 };
 
 struct core1_operation_status {
@@ -61,6 +65,8 @@ void core1_get_battery_status(struct core1_battery_status *status_out);
 bool core1_check_present(void);
 
 bool core1_check_safety_status(uint32_t *safe_status_reg);
+
+void core1_update_soc_leds(void);
 
 void core1_open_dsg_temp(const uint32_t open_time_ms);
 
