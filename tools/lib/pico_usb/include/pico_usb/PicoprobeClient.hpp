@@ -30,7 +30,7 @@ public:
     OpenOCDInstance();
     ~OpenOCDInstance();
 
-    std::string sendCommand(std::string cmd, int timeout_ms = 5000);
+    std::string sendCommand(std::string cmd, bool strip_whitespace = true, int timeout_ms = 5000);
     void init();
     OpenOCDVersion getVersion();
 
