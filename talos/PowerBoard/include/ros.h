@@ -96,4 +96,8 @@ rcl_ret_t ros_publish_electrical_readings();
 
 rcl_ret_t ros_publish_auxswitch();
 
+rcl_ret_t ros_publish_balancing_feedback_port();
+
+rcl_ret_t ros_publish_balancing_feedback_stbd();
+
 #endif

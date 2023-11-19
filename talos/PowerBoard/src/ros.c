@@ -39,6 +39,9 @@
 
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
 
+#define BALANCING_FEEDBACK_PORT_PUBLISHER_NAME "state/portbattery"
+#define BALANCING_FEEDBACK_STBD_PUBLISHER_NAME "state/stbdbattery"
+
 bool ros_connected = false;
 
 // Core Variables
@@ -56,6 +59,8 @@ riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
 rcl_subscription_t elec_command_subscriber;
 riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 rcl_publisher_t aux_switch_publisher;
+rcl_publisher_t balancing_feedback_port_publisher;
+rcl_publisher_t balancing_feedback_stbd_publisher;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -162,6 +167,20 @@ rcl_ret_t ros_publish_auxswitch() {
     auxswitch_msg.data = gpio_get(AUX_SWITCH_PIN);
     RCSOFTRETCHECK(rcl_publish(&aux_switch_publisher, &auxswitch_msg, NULL));
 
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_balancing_feedback_port() {
+    std_msgs__msg__Bool balancing_feedback_port_msg;
+    balancing_feedback_port_msg.data = gpio_get(PORT_STAT_PIN);
+    RCSOFTRETCHECK(rcl_publish(&balancing_feedback_port_publisher, &balancing_feedback_port_msg, NULL));
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_balancing_feedback_stbd() {
+    std_msgs__msg__Bool balancing_feedback_stbd_msg;
+    balancing_feedback_stbd_msg.data = gpio_get(STBD_STAT_PIN);
+    RCSOFTRETCHECK(rcl_publish(&balancing_feedback_stbd_publisher, &balancing_feedback_stbd_msg, NULL));
     return RCL_RET_OK;
 }
 
@@ -275,6 +294,14 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(
         &aux_switch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), AUX_SWITCH_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_port_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           BALANCING_FEEDBACK_PORT_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_stbd_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           BALANCING_FEEDBACK_STBD_PUBLISHER_NAME));
+
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
                                                   SOFT_KILL_SUBSCRIBER_NAME));
@@ -313,10 +340,12 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));
+    RCSOFTCHECK(rcl_publisher_fini(&balancing_feedback_port_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&balancing_feedback_stbd_publisher, &node));
 
     ros_connected = false;
 }

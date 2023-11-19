@@ -23,6 +23,7 @@
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define ELECTRICAL_READINGS_INTERVAL 1000
 #define AUXSWITCH_INTERVAL 1000
+#define BALANCING_FEEDBACK_INTERVAL 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -34,6 +35,8 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_auxswitch_publish = { 0 };
+absolute_time_t next_balancing_feedback_port_publish = { 0 };
+absolute_time_t next_balancing_feedback_stbd_publish = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -80,6 +83,8 @@ static void start_ros_timers() {
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
     next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
     next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
+    next_balancing_feedback_port_publish = make_timeout_time_ms(BALANCING_FEEDBACK_INTERVAL);
+    next_balancing_feedback_stbd_publish = make_timeout_time_ms(BALANCING_FEEDBACK_INTERVAL);
 }
 
 /**
@@ -121,6 +126,14 @@ static void tick_ros_tasks() {
     if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
     }
+
+    if (timer_ready(&next_balancing_feedback_port_publish, BALANCING_FEEDBACK_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_balancing_feedback_port());
+    }
+
+    if (timer_ready(&next_balancing_feedback_stbd_publish, BALANCING_FEEDBACK_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_balancing_feedback_stbd());
+    }
 }
 
 static void tick_background_tasks() {
@@ -128,6 +141,9 @@ static void tick_background_tasks() {
 
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
+
+        printf("STBD: %s\n", (gpio_get(STBD_STAT_PIN) ? "true" : "false"));
+        printf("PORT: %s\n\n", (gpio_get(PORT_STAT_PIN) ? "true" : "false"));
     }
 }
 
@@ -158,6 +174,13 @@ int main() {
 
     gpio_init(AUX_SWITCH_PIN);
     gpio_set_dir(AUX_SWITCH_PIN, false);
+
+    gpio_init(STBD_STAT_PIN);
+    gpio_init(PORT_STAT_PIN);
+    gpio_set_dir(STBD_STAT_PIN, GPIO_IN);
+    gpio_set_dir(PORT_STAT_PIN, GPIO_IN);
+    gpio_disable_pulls(STBD_STAT_PIN);
+    gpio_disable_pulls(PORT_STAT_PIN);
 
     analog_io_init();
 
