@@ -66,7 +66,10 @@ good_stop:              ; No delay before returning to start; a little slack is
 static inline void uart_rx_program_init(PIO pio, uint sm, uint offset, uint pin, uint baud) {
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
     pio_gpio_init(pio, pin);
-    gpio_pull_up(pin);
+    // We don't want to pull up (even though that's what most serial busses do) since the ESC pulls down when off
+    // The pull up from the RP2040 and pull down from ESC will cause the line to be at an intermediate state, resulting
+    // in noise and garbage data being received from PIO
+    gpio_disable_pulls(pin);
 
     pio_sm_config c = uart_rx_program_get_default_config(offset);
     sm_config_set_in_pins(&c, pin); // for WAIT, IN

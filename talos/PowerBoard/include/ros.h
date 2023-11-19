@@ -100,4 +100,5 @@ rcl_ret_t ros_publish_balancing_feedback_port();
 
 rcl_ret_t ros_publish_balancing_feedback_stbd();
 
+rcl_ret_t ros_update_temp_humidity_publisher();
 #endif

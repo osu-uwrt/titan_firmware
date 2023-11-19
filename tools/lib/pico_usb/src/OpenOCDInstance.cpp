@@ -246,7 +246,7 @@ std::string OpenOCDInstance::readData(int timeout_ms) {
     }
 }
 
-std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
+std::string OpenOCDInstance::sendCommand(std::string cmd, bool strip_whitespace, int timeout_ms) {
     // If enabling debug, print the command we're sending to stderr
     if (enableStderr) {
         std::cerr << "> " << cmd << std::endl;
@@ -270,8 +270,20 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
     }
 
     // Remove last character from dataOut as this is the separator character
-    return dataOut.substr(0, dataOut.length() - 1);
-    ;
+    dataOut.erase(dataOut.length() - 1);
+
+    // Strip trailing whitespace if requested
+    if (strip_whitespace) {
+        size_t found = dataOut.find_last_not_of(" \t\f\v\n\r");
+        if (found != std::string::npos) {
+            dataOut.erase(found + 1);
+        }
+        else {
+            dataOut.clear();
+        }
+    }
+
+    return dataOut;
 }
 
 void OpenOCDInstance::init() {

@@ -1,6 +1,8 @@
 #ifndef DRIVER__SHT41_H_
 #define DRIVER__SHT41_H_
 
+#include "driver/async_i2c.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 /**
@@ -10,20 +12,64 @@
  *
  */
 
-typedef void (*sht41_on_read_callback)();
+// PICO_CONFIG: SHT41_POLL_TIME_MS, time in between reading temperature and humidity, type=int, default=500, group=driver_sht41
+#ifndef SHT41_POLL_TIME_MS
+#define SHT41_POLL_TIME_MS 500
+#endif
 
-typedef union sht41_error {
-    // TODO put in error code, error source struct field
-    // TODO data field
-} sht41_error_t;
+// maximum duration of time for a valid sht41 temperature and humidity data before it's considered invalid
+#define SHT41_INVALID_TIMEOUT_MS (SHT41_POLL_TIME_MS + 100)
 
-typedef void (*sht41_error_cb)(sht41_error_t error);  // FIXME needs inspection
+/**
+ * @brief types of error sht41 driver could have
+ *
+ */
+typedef enum {
+    SHT41_ERROR_TIMER_SCHEDULE_FULL = 1,
+    SHT41_ERROR_INITIAL_TIMER_SCHEDULE_FULL,
+    SHT41_ERROR_CRC_INVALID,
+    SHT41_ERROR_I2C_COMPLAINT
+} sht41_error_code;
 
-void sht41_init(sht41_error_cb board_error_cb);
+/**
+ * @brief boolean if temperature and humidity data is ready to read
+ *
+ */
+extern volatile bool sht41_temp_rh_set_on_read;
 
+/**
+ * @brief error callback.
+ *
+ */
+typedef void (*sht41_error_cb)(const sht41_error_code error_type);
+
+/**
+ * @brief Initializes sht41 driver
+ *
+ * @param board_error_cb callback on error
+ * @param i2c_bus_num the i2c bus number for sht41 driver
+ */
+void sht41_init(sht41_error_cb board_error_cb, uint8_t i2c_bus_num);
+
+/**
+ * @brief check the validity of data based on the last time it's retrieved
+ *
+ * @return true if lifetime of data hasn't exceeded SHT41_INVALID_TIMEOUT_MS
+ * @return false otherwise
+ */
 bool sht41_is_valid(void);
 
-int16_t sht41_read_temp(void);
+/**
+ * @brief read temperature
+ *
+ * @return float temperature in Celsius
+ */
+float sht41_read_temp(void);
 
-int16_t sht41_read_rh(void);
+/**
+ * @brief read humidity
+ *
+ * @return float humidity in %RH
+ */
+float sht41_read_rh(void);
 #endif

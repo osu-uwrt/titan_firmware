@@ -53,5 +53,7 @@ target_link_libraries(esc_board PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     hardware_adc    # ADC Pin for VCC Measurement
     hardware_pio    # PIO for DShot
+
+    pico_multicore  # RP2040 Multicore Support
 )
 

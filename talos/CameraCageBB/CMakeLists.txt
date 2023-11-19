@@ -52,5 +52,6 @@ target_link_libraries(camera_cage_bb PUBLIC
     pico_stdlib         # Pico SDK Standard Library
     driver_async_i2c    # I2C support for depth sensor
     driver_status_strip # Status LED strip support
+    driver_sht41        # sht41 temperature and humidity sensor
 )
 

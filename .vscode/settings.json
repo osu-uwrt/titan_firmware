@@ -9,20 +9,6 @@
         "${workspaceFolder}/tools/upload_tool/",
         "${workspaceFolder}/tools/canmore_cli/"
     ],
-    "cmake.statusbar.advanced": {
-        "ctest": {
-            "visibility": "hidden"
-        },
-        "kit": {
-            "visibility": "icon"
-        },
-        "launch": {
-            "visibility": "hidden"
-        },
-        "debug": {
-            "visibility": "hidden"
-        }
-    },
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
     "editor.detectIndentation": false,
@@ -34,6 +20,8 @@
     "editor.tabSize": 4,
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
+    "git.autofetch": true,
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "C_Cpp.formatting": "clangFormat"
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.autoAddFileAssociations": false
 }
