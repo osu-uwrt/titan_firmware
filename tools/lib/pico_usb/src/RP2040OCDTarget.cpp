@@ -117,9 +117,9 @@ void RP2040OCDTarget::initRescue() {
     char *parseEnd;
     auto dpreg4 = std::strtoul(parseStart, &parseEnd, 16);
 
-    // if (result.size() == 0 || parseStart + result.size() != parseEnd) {
-    //     throw PicoprobeError("Failed to connect to RP2040");
-    // }
+    if (result.size() == 0 || parseStart + result.size() != parseEnd) {
+        throw PicoprobeError("Failed to connect to RP2040");
+    }
 
     if (dpreg4 & 0xf0000000) {
         throw PicoprobeError("Failed to de-assert rescue DAP reset");
