@@ -38,6 +38,9 @@ absolute_time_t next_battery_status_update = { 0 };
 absolute_time_t next_pwrcycl_update = { 0 };
 absolute_time_t next_display_update = { 0 };
 
+// Forces lcd to draw for the first bit of power on, prevents needing to hold the magnet near the pack
+absolute_time_t lcd_poweron_delay = { 0 };
+
 uint8_t presence_fail_count = 0;
 bq_pack_info_t bq_pack_info;
 uint can_id;
@@ -136,7 +139,7 @@ static void tick_background_tasks() {
     }
 
     // Update LCD if reed switch held and we are in time for a display update
-    if (gpio_get(SWITCH_SIGNAL_PIN) && time_reached(next_display_update)) {
+    if (time_reached(next_display_update) && (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay))) {
         next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
 
         // Show pack info
@@ -219,6 +222,9 @@ int main() {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
+
+    // Force display to refresh for the first 5s of poweron
+    lcd_poweron_delay = make_timeout_time_ms(5000);
 
     // Enter main loop
     // This is split into two sections of timers

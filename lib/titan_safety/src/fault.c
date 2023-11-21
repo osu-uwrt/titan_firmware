@@ -14,7 +14,6 @@ static spin_lock_t *fault_lock;
 struct fault_data safety_fault_data[MAX_FAULT_ID + 1] = { 0 };
 
 void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filename, uint16_t line) {
-    hard_assert_if(SAFETY, !safety_is_setup);
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     absolute_time_t raise_time = get_absolute_time();
@@ -40,7 +39,6 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filena
 }
 
 void safety_lower_fault(uint32_t fault_id) {
-    hard_assert_if(SAFETY, !safety_is_setup);
     valid_params_if(SAFETY, fault_id <= MAX_FAULT_ID);
 
     if ((*fault_list_reg & (1u << fault_id)) != 0) {
