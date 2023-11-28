@@ -66,8 +66,6 @@ bool core1_check_present(void);
 
 bool core1_check_safety_status(uint32_t *safe_status_reg);
 
-void core1_update_soc_leds(void);
-
 void core1_open_dsg_temp(const uint32_t open_time_ms);
 
 // TODO bq_pack_side_det_port(), bq_update_soc_leds()
