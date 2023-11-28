@@ -148,24 +148,21 @@ static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
 }
 
 rcl_ret_t ros_publish_electrical_readings() {
-    // TODO: Put balancer status pins
+    bool stbd_pwring = gpio_get(STBD_STAT_PIN);
+    bool port_pwring = gpio_get(PORT_STAT_PIN);
     electrical_reading_msg.port_voltage = analog_io_read_port_meas();
     electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
     electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
     electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
     electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
     electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
-
-    size_t esc_current_length =
-        sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
-    for (size_t i = 0; i < esc_current_length; i++) {
-        electrical_reading_msg.esc_current[i] = NAN;
-    }
+    electrical_reading_msg.port_powering = port_pwring;
+    electrical_reading_msg.stbd_powering = stbd_pwring;
 
     RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
 
     std_msgs__msg__Bool balancing_feedback_msg;
-    if (gpio_get(PORT_STAT_PIN) && gpio_get(STBD_STAT_PIN)) {
+    if (port_pwring && stbd_pwring) {
         balancing_feedback_msg.data = true;
     }
     else {
