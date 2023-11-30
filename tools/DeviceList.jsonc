@@ -163,10 +163,9 @@
             "serial": "E460CCB01B29352A"
         },
         {
-            // This was just a generic pico used for testing stuff, I forget what but it probably wasn't used for anything
-            // too interesting. If I remember it might have been given to people working on firmware to test stuff
+            // This pico was adopted to be come our TagConnect picoprobe
             "name": "Team raspberry pi pico (4th one in the order box)",
-            "boardType": "pico",
+            "boardType": "picoprobe",
             "serial": "E660B44007924D2A"
         },
         {
@@ -203,8 +202,10 @@
             // as we've always had I2C communication issues, and sending a bus across every board seemed like a recipe for
             // I2C gremlins if we couldn't get it just to the other side for the depth sensor. And hence, CAN bus and modualrized firmware
             // And so, that's why this firmware is so convoluted to add support for several MCUs and a distributed architecture over CAN bus
+            // The microcontroller bounced around as a general purpose pico after it was retired, with the name being retired from
+            // jerry backn to a normal pico
             "name": "Team raspberry pi pico (5th one in the order box)",
-            "boardType": "mk1/jerry",
+            "boardType": "pico",
             "serial": "E660B440076B4B2A"
         }
     ]
