@@ -11,19 +11,18 @@
 #define STOP_SOC_THRESH 30
 
 struct core1_battery_status {
-    uint16_t voltage;
-    int16_t current;
+    bool dsg_mode;
+    uint16_t time_to_empty;  // time_to_full if dsg_mode is false
+    uint16_t voltage;        // charging_voltage if dsg_mode is false
+    int16_t current;         // charging_current if dsg_mode is false
     int16_t avg_current;
-    uint16_t time_to_empty;
     uint8_t soc;
-    uint32_t safety_status_reg;
     bool port_detected;
 };
 
 struct core1_operation_status {
     bool safety_status;
     bool present;
-    bool discharge;
 };
 
 struct mfg_info {
@@ -52,8 +51,9 @@ enum bq_reg_addr {
 
 typedef enum {
     BQ_ERROR_START_UP_TOO_LONG = 1,
-    BQ_ERROR_NOT_CONNECTED,  // FIXME redudant with the above?
+    BQ_ERROR_SAFETY_STATUS,  // FIXME redudant with the above?
     BQ_ERROR_I2C_TRANSACTION,
+    BQ_ERROR_CAPACITY_ALARM_REACHED,
 } core1_bq_error_code;
 
 void core1_init(uint8_t expected_serial);
@@ -63,8 +63,6 @@ bool core1_get_pack_mfg_info(struct mfg_info *pack_info_out);
 void core1_get_battery_status(struct core1_battery_status *status_out);
 
 bool core1_check_present(void);
-
-bool core1_check_safety_status(uint32_t *safe_status_reg);
 
 void core1_open_dsg_temp(const uint32_t open_time_ms);
 

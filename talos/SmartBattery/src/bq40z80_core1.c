@@ -74,7 +74,7 @@ static volatile struct core1_status_shared_mem {
      * @brief flag whether any safety status bit is raised
      *
      */
-    bool safety_status_flag;
+    bool safety_status_flag;  // FIXME remove from shared_status
 } shared_status = { 0 };
 
 static volatile struct core1_mfg_info_shared_mem {
@@ -144,6 +144,14 @@ static int send_mac_command(uint16_t command) {
 // ============================================
 // BQ40Z80 Functions
 // ============================================
+
+static void bq_error(const core1_bq_error_code type, const int error_code) {
+    if (type == BQ_ERROR_I2C_TRANSACTION)
+        LOG_FATAL("I2C transfer error: %d", error_code);
+    else if (type == BQ_ERROR_SAFETY_STATUS)
+        LOG_FATAL("Safety Status register: %d", error_code);
+    safety_raise_fault_with_arg(FAULT_BQ40_ERROR, type);
+}
 
 static int sbs_read_u1(uint8_t *data, uint8_t cmd) {
     uint8_t rx_buf[1] = { 0 };
@@ -237,7 +245,7 @@ static bool try_connect(void) {
  * @param opr_out operation status output variable
  * @return int return code of i2c transfer, 0 as successful, otherwise failed
  */
-static int bq_core1_read_registers(struct core1_battery_status *bat_out, struct core1_operation_status *opr_out) {
+static int bq_core1_read_dsg_registers(struct core1_battery_status *bat_out, struct core1_operation_status *opr_out) {
     int ret_code = 0;
     uint16_t gpio_read;
     uint32_t op_status;
@@ -251,10 +259,12 @@ static int bq_core1_read_registers(struct core1_battery_status *bat_out, struct 
     ret_code |= sbs_read_u2(&gpio_read, BQ_READ_GPIO);
     bat_out->port_detected = (gpio_read & 0x8) != 0;
     opr_out->present = (op_status & 0x1) != 0;
-    opr_out->discharge = (op_status & 0x2) != 0;
-    if ((opr_out->safety_status = (op_status & 0x800) != 0))
-        ret_code |= sbs_read_h4(&bat_out->safety_status_reg, BQ_READ_SAFE_STAT);
-
+    if ((opr_out->safety_status = (op_status & 0x800) != 0)) {
+        // Raise fault for Safety Status
+        uint32_t safety_status_reg;
+        ret_code |= sbs_read_h4(&safety_status_reg, BQ_READ_SAFE_STAT);
+        bq_error(BQ_ERROR_SAFETY_STATUS, safety_status_reg);
+    }
     return ret_code;
 }
 
@@ -332,7 +342,6 @@ static void core1_flush_battery_info(struct core1_battery_status *bat_stat, stru
     shared_status.status.time_to_empty = bat_stat->time_to_empty;
     shared_status.status.soc = bat_stat->soc;
     shared_status.status.port_detected = bat_stat->port_detected;
-    shared_status.status.safety_status_reg = bat_stat->safety_status_reg;
     spin_unlock(shared_status.lock, irq);
 }
 
@@ -347,13 +356,6 @@ void core1_update_soc_leds(uint8_t soc) {
     for (uint8_t led = 0; led < 3; led++) {
         gpio_put(BQ_LEDS_CORE1[led], led == state);
     }
-}
-
-static void bq_error(const core1_bq_error_code type, const int i2c_error_code) {
-    if (type == BQ_ERROR_I2C_TRANSACTION) {
-        LOG_FATAL("I2C transfer error: %d", i2c_error_code);
-    }
-    safety_raise_fault_with_arg(FAULT_BQ40_ERROR, type);
 }
 
 // ===========================================
@@ -381,6 +383,7 @@ static void __time_critical_func(core1_main)(void) {
                  *
                  */
                 if (!read_once_cached) {
+                    // TODO get device chemistry, cycle count, state of health, full charge capacity
                     // Check for i2c transaction error
                     int ret_code;
                     uint8_t retries = 0;
@@ -410,7 +413,7 @@ static void __time_critical_func(core1_main)(void) {
             int ret_code;
             uint8_t retries = 0;
             while (retries < RETRANSMIT_COUNT &&
-                   (ret_code = bq_core1_read_registers(&local_bat_stat, &local_opr_stat))) {
+                   (ret_code = bq_core1_read_dsg_registers(&local_bat_stat, &local_opr_stat))) {
                 retries++;
             }
             if (retries < RETRANSMIT_COUNT) {
@@ -421,43 +424,43 @@ static void __time_critical_func(core1_main)(void) {
                 // Handle multicore_fifo with queued any commands
                 // ====================================================
                 while (multicore_fifo_rvalid()) {
-                    // TODO Combine Open charge/discharge fet into a single command
                     sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
+
+                    //  Power Cycle the battery
                     if (req.type == BQ_MAC_EMG_FET_CTRL_CMD) {
-                        if (!bq_core1_check_discharge()) {
-                            multicore_fifo_drain();
-                            break;
-                        }
-
-                        send_mac_command((uint16_t) req.cmd);
-                    }
-                    else if (req.type == BQ_MAC_EMG_FET_OFF_CMD) {
-                        send_mac_command((uint16_t) req.cmd);
-
-                        absolute_time_t fet_off_time_end = make_timeout_time_ms(fet_open_time_ms);
-                        while (bq_core1_check_discharge() && !time_reached(fet_off_time_end)) {
-                            sleep_us(100);
-                            watchdog_update();
-                        }
-                        // Error checking
-                        uint16_t status;
-                        sbs_read_u2(&status, BQ_READ_PACK_STAT);
-                        if (status & 0x7) {
-                            char err[9] = "ERROR:#|#";
-                            itoa(status & 0x7, err + 6, 10);
-                            *(err + 7) = '|';
-                            itoa((status & 0x700) >> 8, err + 8, 10);  // FIXME not sure what this is for
-                            // FIXME just raise faults instead of panic
-                            panic(err);
-                        }
                         if (bq_core1_check_discharge()) {
-                            send_mac_command(0x0041);
-                            // FIXME just raise faults instead of panic
-                            panic("Failed to open DSCHG FET during power cycle cmd");
+                            //  Send emergency manual FET control command
+                            send_mac_command((uint16_t) req.cmd);
+
+                            //  Send emergency FET OFF command
+                            send_mac_command(0x043D);
+
+                            absolute_time_t fet_off_time_end = make_timeout_time_ms(fet_open_time_ms);
+                            while (bq_core1_check_discharge() && !time_reached(fet_off_time_end)) {
+                                sleep_us(100);
+                                watchdog_update();
+                            }
+                            // Error checking
+                            uint16_t status;
+                            sbs_read_u2(&status, BQ_READ_PACK_STAT);
+                            if (status & 0x7) {
+                                char err[9] = "ERROR:#|#";
+                                itoa(status & 0x7, err + 6, 10);
+                                *(err + 7) = '|';
+                                itoa((status & 0x700) >> 8, err + 8, 10);  // FIXME not sure what this is for
+                                // FIXME just raise faults instead of panic
+                                panic(err);
+                            }
+                            if (bq_core1_check_discharge()) {
+                                // bad state: FET is ON even after requesting FET OFF command
+                                // Send device RESET command
+                                send_mac_command(0x0041);
+                                // FIXME just raise faults instead of panic
+                                panic("Failed to open DSCHG FET during power cycle cmd");
+                            }
+                            //  Send emergency FET ON command
+                            send_mac_command(0x23A7);
                         }
-                    }
-                    else if (req.type == BQ_MAC_EMG_FET_ON_CMD) {
-                        send_mac_command((uint16_t) req.cmd);
                     }
                 }
             }
@@ -521,23 +524,8 @@ bool core1_check_present(void) {
     return present_out;
 }
 
-bool core1_check_safety_status(uint32_t *safe_status_reg) {
-    bool status_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    if ((status_out = shared_status.safety_status_flag))
-        *safe_status_reg = shared_status.status.safety_status_reg;
-    spin_unlock(shared_status.lock, irq);
-    return status_out;
-}
-
 void core1_open_dsg_temp(const uint32_t open_time_ms) {
     fet_open_time_ms = open_time_ms;
     sio_fifo_req_t req = { .type = BQ_MAC_EMG_FET_CTRL_CMD, .cmd = 0x270C };
-    multicore_fifo_push_blocking(req.raw);
-    req.type = BQ_MAC_EMG_FET_OFF_CMD;
-    req.cmd = 0x043D;
-    multicore_fifo_push_blocking(req.raw);
-    req.type = BQ_MAC_EMG_FET_ON_CMD;
-    req.cmd = 0x23A7;
     multicore_fifo_push_blocking(req.raw);
 }
