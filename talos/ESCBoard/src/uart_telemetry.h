@@ -46,6 +46,7 @@ struct uart_telem_buffer {
     } buffer;
     enum uart_telem_recv_type type;
     uint8_t crc;
+    bool rpm_reversed;
     size_t recv_index;
     int thruster;
 };

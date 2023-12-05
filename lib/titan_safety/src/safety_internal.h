@@ -42,7 +42,7 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 100
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 160
 #endif
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
@@ -61,17 +61,23 @@ extern struct kill_switch_state kill_switch_states[];
 /**
  * @brief Called to set the fault led light
  *
+ * @note This function is called during safety tick
+ *
  * @param on Logic level of the light
  */
 void safety_set_fault_led(bool on);
 
 /**
- * @brief Handles a kill request from a kill switch. This may be called during an interrupt
+ * @brief Handles a kill request from a kill switch
+ *
+ * @attention This function may be called during an interrupt
  */
 void safety_handle_kill(void);
 
 /**
  * @brief Called when all kill switches are no longer asserting a kill and the system is re-enabled
+ *
+ * @note This function is called during safety tick
  */
 void safety_handle_enable(void);
 
@@ -123,6 +129,13 @@ void safety_internal_crash_reporting_handle_init(void);
  * @brief Notifies kill switch management that safety has been initialized
  */
 void safety_internal_kill_handle_init(void);
+
+/**
+ * @brief Performs core initialization required for the safety fault system.
+ *
+ * @attention Must be called before raising any faults
+ */
+void safety_internal_fault_setup(void);
 
 /**
  * @brief Ticks fault reporting

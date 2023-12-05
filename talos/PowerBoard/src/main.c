@@ -169,6 +169,13 @@ int main() {
     gpio_init(AUX_SWITCH_PIN);
     gpio_set_dir(AUX_SWITCH_PIN, false);
 
+    gpio_init(STBD_STAT_PIN);
+    gpio_init(PORT_STAT_PIN);
+    gpio_set_dir(STBD_STAT_PIN, GPIO_IN);
+    gpio_set_dir(PORT_STAT_PIN, GPIO_IN);
+    gpio_disable_pulls(STBD_STAT_PIN);
+    gpio_disable_pulls(PORT_STAT_PIN);
+
     analog_io_init();
 
     // Initialize I2C

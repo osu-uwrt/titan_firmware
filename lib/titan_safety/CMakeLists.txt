@@ -22,6 +22,7 @@ target_link_libraries(titan_safety INTERFACE
 )
 
 target_compile_definitions(titan_safety INTERFACE TITAN_SAFETY=1)
+target_compile_definitions(titan_safety INTERFACE PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS=0)
 
 target_include_directories(titan_safety INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include

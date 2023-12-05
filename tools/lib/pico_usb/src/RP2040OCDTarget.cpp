@@ -1,6 +1,7 @@
 #include "pico_usb/PicoprobeClient.hpp"
 
 #include "hardware/regs/addressmap.h"
+#include "hardware/regs/pads_bank0.h"
 #include "hardware/regs/resets.h"
 
 #include <iostream>
@@ -48,6 +49,7 @@ void RP2040OCDTarget::initCommon() {
     }
 
     // Configure probe for openocd
+    // Taken from OpenOCD interface/cmsis-dap.cfg
     if (!openocd->ranCustomProbeInit) {
         // Configure picoprobe if a custom probe init wasn't requested
         openocd->sendCommand("adapter driver cmsis-dap");
@@ -57,6 +59,7 @@ void RP2040OCDTarget::initCommon() {
     }
 
     // Enable SWD
+    // Taken from OpenOCD target/rp2040.cfg
     openocd->sendCommand("transport select swd");
     openocd->sendCommand("eval swd newdap rp2040 cpu -expected-id 0x01002927");
 }
@@ -65,6 +68,7 @@ void RP2040OCDTarget::initNormal() {
     initCommon();
 
     // Create RP2040 DAP and core 0 target
+    // Taken from OpenOCD target/rp2040.cfg
     openocd->sendCommand("dap create rp2040.dap0 -chain-position rp2040.cpu -dp-id 0x01002927 -instance-id 0");
     openocd->sendCommand("target create rp2040.core0 cortex_m -dap rp2040.dap0 -coreid 0");
     openocd->sendCommand("rp2040.core0 cortex_m reset_config sysresetreq");
@@ -72,16 +76,25 @@ void RP2040OCDTarget::initNormal() {
     openocd->init();
 
     // Halt the cpu to get it ready to receive commands
-    openocd->sendCommand("halt 3000", 5000);
+    openocd->sendCommand("halt 3000", false, 5000);
     if (openocd->sendCommand("rp2040.core0 curstate") != "halted") {
         throw PicoprobeError("Failed to halt CPU after init");
     }
 
     // Clear resets on required elements for flash programming
-    const uint32_t rst_mask = RESETS_RESET_IO_QSPI_BITS | RESETS_RESET_PADS_QSPI_BITS | RESETS_RESET_TIMER_BITS;
+    const uint32_t rst_mask = RESETS_RESET_IO_QSPI_BITS | RESETS_RESET_PADS_QSPI_BITS | RESETS_RESET_TIMER_BITS |
+                              RESETS_RESET_IO_BANK0_BITS | RESETS_RESET_PADS_BANK0_BITS;
     writeWord(RESETS_BASE + REG_ALIAS_CLR_BITS, rst_mask);
     if ((readWord(RESETS_BASE) & rst_mask) != 0) {
         throw PicoprobeError("Failed to un-reset required subsystems");
+    }
+
+    // Disable pull resistors on UART port for Mk 2 electronics (GPIO16)
+    // This prevents garbage from appearing in the serial terminal during upload
+    const uint32_t pull_en_mask = PADS_BANK0_GPIO16_PDE_BITS | PADS_BANK0_GPIO16_PUE_BITS;
+    writeWord(PADS_BANK0_BASE + REG_ALIAS_CLR_BITS + PADS_BANK0_GPIO16_OFFSET, pull_en_mask);
+    if ((readWord(RESETS_BASE + PADS_BANK0_GPIO16_OFFSET) & pull_en_mask) != 0) {
+        throw PicoprobeError("Failed to clear pull resistors on GPIO16");
     }
 }
 
@@ -89,6 +102,7 @@ void RP2040OCDTarget::initRescue() {
     initCommon();
 
     // Create and init rescue DAP
+    // Taken from OpenOCD target/rp2040.cfg
     openocd->sendCommand("dap create rp2040.rescue_dap -chain-position rp2040.cpu -dp-id 0x01002927 -instance-id 0xf "
                          "-ignore-syspwrupack");
     openocd->init();
@@ -98,12 +112,6 @@ void RP2040OCDTarget::initRescue() {
 
     // Readback to ensure the de-assert was successful
     auto result = openocd->sendCommand("rp2040.rescue_dap dpreg 0x4");
-
-    char whitespaces[] = " \t\f\v\n\r";
-
-    size_t found = result.find_last_not_of(whitespaces);
-
-    result.erase(found + 1);
 
     const char *parseStart = result.c_str();
     char *parseEnd;
@@ -225,7 +233,7 @@ uint32_t RP2040OCDTarget::callFunction(uint32_t addr, uint32_t r0, uint32_t r1, 
     // Run the CPU
     openocd->sendCommand(cmdStream.str());
     openocd->sendCommand("resume");
-    openocd->sendCommand("wait_halt " + std::to_string(timeout_ms), timeout_ms + 1000);
+    openocd->sendCommand("wait_halt " + std::to_string(timeout_ms), false, timeout_ms + 1000);
     std::string curstate = openocd->sendCommand("rp2040.core0 curstate");
     if (curstate != "halted") {
         throw PicoprobeError("CPU failed to halt after function call. Found in state: " + curstate);

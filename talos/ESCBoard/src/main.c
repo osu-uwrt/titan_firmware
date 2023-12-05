@@ -1,4 +1,4 @@
-#include "dshot.h"
+#include "core1.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -6,6 +6,7 @@
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "titan/binary_info.h"
 #include "titan/logger.h"
@@ -133,7 +134,7 @@ int main() {
     load_client_id();
     led_init();
     micro_ros_init_error_handling();
-    dshot_init();
+    core1_init(esc_board_num);
 
     // Initialize ROS Transport
     if (!transport_can_init(client_id)) {
@@ -155,7 +156,7 @@ int main() {
                 // Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
                 safety_lower_fault(FAULT_ROS_BAD_COMMAND);
-                safety_lower_fault(FAULT_THRUSTER_TIMEOUT);
+                safety_lower_fault(FAULT_RPM_CMD_TIMEOUT);
 
                 if (ros_init(esc_board_num) == RCL_RET_OK) {
                     ros_initialized = true;

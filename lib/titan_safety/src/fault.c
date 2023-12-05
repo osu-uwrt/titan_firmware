@@ -10,6 +10,7 @@
 // Fault Management Functions
 // ========================================
 
+static spin_lock_t *fault_lock;
 struct fault_data safety_fault_data[MAX_FAULT_ID + 1] = { 0 };
 
 void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filename, uint16_t line) {
@@ -17,7 +18,7 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filena
 
     absolute_time_t raise_time = get_absolute_time();
 
-    uint32_t prev_interrupt_state = save_and_disable_interrupts();
+    uint32_t prev_interrupt_state = spin_lock_blocking(fault_lock);
     safety_fault_data[fault_id].time = raise_time;
     safety_fault_data[fault_id].extra_data = arg;
     safety_fault_data[fault_id].filename = filename;
@@ -29,13 +30,12 @@ void safety_raise_fault_full(uint32_t fault_id, uint32_t arg, const char *filena
         // during the setting of the fault state and the fault LED
 
         *fault_list_reg |= (1 << fault_id);
-        safety_set_fault_led(true);
     }
     else {
         safety_fault_data[fault_id].multiple_fires = true;
     }
 
-    restore_interrupts(prev_interrupt_state);
+    spin_unlock(fault_lock, prev_interrupt_state);
 }
 
 void safety_lower_fault(uint32_t fault_id) {
@@ -45,18 +45,21 @@ void safety_lower_fault(uint32_t fault_id) {
         // To ensure the fault led doesn't get glitched on/off due to an untimely interrupt, interrupts will be disabled
         // during the setting of the fault state and the fault LED
 
-        uint32_t prev_interrupt_state = save_and_disable_interrupts();
-
+        uint32_t prev_interrupt_state = spin_lock_blocking(fault_lock);
         *fault_list_reg &= ~(1u << fault_id);
-        safety_set_fault_led((*fault_list_reg) != 0);
-
-        restore_interrupts(prev_interrupt_state);
+        spin_unlock(fault_lock, prev_interrupt_state);
     }
+}
+
+void safety_internal_fault_setup(void) {
+    fault_lock = spin_lock_init(spin_lock_claim_unused(true));
 }
 
 void safety_internal_fault_tick(void) {
     static uint32_t last_fault_value = 0;
     uint32_t fault_list = *fault_list_reg;
+    safety_set_fault_led(fault_list != 0);
+
     uint32_t outstanding_faults = fault_list ^ last_fault_value;
 
     last_fault_value = fault_list;

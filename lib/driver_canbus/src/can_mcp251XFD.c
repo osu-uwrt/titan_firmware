@@ -27,17 +27,16 @@
 #define CAN_MCP251XFD_CONNECT_DELAY_MS 10
 #endif
 
-#ifndef UWRT_ROBOT_DEFINED
-#error Robot must be defined to retrieve CAN bus configuration
-#endif
+#if !defined(UWRT_ROBOT_DEFINED)
+#error UWRT_ROBOT must be defined to retrieve CAN bus configuration for that robot
 
-#ifndef UWRT_BOARD_DEFINED
-#error UWRT board must be defined to retrieve CAN bus configuration
-#endif
+#elif !defined(UWRT_BOARD_DEFINED)
+#error Selected PICO_BOARD is not a UWRT board - only UWRT boards have CAN bus configurations defined
 
-#ifndef CAN_BUS_NAME
-#error No CAN bus defined in board file
-#endif
+#elif !defined(CAN_BUS_NAME)
+#error No CAN bus defined in selected PICO_BOARD - does this board support CAN bus?
+
+#else
 
 // Set configurations for can bus
 // Note that these are pulled from the board and robot configurations (hence the error check above)
@@ -276,13 +275,13 @@ MCP251XFD_Config mcp251xfd_device_config = {
     .INTsOutMode = MCP251XFD_PINS_PUSHPULL_OUT,
     .TXCANOutMode = MCP251XFD_PINS_PUSHPULL_OUT,
     //--- Interrupts ---
-    .SysInterruptFlags = MCP251XFD_INT_TX_EVENT     // Enable global TX interrupts (controlled via FIFO)
-                         | MCP251XFD_INT_RX_EVENT   // Enable global RX interrupts (controlled via FIFO)
-                         | MCP251XFD_INT_TEF_EVENT  // Enable TEF events (so we can watch when we send messages)
-                                                    // Device Errors
-                         | MCP251XFD_INT_RX_OVERFLOW_EVENT   // Device error if message dropped from code being slow
-                         | MCP251XFD_INT_RAM_ECC_EVENT       // Report any RAM ECC errors
-                         | MCP251XFD_INT_SPI_CRC_EVENT       // Report any SPI CRC errors
+    .SysInterruptFlags = MCP251XFD_INT_TX_EVENT             // Enable global TX interrupts (controlled via FIFO)
+                         | MCP251XFD_INT_RX_EVENT           // Enable global RX interrupts (controlled via FIFO)
+                         | MCP251XFD_INT_TEF_EVENT          // Enable TEF events (so we can watch when we send messages)
+                                                            // Device Errors
+                         | MCP251XFD_INT_RX_OVERFLOW_EVENT  // Device error if message dropped from code being slow
+                         | MCP251XFD_INT_RAM_ECC_EVENT      // Report any RAM ECC errors
+                         | MCP251XFD_INT_SPI_CRC_EVENT      // Report any SPI CRC errors
                          | MCP251XFD_INT_SYSTEM_ERROR_EVENT  // Report any errors on device
                                                              // Bus Errors
                          | MCP251XFD_INT_BUS_ERROR_EVENT  // Notify on transitioning for bus errors (avoids spamming on
@@ -872,3 +871,5 @@ void canbus_fifo_clear(void) {
 void canbus_reset(void) {
     reset_now = true;
 }
+
+#endif

@@ -43,6 +43,8 @@
 
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
 
+#define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
+
 bool ros_connected = false;
 
 // Core Variables
@@ -60,6 +62,7 @@ riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
 rcl_subscription_t elec_command_subscriber;
 riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 rcl_publisher_t aux_switch_publisher;
+rcl_publisher_t balancing_feedback_publisher;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
 
@@ -145,20 +148,27 @@ static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
 }
 
 rcl_ret_t ros_publish_electrical_readings() {
+    bool stbd_pwring = gpio_get(STBD_STAT_PIN);
+    bool port_pwring = gpio_get(PORT_STAT_PIN);
     electrical_reading_msg.port_voltage = analog_io_read_port_meas();
     electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
     electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
     electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
     electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
     electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
-
-    size_t esc_current_length =
-        sizeof(electrical_reading_msg.esc_current) / sizeof(electrical_reading_msg.esc_current[0]);
-    for (size_t i = 0; i < esc_current_length; i++) {
-        electrical_reading_msg.esc_current[i] = NAN;
-    }
+    electrical_reading_msg.port_powering = port_pwring;
+    electrical_reading_msg.stbd_powering = stbd_pwring;
 
     RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
+
+    std_msgs__msg__Bool balancing_feedback_msg;
+    if (port_pwring && stbd_pwring) {
+        balancing_feedback_msg.data = true;
+    }
+    else {
+        balancing_feedback_msg.data = false;
+    }
+    RCSOFTRETCHECK(rcl_publish(&balancing_feedback_publisher, &balancing_feedback_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -292,6 +302,10 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(
         &aux_switch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), AUX_SWITCH_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           BALANCING_FEEDBACK_PUBLISHER_NAME));
+
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
                                                   SOFT_KILL_SUBSCRIBER_NAME));
@@ -339,7 +353,8 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&balancing_feedback_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

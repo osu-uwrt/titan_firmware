@@ -39,10 +39,12 @@
 //     scratch[1]: Faulting File String Address
 //     scratch[2]: Faulting File Line
 //  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
-// scratch[4]: Reserved for Pico SDK watchdog use
-// scratch[5]: Uptime since safety init (tens of milliseconds)
+// scratch[3]: Uptime since safety init (tens of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
-// scratch[6]: Bitwise Fault List
+// scratch[4]: Reserved for Pico SDK watchdog use
+// !!! Note !!! Be careful about scratch[4] through scratch[7]. These are used by the watchdog reboot to set target addr
+//     If you write to these variables, ensure that they DO NOT MODIFY these registers after watchdog_reboot is called
+//     Failure to do so will result in erratic behavior while trying to reboot MCU into bootloader/bootrom modes
 
 // Note the values are defined in safety_magic_values.h
 #include "titan/safety_magic_values.h"
@@ -105,8 +107,14 @@ static uint16_t calc_crash_data_crc(void) {
 
 #define uptime_ticks_per_sec 100
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
-static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[5];
-volatile uint32_t *const fault_list_reg = &watchdog_hw->scratch[6];
+static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
+
+// Put fault_list in memory, it should be fine to just live in a special location in memory, as this is only read across
+// reboots used by the *same* firmware version (we won't have multiple firmware versions care about fault_list)
+// Trying to keep out of the watchdog registers 4-7 (since special care is needed which can't be gaurenteed with
+// fault_list)
+volatile uint32_t fault_list __attribute__((section(".uninitialized_data.fault_list")));
+volatile uint32_t *const fault_list_reg = &fault_list;
 
 // Defined in hard_fault_handler.S
 extern void safety_hard_fault_handler(void);

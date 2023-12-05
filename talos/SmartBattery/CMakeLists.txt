@@ -23,7 +23,7 @@ project(smart_battery C CXX ASM)
 titan_firmware_init()
 
 # Define executable
-file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c" "src/*.S")
 add_executable(smart_battery
     ${SOURCES}
 )

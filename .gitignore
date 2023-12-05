@@ -1,6 +1,17 @@
 #git ignore attempt
 
 ######################
+# Vscode Files       #
+######################
+/.vscode/**/*
+
+# Ignore files to configure the workspace
+!/.vscode/extensions.json
+!/.vscode/launch.json
+!/.vscode/settings.json
+!/.vscode/tasks.json
+
+######################
 # OS generated files #
 ######################
 .DS_Store
@@ -9,7 +20,6 @@
 #######################
 # Build/Cache Files   #
 #######################
-.vscode/
 build/
 __pycache__/
 *.pyc
@@ -26,6 +36,10 @@ __pycache__/
 # Temporary Projects  #
 #######################
 /scratch_projects/
+
+#######################
+# Thruster cal data   #
+#######################
 
 COLCON_IGNORE
 
