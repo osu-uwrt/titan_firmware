@@ -268,10 +268,20 @@ static int bq_core1_read_dsg_registers(struct core1_battery_status *bat_out, str
     return ret_code;
 }
 
-static bool bq_core1_check_discharge(void) {
+static int bq_core1_read_chg_registers(struct core1_battery_status *bat_out, struct core1_operation_status *opr_out) {
+    // TODO fill this ups
+}
+
+static bool bq_core1_check_dsg_fet(void) {
     uint32_t op_stat;
     sbs_read_h4(&op_stat, BQ_READ_OPER_STAT);
     return (op_stat & 0x2) != 0;
+}
+
+static bool bq_core1_check_dsg(void) {
+    uint16_t bat_stat;
+    sbs_read_u2(&bat_stat, BQ_READ_PACK_STAT);
+    return (bat_stat & 0x40) != 0;
 }
 
 /**
@@ -421,14 +431,14 @@ static void __time_critical_func(core1_main)(void) {
                 core1_flush_battery_info(&local_bat_stat, &local_opr_stat);
                 core1_update_soc_leds(local_bat_stat.soc);
                 // ====================================================
-                // Handle multicore_fifo with queued any commands
+                // Handle multicore_fifo with any queued commands
                 // ====================================================
                 while (multicore_fifo_rvalid()) {
                     sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
 
                     //  Power Cycle the battery
                     if (req.type == BQ_MAC_EMG_FET_CTRL_CMD) {
-                        if (bq_core1_check_discharge()) {
+                        if (bq_core1_check_dsg_fet()) {
                             //  Send emergency manual FET control command
                             send_mac_command((uint16_t) req.cmd);
 
@@ -436,7 +446,7 @@ static void __time_critical_func(core1_main)(void) {
                             send_mac_command(0x043D);
 
                             absolute_time_t fet_off_time_end = make_timeout_time_ms(fet_open_time_ms);
-                            while (bq_core1_check_discharge() && !time_reached(fet_off_time_end)) {
+                            while (bq_core1_check_dsg_fet() && !time_reached(fet_off_time_end)) {
                                 sleep_us(100);
                                 watchdog_update();
                             }
@@ -451,7 +461,7 @@ static void __time_critical_func(core1_main)(void) {
                                 // FIXME just raise faults instead of panic
                                 panic(err);
                             }
-                            if (bq_core1_check_discharge()) {
+                            if (bq_core1_check_dsg_fet()) {
                                 // bad state: FET is ON even after requesting FET OFF command
                                 // Send device RESET command
                                 send_mac_command(0x0041);
