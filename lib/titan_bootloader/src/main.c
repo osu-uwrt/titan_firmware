@@ -1,16 +1,12 @@
 #include "bl_interface.h"
 #include "bl_server.h"
 #include "boot_app.h"
+#include "dbg_uart.h"
+#include "status_led.h"
 
-#include "hardware/gpio.h"
-#include "hardware/uart.h"
 #include "hardware/watchdog.h"
 #include "pico/time.h"
 #include "titan/version.h"
-
-#define DEBUG_UART_INSTANCE (__CONCAT(uart, RP2040_DEBUG_UART))
-
-#define RGB_MASK ((1 << STATUS_LEDR_PIN) | (1 << STATUS_LEDG_PIN) | (1 << STATUS_LEDB_PIN))
 
 #define WATCHDOG_TIMEOUT_MS 3000
 #define LINK_DELAY_MS 5000
@@ -21,7 +17,13 @@ void tick_led(void) {
     static absolute_time_t next_update = { 0 };
     static unsigned int led_state = 0;
     if (time_reached(next_update)) {
-        gpio_put(STATUS_LEDG_PIN, (led_state + 1) % 2);
+        // Flash LED in a cool pattern
+        if ((led_state + 1) % 2) {
+            status_led_set(LED_BL_FLASH);
+        }
+        else {
+            status_led_set(LED_BL_NORMAL);
+        }
 
         led_state++;
         if (led_state == 10) {
@@ -43,11 +45,12 @@ void tick_heartbeat(void) {
 }
 
 void run_bootloader(void) {
-    // Configure LED pins
-    gpio_put(STATUS_LEDR_PIN, 1);
-    gpio_put(STATUS_LEDB_PIN, 0);
-    uart_puts(DEBUG_UART_INSTANCE, "Entering bootloader...\r\n");
+    dbg_uart_puts("Entering bootloader...");
+    status_led_set(LED_BL_NORMAL);
 
+    // Exit bootloader after a given amount of time, forcing a reset
+    // In the event the board enters bootloader for whatever reason, it keeps it from being stuck offline
+    // Worst case it'll reboot into the main application within a minute
     absolute_time_t bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
 
     while (!time_reached(bootloader_timeout) && !bl_server_should_reboot()) {
@@ -56,6 +59,7 @@ void run_bootloader(void) {
         tick_led();
         tick_heartbeat();
         if (bl_server_tick()) {
+            // Postpone timeout if we've gotten communication from the host
             bootloader_timeout = make_timeout_time_ms(BOOTLOADER_TIMEOUT_SEC * 1000);
         }
     }
@@ -85,23 +89,20 @@ int main(void) {
     // we can go back into the bootloader. Even if the main image is bootlooping, the boot delay allows recovery
     watchdog_enable(WATCHDOG_TIMEOUT_MS, true);
 
-    // Initialize RGB LEDs
-    gpio_init_mask(RGB_MASK);
-    gpio_clr_mask(RGB_MASK);
-    gpio_set_dir_out_masked(RGB_MASK);
+    // Initialize Status LED
+    status_led_init();
 
     // Send out bootloader version over UART
-    uart_init(DEBUG_UART_INSTANCE, BOOTLOADER_DEBUG_BAUD_RATE);
-    gpio_set_function(RP2040_DEBUG_TX_PIN, GPIO_FUNC_UART);
-    uart_puts(DEBUG_UART_INSTANCE, FULL_BUILD_TAG);
-    uart_puts(DEBUG_UART_INSTANCE, "\r\n");
+    dbg_uart_init();
+    dbg_uart_puts("");
+    dbg_uart_puts(FULL_BUILD_TAG);
 
     // Initialize CAN Bus
     if (!bl_interface_init()) {
-        // If CAN fails to bring up, just abort (and change the LED to show that it messed up)
-        gpio_set_mask(RGB_MASK);
-        gpio_set_dir(STATUS_LEDR_PIN, 0);
+        dbg_uart_puts("Failed to initialize bootloader interface!");
 
+        // If CAN fails to bring up, just abort (and change the LED to show that it messed up)
+        status_led_set(LED_HW_FAIL);
         busy_wait_ms(BOOT_DELAY_MS);
 
         // Try to boot an image, if this fails, just exit
@@ -136,6 +137,7 @@ int main(void) {
     if (!enter_bootloader) {
         watchdog_update();
         boot_app_attempt(notify_watchdog_reset);
+        dbg_uart_puts("Failed to boot application! Falling back to bootloader");
     }
 
     // Fallthrough into bootloader

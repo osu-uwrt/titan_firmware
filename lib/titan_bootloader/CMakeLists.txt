@@ -19,11 +19,12 @@ add_subdirectory(bootloader_runtime)
 
 # Define common bootloader base
 add_executable(titan_bootloader
-    main.c
-    bl_server.c
+    src/main.c
+    src/bl_server.c
+    src/dbg_uart.c
+    src/status_led.c
 )
 target_include_directories(titan_bootloader PUBLIC include)
-target_compile_definitions(titan_bootloader PUBLIC BOOTLOADER_DEBUG_BAUD_RATE=115200)
 
 # Target minimum compile size to fit in 16K
 target_compile_options(titan_bootloader PUBLIC -Os)
@@ -51,7 +52,7 @@ pico_add_extra_outputs(titan_bootloader)
 if (BOOTLOADER_INTERFACE MATCHES "can")
     # CAN Bus Bootloader Variant
     target_sources(titan_bootloader PUBLIC
-        can_bl_interface.c
+        src/can_bl_interface.c
     )
 
     target_link_libraries(titan_bootloader PUBLIC
@@ -62,7 +63,7 @@ if (BOOTLOADER_INTERFACE MATCHES "can")
 elseif (BOOTLOADER_INTERFACE MATCHES "eth")
     # Ethernet bootloader variant
     target_sources(titan_bootloader PUBLIC
-        eth_bl_interface.c
+        src/eth_bl_interface.c
     )
 
     target_link_libraries(titan_bootloader PUBLIC
