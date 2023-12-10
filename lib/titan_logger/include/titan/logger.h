@@ -117,9 +117,8 @@ extern void titan_logger_set_custom_logger_callback(custom_logger_cb_t callback,
 #error Default logging level is below minimum severity
 #endif
 
-extern void titan_logger_log_common(const int log_level, const int local_log_level, const char *unit,
-                                    const char *filename, const int line, const char *const function,
-                                    const char *const fmt, ...) _ATTRIBUTE((__format__(__printf__, 7, 8)));
+void titan_logger_log_common(int log_level, int local_log_level, const char *unit, const char *filename, int line,
+                             const char *function, const char *fmt, ...) _ATTRIBUTE((__format__(__printf__, 7, 8)));
 
 // Logging function definitions
 #if TITAN_LOGGER_MIN_SEVERITY > LEVEL_DEBUG

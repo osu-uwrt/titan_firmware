@@ -98,6 +98,16 @@ void RP2040OCDTarget::initNormal() {
     }
 }
 
+void RP2040OCDTarget::doDetach() {
+    initCommon();
+
+    // This detaches the DAP so the core doesn't think its still debugged
+    // If you don't do this, if a breakpoint is hit, it'll actually stop the CPU instead of firing the watchdog
+    openocd->sendCommand("dap create rp2040.dap0 -chain-position rp2040.cpu -dp-id 0x01002927 -instance-id 0");
+    openocd->init();
+    openocd->sendCommand("rp2040.dap0 dpreg 0x4 0x00000000");
+}
+
 void RP2040OCDTarget::initRescue() {
     initCommon();
 

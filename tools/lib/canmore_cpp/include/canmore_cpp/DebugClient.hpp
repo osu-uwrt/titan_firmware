@@ -191,8 +191,8 @@ struct CrashLogEntry {
             else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_ASSERT_FAIL_VALUE) {
                 reasonStream << "Assertion Fail (File: 0x" << scratch1 << " Line: 0x" << scratch2 << ")";
             }
-            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_TIMEOUT_DURING_ROS_VALUE) {
-                reasonStream << "Watchdog Timeout during ROS Comm";
+            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_HARD_ASSERT_VALUE) {
+                reasonStream << "Hard Assert Fail (Fault Address: 0x" << scratch1 << ")";
             }
             else {
                 reasonStream << "Unknown Reset Reason (0x" << resetReason << ")";

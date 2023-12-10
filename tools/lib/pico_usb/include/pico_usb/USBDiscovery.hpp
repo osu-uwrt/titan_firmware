@@ -103,8 +103,8 @@ public:
     uint32_t tryGetBootloaderSize() override;
     uint64_t getFlashId() override;
     uint32_t getFlashSize() override;
+    void reboot() override;
 
-    void reboot() override { conn.reboot(0, 0, 10); }
     bool shouldWarnOnBootloaderOverwrite() override { return false; }
 
 private:

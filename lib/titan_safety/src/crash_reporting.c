@@ -15,6 +15,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#if LIB_PICO_PRINTF_PICO
+#include "pico/printf.h"
+#else
+#define weak_raw_printf printf
+#define weak_raw_vprintf vprintf
+#endif
+
 // Use of Watchdog Scratch Registers
 // Can really only be considered valid if watchdog_enable_caused_reboot is true
 // scratch[0]: Last Crash Action
@@ -27,8 +34,9 @@
 //       - 0x7193003: Reset from debug emergency reset
 //       - 0x7193004: Reset from software requested reset
 //       - 0x7193005: Reset from unknown (non-timeout) watchdog reset: watchdog reporting a reset, but pico sdk didn't
-//       see WATCHDOG_NON_REBOOT_MAGIC
+//                    see the WATCHDOG_NON_REBOOT_MAGIC in the scratch registers
 //       - 0x7193006: Reset from bootloader mode
+//       - 0x7193007: Reset from RP2040 Bootrom (set after uploading w/ upload tool)
 //  - UNKNOWN_SAFETY_PREINIT: Unknown, crashed after safety_setup
 //  - UNKNOWN_SAFETY_ACTIVE: Unknown, crashed after safety_init
 //  - PANIC: Set on panic function call
@@ -38,7 +46,8 @@
 //  - ASSERT_FAIL: Set in assertion callback
 //     scratch[1]: Faulting File String Address
 //     scratch[2]: Faulting File Line
-//  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
+//  - HARD_ASSERT: Hard assertion failure when debugging not enabled
+//     scratch[1]: Caller's address
 // scratch[3]: Uptime since safety init (tens of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[4]: Reserved for Pico SDK watchdog use
@@ -149,6 +158,35 @@ void safety_restore_hardfault(void) {
 }
 
 /**
+ * @brief Internal panic function, required so we can override the default panic behavior and store data into the
+ * watchdog
+ *
+ */
+void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const char *fmt, ...) {
+    puts("\n*** PANIC ***\n");
+    if (fmt) {
+#if LIB_PICO_PRINTF_NONE
+        puts(fmt);
+#else
+        va_list args;
+        va_start(args, fmt);
+#if PICO_PRINTF_ALWAYS_INCLUDED
+        vprintf(fmt, args);
+#else
+        weak_raw_vprintf(fmt, args);
+#endif
+        va_end(args);
+        puts("\n");
+#endif
+    }
+
+    safety_restore_hardfault();
+    while (1) {
+        __breakpoint();
+    }
+}
+
+/**
  * @brief Simple systick handler which increments the uptime value in the watchdog scratch registers
  */
 void safety_systick_handler(void) {
@@ -164,6 +202,11 @@ void __wrap_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
     watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
 
     __real_watchdog_reboot(pc, sp, delay_ms);
+
+    // The pico sdk watchdog reboot doesn't actually block, we'll do it since the caller probably assumes we won't
+    // return
+    do {
+    } while (1);
 }
 
 // ========================================
@@ -209,6 +252,9 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTLOADER) {
             reset_type = "Bootloader";
         }
+        else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTROM) {
+            reset_type = "Bootrom USB Upload";
+        }
 
         inc_safety_print(snprintf(msg, size, "Clean Boot: %s", reset_type));
     }
@@ -245,8 +291,8 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
             inc_safety_print(
                 snprintf(msg, size, "ASSERT_FAIL (File: 0x%08lX Line: %ld)", entry->scratch_1, entry->scratch_2));
         }
-        else if (entry->reset_reason == IN_ROS_TRANSPORT_LOOP) {
-            inc_safety_print(snprintf(msg, size, "IN_ROS_TRANSPORT_LOOP"));
+        else if (entry->reset_reason == HARD_ASSERT) {
+            inc_safety_print(snprintf(msg, size, "HARD_ASSERT (Call Address: 0x%08lX)", entry->scratch_1));
         }
         else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));

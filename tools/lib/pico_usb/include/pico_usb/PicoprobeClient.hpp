@@ -50,8 +50,10 @@ public:
     RP2040OCDTarget(std::string probeSerial);
 
     void reboot() {
-        openocd->sendCommand("reset");
-        openocd.reset();
+        // Note this implicitly calls reset
+        // Detach destroys and recreates openocd, which will call reset upon destruction
+        // Then this sets the right DAP registers (without a target that will rexamine the core) to detach the debugger
+        doDetach();
     }
     uint32_t lookupRomFunc(char c1, char c2) { return funcTable.at((c2 << 8) | c1); }
     uint32_t callFunction(uint32_t addr, uint32_t r0 = 0, uint32_t r1 = 0, uint32_t r2 = 0, uint32_t r3 = 0,
@@ -73,6 +75,7 @@ private:
     void initCommon();
     void initRescue();
     void initNormal();
+    void doDetach();
     void readoutRom();
     std::map<uint16_t, uint16_t> funcTable;
 };

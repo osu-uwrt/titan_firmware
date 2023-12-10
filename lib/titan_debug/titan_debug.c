@@ -278,8 +278,8 @@ static bool prev_index_cb(__unused const struct reg_mapped_server_register_defin
     case ASSERT_FAIL:
         selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_ASSERT_FAIL_VALUE;
         break;
-    case IN_ROS_TRANSPORT_LOOP:
-        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_TIMEOUT_DURING_ROS_VALUE;
+    case HARD_ASSERT:
+        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_HARD_ASSERT_VALUE;
         break;
     default:
         selected_prev_reset_reason = entry->reset_reason;  // If it's not in this list, fallback to the raw value
