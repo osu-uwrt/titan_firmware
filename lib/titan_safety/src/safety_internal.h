@@ -42,12 +42,17 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 160
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 210
 #endif
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0
+#endif
+
+// PICO_CONFIG: SAFETY_WATCHDOG_ALARM_NUM, Selects the hardware alarm to use for capturing the program counter right before reset. Set to -1 to disable, type=int, default=2, group=titan_safety
+#ifndef SAFETY_WATCHDOG_ALARM_NUM
+#define SAFETY_WATCHDOG_ALARM_NUM 2
 #endif
 
 // ========================================

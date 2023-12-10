@@ -194,6 +194,9 @@ struct CrashLogEntry {
             else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_HARD_ASSERT_VALUE) {
                 reasonStream << "Hard Assert Fail (Fault Address: 0x" << scratch1 << ")";
             }
+            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_WATCHDOG_TIMEOUT_VALUE) {
+                reasonStream << "Watchdog Timeout (Last Address: 0x" << scratch1 << ")";
+            }
             else {
                 reasonStream << "Unknown Reset Reason (0x" << resetReason << ")";
             }

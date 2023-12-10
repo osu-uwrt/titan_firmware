@@ -294,6 +294,9 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         else if (entry->reset_reason == HARD_ASSERT) {
             inc_safety_print(snprintf(msg, size, "HARD_ASSERT (Call Address: 0x%08lX)", entry->scratch_1));
         }
+        else if (entry->reset_reason == WATCHDOG_TIMEOUT) {
+            inc_safety_print(snprintf(msg, size, "WATCHDOG_TIMEOUT (Last Address: 0x%08lX)", entry->scratch_1));
+        }
         else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));
         }

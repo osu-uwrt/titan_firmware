@@ -18,7 +18,7 @@ target_link_libraries(titan_safety INTERFACE
     titan_logger
 
     # Hook required functions for safety watchdog reporting
-    "-Wl,--wrap=__assert_func,--wrap=hard_assertion_failure,--wrap=watchdog_reboot"
+    "-Wl,--wrap=__assert_func,--wrap=panic,--wrap=hard_assertion_failure,--wrap=watchdog_reboot"
 )
 
 target_compile_definitions(titan_safety INTERFACE TITAN_SAFETY=1)

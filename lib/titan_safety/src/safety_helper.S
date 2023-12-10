@@ -21,7 +21,7 @@ safety_panic:
     // Additionally, we don't want to pass this data to the C function so we don't mess up the varargs
     // Because of this, we get this lovely assembly function
 
-    push {r0-r2}    // Note lr is lost, but that's fine since this function never returns
+    push {r0-r2}
 
     // Set the fault type in watchdog scratch 0
     ldr r2, =PANIC
@@ -37,7 +37,47 @@ safety_panic:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH2_OFFSET]
 
-    // Load r12 with the real panic address
+    // Load r12 with the real panic function address
+    // Can't use bl so we don't nuke the stack trace
+    // But b won't relocate long enough, so we need to do register addressing
+    ldr r0, =safety_panic_internal
+    mov r12, r0
+
+    pop {r0-r2}
+
+    // Call the true panic
+    bx r12
+
+// Because of the way they designed the pico-sdk, the stack trace gets corrupted when you use a custom panic
+// So, we're going to also use a custom __wrap_panic that won't corrupt the stack trace
+// However, we still need to have the panic override in case the runtime.c panics, which will circumvent the linker
+// override
+
+.global __wrap_panic
+.type __wrap_panic,%function
+.thumb_func
+__wrap_panic:
+    // Note this is done in assembly so we can pull the lr out of the code
+    // Additionally, we don't want to pass this data to the C function so we don't mess up the varargs
+    // Because of this, we get this lovely assembly function
+
+    push {r0-r2}
+
+    // Set the fault type in watchdog scratch 0
+    ldr r2, =PANIC
+    ldr r1, =WATCHDOG_BASE
+    str r2, [r1, #WATCHDOG_SCRATCH0_OFFSET]
+
+    // Save the panic message
+    str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
+
+    // Save the program counter of the caller for the panic
+    mov r0, lr
+    subs r0, r0, #2  // Since lr is for the next instruction, subtract 2 so we'll point to the previous
+                     // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
+    str r0, [r1, #WATCHDOG_SCRATCH2_OFFSET]
+
+    // Load r12 with the real panic function address
     // Can't use bl so we don't nuke the stack trace
     // But b won't relocate long enough, so we need to do register addressing
     ldr r0, =safety_panic_internal
@@ -99,6 +139,36 @@ __wrap_hard_assertion_failure:
     ldr r0, =hard_assert_msg
     ldr r1, =safety_panic_internal
     bx r1
+
+// Core 0 Watchdog Imminent NMI Handler
+// This will fire 1us before the watchdog is set to go off
+// This aids in debugging watchdog timeouts, as this records the current execution location right before reset
+// This additionally lives in RAM, since we don't have time to wait for flash to run
+
+// Note this shouldn't need to be deregistered for panics or hard faults, even though they time out the watchdog
+// This is because, even though NMI can preempt even a hardfault, whenever a breakpoint fires (which occurs for all
+// critical faults), it will hard fault. Because hard fault has a breakpoint, this will escilate into a core lockup,
+// which immediately stops all execution, including NMIs.
+
+.section RAM_SECTION_NAME(safety_watchdog_timeout_nmi)
+.global safety_watchdog_timeout_nmi
+.type safety_watchdog_timeout_nmi,%function
+.thumb_func
+safety_watchdog_timeout_nmi:
+    // Set the fault type in watchdog scratch 0
+    ldr r0, =WATCHDOG_TIMEOUT
+    ldr r1, =WATCHDOG_BASE
+    str r0, [r1, #WATCHDOG_SCRATCH0_OFFSET]
+
+    // Store the interrupted instruction in scratch1
+    ldr r0, [sp, #0x18]
+    subs r0, r0, #2  // Since lr is for the next instruction, subtract 2 so we'll point to the previous
+                     // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
+    str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
+
+1:
+    bkpt #0
+    b 1b
 
 .data
 hard_assert_msg:
