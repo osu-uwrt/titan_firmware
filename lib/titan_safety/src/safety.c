@@ -20,7 +20,6 @@ bool safety_initialized = false;
 bool safety_is_setup = false;
 
 static absolute_time_t watchdog_timeout_time;
-extern void safety_watchdog_timeout_nmi(void);
 
 void safety_setup(void) {
     hard_assert_if(SAFETY, safety_is_setup || safety_initialized);
@@ -43,7 +42,7 @@ void safety_setup(void) {
     timer_hw->inte = 1u << SAFETY_WATCHDOG_ALARM_NUM;
 
     // Set the NMI handler to point to watchdog timeout handling
-    exception_set_exclusive_handler(NMI_EXCEPTION, &safety_watchdog_timeout_nmi);
+    exception_set_exclusive_handler(NMI_EXCEPTION, &safety_nmi_handler);
 
     // Enable NMI for the alarm
     assert(get_core_num() == 0);
@@ -89,6 +88,7 @@ void safety_tick(void) {
 
     safety_internal_fault_tick();
     safety_interface_tick();
+    safety_internal_multicore_tick();
     profiler_reset(true);
 
     int64_t watchdog_time_remaining = absolute_time_diff_us(get_absolute_time(), watchdog_timeout_time);

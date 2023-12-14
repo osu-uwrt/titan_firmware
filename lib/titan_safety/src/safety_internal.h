@@ -1,6 +1,8 @@
 #ifndef SAFETY_INTERNAL_H_
 #define SAFETY_INTERNAL_H_
 
+#include "safety_helper.h"
+
 #include "titan/logger.h"
 #include "titan/safety.h"
 
@@ -45,14 +47,14 @@
 #define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 210
 #endif
 
+// PICO_CONFIG: SAFETY_CORE1_CHECKIN_INTERVAL_MS, Maximum time interval in milliseconds between core1 calling safety_core1_checkin to ensure the core is still alive. The program will panic if core1 does not check in within this time, type=int, default=250, group=titan_safety
+#ifndef SAFETY_CORE1_CHECKIN_INTERVAL_MS
+#define SAFETY_CORE1_CHECKIN_INTERVAL_MS 250
+#endif
+
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0
-#endif
-
-// PICO_CONFIG: SAFETY_WATCHDOG_ALARM_NUM, Selects the hardware alarm to use for capturing the program counter right before reset. Set to -1 to disable, type=int, default=2, group=titan_safety
-#ifndef SAFETY_WATCHDOG_ALARM_NUM
-#define SAFETY_WATCHDOG_ALARM_NUM 2
 #endif
 
 // ========================================
@@ -164,5 +166,10 @@ void safety_internal_kill_handle_deinit(void);
  * This function should only be called when safety is initialized
  */
 void safety_internal_kill_refresh_switches(void);
+
+/**
+ * @brief Ticks the multicore checkin logic
+ */
+void safety_internal_multicore_tick(void);
 
 #endif

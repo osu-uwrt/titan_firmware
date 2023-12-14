@@ -1,7 +1,15 @@
+#include "safety_helper.h"
+
 #include "hardware/regs/addressmap.h"
+#include "hardware/regs/sio.h"
+#include "hardware/regs/syscfg.h"
+#include "hardware/regs/timer.h"
+#include "hardware/regs/intctrl.h"
 #include "hardware/regs/watchdog.h"
 #include "pico/asm_helper.S"
 #include "titan/safety_magic_values.h"
+
+#define CRASH_LOGGED_ADDR (SIO_BASE + SIO_SPINLOCK0_OFFSET + (SAFETY_CRASH_LOGGED_SPINLOCK_ID * 4))
 
 pico_default_asm_setup
 
@@ -11,7 +19,8 @@ pico_default_asm_setup
 // This extracts the calling address, as well as the panic message, and saves it to the watchdog
 // Then calls the internal panic function which will print and halt the CPU accordingly
 
-.extern safety_panic_internal
+// DO NOT CALL THIS FUNCTION DIRECTLY! Use panic() instead
+// This assumes that it is called via panic, and rolls back the stack a bit to extract lr
 
 .global safety_panic
 .type safety_panic,%function
@@ -21,7 +30,13 @@ safety_panic:
     // Additionally, we don't want to pass this data to the C function so we don't mess up the varargs
     // Because of this, we get this lovely assembly function
 
-    push {r0-r2}
+    push {r0-r2,lr}
+
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r2, =CRASH_LOGGED_ADDR
+    ldr r2, [r2]
+    cmp r2, #0
+    beq 1f
 
     // Set the fault type in watchdog scratch 0
     ldr r2, =PANIC
@@ -37,6 +52,14 @@ safety_panic:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH2_OFFSET]
 
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
+1:
     // Load r12 with the real panic function address
     // Can't use bl so we don't nuke the stack trace
     // But b won't relocate long enough, so we need to do register addressing
@@ -57,11 +80,18 @@ safety_panic:
 .type __wrap_panic,%function
 .thumb_func
 __wrap_panic:
+    bkpt #0
     // Note this is done in assembly so we can pull the lr out of the code
     // Additionally, we don't want to pass this data to the C function so we don't mess up the varargs
     // Because of this, we get this lovely assembly function
 
     push {r0-r2}
+
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r2, =CRASH_LOGGED_ADDR
+    ldr r2, [r2]
+    cmp r2, #0
+    beq 1f
 
     // Set the fault type in watchdog scratch 0
     ldr r2, =PANIC
@@ -77,6 +107,14 @@ __wrap_panic:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH2_OFFSET]
 
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
+1:
     // Load r12 with the real panic function address
     // Can't use bl so we don't nuke the stack trace
     // But b won't relocate long enough, so we need to do register addressing
@@ -97,6 +135,12 @@ __wrap_panic:
 .type safety_hard_fault_handler,%function
 .thumb_func
 safety_hard_fault_handler:
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r0, =CRASH_LOGGED_ADDR
+    ldr r0, [r0]
+    cmp r0, #0
+    beq 1f
+
     // Set the fault type in watchdog scratch 0
     ldr r0, =HARD_FAULT
     ldr r1, =WATCHDOG_BASE
@@ -113,6 +157,13 @@ safety_hard_fault_handler:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
 
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
 1:
     bkpt #0
     b 1b
@@ -125,6 +176,12 @@ safety_hard_fault_handler:
 .type __wrap_hard_assertion_failure,%function
 .thumb_func
 __wrap_hard_assertion_failure:
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r0, =CRASH_LOGGED_ADDR
+    ldr r0, [r0]
+    cmp r0, #0
+    beq 1f
+
     // Set the fault type in watchdog scratch 0
     ldr r0, =HARD_ASSERT
     ldr r1, =WATCHDOG_BASE
@@ -136,9 +193,21 @@ __wrap_hard_assertion_failure:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
 
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
+1:
     ldr r0, =hard_assert_msg
     ldr r1, =safety_panic_internal
     bx r1
+
+.data
+hard_assert_msg:
+.asciz "Hard assert"
 
 // Core 0 Watchdog Imminent NMI Handler
 // This will fire 1us before the watchdog is set to go off
@@ -150,11 +219,17 @@ __wrap_hard_assertion_failure:
 // critical faults), it will hard fault. Because hard fault has a breakpoint, this will escilate into a core lockup,
 // which immediately stops all execution, including NMIs.
 
-.section RAM_SECTION_NAME(safety_watchdog_timeout_nmi)
-.global safety_watchdog_timeout_nmi
-.type safety_watchdog_timeout_nmi,%function
+.section RAM_SECTION_NAME(safety_nmi_handler)
+.global safety_nmi_handler
+.type safety_nmi_handler,%function
 .thumb_func
-safety_watchdog_timeout_nmi:
+safety_nmi_handler:
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r0, =CRASH_LOGGED_ADDR
+    ldr r0, [r0]
+    cmp r0, #0
+    beq 1f
+
     // Set the fault type in watchdog scratch 0
     ldr r0, =WATCHDOG_TIMEOUT
     ldr r1, =WATCHDOG_BASE
@@ -166,10 +241,64 @@ safety_watchdog_timeout_nmi:
                      // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
     str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
 
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
 1:
     bkpt #0
     b 1b
 
-.data
-hard_assert_msg:
-.asciz "Hard assert"
+// Function to send NMI event to the other core
+// This should only be called AFTER the safety crash logged spinlock has been acquired
+// This will cause the nmi handler to fire and then immediately breakpoint/halt since
+
+// This function is gaurenteed to only clobber r0 & r1
+
+.section RAM_SECTION_NAME(safety_halt_other_core)
+.global safety_halt_other_core
+.type safety_halt_other_core,%function
+.thumb_func
+safety_halt_other_core:
+    ldr r0, =SIO_BASE
+    ldr r0, [r0, #SIO_CPUID_OFFSET]
+    cmp r0, #0
+    bne 1f
+
+    // We're running on core 0
+    // Only fire the nmi if the other core is running
+    // Prevents weird stuff where the bootrom NMI enables the clocks and clears syscfg
+    // It's probably fine, but it's better to be safe
+    // (technically can still happen though if core 0 crashes before core 1 sets the vtor, but that's so rare it's fine)
+    ldr r0, =safety_multicore_running
+    ldrb r0, [r0]
+    cmp r0, #0
+    beq 2f
+
+    // So core 1 is running, now we need to stop it
+    // We're going to use the NMI to do this
+    ldr r0, =SYSCFG_BASE
+
+    // Disable NMI on core 0
+    movs r1, #0
+    str r1, [r0, #SYSCFG_PROC0_NMI_MASK_OFFSET]
+
+    // Enable NMI on core 1 for the timer
+    movs r1, #1
+    lsls r1, r1, #(TIMER_IRQ_0 + SAFETY_WATCHDOG_ALARM_NUM)
+    str r1, [r0, #SYSCFG_PROC1_NMI_MASK_OFFSET]
+
+1:
+    // Now we're going to trigger the NMI
+    // Note we jump here directly on core 1, since this will have the same effect, where it'll immediately halt the core
+    // This can be done by simply forcing the timer interrupt
+    ldr r0, =TIMER_BASE
+    movs r1, #(1 << SAFETY_WATCHDOG_ALARM_NUM)
+    str r1, [r0, #TIMER_INTF_OFFSET]
+
+2:
+    bx lr
+

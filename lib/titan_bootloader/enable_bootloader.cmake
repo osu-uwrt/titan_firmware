@@ -19,6 +19,7 @@ function(titan_enable_bootloader TARGET TYPE)
         PREFIX ${TITAN_BOOTLOADER_BINARY_DIR}/titan_bootloader
         CMAKE_ARGS ${BOOTLOADER_CMAKE_ARGS}
         INSTALL_COMMAND ""
+        BUILD_ALWAYS 1
     )
 
     ExternalProject_Get_Property(titan_bootloader BINARY_DIR)

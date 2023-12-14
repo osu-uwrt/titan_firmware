@@ -4,6 +4,7 @@ target_sources(titan_safety INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/crash_reporting.c
     ${CMAKE_CURRENT_LIST_DIR}/src/fault.c
     ${CMAKE_CURRENT_LIST_DIR}/src/kill_switch.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/multicore.c
     ${CMAKE_CURRENT_LIST_DIR}/src/safety.c
     ${CMAKE_CURRENT_LIST_DIR}/src/safety_helper.S
 
@@ -14,6 +15,7 @@ target_link_libraries(titan_safety INTERFACE
     hardware_exception
     hardware_sync
     hardware_watchdog
+    pico_multicore
     pico_time
     titan_logger
 

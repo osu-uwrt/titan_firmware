@@ -118,6 +118,8 @@ static uint16_t calc_crash_data_crc(void) {
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
 static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
 
+static_assert(PICO_SPINLOCK_ID_OS1 == SAFETY_CRASH_LOGGED_SPINLOCK_ID, "Fault spinlock does not match expected lock #");
+
 // Put fault_list in memory, it should be fine to just live in a special location in memory, as this is only read across
 // reboots used by the *same* firmware version (we won't have multiple firmware versions care about fault_list)
 // Trying to keep out of the watchdog registers 4-7 (since special care is needed which can't be gaurenteed with
@@ -125,42 +127,29 @@ static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
 volatile uint32_t fault_list __attribute__((section(".uninitialized_data.fault_list")));
 volatile uint32_t *const fault_list_reg = &fault_list;
 
-// Defined in hard_fault_handler.S
-extern void safety_hard_fault_handler(void);
-static exception_handler_t original_hardfault_handler = NULL;
-
 // Assertion Handling
 extern void __real___assert_func(const char *file, int line, const char *func, const char *failedexpr);
 
 void __wrap___assert_func(const char *file, int line, const char *func, const char *failedexpr) {
-    *reset_reason_reg = ASSERT_FAIL;
-    watchdog_hw->scratch[1] = (uint32_t) file;
-    watchdog_hw->scratch[2] = (uint32_t) line;
+    spin_lock_t *crash_logged_lock = spin_lock_instance(SAFETY_CRASH_LOGGED_SPINLOCK_ID);
 
-    // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
-    if (original_hardfault_handler != NULL) {
-        exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
+    // Only log if this is the first crash
+    if (*crash_logged_lock) {
+        *reset_reason_reg = ASSERT_FAIL;
+        watchdog_hw->scratch[1] = (uint32_t) file;
+        watchdog_hw->scratch[2] = (uint32_t) line;
+        safety_halt_other_core();
     }
 
     __real___assert_func(file, line, func, failedexpr);
 }
 
 /**
- * @brief Restores the hardfault handler to default
- * Used in panic functions to ensure that the hardfault handler doesn't overwrite the panic data when breakpoint is
- * called after a panic
- */
-void safety_restore_hardfault(void) {
-    // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
-    if (original_hardfault_handler != NULL) {
-        exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
-    }
-}
-
-/**
  * @brief Internal panic function, required so we can override the default panic behavior and store data into the
  * watchdog
  *
+ * This function is called by the assembly wrappers, which extract the caller of panic to store it in the watchdog.
+ * Do not call this function directly! Use panic() instead
  */
 void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const char *fmt, ...) {
     puts("\n*** PANIC ***\n");
@@ -180,7 +169,6 @@ void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const ch
 #endif
     }
 
-    safety_restore_hardfault();
     while (1) {
         __breakpoint();
     }
@@ -461,8 +449,11 @@ static void safety_process_last_reset_cause(void) {
 void safety_internal_crash_reporting_handle_reset(void) {
     safety_process_last_reset_cause();
 
+    // Claim spinlock for fault handling
+    spin_lock_claim(SAFETY_CRASH_LOGGED_SPINLOCK_ID);
+
     // Set hardfault handler
-    original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
 
     // Enable systick for uptime counting
     exception_set_exclusive_handler(SYSTICK_EXCEPTION, &safety_systick_handler);
