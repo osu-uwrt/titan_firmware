@@ -283,6 +283,9 @@ public:
     CrashLogEntry getLastResetEntry();
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
 
+    uint32_t readMemory(uint32_t addr);
+    void writeMemory(uint32_t addr, uint32_t data);
+
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);
     uint32_t getActiveFaults();

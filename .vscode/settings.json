@@ -22,6 +22,7 @@
             "statusBarVisibility": "hidden"
         }
     },
+    "debug.onTaskErrors": "abort",
     "editor.detectIndentation": false,
     "editor.formatOnSave": true,
     "editor.insertSpaces": true,

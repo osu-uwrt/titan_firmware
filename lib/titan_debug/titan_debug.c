@@ -24,6 +24,7 @@ static uint32_t mcu_control_minor_version;
 static uint32_t mcu_control_release_type;
 static bool enter_bootloader_on_return = false;
 static bool reboot_mcu_on_return = false;
+static uint32_t mcu_control_memory_data = 0;
 
 static union {
     pico_unique_board_id_t id_pico;
@@ -41,6 +42,85 @@ static bool enter_bl_cb(__unused const struct reg_mapped_server_register_definit
 static bool reboot_mcu_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
                           __unused uint32_t *data_ptr) {
     reboot_mcu_on_return = true;
+    return true;
+}
+
+static bool write_mem_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
+                         uint32_t *data_ptr) {
+    uintptr_t addr = *data_ptr;
+    if (addr % 4 != 0) {
+        // Don't allow unaligned writes
+        return false;
+    }
+
+    if (addr >= SRAM_BASE && addr < SRAM_END)  // Striped addresses (& scratch_x + scratch_y)
+        ;
+    else if (addr >= SRAM0_BASE && addr < 0x21040000)  // Non-striped RAM
+        ;
+    else if (addr >= 0x40000000 && addr < 0x40070000)  // APB Peripherals
+        ;
+    else if (addr >= 0x50000000 && addr < 0x50400000)  // AHB Peripherals
+        ;
+    else if (addr >= SIO_BASE && addr < SIO_BASE + 0x180)  // SIO Peripherals
+        ;
+    else if (addr >= PPB_BASE + 0x0000e000 && addr < PPB_BASE + 0x0000f000)  // ARM Cortex SCS
+        ;
+    else
+        return false;
+
+    // Perform the write
+    uint32_t *mem_ptr = (uint32_t *) addr;
+    *mem_ptr = mcu_control_memory_data;
+    return true;
+}
+
+static bool read_mem_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
+                        uint32_t *data_ptr) {
+    uintptr_t addr = *data_ptr;
+
+    if (addr % 4 != 0) {
+        // Address must be word aligned
+        return false;
+    }
+
+    // Check that address is in range
+    static_assert(ROM_BASE == 0, "Assuming rom tsarts at 0 to silence compiler warning");
+
+    if (addr >= SRAM_BASE && addr < SRAM_END)  // Striped addresses (& scratch_x + scratch_y)
+        ;
+    else if (addr >= XIP_MAIN_BASE && addr < XIP_MAIN_BASE + PICO_FLASH_SIZE_BYTES)  // Flash normal
+        ;
+    else if (addr >= XIP_NOALLOC_BASE && addr < XIP_NOALLOC_BASE + PICO_FLASH_SIZE_BYTES)  // Flash noalloc
+        ;
+    else if (addr >= XIP_NOCACHE_BASE && addr < XIP_NOCACHE_BASE + PICO_FLASH_SIZE_BYTES)  // Flash noalloc
+        ;
+    else if (addr >= XIP_NOCACHE_NOALLOC_BASE && addr < XIP_NOCACHE_NOALLOC_BASE + PICO_FLASH_SIZE_BYTES)
+        ;
+    else if (addr < (16 * 1024))  // ROM (Hardcoded from datasheet saying that ROM is 16K)
+        ;
+    else if (addr >= SRAM0_BASE && addr < 0x21040000)  // Non-striped RAM
+        ;
+    else if (addr >= 0x40000000 && addr < 0x40070000)  // APB Peripherals
+        ;
+    else if (addr >= 0x50000000 && addr < 0x50400000)  // AHB Peripherals
+        ;
+    else if (addr >= SIO_BASE && addr < SIO_BASE + 0x180)  // SIO Peripherals
+        ;
+    else if (addr >= PPB_BASE + 0x0000e000 && addr < PPB_BASE + 0x0000f000)  // ARM Cortex SCS
+        ;
+    else {
+        // Address out of range
+        return false;
+    }
+
+    // If address is in flash, only do noalloc reads so we don't muddy up cache
+    if ((addr & 0xFC000000) == XIP_BASE) {
+        addr = XIP_NOALLOC_BASE + (addr & 0x00FFFFFF);
+    }
+
+    // Perform the read
+    const uint32_t *mem_ptr = (const uint32_t *) addr;
+    mcu_control_memory_data = *mem_ptr;
     return true;
 }
 
@@ -350,6 +430,10 @@ static const reg_mapped_server_register_def_t debug_server_mcu_control_regs[] = 
                              REGISTER_PERM_WRITE_ONLY),
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET, can_reset_cb, REGISTER_PERM_WRITE_ONLY),
 #endif
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_READ_WORD_ADDR_OFFSET, read_mem_cb, REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_MCU_CONTROL_WRITE_WORD_ADDR_OFFSET, write_mem_cb, REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MCU_CONTROL_MEMORY_DATA_OFFSET, &mcu_control_memory_data,
+                          REGISTER_PERM_READ_WRITE)
 };
 
 static const reg_mapped_server_register_def_t debug_server_memory_stats_regs[] = {

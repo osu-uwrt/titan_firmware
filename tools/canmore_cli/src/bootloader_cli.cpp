@@ -77,31 +77,11 @@ public:
             interface.showHelp(commandName, true);
             return;
         }
-        auto &addressStr = args.at(0);
-        if (addressStr.size() <= 2 || addressStr.at(0) != '0' || addressStr.at(1) != 'x') {
-            interface.writeLine("Address must be in hex.");
-            return;
-        }
-        if (addressStr.size() > 10) {
-            interface.writeLine("Address must fit within 32-bits");
-            return;
-        }
 
-        uint32_t address = 0;
-        for (size_t i = 2; i != addressStr.length(); i++) {
-            uint8_t nibble = 0;
-            char hexChar = addressStr.at(i);
-            if ('0' <= hexChar && hexChar <= '9') {
-                nibble = hexChar - '0';
-            }
-            else if ('A' <= hexChar && hexChar <= 'F') {
-                nibble = hexChar - 'A' + 10;
-            }
-            else {
-                interface.writeLine("Invalid hex character: " + hexChar);
-                return;
-            }
-            address |= ((uint32_t) nibble) << (4 * (addressStr.length() - i - 1));
+        uint32_t address;
+        if (!decodeU32(args.at(0), address)) {
+            interface.writeLine("Invalid 32-bit integer provided for address");
+            return;
         }
 
         if (address < FLASH_BASE || address > (FLASH_BASE + MAX_FLASH_SIZE) || (address % UF2_PAGE_SIZE) != 0) {
@@ -109,7 +89,7 @@ public:
             return;
         }
 
-        renderHeader("Reading Page @" + addressStr);
+        renderHeader("Reading Page @" + args.at(0));
         std::array<uint8_t, UF2_PAGE_SIZE> readData;
         interface.handle->readBytes(address, readData);
         DumpHex(readData.data(), readData.size());

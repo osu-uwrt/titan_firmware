@@ -149,6 +149,18 @@ MemoryStats DebugClient::getMemoryStats() {
     return stats;
 }
 
+uint32_t DebugClient::readMemory(uint32_t addr) {
+    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_READ_WORD_ADDR_OFFSET, addr);
+    return mcuCtrlPage.readRegister(CANMORE_DBG_MCU_CONTROL_MEMORY_DATA_OFFSET);
+}
+
+void DebugClient::writeMemory(uint32_t addr, uint32_t data) {
+    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_MEMORY_DATA_OFFSET, data);
+    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_WRITE_WORD_ADDR_OFFSET, addr);
+}
+
 void DebugClient::reboot() {
     RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
     mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET, 1);

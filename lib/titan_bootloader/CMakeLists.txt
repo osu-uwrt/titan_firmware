@@ -45,6 +45,9 @@ titan_generate_version_tag(titan_bootloader 1 0)
 
 pico_add_extra_outputs(titan_bootloader)
 
+# Disable PIO assembler for bootloader (we don't use it)
+set_target_properties(PioasmBuild PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+
 ####################################
 # Define Bootloader Variants
 ####################################

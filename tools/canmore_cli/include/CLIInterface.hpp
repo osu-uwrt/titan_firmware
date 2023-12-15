@@ -10,6 +10,8 @@
 #include <termios.h>
 #include <vector>
 
+bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max = UINT32_MAX);
+
 template <class T> class CLIInterface;
 
 template <class T> class CLICommandHandler {

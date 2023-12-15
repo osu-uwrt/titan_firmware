@@ -41,7 +41,7 @@ void ethernet_control_interface_transmit(uint8_t *msg, size_t len);
 static const uint8_t dest_ip[] = ROBOT_COMPUTER_IP;
 static const uint16_t dest_port = ROBOT_COMPUTER_UROS_PORT;
 static const uint8_t source_ip[] = ETHERNET_IP;
-static const uint16_t source_port = ETHERNET_PORT;
+static const uint16_t source_port = 1337;
 static const IPAddress gateway = ETHERNET_GATEWAY;
 static const IPAddress subnet = ETHERNET_MASK;
 static uint8_t mac[] = { 0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56 };

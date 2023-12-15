@@ -15,11 +15,6 @@
 
 #define ETHERNET_IP                                                                                                    \
     { 192, 168, 1, 42 }
-#define ETHERNET_MASK                                                                                                  \
-    { 255, 255, 255, 0 }
-#define ETHERNET_GATEWAY                                                                                               \
-    { 192, 168, 1, 1 }
-#define ETHERNET_PORT 1337
 
 // ==============================
 // Board Pin Definitions

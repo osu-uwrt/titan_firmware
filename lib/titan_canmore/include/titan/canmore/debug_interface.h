@@ -33,8 +33,19 @@ extern "C" {
  *       +----------------+
  * 0x0C: | Fault Filename |  RO  (Mem-mapped)
  *       +----------------+
- *
- *
+ */
+
+// Page Number Definitions
+#define CANMORE_DBG_MCU_CONTROL_PAGE_NUM 0x00
+#define CANMORE_DBG_VERSION_STRING_PAGE_NUM 0x01
+#define CANMORE_DBG_MEM_STATS_PAGE_NUM 0x02
+#define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
+#define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
+#define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
+#define CANMORE_DBG_FAULT_DATA_PAGE_NUM 0x0B
+#define CANMORE_DBG_FAULT_FILENAME_PAGE_NUM 0x0C
+
+/*
  * MCU Control Register Map
  * ========================
  * Contains registers related to core MCU control and identification
@@ -56,6 +67,14 @@ extern "C" {
  *       +----------------+
  * 0x07: |   Reboot MCU   | WO
  *       +----------------+
+ *       |   ..........   |
+ *       +----------------+
+ * 0x0B: | Read Word Addr | WO
+ *       +----------------+
+ * 0x0C: | Write Word Addr| WO
+ *       +----------------+
+ * 0x0D: |   Memory Data  | RW
+ *       +----------------+
  *
  * Magic:           Magic value to identify valid control block
  *                  Should contain the word 0x10ad2040
@@ -68,15 +87,35 @@ extern "C" {
  *                  Can be used to identify incompatible versions
  * Release Type:    Contains the release type of the bootloader
  * Reboot MCU:      Writing a value to this register will reboot the microcontroller
- *
- *
- * Version String
+ * Read Word Addr:  Reads the requested memory address into the memory data register. Must be in flash, ram, or rom.
+ * Write Word Addr: Writes the memory data register to the requested memory address. Must be in ram.
+ * Memory Data:     Register holding data to be read/written by read word addr or write word addr registers.
+ */
+
+// MCU Control Register Definitions
+#define CANMORE_DBG_MCU_CONTROL_MAGIC_OFFSET 0x00
+#define CANMORE_DBG_MCU_CONTROL_MAGIC_VALUE 0x0DBAA1F0
+#define CANMORE_DBG_MCU_CONTROL_ENTER_BL_OFFSET 0x01
+#define CANMORE_DBG_MCU_CONTROL_LOWER_FLASH_ID 0x02
+#define CANMORE_DBG_MCU_CONTROL_UPPER_FLASH_ID 0x03
+#define CANMORE_DBG_MCU_CONTROL_MAJOR_VERSION_OFFSET 0x04
+#define CANMORE_DBG_MCU_CONTROL_MINOR_VERSION_OFFSET 0x05
+#define CANMORE_DBG_MCU_CONTROL_RELEASE_TYPE_OFFSET 0x06
+#define CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET 0x07
+#define CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET 0x08  // TODO: Remove me when bug fixed
+#define CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET 0x09
+#define CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET 0x0A
+#define CANMORE_DBG_MCU_CONTROL_READ_WORD_ADDR_OFFSET 0x0B
+#define CANMORE_DBG_MCU_CONTROL_WRITE_WORD_ADDR_OFFSET 0x0C
+#define CANMORE_DBG_MCU_CONTROL_MEMORY_DATA_OFFSET 0x0D
+
+/* Version String
  * ==============
  * Reading this page will return a version string. Note that the string is null terminated and attempting to read a
  * register past the 0x00 byte will result in an invalid address error.
- *
- *
- * Memory Stats
+ */
+
+/* Memory Stats
  * ========================
  * Contains information on device memory usage.
  *
@@ -119,9 +158,23 @@ extern "C" {
  * Uordblks:        Total allocated space (mallinfo() uordblks)
  * Fordblks:        Total free space (mallinfo() fordblks)
  * Keepcost:        Topmost releasable block (mallinfo() keepcost)
- *
- *
- * Safety Status Register Map
+ */
+
+// Memory Stats Register Definitions
+#define CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET 0x00
+#define CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET 0x01
+#define CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET 0x02
+#define CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET 0x03
+#define CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET 0x04
+#define CANMORE_DBG_MEM_STATS_ARENA_OFFSET 0x05
+#define CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET 0x06
+#define CANMORE_DBG_MEM_STATS_HBLKS_OFFSET 0x07
+#define CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET 0x08
+#define CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET 0x09
+#define CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET 0x0A
+#define CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET 0x0B
+
+/* Safety Status Register Map
  * ==========================
  * Controls registers related to controlling the flash
  *
@@ -149,9 +202,22 @@ extern "C" {
  * Fault Idx:       Index for fault in fault name, data, and filename page
  * Raise Fault:     Raises the requested fault id
  * Lower Fault:     Lowers the requested fault id
- *
- *
- * Crash Log
+ */
+
+// Safety Status Register Map
+#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET 0x00
+#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_IS_SETUP_FIELD 0
+#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_IS_INITIALIZED_FIELD 1
+#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_KILL_IS_ENABLED_FIELD 2
+#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_FAULT_PRESENT_FIELD 3
+#define CANMORE_DBG_SAFETY_STATUS_FAULT_LIST_OFFSET 0x01
+#define CANMORE_DBG_SAFETY_STATUS_UPTIME_OFFSET 0x02
+#define CANMORE_DBG_SAFETY_STATUS_UPTIME_TICKS_PER_SECOND 100
+#define CANMORE_DBG_SAFETY_STATUS_FAULT_IDX_OFFSET 0x03
+#define CANMORE_DBG_SAFETY_STATUS_RAISE_FAULT_OFFSET 0x04
+#define CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET 0x05
+
+/* Crash Log
  * ==============
  * Contains registers to read through the MCU crash log
  *
@@ -189,98 +255,7 @@ extern "C" {
  * Prev Scratch 1:  The scratch 1 register for the previous reset (or reason for clean boot if reset reason is clean
  * boot). Not valid until Prev Index is written Prev Scratch 2:  The scratch 2 register for the previous reset. Not
  * valid until Prev Index is written
- *
- *
- * Fault Name
- * ==============
- * Contains string of the fault name specified in the Fault Idx Register. Note until the Fault Idx register is written
- * this page cannot be read.
- *
- *
- * Fault Data
- * ==============
- * Contains data for the fault selected by the Fault Idx Register. Note until the Fault Idx register is written this
- * page cannot be read.
- *
- *       +----------------+
- * 0x00: |     Sticky     | RO
- *       +----------------+
- * 0x01: |   Time Lower   | RO
- *       +----------------+
- * 0x02: |   Time Upper   | RO
- *       +----------------+
- * 0x03: |   Extra Data   | RW
- *       +----------------+
- * 0x04: |  Line Number   | RO
- *       +----------------+
- * 0x05: | Multiple Fires | RO
- *       +----------------+
- *
- * Sticky:          True if the fault has ever been raised. All other fault data is invalid if this is false
- * Time Lower:      The lower 32-bits of the timestamp when the fault was raised (in us)
- * Time Upper:      The upper 32-bits of the timestamp when the fault was raised (in us)
- * Extra Data:      Optional extra data that was passed with the fault being raised
- * Line Number:     The line number where the fault was raised
- * Multiple Fires:  True if the fault was raised multiple times (data was overwritten)
- *
- *
- * Fault Filename
- * ==============
- * Contains the filename that the last fault was raised. This page cannot be read until the Fault Idx register is
- * written. Additionally this will be invalid unless Fault Data::Sticky is true.
- *
  */
-
-// Page Number Definitions
-#define CANMORE_DBG_MCU_CONTROL_PAGE_NUM 0x00
-#define CANMORE_DBG_VERSION_STRING_PAGE_NUM 0x01
-#define CANMORE_DBG_MEM_STATS_PAGE_NUM 0x02
-#define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
-#define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
-#define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
-#define CANMORE_DBG_FAULT_DATA_PAGE_NUM 0x0B
-#define CANMORE_DBG_FAULT_FILENAME_PAGE_NUM 0x0C
-
-// MCU Control Register Definitions
-#define CANMORE_DBG_MCU_CONTROL_MAGIC_OFFSET 0x00
-#define CANMORE_DBG_MCU_CONTROL_MAGIC_VALUE 0x0DBAA1F0
-#define CANMORE_DBG_MCU_CONTROL_ENTER_BL_OFFSET 0x01
-#define CANMORE_DBG_MCU_CONTROL_LOWER_FLASH_ID 0x02
-#define CANMORE_DBG_MCU_CONTROL_UPPER_FLASH_ID 0x03
-#define CANMORE_DBG_MCU_CONTROL_MAJOR_VERSION_OFFSET 0x04
-#define CANMORE_DBG_MCU_CONTROL_MINOR_VERSION_OFFSET 0x05
-#define CANMORE_DBG_MCU_CONTROL_RELEASE_TYPE_OFFSET 0x06
-#define CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET 0x07
-#define CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET 0x08  // TODO: Remove me when bug fixed
-#define CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET 0x09
-#define CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET 0x0A
-
-// Memory Stats Register Definitions
-#define CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET 0x00
-#define CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET 0x01
-#define CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET 0x02
-#define CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET 0x03
-#define CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET 0x04
-#define CANMORE_DBG_MEM_STATS_ARENA_OFFSET 0x05
-#define CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET 0x06
-#define CANMORE_DBG_MEM_STATS_HBLKS_OFFSET 0x07
-#define CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET 0x08
-#define CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET 0x09
-#define CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET 0x0A
-#define CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET 0x0B
-
-// Safety Status Register Map
-#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET 0x00
-#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_IS_SETUP_FIELD 0
-#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_IS_INITIALIZED_FIELD 1
-#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_KILL_IS_ENABLED_FIELD 2
-#define CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_FAULT_PRESENT_FIELD 3
-#define CANMORE_DBG_SAFETY_STATUS_FAULT_LIST_OFFSET 0x01
-#define CANMORE_DBG_SAFETY_STATUS_UPTIME_OFFSET 0x02
-#define CANMORE_DBG_SAFETY_STATUS_UPTIME_TICKS_PER_SECOND 100
-#define CANMORE_DBG_SAFETY_STATUS_FAULT_IDX_OFFSET 0x03
-#define CANMORE_DBG_SAFETY_STATUS_RAISE_FAULT_OFFSET 0x04
-#define CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET 0x05
 
 // Crash Log Register Map
 #define CANMORE_DBG_CRASH_LOG_CRASH_COUNT_OFFSET 0x00
@@ -315,6 +290,46 @@ extern "C" {
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_UNK_WDG_VALUE 5
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTLOADER_VALUE 6
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET 0x08
+
+/* Fault Name
+ * ==============
+ * Contains string of the fault name specified in the Fault Idx Register. Note until the Fault Idx register is written
+ * this page cannot be read.
+ */
+
+/* Fault Data
+ * ==============
+ * Contains data for the fault selected by the Fault Idx Register. Note until the Fault Idx register is written this
+ * page cannot be read.
+ *
+ *       +----------------+
+ * 0x00: |     Sticky     | RO
+ *       +----------------+
+ * 0x01: |   Time Lower   | RO
+ *       +----------------+
+ * 0x02: |   Time Upper   | RO
+ *       +----------------+
+ * 0x03: |   Extra Data   | RW
+ *       +----------------+
+ * 0x04: |  Line Number   | RO
+ *       +----------------+
+ * 0x05: | Multiple Fires | RO
+ *       +----------------+
+ *
+ * Sticky:          True if the fault has ever been raised. All other fault data is invalid if this is false
+ * Time Lower:      The lower 32-bits of the timestamp when the fault was raised (in us)
+ * Time Upper:      The upper 32-bits of the timestamp when the fault was raised (in us)
+ * Extra Data:      Optional extra data that was passed with the fault being raised
+ * Line Number:     The line number where the fault was raised
+ * Multiple Fires:  True if the fault was raised multiple times (data was overwritten)
+ *
+ *
+ * Fault Filename
+ * ==============
+ * Contains the filename that the last fault was raised. This page cannot be read until the Fault Idx register is
+ * written. Additionally this will be invalid unless Fault Data::Sticky is true.
+ *
+ */
 
 // Fault Data Page
 #define CANMORE_DBG_FAULT_DATA_STICKY_OFFSET 0x00
