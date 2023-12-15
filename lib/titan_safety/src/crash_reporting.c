@@ -48,6 +48,10 @@
 //     scratch[2]: Faulting File Line
 //  - HARD_ASSERT: Hard assertion failure when debugging not enabled
 //     scratch[1]: Caller's address
+//  - WATCHDOG_TIMEOUT: Watchdog timed out (However we caught it with the NMI 1us before the watchdog fired)
+//     scratch[1]; The interrupted instruction right before the watchdog reset
+//  - CORE1_TIMEOUT: Core 1 did not check in within SAFETY_CORE1_CHECKIN_INTERVAL_MS, and safety panicked
+//     scratch[1]: The address of the interrupted instruction on core 1
 // scratch[3]: Uptime since safety init (tens of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[4]: Reserved for Pico SDK watchdog use
@@ -127,23 +131,6 @@ static_assert(PICO_SPINLOCK_ID_OS1 == SAFETY_CRASH_LOGGED_SPINLOCK_ID, "Fault sp
 volatile uint32_t fault_list __attribute__((section(".uninitialized_data.fault_list")));
 volatile uint32_t *const fault_list_reg = &fault_list;
 
-// Assertion Handling
-extern void __real___assert_func(const char *file, int line, const char *func, const char *failedexpr);
-
-void __wrap___assert_func(const char *file, int line, const char *func, const char *failedexpr) {
-    spin_lock_t *crash_logged_lock = spin_lock_instance(SAFETY_CRASH_LOGGED_SPINLOCK_ID);
-
-    // Only log if this is the first crash
-    if (*crash_logged_lock) {
-        *reset_reason_reg = ASSERT_FAIL;
-        watchdog_hw->scratch[1] = (uint32_t) file;
-        watchdog_hw->scratch[2] = (uint32_t) line;
-        safety_halt_other_core();
-    }
-
-    __real___assert_func(file, line, func, failedexpr);
-}
-
 /**
  * @brief Internal panic function, required so we can override the default panic behavior and store data into the
  * watchdog
@@ -170,6 +157,12 @@ void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const ch
     }
 
     while (1) {
+        // ========================================
+        // ========== YOUR CODE CRASHED! ==========
+        // ========================================
+        // If you've gotten here, then your code panicked for some reason
+        // This was a crash manually initiated by the code hitting a condition that cannot be recovered from
+        // Check the debug uart and the stack trace to see what went wrong
         __breakpoint();
     }
 }
@@ -284,6 +277,9 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         }
         else if (entry->reset_reason == WATCHDOG_TIMEOUT) {
             inc_safety_print(snprintf(msg, size, "WATCHDOG_TIMEOUT (Last Address: 0x%08lX)", entry->scratch_1));
+        }
+        else if (entry->reset_reason == CORE1_TIMEOUT) {
+            inc_safety_print(snprintf(msg, size, "CORE1_TIMEOUT (Last Address: 0x%08lX)", entry->scratch_1));
         }
         else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));

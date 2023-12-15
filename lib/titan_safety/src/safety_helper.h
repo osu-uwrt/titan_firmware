@@ -25,9 +25,13 @@
  * List of external functions defined in safety_helpder
  */
 #ifndef __ASSEMBLER__
+#include <stdbool.h>
+
 extern void safety_hard_fault_handler(void);
 extern void safety_nmi_handler(void);
 extern void safety_halt_other_core(void);
+
+extern bool core1_nmi_capture_addr;
 #endif
 
 /*
@@ -41,7 +45,6 @@ extern void safety_halt_other_core(void);
 // clang-format on
 
 #else
-#include <stdbool.h>
 extern bool safety_multicore_running;
 void __attribute__((noreturn)) safety_panic_internal(const char *fmt, ...);
 #endif

@@ -36,6 +36,7 @@ void safety_core1_checkin(void) {
     assert(safety_multicore_running);
 
     mutex_enter_blocking(&safety_multicore_checkin_mtx);
+    // Note the mutex is required because we're writing a 64-bit value (not atomic)
     safety_multicore_next_checkin = make_timeout_time_ms(SAFETY_CORE1_CHECKIN_INTERVAL_MS);
     mutex_exit(&safety_multicore_checkin_mtx);
 }
@@ -43,10 +44,14 @@ void safety_core1_checkin(void) {
 void safety_internal_multicore_tick(void) {
     if (safety_multicore_running) {
         mutex_enter_blocking(&safety_multicore_checkin_mtx);
+        // Note the mutex is required because we're reading a 64-bit value (not atomic)
         bool alive = !time_reached(safety_multicore_next_checkin);
         mutex_exit(&safety_multicore_checkin_mtx);
 
         if (!alive) {
+            // Set the nmi variable so that when panic sends an NMI to halt core 1, it'll save the last instruction addr
+            core1_nmi_capture_addr = true;
+
             panic("Core 1 did not check in to safety within required interval");
         }
     }

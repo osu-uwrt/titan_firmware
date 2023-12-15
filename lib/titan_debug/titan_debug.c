@@ -284,6 +284,9 @@ static bool prev_index_cb(__unused const struct reg_mapped_server_register_defin
     case WATCHDOG_TIMEOUT:
         selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_WATCHDOG_TIMEOUT_VALUE;
         break;
+    case CORE1_TIMEOUT:
+        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_CORE1_TIMEOUT_VALUE;
+        break;
     default:
         selected_prev_reset_reason = entry->reset_reason;  // If it's not in this list, fallback to the raw value
     }

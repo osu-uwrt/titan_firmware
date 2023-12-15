@@ -80,7 +80,6 @@ safety_panic:
 .type __wrap_panic,%function
 .thumb_func
 __wrap_panic:
-    bkpt #0
     // Note this is done in assembly so we can pull the lr out of the code
     // Additionally, we don't want to pass this data to the C function so we don't mess up the varargs
     // Because of this, we get this lovely assembly function
@@ -118,6 +117,7 @@ __wrap_panic:
     // Load r12 with the real panic function address
     // Can't use bl so we don't nuke the stack trace
     // But b won't relocate long enough, so we need to do register addressing
+    // But we can use r12 (that's what its for in the arm ABI)
     ldr r0, =safety_panic_internal
     mov r12, r0
 
@@ -165,12 +165,67 @@ safety_hard_fault_handler:
     mov lr, r2
 
 1:
+    // ========================================
+    // ========== YOUR CODE CRASHED! ==========
+    // ========================================
+    // If you've gotten here, then your code crashed the CPU
+    // Check the stack trace to see what happened
     bkpt #0
     b 1b
+
+// Safety assertion wrapper
+// This catches any assertion failures and logs it to the watchdog, before forwarding it
+// to the real assertion handler provided by the pico-sdk
+
+.extern __real___assert_func
+
+.global __wrap___assert_func
+.type __wrap___assert_func,%function
+.thumb_func
+__wrap___assert_func:
+    push {r0-r3}
+
+    // Only log the crash if one hasn't been logged before (the spin lock can be acquired)
+    ldr r2, =CRASH_LOGGED_ADDR
+    ldr r2, [r2]
+    cmp r2, #0
+    beq 1f
+
+    // Set the fault type in watchdog scratch 0
+    ldr r2, =ASSERT_FAIL
+    ldr r3, =WATCHDOG_BASE
+    str r2, [r3, #WATCHDOG_SCRATCH0_OFFSET]
+
+    // Save the asserted file
+    str r0, [r3, #WATCHDOG_SCRATCH1_OFFSET]
+
+    // Save the asserted line number
+    str r1, [r3, #WATCHDOG_SCRATCH2_OFFSET]
+
+    // Now halt the other core
+    // Gaurenteed to only clobber r0 & r1
+    // We need to save lr though for proper stack trace recovery
+    mov r2, lr
+    bl safety_halt_other_core
+    mov lr, r2
+
+1:
+    // Load r12 with the real __assert_func provided by the pico sdk
+    // Can't use bl so we don't nuke the stack trace
+    // But b won't relocate long enough, so we need to do register addressing
+    // But we can use r12 (that's what its for in the arm ABI)
+    ldr r0, =__real___assert_func
+    mov r12, r0
+
+    pop {r0-r3}
+
+    // Call the true __assert_func
+    bx r12
 
 // Safety hard assert wrapper
 // This catches the hard assert, instead of when it goes to panic, so the watchdog will contain the true caller's address
 // Without this, the panic data would only say that a hard assert was called, and not who actually called it
+// which makes it kind of annoying to debug
 
 .global __wrap_hard_assertion_failure
 .type __wrap_hard_assertion_failure,%function
@@ -205,21 +260,21 @@ __wrap_hard_assertion_failure:
     ldr r1, =safety_panic_internal
     bx r1
 
-.data
+.section .rodata
 hard_assert_msg:
 .asciz "Hard assert"
 
 // Core 0 Watchdog Imminent NMI Handler
 // This will fire 1us before the watchdog is set to go off
 // This aids in debugging watchdog timeouts, as this records the current execution location right before reset
-// This additionally lives in RAM, since we don't have time to wait for flash to run
+// This additionally lives in RAM, since we don't have time to wait for flash to run (we've got 1us to save the address)
 
 // Note this shouldn't need to be deregistered for panics or hard faults, even though they time out the watchdog
 // This is because, even though NMI can preempt even a hardfault, whenever a breakpoint fires (which occurs for all
 // critical faults), it will hard fault. Because hard fault has a breakpoint, this will escilate into a core lockup,
 // which immediately stops all execution, including NMIs.
 
-.section RAM_SECTION_NAME(safety_nmi_handler)
+.section RAM_SECTION_NAME(safety_nmi_handler), "ax"
 .global safety_nmi_handler
 .type safety_nmi_handler,%function
 .thumb_func
@@ -247,10 +302,52 @@ safety_nmi_handler:
     mov r2, lr
     bl safety_halt_other_core
     mov lr, r2
+    b 2f
 
 1:
+    // Check if we need to capture the address we were called from core 1
+    // This is set if safety notices that core 1 has timed out, and not checked in within the timeout
+    // It will then panic, and bring down both cores
+    // When core 1 is brought down, it'll execute this handler (and enter this section here)
+    // That means its okay for us to overwrite the panic data in the watchdog with our last address before entering nmi
+    ldr r0, =core1_nmi_capture_addr
+    ldrb r0, [r0]
+    cmp r0, #0
+    beq 2f
+
+    // Make sure we're core 1 (instead of core 0 entering the nmi right before watchdog timeout)
+    ldr r0, =SIO_BASE
+    ldr r0, [r0, #SIO_CPUID_OFFSET]
+    cmp r0, #0
+    beq 2f
+
+    // Now we can save the location of the crash
+    ldr r0, =CORE1_TIMEOUT
+    ldr r1, =WATCHDOG_BASE
+    str r0, [r1, #WATCHDOG_SCRATCH0_OFFSET]
+
+    // Store the interrupted instruction in scratch1
+    ldr r0, [sp, #0x18]
+    subs r0, r0, #2  // Since lr is for the next instruction, subtract 2 so we'll point to the previous
+                     // Note this could be in the middle of the instruction if it's a 4 byte, but it'll at least let gdb go to the right place in code
+    str r0, [r1, #WATCHDOG_SCRATCH1_OFFSET]
+
+2:
+    // ========================================
+    // ========== YOUR CODE CRASHED! ==========
+    // ========================================
+    // If you've gotten here, there's two things that might have happened:
+    //  1. If you are the first core to crash, this means you timed out the watchdog (only on core 0)
+    //  2. If the other core crashed first, then it sent an NMI to this core to halt it and wait for the watchdog
+    //     - You can tell this is the case if the other core is not an NMI
+    //     - If both cores are stopped here, then core 0 timed out the watchdog, and core 1 was then stopped right after
     bkpt #0
     b 1b
+
+.bss
+.global core1_nmi_capture_addr
+core1_nmi_capture_addr:
+.byte 0
 
 // Function to send NMI event to the other core
 // This should only be called AFTER the safety crash logged spinlock has been acquired
@@ -258,7 +355,7 @@ safety_nmi_handler:
 
 // This function is gaurenteed to only clobber r0 & r1
 
-.section RAM_SECTION_NAME(safety_halt_other_core)
+.section RAM_SECTION_NAME(safety_halt_other_core), "ax"
 .global safety_halt_other_core
 .type safety_halt_other_core,%function
 .thumb_func
@@ -294,6 +391,7 @@ safety_halt_other_core:
 1:
     // Now we're going to trigger the NMI
     // Note we jump here directly on core 1, since this will have the same effect, where it'll immediately halt the core
+    // since core 0 is already subscribed to the NMI to monitor watchdog timeouts
     // This can be done by simply forcing the timer interrupt
     ldr r0, =TIMER_BASE
     movs r1, #(1 << SAFETY_WATCHDOG_ALARM_NUM)
