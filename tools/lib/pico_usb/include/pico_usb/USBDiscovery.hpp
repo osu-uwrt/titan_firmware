@@ -192,8 +192,8 @@ private:
 class USBDiscovery : public RP2040Discovery {
 public:
     ~USBDiscovery();
-    static std::shared_ptr<USBDiscovery> create() {
-        static auto inst = std::shared_ptr<USBDiscovery>(new USBDiscovery());
+    static std::shared_ptr<USBDiscovery> create(bool picoprobeOnly = false) {
+        static auto inst = std::shared_ptr<USBDiscovery>(new USBDiscovery(picoprobeOnly));
         return inst;
     }
 
@@ -202,8 +202,9 @@ public:
     void discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &devicesOut) override;
 
 private:
-    USBDiscovery();
+    USBDiscovery(bool picoprobeOnly);
     libusb_context *ctx;
+    bool picoprobeOnly;
     std::vector<std::weak_ptr<USBDevice>> discoveredDevices;
 };
 

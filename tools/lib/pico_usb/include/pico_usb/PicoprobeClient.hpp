@@ -34,6 +34,8 @@ public:
     void init();
     OpenOCDVersion getVersion();
 
+    static bool hasCustomInit();
+
     const bool ranCustomProbeInit;
     const bool enableStderr;
 

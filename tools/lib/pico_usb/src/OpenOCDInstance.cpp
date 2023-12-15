@@ -29,9 +29,12 @@ static bool getEnvironmentBool(const char *name, bool defaultValue = false) {
     }
 }
 
+bool OpenOCDInstance::hasCustomInit() {
+    return getenv("UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT") != NULL;
+}
+
 OpenOCDInstance::OpenOCDInstance():
-    ranCustomProbeInit(getenv("UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT") != NULL),
-    enableStderr(getEnvironmentBool("UPLOADTOOL_OPENOCD_EN_STDERR")) {
+    ranCustomProbeInit(hasCustomInit()), enableStderr(getEnvironmentBool("UPLOADTOOL_OPENOCD_EN_STDERR")) {
     // Ignore SIGPIPE since we're going to be messing around with pipes
     signal(SIGPIPE, SIG_IGN);
 
@@ -289,7 +292,8 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, bool strip_whitespace,
 void OpenOCDInstance::init() {
     sendCommand("init");
     if (sendCommand("command mode") != "exec") {
-        throw PicoprobeError("Failed to initialize OpenOCD. Enable openocd stderr for more details");
+        throw PicoprobeError(
+            "Failed to initialize OpenOCD! (Is it already running?) Enable openocd stderr for more details");
     }
 }
 

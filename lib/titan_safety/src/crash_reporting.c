@@ -375,14 +375,14 @@ static void safety_process_last_reset_cause(void) {
             crash_data.crash_counter.hard_fault_count++;
         if (next_entry->reset_reason == ASSERT_FAIL && crash_data.crash_counter.assert_fail_count != 0xFF)
             crash_data.crash_counter.assert_fail_count++;
+        if (next_entry->reset_reason == HARD_ASSERT && crash_data.crash_counter.assert_fail_count != 0xFF)
+            crash_data.crash_counter.assert_fail_count++;
 
         if (next_entry->reset_reason == CLEAN_BOOT) {
             LOG_ERROR("Clean boot specified in reset_reason register, but the watchdoog has reported a reset");
         }
 
-        if (crash_data.crash_counter.total_crashes) {
-            should_raise_fault = true;
-        }
+        should_raise_fault = true;
 
         // Dump profiler data from last session
         profiler_dump();

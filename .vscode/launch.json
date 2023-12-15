@@ -9,10 +9,7 @@
             "type": "cortex-debug",
             "servertype": "openocd",
             // Configure toolchain path
-            // Note this MUST begin with arm-non-eabi-gdb, but most distros nowadays just have gdb-multiarch
-            // Run 'sudo ln -s gdb-multiarch /usr/bin/arm-none-eabi-gdb' and it'll make it happy
-            // This is just since Cortex Debug assumes your toolchain prefix based on your gdb executable
-            "gdbPath": "arm-none-eabi-gdb",
+            "gdbPath": "gdb-multiarch",
             // Configure OpenOCD
             "openOCDLaunchCommands": [
                 "adapter speed 2000"

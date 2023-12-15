@@ -206,15 +206,15 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 
     while (1) {
-        std::cout << "Please Select a Device: ";
+        std::cout << "Please Select a Device [none to abort]: ";
 
         if (std::cin.peek() == '\n') {
             // Clear from buffer
             char c;
             std::cin.read(&c, 1);
 
-            // No default option
-            continue;
+            std::cout << "Upload aborted..." << std::endl;
+            return nullptr;
         }
 
         unsigned int userChoice;
@@ -428,6 +428,7 @@ bool flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         std::cout << "[ERROR] Requested OTA image @+0x" << std::hex << uf2.getBaseFlashOffset()
                   << " overlaps with bootloader reserved space @+0x" << interface->tryGetBootloaderSize() << std::dec
                   << std::endl;
+        std::cout << "Use the -f flag if you want to flash a full uf2, rather than just an ota." << std::endl;
         return false;
     }
 
