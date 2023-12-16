@@ -1,6 +1,7 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
 #include "DeviceMap.hpp"
+#include "GDBServer.hpp"
 #include "canmore_cpp/DebugClient.hpp"
 
 #include <iomanip>
@@ -431,6 +432,28 @@ private:
     }
 };
 
+class AppGdbServer : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppGdbServer(): CanmoreCommandHandler("gdbserver") {}
+
+    const uint16_t default_port = 3333;
+
+    std::string getArgList() const override { return "[port: Default " + std::to_string(default_port) + "]"; }
+    std::string getHelp() const override { return "Starts gdb server over Canmore"; }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        uint32_t port = default_port;
+        if (args.size() > 0) {
+            if (!decodeU32(args.at(0), port, UINT16_MAX)) {
+                interface.writeLine("Invalid port number");
+                return;
+            }
+        }
+
+        runGdbServer(port, interface.handle);
+    }
+};
+
 class AppMemReadCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppMemReadCommand(): CanmoreCommandHandler("mem_read") {}
@@ -549,6 +572,7 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppMemoryStatsCommand>());
     registerCommand(std::make_shared<AppMemReadCommand>());
     registerCommand(std::make_shared<AppMemWriteCommand>());
+    registerCommand(std::make_shared<AppGdbServer>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 
