@@ -523,6 +523,66 @@ public:
     }
 };
 
+class AppMemReadStrCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppMemReadStrCommand(): CanmoreCommandHandler("mem_readstr") {}
+
+    std::string getArgList() const override { return "[address] [maxlen: Default 256]"; }
+    std::string getHelp() const override {
+        return "Reads the string at the corresponding address in memory (maxes at 256 bytes)";
+    }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        uint32_t address;
+        uint32_t maxLen = 256;
+
+        if (args.size() == 2) {
+            if (!decodeU32(args.at(1), maxLen)) {
+                interface.writeLine("Invalid 32-bit integer provided for max length");
+                return;
+            }
+        }
+        else if (args.size() != 1) {
+            interface.writeLine("Expected 1 argument");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        if (!decodeU32(args.at(0), address)) {
+            interface.writeLine("Invalid 32-bit integer provided for address");
+            return;
+        }
+
+        uint32_t curLen = 0;
+        std::stringstream data;
+        data << COLOR_HEADER "String @0x" << std::hex << std::setw(8) << std::setfill('0') << address
+             << ": " COLOR_RESET;
+
+        bool addrValid = false;
+        uint32_t addrAligned = 0;
+        uint32_t curData = 0;
+        while (curLen < maxLen) {
+            uint32_t curIdx = (uint32_t) ((address + curLen) % 4);
+            uint32_t curWord = (uint32_t) ((address + curLen) - curIdx);
+
+            if (!addrValid || curWord != addrAligned) {
+                addrAligned = curWord;
+                curData = interface.handle->readMemory(addrAligned);
+            }
+
+            char curChar = (curData >> (curIdx * 8)) & 0xFF;
+            if (curChar == 0) {
+                interface.writeLine(data.str());
+                return;
+            }
+            data << curChar;
+            curLen++;
+        }
+        interface.writeLine(data.str());
+        interface.writeLine("[WARN] Reached maximum length of " + std::to_string(maxLen));
+    }
+};
+
 class AppCanDebugCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
@@ -572,6 +632,7 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppMemoryStatsCommand>());
     registerCommand(std::make_shared<AppMemReadCommand>());
     registerCommand(std::make_shared<AppMemWriteCommand>());
+    registerCommand(std::make_shared<AppMemReadStrCommand>());
     registerCommand(std::make_shared<AppGdbServer>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());

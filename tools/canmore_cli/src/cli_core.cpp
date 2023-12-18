@@ -165,7 +165,7 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
 
 bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max) {
     const std::string decLookup = "0123456789";
-    const std::string hexLookup = "0123456789ABCDEF";  // TODO: Make accept lower case
+    const std::string hexLookup = "0123456789ABCDEF";
 
     uint32_t value = 0;
     bool isHex = (str.rfind("0x", 0) == 0);
@@ -178,7 +178,7 @@ bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max) {
     // Now search through the string to the end
     while (searchItr != str.end()) {
         // Find index in lookup
-        size_t pos = lookup.find(*searchItr++);
+        size_t pos = lookup.find(std::toupper(*searchItr++));
 
         // Fail if its not a valid character
         if (pos == std::string::npos) {

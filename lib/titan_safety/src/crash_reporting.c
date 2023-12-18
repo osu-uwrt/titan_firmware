@@ -120,7 +120,6 @@ static uint16_t calc_crash_data_crc(void) {
 
 #define uptime_ticks_per_sec 100
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
-static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
 
 static_assert(PICO_SPINLOCK_ID_OS1 == SAFETY_CRASH_LOGGED_SPINLOCK_ID, "Fault spinlock does not match expected lock #");
 
@@ -167,12 +166,20 @@ void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const ch
     }
 }
 
+// Holds the uptime so that it can be recovered
+// We have around a 1 in a billion chance of random data corrupting this to match the XOR, so we should be fine
+volatile uint32_t safety_uptime_ticks __attribute__((section(".uninitialized_data.safety_uptime_ticks")));
+volatile uint32_t safety_uptime_ticks_xor __attribute__((section(".uninitialized_data.safety_uptime_ticks_xor")));
+
 /**
  * @brief Simple systick handler which increments the uptime value in the watchdog scratch registers
  */
 void safety_systick_handler(void) {
     // Note: Does not have any overflow handling
-    *uptime_reg += 1;
+    // Also, this can technically be corrupted if the watchdog fires as this is ticking up, however that should
+    // hopefully be pretty rare. But if uptime is constantly corrupted during watchdog resets, then this will be why
+    safety_uptime_ticks++;
+    safety_uptime_ticks_xor = UPTIME_TICK_XOR_MAGIC ^ safety_uptime_ticks;
 }
 
 // Watchdog reboot handling
@@ -240,21 +247,6 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         inc_safety_print(snprintf(msg, size, "Clean Boot: %s", reset_type));
     }
     else {
-        float uptime_pretty;
-        char uptime_units;
-        if (entry->uptime > 3600 * uptime_ticks_per_sec) {
-            uptime_pretty = (float) (entry->uptime) / (3600 * uptime_ticks_per_sec);
-            uptime_units = 'h';
-        }
-        else if (entry->uptime > 60 * uptime_ticks_per_sec) {
-            uptime_pretty = (float) (entry->uptime) / (60 * uptime_ticks_per_sec);
-            uptime_units = 'm';
-        }
-        else {
-            uptime_pretty = (float) (entry->uptime) / uptime_ticks_per_sec;
-            uptime_units = 's';
-        }
-
         if (entry->reset_reason == UNKNOWN_SAFETY_PREINIT) {
             inc_safety_print(snprintf(msg, size, "UNKNOWN_SAFETY_PREINIT"));
         }
@@ -285,8 +277,27 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));
         }
 
-        inc_safety_print(
-            snprintf(msg, size, " - Faults: 0x%08lX - Uptime: %.2f %c", entry->faults, uptime_pretty, uptime_units));
+        inc_safety_print(snprintf(msg, size, " - Faults: 0x%08lX", entry->faults));
+    }
+
+    // Uptime valid if non-zero
+    if (entry->uptime) {
+        float uptime_pretty;
+        char uptime_units;
+        if (entry->uptime > 3600 * uptime_ticks_per_sec) {
+            uptime_pretty = (float) (entry->uptime) / (3600 * uptime_ticks_per_sec);
+            uptime_units = 'h';
+        }
+        else if (entry->uptime > 60 * uptime_ticks_per_sec) {
+            uptime_pretty = (float) (entry->uptime) / (60 * uptime_ticks_per_sec);
+            uptime_units = 'm';
+        }
+        else {
+            uptime_pretty = (float) (entry->uptime) / uptime_ticks_per_sec;
+            uptime_units = 's';
+        }
+
+        inc_safety_print(snprintf(msg, size, " - Uptime: %.2f %c", uptime_pretty, uptime_units));
     }
 }
 
@@ -359,11 +370,19 @@ static void safety_process_last_reset_cause(void) {
 
     // Handle data in watchdog registers
     struct crash_log_entry *next_entry = &crash_data.crash_log[crash_data.header.next_entry];
+
+    // Pull uptime data if valid
+    if (safety_uptime_ticks == (safety_uptime_ticks_xor ^ UPTIME_TICK_XOR_MAGIC)) {
+        next_entry->uptime = safety_uptime_ticks;
+    }
+    else {
+        next_entry->uptime = 0;
+    }
+
     if (watchdog_enable_caused_reboot()) {
         // Extract data on watchdog reset
         next_entry->reset_reason = *reset_reason_reg;
         next_entry->faults = *fault_list_reg;
-        next_entry->uptime = *uptime_reg;
         next_entry->scratch_1 = watchdog_hw->scratch[1];
         next_entry->scratch_2 = watchdog_hw->scratch[2];
 
@@ -417,7 +436,8 @@ static void safety_process_last_reset_cause(void) {
     }
 
     // Clear all watchdog registers that contain state for current reboot session
-    *uptime_reg = 0;
+    safety_uptime_ticks = 1;  // Setting to 1 since 0 is invalid (and it's already a rough estimate anyways)
+    safety_uptime_ticks_xor = safety_uptime_ticks ^ UPTIME_TICK_XOR_MAGIC;
     *fault_list_reg = 0;
     profiler_reset(false);
 
