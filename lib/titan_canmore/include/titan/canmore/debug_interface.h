@@ -19,6 +19,8 @@ extern "C" {
  *       +----------------+
  * 0x02: |  Memory Stats  |  (Reg)
  *       +----------------+
+ * 0x03: |    GDB Stub    |  (Reg)
+ *       +----------------+
  *       |                |
  *       |      ...       |
  *       |                |
@@ -39,6 +41,7 @@ extern "C" {
 #define CANMORE_DBG_MCU_CONTROL_PAGE_NUM 0x00
 #define CANMORE_DBG_VERSION_STRING_PAGE_NUM 0x01
 #define CANMORE_DBG_MEM_STATS_PAGE_NUM 0x02
+#define CANMORE_DBG_GDB_STUB_PAGE_NUM 0x03
 #define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
 #define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
 #define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
@@ -67,14 +70,6 @@ extern "C" {
  *       +----------------+
  * 0x07: |   Reboot MCU   | WO
  *       +----------------+
- *       |   ..........   |
- *       +----------------+
- * 0x0B: | Read Word Addr | WO
- *       +----------------+
- * 0x0C: | Write Word Addr| WO
- *       +----------------+
- * 0x0D: |   Memory Data  | RW
- *       +----------------+
  *
  * Magic:           Magic value to identify valid control block
  *                  Should contain the word 0x10ad2040
@@ -87,9 +82,6 @@ extern "C" {
  *                  Can be used to identify incompatible versions
  * Release Type:    Contains the release type of the bootloader
  * Reboot MCU:      Writing a value to this register will reboot the microcontroller
- * Read Word Addr:  Reads the requested memory address into the memory data register. Must be in flash, ram, or rom.
- * Write Word Addr: Writes the memory data register to the requested memory address. Must be in ram.
- * Memory Data:     Register holding data to be read/written by read word addr or write word addr registers.
  */
 
 // MCU Control Register Definitions
@@ -105,9 +97,6 @@ extern "C" {
 #define CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET 0x08  // TODO: Remove me when bug fixed
 #define CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET 0x09
 #define CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET 0x0A
-#define CANMORE_DBG_MCU_CONTROL_READ_WORD_ADDR_OFFSET 0x0B
-#define CANMORE_DBG_MCU_CONTROL_WRITE_WORD_ADDR_OFFSET 0x0C
-#define CANMORE_DBG_MCU_CONTROL_MEMORY_DATA_OFFSET 0x0D
 
 /* Version String
  * ==============
@@ -173,6 +162,40 @@ extern "C" {
 #define CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET 0x09
 #define CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET 0x0A
 #define CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET 0x0B
+
+/* GDB Stub
+ * ========================
+ * Contains registers to allow debugging via GDB
+ *
+ *       +----------------+
+ * 0x00: | Read Word Addr | WO
+ *       +----------------+
+ * 0x01: | Write Word Addr| WO
+ *       +----------------+
+ * 0x02: |   Memory Data  | RW
+ *       +----------------+
+ * 0x03: |   PC Register  | RO
+ *       +----------------+
+ * 0x04: |   SP Register  | RO
+ *       +----------------+
+ * 0x05: |   LR Register  | RO
+ *       +----------------+
+ *
+ * Read Word Addr:  Reads the requested memory address into the memory data register. Must be in flash, ram, or rom.
+ * Write Word Addr: Writes the memory data register to the requested memory address. Must be in ram.
+ * Memory Data:     Register holding data to be read/written by read word addr or write word addr registers.
+ * PC Register:     Reads the current PC of the debug stub, so the debugger can pull additional context from the stack
+ * SP Register:     Reads the current SP of the debug stub, so the debugger can pull additional context from the stack
+ * LR Register:     Reads the current SP of the debug stub, so the debugger can pull additional context from the stack
+ */
+
+// GDB Stub Register Definitions
+#define CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET 0x00
+#define CANMORE_DBG_GDB_STUB_WRITE_WORD_ADDR_OFFSET 0x01
+#define CANMORE_DBG_GDB_STUB_MEMORY_DATA_OFFSET 0x02
+#define CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET 0x03
+#define CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET 0x04
+#define CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET 0x05
 
 /* Safety Status Register Map
  * ==========================

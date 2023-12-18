@@ -285,6 +285,9 @@ public:
 
     uint32_t readMemory(uint32_t addr);
     void writeMemory(uint32_t addr, uint32_t data);
+    uint32_t getGDBStubPC();
+    uint32_t getGDBStubSP();
+    uint32_t getGDBStubLR();
 
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);

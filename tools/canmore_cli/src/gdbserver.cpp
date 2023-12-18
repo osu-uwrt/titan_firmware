@@ -49,7 +49,7 @@ public:
     explicit GDBServerError(const char *msg): std::runtime_error(msg) {}
 };
 
-static bool waitForEventOrInterrupt(int socketFd, int &reventsOut) {
+static bool waitForEventOrInterrupt(int socketFd, int &reventsOut, std::function<bool(void)> periodicCheck) {
     // Waits for a new connection (and returns true) or enter is pressed (and returns false)
     struct pollfd fds[2];
     fds[0].fd = socketFd;
@@ -58,7 +58,8 @@ static bool waitForEventOrInterrupt(int socketFd, int &reventsOut) {
     fds[1].events = POLLIN;
 
     while (true) {
-        if (poll(fds, 2, -1) < 0) {
+        // Poll every second
+        if (poll(fds, 2, 1000) < 0) {
             throw std::system_error(errno, std::generic_category(), "poll");
         }
 
@@ -69,7 +70,7 @@ static bool waitForEventOrInterrupt(int socketFd, int &reventsOut) {
         }
 
         // Check for keypress instead
-        else if (fds[1].revents & POLLIN) {
+        if (fds[1].revents & POLLIN) {
             char c = getchar();
             // If enter (or ctrl+c), then break
             if (c == '\n' || c == '\x03') {
@@ -77,8 +78,12 @@ static bool waitForEventOrInterrupt(int socketFd, int &reventsOut) {
             }
             // If a different character, poll again
         }
-        else {
-            throw std::runtime_error("Poll unexpectedly returned");
+
+        // Send periodic check function if we don't get a command for a while to make sure we're still alive
+        if (periodicCheck) {
+            if (!periodicCheck()) {
+                return false;
+            }
         }
     }
 }
@@ -153,38 +158,91 @@ public:
         else if (req.at(0) == 'q') {
             return processQ(req.substr(1));
         }
-
-        else if (req.at(0) == 'g') {
-            // TODO: Make this better
-            return "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                   "xxxxxxxxxxxxx000000000400000000000000";
+        else if (req.at(0) == 'Q') {
+            return processQUpper(req.substr(1));
         }
 
-        // TODO: Memory write
+        else if (req.at(0) == 'g') {
+            std::stringstream regs;
+            regs
+                << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                   "xxxxx";  // Populate regs r0-r12 with unknown
+
+            try {
+                uint32_t pc = client->getGDBStubPC();
+                uint32_t sp = client->getGDBStubSP();
+                uint32_t lr = client->getGDBStubLR();
+
+                // Put in SP register
+                for (int i = 0; i < 4; i++) {
+                    regs << byteToHex((sp >> (i * 8)) & 0xFF);
+                }
+                // Put in LR register
+                for (int i = 0; i < 4; i++) {
+                    regs << byteToHex((lr >> (i * 8)) & 0xFF);
+                }
+
+                // Put in PC register
+                for (int i = 0; i < 4; i++) {
+                    regs << byteToHex((pc >> (i * 8)) & 0xFF);
+                }
+
+                // Put in XPSR register
+                regs << "00000000";
+
+                return regs.str();
+            } catch (Canmore::CanmoreError &e) {
+                std::cout << COLOR_ERROR "Error reading registers: " << e.what() << COLOR_RESET << std::endl;
+                return "E00";
+            }
+        }
+
+        else if (req.at(0) == 'G') {
+            return "E00";  // Can't set registers
+        }
+
+        else if (req.at(0) == 'M') {
+            return memoryWrite(req.substr(1));
+        }
 
         else if (req.at(0) == 'm') {
             return memoryRead(req.substr(1));
         }
 
         else {
-            // std::cout << "Unknown Command '" << req << "'" << std::endl;
+            // We must return an empty response on unknown packets
             return "";
         }
     }
 
-    void resetState() { detachReceived = false; }
+    bool ping() {
+        try {
+            client->ping();
+            return true;
+        } catch (Canmore::CanmoreError &e) {
+            std::cout << COLOR_ERROR "Failed to ping device: " << e.what() << COLOR_RESET << std::endl;
+            return false;
+        }
+    }
+
+    void resetState() {
+        detachReceived = false;
+        sendAck = true;
+    }
     bool shouldDisconnect() { return detachReceived; }
+    bool shouldSendAck() { return sendAck; }
 
 private:
     std::shared_ptr<Canmore::DebugClient> client;
     bool detachReceived = false;
+    bool sendAck = true;
 
     std::string processQ(const std::string_view &subcmd) {
         if (subcmd.rfind("Supported", 0) == 0) {
             // subcmd Supported: https://sourceware.org/gdb/onlinedocs/gdb/General-Query-Packets.html#qSupported
             // Report the features supported by the RSP server. As a minimum, just the packet size can be reported.
             // Reporting 4096 packet length, we can probably receive more, but its a good max value
-            return "PacketSize=4096;qXfer:features:read+";
+            return "PacketSize=4000;qXfer:features:read+;QStartNoAckMode+";
         }
         else if (subcmd == "Attached") {
             return "1";  // Process already running
@@ -200,6 +258,16 @@ private:
         }
         else if (subcmd.rfind("Xfer", 0) == 0) {
             return processXfer(subcmd);  // Process XFER request, additional logic
+        }
+        else {
+            return "";
+        }
+    }
+
+    std::string processQUpper(const std::string_view &subcmd) {
+        if (subcmd == "StartNoAckMode") {
+            sendAck = false;
+            return "OK";
         }
         else {
             return "";
@@ -302,21 +370,18 @@ private:
             // Read, re-aligning as required
             // Sort of hack to prevent constant readings of PC by gdb
             // We'll say we've already read address 0 (and also check for addr 4 inside)
-            uint32_t addr = 0;  // Bounds checked above
-            uint32_t last_read = 0x20041ff0;
+            bool addr_valid = false;
+            uint32_t addr = 0;
+            uint32_t last_read = 0;
             for (uint64_t i = 0; i < len; i++) {
                 // Refresh from memory if the word changed
                 uint32_t cur_idx = (uint32_t) ((offset + i) % 4);
                 uint32_t cur_word = (uint32_t) ((offset + i) - cur_idx);
 
-                if (addr != cur_word) {
+                if (addr != cur_word || !addr_valid) {
+                    addr_valid = true;
                     addr = cur_word;
-                    if (addr != 0 && addr != 4) {
-                        last_read = client->readMemory(addr);
-                    }
-                    else {
-                        last_read = (addr == 0 ? 0x20041ff0 : 0xef);
-                    }
+                    last_read = client->readMemory(addr);
                 }
 
                 // Now take the part of the word we're on and add it to the stringstream
@@ -334,12 +399,84 @@ private:
 
         return result.str();
     }
+
+    std::string memoryWrite(const std::string_view &subcmd) {
+        size_t offset_len_sep = subcmd.find(',');
+        size_t len_data_sep = subcmd.find(':');
+        if (len_data_sep == std::string::npos || offset_len_sep == std::string::npos ||
+            offset_len_sep >= len_data_sep) {
+            return ERR_STR_EINVAL;
+        }
+        uint64_t offset, len;
+        if (!convertHexStr(subcmd.substr(0, offset_len_sep), offset)) {
+            return ERR_STR_EINVAL;
+        }
+        if (!convertHexStr(subcmd.substr(offset_len_sep + 1, len_data_sep - offset_len_sep - 1), len)) {
+            return ERR_STR_EINVAL;
+        }
+        // Make sure all address parts are in bounds
+        if (offset > UINT32_MAX || len > UINT32_MAX || offset + len > UINT32_MAX) {
+            return ERR_STR_EINVAL;
+        }
+
+        try {
+            // Write, aligning as required
+            uint32_t val = 0;
+            uint32_t first_idx = offset % 4;
+            size_t hex_offset = len_data_sep + 1;
+            for (uint64_t i = 0; i < len; i++) {
+                // Make sure the string is actually long enough to hold the hex data
+                if (subcmd.length() - hex_offset < 2) {
+                    return ERR_STR_EINVAL;
+                }
+
+                // Decode the next byte to send
+                uint64_t byte_val;
+                if (!convertHexStr(subcmd.substr(hex_offset, 2), byte_val)) {
+                    return ERR_STR_EINVAL;
+                }
+                hex_offset += 2;
+
+                // Refresh from memory if the word changed
+                uint32_t cur_idx = (uint32_t) ((offset + i) % 4);
+                uint32_t cur_word = (uint32_t) ((offset + i) - cur_idx);
+
+                val |= (byte_val << (8 * cur_idx));
+
+                // Write if it's the last byte in the word, or we are out of data to write
+                if (cur_idx == 3 || i + 1 == len) {
+                    // If we are doing a partial write, we'll need to read the previous value
+                    // Compute it real quick
+                    uint32_t write_mask = ((1llu << ((cur_idx - first_idx + 1) * 8)) - 1) << (first_idx * 8);
+                    uint32_t keep_mask = ~write_mask;
+                    if (keep_mask) {
+                        // Read back previous value if we need to keep any bits
+                        uint32_t prev_val = client->readMemory(cur_word);
+                        val = (prev_val & keep_mask) | (val & write_mask);
+                    }
+
+                    // Write the new value
+                    client->writeMemory(cur_word, val);
+
+                    // Reset variables for the next word
+                    val = 0;
+                    first_idx = 0;
+                }
+            }
+
+            // Write complete
+            return "OK";
+        } catch (Canmore::CanmoreError &e) {
+            // Some sort of error occurred while writing
+            return ERR_STR_EINVAL;
+        }
+    }
 };
 
 class GDBPacketParser {
 public:
     GDBPacketParser(std::shared_ptr<GDBPacketHandler> handler, std::function<void(std::string)> sendRespCb):
-        state(PARSE_SOP), handler(handler), sendRespCb(sendRespCb) {
+        handler(handler), sendRespCb(sendRespCb) {
         handler->resetState();
     }
 
@@ -421,11 +558,15 @@ public:
                 // Prevents garbage from breaking everything
                 if (state != PARSE_SOP) {
                     state = PARSE_SOP;
-                    sendRespCb("-");
+                    if (handler->shouldSendAck()) {
+                        sendRespCb("-");
+                    }
                 }
             }
             else if (processData) {
-                sendRespCb("+");
+                if (handler->shouldSendAck()) {
+                    sendRespCb("+");
+                }
                 auto packetView = std::string_view(cmdBuf.data(), cmdBuf.size());
                 auto resp = handler->processPacket(packetView);
                 transmitResponse(resp);
@@ -442,9 +583,9 @@ private:
 
         PARSE_CHECKSUM1,
         PARSE_CHECKSUM2,
-    } state;
-    uint8_t calc_checksum;
-    uint8_t exp_checksum;
+    } state = PARSE_SOP;
+    uint8_t calc_checksum = 0;
+    uint8_t exp_checksum = 0;
 
     std::shared_ptr<GDBPacketHandler> handler;
     std::function<void(std::string)> sendRespCb;
@@ -493,8 +634,8 @@ private:
 
 class GDBServerSocket {
 public:
-    GDBServerSocket(std::shared_ptr<GDBPacketHandler> handler, int socketFd):
-        handler(handler), socketFd(socketFd),
+    GDBServerSocket(std::shared_ptr<GDBPacketHandler> handler, int socketFd, sockaddr socketAddr):
+        socketAddr(socketAddr), handler(handler), socketFd(socketFd),
         packetParser(handler, std::bind(&GDBServerSocket::send, this, std::placeholders::_1)) {}
 
     ~GDBServerSocket() {
@@ -507,7 +648,7 @@ public:
         try {
             // Returns true if another connection can be accepted, false if the server should quit
             int event = 0;
-            while (waitForEventOrInterrupt(socketFd, event)) {
+            while (waitForEventOrInterrupt(socketFd, event, std::bind(&GDBPacketHandler::ping, handler.get()))) {
                 if (event & POLLIN) {
                     // New data to receive
                     int recvlen = read(socketFd, rxbuf, sizeof(rxbuf));
@@ -542,7 +683,34 @@ public:
         }
     }
 
+    std::string formatAddr() {
+        char s[32];
+        uint16_t port = 0;
+
+        switch (socketAddr.sa_family) {
+        case AF_INET: {
+            struct sockaddr_in *sa = (struct sockaddr_in *) &socketAddr;
+            inet_ntop(AF_INET, &sa->sin_addr, s, sizeof(s));
+            port = sa->sin_port;
+            break;
+        }
+
+        case AF_INET6: {
+            struct sockaddr_in6 *sa = (struct sockaddr_in6 *) &socketAddr;
+            inet_ntop(AF_INET6, &sa->sin6_addr, s, sizeof(s));
+            port = sa->sin6_port;
+            break;
+        }
+
+        default:
+            return "Unknown AF " + std::to_string(socketAddr.sa_family);
+        }
+
+        return s + (":" + std::to_string(port));
+    }
+
 private:
+    sockaddr socketAddr;
     std::shared_ptr<GDBPacketHandler> handler;
     int socketFd;
     GDBPacketParser packetParser;
@@ -596,13 +764,15 @@ public:
     std::unique_ptr<GDBServerSocket> acceptConnection() {
         // Returns nullptr if interrupted by enter/ctrl+c
         int event = 0;
-        if (waitForEventOrInterrupt(socketFd, event)) {
+        if (waitForEventOrInterrupt(socketFd, event, std::bind(&GDBPacketHandler::ping, handler.get()))) {
             if (event & POLLIN) {
                 int newFd;
-                if ((newFd = accept4(socketFd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK)) < 0) {
+                sockaddr addr;
+                socklen_t addrlen = sizeof(addr);
+                if ((newFd = accept4(socketFd, &addr, &addrlen, SOCK_CLOEXEC | SOCK_NONBLOCK)) < 0) {
                     throw std::system_error(errno, std::generic_category(), "TCP Socket Accept4");
                 }
-                return std::make_unique<GDBServerSocket>(handler, newFd);
+                return std::make_unique<GDBServerSocket>(handler, newFd, addr);
             }
             else {
                 throw std::runtime_error("Unexpected error event on server: " + std::to_string(event));
@@ -626,12 +796,13 @@ void runGdbServer(uint16_t port, std::shared_ptr<Canmore::DebugClient> client) {
                   << " (Press Enter or Ctrl+C to exit)" COLOR_RESET << std::endl;
         GDBServerListener listener(port, handler);
         while (true) {
+            std::string connAddr;
             auto conn = listener.acceptConnection();
             if (!conn) {
                 std::cout << COLOR_NOTICE "Break" << COLOR_RESET << std::endl;
                 break;
             }
-            std::cout << COLOR_HEADER "Accepted new connection" COLOR_RESET << std::endl;
+            std::cout << COLOR_HEADER "Accepted new connection from " << conn->formatAddr() << COLOR_RESET << std::endl;
             if (!conn->serve()) {
                 std::cout << COLOR_NOTICE "Break" COLOR_RESET << std::endl;
                 break;
