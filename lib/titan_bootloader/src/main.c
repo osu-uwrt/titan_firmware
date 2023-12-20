@@ -45,7 +45,7 @@ void tick_heartbeat(void) {
 }
 
 void run_bootloader(void) {
-    dbg_uart_puts("Entering bootloader...");
+    dbg_uart_puts("Running BL");
     status_led_set(LED_BL_NORMAL);
 
     // Exit bootloader after a given amount of time, forcing a reset
@@ -99,7 +99,7 @@ int main(void) {
 
     // Initialize CAN Bus
     if (!bl_interface_init()) {
-        dbg_uart_puts("Failed to initialize bootloader interface!");
+        dbg_uart_puts("BL INIT FAIL!");
 
         // If CAN fails to bring up, just abort (and change the LED to show that it messed up)
         status_led_set(LED_HW_FAIL);
@@ -137,7 +137,7 @@ int main(void) {
     if (!enter_bootloader) {
         watchdog_update();
         boot_app_attempt(notify_watchdog_reset);
-        dbg_uart_puts("Failed to boot application! Falling back to bootloader");
+        dbg_uart_puts("APP ERR - ENTERING BL");
     }
 
     // Fallthrough into bootloader
