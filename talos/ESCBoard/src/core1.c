@@ -142,6 +142,9 @@ static void __time_critical_func(core1_main)() {
     // ========================================
 
     while (1) {
+        // Tick Safety
+        safety_core1_checkin();
+
         // Time difference used for I gains, computed later in control loop if I gains should be enabled in this tick
         int64_t time_difference = 0;
 
@@ -473,7 +476,7 @@ static void __time_critical_func(core1_main)() {
 void core1_init(uint8_t board_id) {
     target_req.lock = spin_lock_init(spin_lock_claim_unused(true));
     telem_state.lock = spin_lock_init(spin_lock_claim_unused(true));
-    multicore_launch_core1(core1_main);
+    safety_launch_core1(core1_main);
 
     // TODO: Move to parameters when ready
 
