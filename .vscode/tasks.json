@@ -18,6 +18,26 @@
                 "showReuseMessage": true
             },
             "problemMatcher": []
+        },
+        {
+            "hide": true,
+            "label": "Verify Remote Version",
+            "detail": "Verifies that the GDB remote version matches the copiled version",
+            "type": "shell",
+            "isBackground": false,
+            "command": "${workspaceRoot}/.vscode/verify_remote_version.sh",
+            "args": [
+                "${command:cmake.getLaunchTargetPath}"
+            ],
+            "options": {
+                "cwd": "${command:cmake.getLaunchTargetDirectory}",
+            },
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated",
+                "clear": true,
+                "showReuseMessage": false
+            }
         }
     ]
 }

@@ -12,7 +12,7 @@ using namespace PicoUSB;
 #define PICO_SERIAL_PID 0x000a
 #define PICO_PROBE_PID 0x000c
 
-USBDiscovery::USBDiscovery(): ctx(NULL) {
+USBDiscovery::USBDiscovery(bool picoprobeOnly): ctx(NULL), picoprobeOnly(picoprobeOnly) {
     checkLibusbErr(libusb_init(&ctx));
 }
 
@@ -117,12 +117,16 @@ void USBDiscovery::discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &d
 
             if (desc.idVendor == PICO_VID) {
                 if (desc.idProduct == PICO_SERIAL_PID) {
+                    if (picoprobeOnly)
+                        continue;
                     auto handle = std::make_shared<USBDeviceHandle>(entry, this->create());
                     auto dev = std::make_shared<NormalDevice>(handle, desc.iSerialNumber);
                     devicesOut.push_back(dev);
                     discoveredDevices.push_back(dev);
                 }
                 else if (desc.idProduct == PICO_BOOTROM_PID) {
+                    if (picoprobeOnly)
+                        continue;
                     auto handle = std::make_shared<USBDeviceHandle>(entry, this->create());
                     auto dev = std::make_shared<BootromDevice>(handle);
                     devicesOut.push_back(dev);

@@ -1,3 +1,4 @@
+#include "pico/sync.h"
 #include "pico/unique_id.h"
 #include "titan/debug.h"
 
@@ -14,6 +15,8 @@
 #include "driver/canbus.h"
 #endif
 
+extern reg_mapped_server_inst_t debug_server_inst;  // Allows us to refer to the debug server later
+
 // ========================================
 // MCU Control Bindings
 // ========================================
@@ -24,6 +27,7 @@ static uint32_t mcu_control_minor_version;
 static uint32_t mcu_control_release_type;
 static bool enter_bootloader_on_return = false;
 static bool reboot_mcu_on_return = false;
+static uint32_t gdb_stub_memory_data = 0;
 
 static union {
     pico_unique_board_id_t id_pico;
@@ -41,6 +45,147 @@ static bool enter_bl_cb(__unused const struct reg_mapped_server_register_definit
 static bool reboot_mcu_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
                           __unused uint32_t *data_ptr) {
     reboot_mcu_on_return = true;
+    return true;
+}
+
+static bool gdb_stub_write_mem_cb(__unused const struct reg_mapped_server_register_definition *reg,
+                                  __unused bool is_write, uint32_t *data_ptr) {
+    uintptr_t addr = *data_ptr;
+    if (addr % 4 != 0) {
+        // Don't allow unaligned writes
+        return false;
+    }
+
+    if (addr >= SRAM_BASE && addr < SRAM_END)  // Striped addresses (& scratch_x + scratch_y)
+        ;
+    else if (addr >= SRAM0_BASE && addr < 0x21040000)  // Non-striped RAM
+        ;
+    else if (addr >= 0x40000000 && addr < 0x40070000)  // APB Peripherals
+        ;
+    else if (addr >= 0x50000000 && addr < 0x50400000)  // AHB Peripherals
+        ;
+    else if (addr >= SIO_BASE && addr < SIO_BASE + 0x180)  // SIO Peripherals
+        ;
+    else if (addr >= PPB_BASE + 0x0000e000 && addr < PPB_BASE + 0x0000f000)  // ARM Cortex SCS
+        ;
+    else
+        return false;
+
+    // Perform the write
+    uint32_t *mem_ptr = (uint32_t *) addr;
+    *mem_ptr = gdb_stub_memory_data;
+    return true;
+}
+
+static bool gdb_stub_read_mem_cb(const struct reg_mapped_server_register_definition *reg, bool is_write,
+                                 uint32_t *data_ptr) {
+    register uint32_t addr = 0;
+    bool is_pc_read = false;
+    bool is_sp_read = false;
+    bool is_lr_read = false;
+
+    // This function is extra convoluted since we want to capture the memory and PC/SP at the same location, so we get
+    // accurate stack reconstruction. Yay ARM ABI!
+
+    // Do register decoding
+    if (debug_server_inst.num_pages < CANMORE_DBG_GDB_STUB_PAGE_NUM ||
+        debug_server_inst.page_array[CANMORE_DBG_GDB_STUB_PAGE_NUM].page_type != PAGE_TYPE_REGISTER_MAPPED)
+        return false;
+    size_t reg_cnt = debug_server_inst.page_array[CANMORE_DBG_GDB_STUB_PAGE_NUM].type.reg_mapped.num_registers;
+    const reg_mapped_server_register_def_t *page_def =
+        debug_server_inst.page_array[CANMORE_DBG_GDB_STUB_PAGE_NUM].type.reg_mapped.reg_array;
+
+    // This is a read word address
+    if (reg_cnt > CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET &&
+        reg == &page_def[CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET]) {
+        // Read word will write the value to fetch, if it's a read, they're using it wrong
+        if (!is_write) {
+            return false;
+        }
+        addr = *data_ptr;
+
+        if (addr % 4 != 0) {
+            // Address must be word aligned
+            return false;
+        }
+
+        // Check that address is in range
+        static_assert(ROM_BASE == 0, "Assuming rom tsarts at 0 to silence compiler warning");
+
+        if (addr >= SRAM_BASE && addr < SRAM_END)  // Striped addresses (& scratch_x + scratch_y)
+            ;
+        else if (addr >= XIP_MAIN_BASE && addr < XIP_MAIN_BASE + PICO_FLASH_SIZE_BYTES)  // Flash normal
+            ;
+        else if (addr >= XIP_NOALLOC_BASE && addr < XIP_NOALLOC_BASE + PICO_FLASH_SIZE_BYTES)  // Flash noalloc
+            ;
+        else if (addr >= XIP_NOCACHE_BASE && addr < XIP_NOCACHE_BASE + PICO_FLASH_SIZE_BYTES)  // Flash noalloc
+            ;
+        else if (addr >= XIP_NOCACHE_NOALLOC_BASE && addr < XIP_NOCACHE_NOALLOC_BASE + PICO_FLASH_SIZE_BYTES)
+            ;
+        else if (addr < (16 * 1024))  // ROM (Hardcoded from datasheet saying that ROM is 16K)
+            ;
+        else if (addr >= SRAM0_BASE && addr < 0x21040000)  // Non-striped RAM
+            ;
+        else if (addr >= 0x40000000 && addr < 0x40070000)  // APB Peripherals
+            ;
+        else if (addr >= 0x50000000 && addr < 0x50400000)  // AHB Peripherals
+            ;
+        else if (addr >= SIO_BASE && addr < SIO_BASE + 0x180)  // SIO Peripherals
+            ;
+        else if (addr >= PPB_BASE + 0x0000e000 && addr < PPB_BASE + 0x0000f000)  // ARM Cortex SCS
+            ;
+        else {
+            // Address out of range
+            return false;
+        }
+
+        // If address is in flash, only do noalloc reads so we don't muddy up cache
+        if ((addr & 0xFC000000) == XIP_BASE) {
+            addr = XIP_NOALLOC_BASE + (addr & 0x00FFFFFF);
+        }
+    }
+    else if (reg_cnt > CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET &&
+             reg == &page_def[CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET]) {
+        is_pc_read = true;
+    }
+    else if (reg_cnt > CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET &&
+             reg == &page_def[CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET]) {
+        is_sp_read = true;
+    }
+    else if (reg_cnt > CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET &&
+             reg == &page_def[CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET]) {
+        is_lr_read = true;
+    }
+    else {
+        // We don't know what it is
+        return false;
+    }
+
+    // Perform the read. This must be protected so the compiler doesn't optimize it away
+    __dsb();
+    __isb();
+    register uint32_t val;
+    if (is_pc_read)
+        pico_default_asm_volatile("mov %0, pc\n" : "=r"(val));
+    else if (is_sp_read)
+        pico_default_asm_volatile("mov %0, sp\n" : "=r"(val));
+    else if (is_lr_read)
+        pico_default_asm_volatile("mov %0, lr\n" : "=r"(val));
+    else
+        pico_default_asm_volatile("ldr %0, [%1]" : "=r"(val) : "r"(addr));
+    __dsb();
+    __isb();
+
+    if (is_sp_read || is_pc_read || is_lr_read) {
+        if (is_write) {
+            return false;  // PC and SP reads must be reads
+        }
+        *data_ptr = val;
+    }
+    else {
+        // It's a memory fetch, store into the appropriate register
+        gdb_stub_memory_data = val;
+    }
     return true;
 }
 
@@ -278,8 +423,14 @@ static bool prev_index_cb(__unused const struct reg_mapped_server_register_defin
     case ASSERT_FAIL:
         selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_ASSERT_FAIL_VALUE;
         break;
-    case IN_ROS_TRANSPORT_LOOP:
-        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_TIMEOUT_DURING_ROS_VALUE;
+    case HARD_ASSERT:
+        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_HARD_ASSERT_VALUE;
+        break;
+    case WATCHDOG_TIMEOUT:
+        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_WATCHDOG_TIMEOUT_VALUE;
+        break;
+    case CORE1_TIMEOUT:
+        selected_prev_reset_reason = CANMORE_DBG_CRASH_LOG_RESET_REASON_CORE1_TIMEOUT_VALUE;
         break;
     default:
         selected_prev_reset_reason = entry->reset_reason;  // If it's not in this list, fallback to the raw value
@@ -361,6 +512,17 @@ static const reg_mapped_server_register_def_t debug_server_memory_stats_regs[] =
     DEFINE_REG_MEMORY_PTR(CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET, &mem_stats_keepcost, REGISTER_PERM_READ_ONLY),
 };
 
+static const reg_mapped_server_register_def_t debug_server_gdb_stub_regs[] = {
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET, gdb_stub_read_mem_cb,
+                             REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_GDB_STUB_WRITE_WORD_ADDR_OFFSET, gdb_stub_write_mem_cb,
+                             REGISTER_PERM_WRITE_ONLY),
+    DEFINE_REG_MEMORY_PTR(CANMORE_DBG_GDB_STUB_MEMORY_DATA_OFFSET, &gdb_stub_memory_data, REGISTER_PERM_READ_WRITE),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET, gdb_stub_read_mem_cb, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET, gdb_stub_read_mem_cb, REGISTER_PERM_READ_ONLY),
+    DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET, gdb_stub_read_mem_cb, REGISTER_PERM_READ_ONLY),
+};
+
 static const reg_mapped_server_register_def_t debug_server_safety_status_regs[] = {
     DEFINE_REG_EXEC_CALLBACK(CANMORE_DBG_SAFETY_STATUS_GLOBAL_STATE_OFFSET, safety_global_state_cb,
                              REGISTER_PERM_READ_ONLY),
@@ -401,6 +563,7 @@ static reg_mapped_server_page_def_t debug_server_pages[] = {
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MCU_CONTROL_PAGE_NUM, debug_server_mcu_control_regs),
     DEFINE_PAGE_UNIMPLEMENTED(CANMORE_DBG_VERSION_STRING_PAGE_NUM),  // To be filled in at startup
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MEM_STATS_PAGE_NUM, debug_server_memory_stats_regs),
+    DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_GDB_STUB_PAGE_NUM, debug_server_gdb_stub_regs),
 
     // Safety Status Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_SAFETY_STATUS_PAGE_NUM, debug_server_safety_status_regs),
@@ -410,7 +573,7 @@ static reg_mapped_server_page_def_t debug_server_pages[] = {
     DEFINE_PAGE_UNIMPLEMENTED(CANMORE_DBG_FAULT_FILENAME_PAGE_NUM),  // Filled in by fault idx register cb
 };
 
-static reg_mapped_server_inst_t debug_server_inst = {
+reg_mapped_server_inst_t debug_server_inst = {
     .page_array = debug_server_pages,
     .num_pages = sizeof(debug_server_pages) / sizeof(*debug_server_pages),
     .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,

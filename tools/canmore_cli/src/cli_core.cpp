@@ -156,8 +156,52 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
             std::cout << "^C" << std::endl;
             historyItr = cmdHistory.end();
             cmdBuffer.clear();
+            std::cout << CURSOR_RETURN << prompt << std::flush;
             break;
         }
     }
     return cmdName;
+}
+
+bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max) {
+    const std::string decLookup = "0123456789";
+    const std::string hexLookup = "0123456789ABCDEF";
+
+    uint32_t value = 0;
+    bool isHex = (str.rfind("0x", 0) == 0);
+
+    // It's safe to assume we've got at least 2 chars in it, since we found 2 characters
+    auto searchItr = (isHex ? str.begin() + 2 : str.begin());
+    const std::string &lookup = (isHex ? hexLookup : decLookup);
+    uint32_t multiplier = (isHex ? 16 : 10);
+
+    // Now search through the string to the end
+    while (searchItr != str.end()) {
+        // Find index in lookup
+        size_t pos = lookup.find(std::toupper(*searchItr++));
+
+        // Fail if its not a valid character
+        if (pos == std::string::npos) {
+            return false;
+        }
+
+        // Fail if it will overflow
+        uint32_t maxCurVal = max / multiplier;
+        uint32_t maxNextDigit = value % multiplier;
+
+        if (value > maxCurVal) {  // It'll overflow if we add another digit
+            return false;
+        }
+        else if (value == maxCurVal && pos > maxNextDigit) {
+            // It'll overflow since we're at the max, and the 1s digit will overflow it
+            return false;
+        }
+
+        // Perform multiplication
+        value *= multiplier;
+        value += pos;
+    }
+
+    intOut = value;
+    return true;
 }

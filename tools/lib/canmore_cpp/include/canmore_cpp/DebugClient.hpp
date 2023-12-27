@@ -160,22 +160,6 @@ struct CrashLogEntry {
             }
         }
         else {
-            const int uptime_ticks_per_sec = CANMORE_DBG_SAFETY_STATUS_UPTIME_TICKS_PER_SECOND;
-            float uptime_pretty;
-            char uptime_units;
-            if (uptime > 3600 * 100) {
-                uptime_pretty = (float) (uptime) / (3600 * uptime_ticks_per_sec);
-                uptime_units = 'h';
-            }
-            else if (uptime > 60 * uptime_ticks_per_sec) {
-                uptime_pretty = (float) (uptime) / (60 * uptime_ticks_per_sec);
-                uptime_units = 'm';
-            }
-            else {
-                uptime_pretty = (float) (uptime) / uptime_ticks_per_sec;
-                uptime_units = 's';
-            }
-
             if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_UNKNOWN_PREINIT_VALUE) {
                 reasonStream << "Unexpected Reset before Init";
             }
@@ -191,16 +175,41 @@ struct CrashLogEntry {
             else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_ASSERT_FAIL_VALUE) {
                 reasonStream << "Assertion Fail (File: 0x" << scratch1 << " Line: 0x" << scratch2 << ")";
             }
-            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_TIMEOUT_DURING_ROS_VALUE) {
-                reasonStream << "Watchdog Timeout during ROS Comm";
+            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_HARD_ASSERT_VALUE) {
+                reasonStream << "Hard Assert Fail (Fault Address: 0x" << scratch1 << ")";
+            }
+            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_WATCHDOG_TIMEOUT_VALUE) {
+                reasonStream << "Watchdog Timeout (Last Address: 0x" << scratch1 << ")";
+            }
+            else if (resetReason == CANMORE_DBG_CRASH_LOG_RESET_REASON_CORE1_TIMEOUT_VALUE) {
+                reasonStream << "Core 1 Timeout (Last Address: 0x" << scratch1 << ")";
             }
             else {
                 reasonStream << "Unknown Reset Reason (0x" << resetReason << ")";
             }
 
-            reasonStream << " - Faults: 0x" << faults << " - Uptime: " << std::setw(0) << std::setprecision(2)
-                         << uptime_pretty << uptime_units;
+            reasonStream << " - Faults: 0x" << faults;
         }
+
+        if (uptime) {
+            const int uptime_ticks_per_sec = CANMORE_DBG_SAFETY_STATUS_UPTIME_TICKS_PER_SECOND;
+            float uptime_pretty;
+            char uptime_units;
+            if (uptime > 3600 * 100) {
+                uptime_pretty = (float) (uptime) / (3600 * uptime_ticks_per_sec);
+                uptime_units = 'h';
+            }
+            else if (uptime > 60 * uptime_ticks_per_sec) {
+                uptime_pretty = (float) (uptime) / (60 * uptime_ticks_per_sec);
+                uptime_units = 'm';
+            }
+            else {
+                uptime_pretty = (float) (uptime) / uptime_ticks_per_sec;
+                uptime_units = 's';
+            }
+            reasonStream << " - Uptime: " << std::setw(0) << std::setprecision(2) << uptime_pretty << uptime_units;
+        }
+
         return reasonStream.str();
     }
 };
@@ -244,16 +253,16 @@ struct FaultData {
 
         // Only display hours if we've gone that far
         if (timestamp_seconds > 3600) {
-            out << std::setw(2) << timestamp_seconds / 3600 << ":";
+            out << timestamp_seconds / 3600 << ":" << std::setw(2);
             timestamp_seconds %= 3600;
         }
 
         uint64_t timestamp_minutes = timestamp_seconds / 60;
         timestamp_seconds %= 60;
         if (timestamp_minutes > 0) {
-            out << std::setw(2) << timestamp_minutes << ":";
+            out << timestamp_minutes << ":" << std::setw(2);
         }
-        out << std::setw(2) << timestamp_seconds;
+        out << timestamp_seconds;
 
         // Add the microseconds
         out << "." << std::setw(6) << timestamp_us;
@@ -276,6 +285,12 @@ public:
     CrashCounter getCrashCounter();
     CrashLogEntry getLastResetEntry();
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
+
+    uint32_t readMemory(uint32_t addr);
+    void writeMemory(uint32_t addr, uint32_t data);
+    uint32_t getGDBStubPC();
+    uint32_t getGDBStubSP();
+    uint32_t getGDBStubLR();
 
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);

@@ -279,9 +279,10 @@ rcl_ret_t adc_update(void) {
     status_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), true);
     status_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
     status_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
-    for (int i = 0; i < 8; i++) {
-        status_msg.esc_current[i] = D818_query(i);
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     status_msg.esc_current[i] = D818_query(i);
+    // }
+    // TODO: Fix pudles ESC current
     RCSOFTRETCHECK(rcl_publish(&adc_publisher, &status_msg, NULL));
     return RCL_RET_OK;
 }

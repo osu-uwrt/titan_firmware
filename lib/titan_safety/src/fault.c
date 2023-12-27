@@ -70,7 +70,7 @@ void safety_internal_fault_tick(void) {
         if (outstanding_faults & 1) {
             if (fault_list & 1) {
                 // Fault was not present in last tick
-                LOG_FAULT("Fault %s (%d) Raised (Arg: %ld, File: 0x%p, Line: %d)", safety_lookup_fault_id(i), i,
+                LOG_FAULT("Fault %s (%d) Raised (Arg: %ld, Location: %s:%d)", safety_lookup_fault_id(i), i,
                           safety_fault_data[i].extra_data, safety_fault_data[i].filename, safety_fault_data[i].line);
             }
             else {

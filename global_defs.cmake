@@ -13,9 +13,15 @@ endif()
 
 # Define global initialization function
 function(titan_firmware_init)
-    # Make relwithdebuginfo actually like Release
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g" PARENT_SCOPE)
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g" PARENT_SCOPE)
+    # Make relwithdebuginfo actually like Release (-O3 instead of -O2), but with enhanced debug info (-ggdb3)
+    set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+
+    # Enable more debug info so we get fancy macro expansion during debug (normally just -g)
+    set(CMAKE_ASM_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
 
     # Split function and data into sections to allow linker to optimize unused functions
     add_compile_options(-ffunction-sections -fdata-sections)

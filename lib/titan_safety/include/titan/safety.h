@@ -303,8 +303,32 @@ void safety_deinit(void);
 void safety_tick(void);
 
 // ========================================
+// Safety Multicore Functions
+// ========================================
+
+/**
+ * @brief Launches core 1 with safety bindings.
+ * This function will launch core 1, and then ensure that core 1 checks in every SAFETY_CORE1_CHECKIN_INTERVAL_MS.
+ *
+ * @attention Can only be called once
+ *
+ * @param entry The entry point for core 1
+ */
+void safety_launch_core1(void (*entry)(void));
+
+/**
+ * @brief Checks in with safety to notify that core 1 is still alive. This must be called of an interval of at least
+ * SAFETY_CORE1_CHECKIN_INTERVAL_MS on core 1.
+ *
+ * @attention Can only be called on core 1 and after safety_launch_core1 is called.
+ */
+void safety_core1_checkin(void);
+
+// ========================================
 // Profiler Functions
 // ========================================
+
+// WIP - Sort of works, but not fully yet. See puddles firmware for current state
 
 #ifndef SAFETY_ENABLE_PROFILER
 #define SAFETY_ENABLE_PROFILER 0

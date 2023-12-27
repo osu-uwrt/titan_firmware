@@ -98,8 +98,8 @@ void titan_logger_remove_custom_logger_callback(custom_logger_cb_t callback) {
 const char repo_dir[] = "titan_firmware/";
 #define REPO_NAME_SIZE (sizeof(repo_dir) - 1)  // Remove 1 for null termination
 
-void titan_logger_log_common(const int log_level, const int local_log_level, const char *unit, const char *filename,
-                             const int line, const char *const function, const char *const fmt, ...) {
+void titan_logger_log_common(int log_level, int local_log_level, const char *unit, const char *filename, int line,
+                             const char *function, const char *fmt, ...) {
     if (log_level >= dynamic_global_log_level || log_level >= local_log_level) {
         double uptime_seconds = to_us_since_boot(get_absolute_time()) / 1E6;
 
@@ -108,11 +108,6 @@ void titan_logger_log_common(const int log_level, const int local_log_level, con
 #endif
 
 #if TITAN_LOGGER_PRINT_SOURCE_LOCATION
-        // Try to remove everything before the titan_firmware/ repo
-        const char *start = strstr(filename, repo_dir);
-        if (start != NULL) {
-            filename = start + REPO_NAME_SIZE;
-        }
         printf("[%s] [%.6f] [%s] (%s:%d): ", GET_LEVEL_STRING(log_level), uptime_seconds, unit, filename, line);
 #else
         printf("[%s] [%.6lf] [%s]: ", GET_LEVEL_STRING(log_level), uptime_seconds, unit);

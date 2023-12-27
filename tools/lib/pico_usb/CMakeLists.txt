@@ -24,6 +24,7 @@ target_sources(pico_usb INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/USBDevice.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/USBDiscovery.cpp
     ${CMAKE_CURRENT_LIST_DIR}/flash_getid_stub/flash_getid_compiled.c
+    ${CMAKE_CURRENT_LIST_DIR}/flash_getid_stub/cfg_watchdog_compiled.c
 )
 
 target_include_directories(pico_usb INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include ${LIBUSB_INCLUDE_DIR})

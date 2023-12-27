@@ -1,6 +1,7 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
 #include "DeviceMap.hpp"
+#include "GDBServer.hpp"
 #include "canmore_cpp/DebugClient.hpp"
 
 #include <iomanip>
@@ -301,14 +302,7 @@ public:
         }
 
         uint32_t faultId;
-        try {
-            faultId = std::stoi(args.at(0), nullptr, 10);
-        } catch (std::exception &e) {
-            interface.writeLine("Invalid fault id specified, expected integer <32.");
-            return;
-        }
-
-        if (faultId > 31) {
+        if (!decodeU32(args.at(0), faultId, 31)) {
             interface.writeLine("Invalid fault id specified, expected integer <32.");
             return;
         }
@@ -333,14 +327,7 @@ public:
         }
 
         uint32_t faultId;
-        try {
-            faultId = std::stoi(args.at(0), nullptr, 10);
-        } catch (std::exception &e) {
-            interface.writeLine("Invalid fault id specified, expected integer <32.");
-            return;
-        }
-
-        if (faultId > 31) {
+        if (!decodeU32(args.at(0), faultId, 31)) {
             interface.writeLine("Invalid fault id specified, expected integer <32.");
             return;
         }
@@ -445,6 +432,157 @@ private:
     }
 };
 
+class AppGdbServer : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppGdbServer(): CanmoreCommandHandler("gdbserver") {}
+
+    const uint16_t default_port = 3333;
+
+    std::string getArgList() const override { return "[port: Default " + std::to_string(default_port) + "]"; }
+    std::string getHelp() const override { return "Starts gdb server over Canmore"; }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        uint32_t port = default_port;
+        if (args.size() > 0) {
+            if (!decodeU32(args.at(0), port, UINT16_MAX)) {
+                interface.writeLine("Invalid port number");
+                return;
+            }
+        }
+
+        runGdbServer(port, interface.handle);
+    }
+};
+
+class AppMemReadCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppMemReadCommand(): CanmoreCommandHandler("mem_read") {}
+
+    std::string getArgList() const override { return "[address]"; }
+    std::string getHelp() const override { return "Reads the specified address in memory"; }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        if (args.size() != 1) {
+            interface.writeLine("Expected 1 argument");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        uint32_t address;
+        if (!decodeU32(args.at(0), address)) {
+            interface.writeLine("Invalid 32-bit integer provided for address");
+            return;
+        }
+
+        if (address % 4 != 0) {
+            interface.writeLine("Invalid address: must be 32-bit aligned");
+            return;
+        }
+
+        uint32_t data = interface.handle->readMemory(address);
+
+        std::stringstream out;
+        out << "0x" << std::setw(8) << std::hex << std::uppercase << std::setfill('0') << data;
+        interface.writeLine(out.str());
+    }
+};
+
+class AppMemWriteCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppMemWriteCommand(): CanmoreCommandHandler("mem_write") {}
+
+    std::string getArgList() const override { return "[address] [data]"; }
+    std::string getHelp() const override { return "Writes data to the specified address in memory"; }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        if (args.size() != 2) {
+            interface.writeLine("Expected 2 arguments");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        uint32_t address;
+        uint32_t data;
+
+        if (!decodeU32(args.at(0), address)) {
+            interface.writeLine("Invalid 32-bit integer provided for address");
+            return;
+        }
+
+        if (address % 4 != 0) {
+            interface.writeLine("Invalid address: must be 32-bit aligned");
+            return;
+        }
+
+        if (!decodeU32(args.at(1), data)) {
+            interface.writeLine("Invalid 32-bit integer provided for data");
+            return;
+        }
+
+        interface.handle->writeMemory(address, data);
+    }
+};
+
+class AppMemReadStrCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppMemReadStrCommand(): CanmoreCommandHandler("mem_readstr") {}
+
+    std::string getArgList() const override { return "[address] [maxlen: Default 256]"; }
+    std::string getHelp() const override {
+        return "Reads the string at the corresponding address in memory (maxes at 256 bytes)";
+    }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        uint32_t address;
+        uint32_t maxLen = 256;
+
+        if (args.size() == 2) {
+            if (!decodeU32(args.at(1), maxLen)) {
+                interface.writeLine("Invalid 32-bit integer provided for max length");
+                return;
+            }
+        }
+        else if (args.size() != 1) {
+            interface.writeLine("Expected 1 argument");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        if (!decodeU32(args.at(0), address)) {
+            interface.writeLine("Invalid 32-bit integer provided for address");
+            return;
+        }
+
+        uint32_t curLen = 0;
+        std::stringstream data;
+        data << COLOR_HEADER "String @0x" << std::hex << std::setw(8) << std::setfill('0') << address
+             << ": " COLOR_RESET;
+
+        bool addrValid = false;
+        uint32_t addrAligned = 0;
+        uint32_t curData = 0;
+        while (curLen < maxLen) {
+            uint32_t curIdx = (uint32_t) ((address + curLen) % 4);
+            uint32_t curWord = (uint32_t) ((address + curLen) - curIdx);
+
+            if (!addrValid || curWord != addrAligned) {
+                addrAligned = curWord;
+                curData = interface.handle->readMemory(addrAligned);
+            }
+
+            char curChar = (curData >> (curIdx * 8)) & 0xFF;
+            if (curChar == 0) {
+                interface.writeLine(data.str());
+                return;
+            }
+            data << curChar;
+            curLen++;
+        }
+        interface.writeLine(data.str());
+        interface.writeLine("[WARN] Reached maximum length of " + std::to_string(maxLen));
+    }
+};
+
 class AppCanDebugCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
@@ -463,11 +601,11 @@ public:
         }
 
         std::string const &action = args.at(0);
-        if (action == "0") {
+        if (action == "1") {
             interface.writeLine("Issuing CAN Interrupt Enable Signal");
             interface.handle->canDbgIntrEn();
         }
-        else if (action == "1") {
+        else if (action == "2") {
             interface.writeLine("Issuing CAN FIFO Reset Signal");
             interface.handle->canDbgIntrEn();
         }
@@ -492,6 +630,10 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppLowerFaultCommand>());
     registerCommand(std::make_shared<AppSafetyStatusCommand>());
     registerCommand(std::make_shared<AppMemoryStatsCommand>());
+    registerCommand(std::make_shared<AppMemReadCommand>());
+    registerCommand(std::make_shared<AppMemWriteCommand>());
+    registerCommand(std::make_shared<AppMemReadStrCommand>());
+    registerCommand(std::make_shared<AppGdbServer>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 

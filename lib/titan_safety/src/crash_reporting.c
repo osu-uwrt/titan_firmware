@@ -15,6 +15,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#if LIB_PICO_PRINTF_PICO
+#include "pico/printf.h"
+#else
+#define weak_raw_printf printf
+#define weak_raw_vprintf vprintf
+#endif
+
 // Use of Watchdog Scratch Registers
 // Can really only be considered valid if watchdog_enable_caused_reboot is true
 // scratch[0]: Last Crash Action
@@ -27,8 +34,9 @@
 //       - 0x7193003: Reset from debug emergency reset
 //       - 0x7193004: Reset from software requested reset
 //       - 0x7193005: Reset from unknown (non-timeout) watchdog reset: watchdog reporting a reset, but pico sdk didn't
-//       see WATCHDOG_NON_REBOOT_MAGIC
+//                    see the WATCHDOG_NON_REBOOT_MAGIC in the scratch registers
 //       - 0x7193006: Reset from bootloader mode
+//       - 0x7193007: Reset from RP2040 Bootrom (set after uploading w/ upload tool)
 //  - UNKNOWN_SAFETY_PREINIT: Unknown, crashed after safety_setup
 //  - UNKNOWN_SAFETY_ACTIVE: Unknown, crashed after safety_init
 //  - PANIC: Set on panic function call
@@ -38,7 +46,12 @@
 //  - ASSERT_FAIL: Set in assertion callback
 //     scratch[1]: Faulting File String Address
 //     scratch[2]: Faulting File Line
-//  - IN_ROS_TRANSPORT_LOOP: Set while blocking for response from ROS agent
+//  - HARD_ASSERT: Hard assertion failure when debugging not enabled
+//     scratch[1]: Caller's address
+//  - WATCHDOG_TIMEOUT: Watchdog timed out (However we caught it with the NMI 1us before the watchdog fired)
+//     scratch[1]; The interrupted instruction right before the watchdog reset
+//  - CORE1_TIMEOUT: Core 1 did not check in within SAFETY_CORE1_CHECKIN_INTERVAL_MS, and safety panicked
+//     scratch[1]: The address of the interrupted instruction on core 1
 // scratch[3]: Uptime since safety init (tens of milliseconds)
 //             Note that with 10ms per pulse, this will overflow if running for ~1.3 years
 // scratch[4]: Reserved for Pico SDK watchdog use
@@ -107,7 +120,8 @@ static uint16_t calc_crash_data_crc(void) {
 
 #define uptime_ticks_per_sec 100
 static volatile uint32_t *reset_reason_reg = &watchdog_hw->scratch[0];
-static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
+
+static_assert(PICO_SPINLOCK_ID_OS1 == SAFETY_CRASH_LOGGED_SPINLOCK_ID, "Fault spinlock does not match expected lock #");
 
 // Put fault_list in memory, it should be fine to just live in a special location in memory, as this is only read across
 // reboots used by the *same* firmware version (we won't have multiple firmware versions care about fault_list)
@@ -116,44 +130,56 @@ static volatile uint32_t *uptime_reg = &watchdog_hw->scratch[3];
 volatile uint32_t fault_list __attribute__((section(".uninitialized_data.fault_list")));
 volatile uint32_t *const fault_list_reg = &fault_list;
 
-// Defined in hard_fault_handler.S
-extern void safety_hard_fault_handler(void);
-static exception_handler_t original_hardfault_handler = NULL;
-
-// Assertion Handling
-extern void __real___assert_func(const char *file, int line, const char *func, const char *failedexpr);
-
-void __wrap___assert_func(const char *file, int line, const char *func, const char *failedexpr) {
-    *reset_reason_reg = ASSERT_FAIL;
-    watchdog_hw->scratch[1] = (uint32_t) file;
-    watchdog_hw->scratch[2] = (uint32_t) line;
-
-    // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
-    if (original_hardfault_handler != NULL) {
-        exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
-    }
-
-    __real___assert_func(file, line, func, failedexpr);
-}
-
 /**
- * @brief Restores the hardfault handler to default
- * Used in panic functions to ensure that the hardfault handler doesn't overwrite the panic data when breakpoint is
- * called after a panic
+ * @brief Internal panic function, required so we can override the default panic behavior and store data into the
+ * watchdog
+ *
+ * This function is called by the assembly wrappers, which extract the caller of panic to store it in the watchdog.
+ * Do not call this function directly! Use panic() instead
  */
-void safety_restore_hardfault(void) {
-    // Remove the hard fault exception handler so it doesn't overwrite panic data when the breakpoint is hit
-    if (original_hardfault_handler != NULL) {
-        exception_restore_handler(HARDFAULT_EXCEPTION, original_hardfault_handler);
+void __attribute__((noreturn)) __printflike(1, 0) safety_panic_internal(const char *fmt, ...) {
+    puts("\n*** PANIC ***\n");
+    if (fmt) {
+#if LIB_PICO_PRINTF_NONE
+        puts(fmt);
+#else
+        va_list args;
+        va_start(args, fmt);
+#if PICO_PRINTF_ALWAYS_INCLUDED
+        vprintf(fmt, args);
+#else
+        weak_raw_vprintf(fmt, args);
+#endif
+        va_end(args);
+        puts("\n");
+#endif
+    }
+
+    while (1) {
+        // ========================================
+        // ========== YOUR CODE CRASHED! ==========
+        // ========================================
+        // If you've gotten here, then your code panicked for some reason
+        // This was a crash manually initiated by the code hitting a condition that cannot be recovered from
+        // Check the debug uart and the stack trace to see what went wrong
+        __breakpoint();
     }
 }
+
+// Holds the uptime so that it can be recovered
+// We have around a 1 in a billion chance of random data corrupting this to match the XOR, so we should be fine
+volatile uint32_t safety_uptime_ticks __attribute__((section(".uninitialized_data.safety_uptime_ticks")));
+volatile uint32_t safety_uptime_ticks_xor __attribute__((section(".uninitialized_data.safety_uptime_ticks_xor")));
 
 /**
  * @brief Simple systick handler which increments the uptime value in the watchdog scratch registers
  */
 void safety_systick_handler(void) {
     // Note: Does not have any overflow handling
-    *uptime_reg += 1;
+    // Also, this can technically be corrupted if the watchdog fires as this is ticking up, however that should
+    // hopefully be pretty rare. But if uptime is constantly corrupted during watchdog resets, then this will be why
+    safety_uptime_ticks++;
+    safety_uptime_ticks_xor = UPTIME_TICK_XOR_MAGIC ^ safety_uptime_ticks;
 }
 
 // Watchdog reboot handling
@@ -164,6 +190,11 @@ void __wrap_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
     watchdog_hw->scratch[1] = CLEAN_RESET_TYPE_SOFTWARE;
 
     __real_watchdog_reboot(pc, sp, delay_ms);
+
+    // The pico sdk watchdog reboot doesn't actually block, we'll do it since the caller probably assumes we won't
+    // return
+    do {
+    } while (1);
 }
 
 // ========================================
@@ -209,25 +240,13 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
         else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTLOADER) {
             reset_type = "Bootloader";
         }
+        else if (entry->scratch_1 == CLEAN_RESET_TYPE_BOOTROM) {
+            reset_type = "Bootrom USB Upload";
+        }
 
         inc_safety_print(snprintf(msg, size, "Clean Boot: %s", reset_type));
     }
     else {
-        float uptime_pretty;
-        char uptime_units;
-        if (entry->uptime > 3600 * uptime_ticks_per_sec) {
-            uptime_pretty = (float) (entry->uptime) / (3600 * uptime_ticks_per_sec);
-            uptime_units = 'h';
-        }
-        else if (entry->uptime > 60 * uptime_ticks_per_sec) {
-            uptime_pretty = (float) (entry->uptime) / (60 * uptime_ticks_per_sec);
-            uptime_units = 'm';
-        }
-        else {
-            uptime_pretty = (float) (entry->uptime) / uptime_ticks_per_sec;
-            uptime_units = 's';
-        }
-
         if (entry->reset_reason == UNKNOWN_SAFETY_PREINIT) {
             inc_safety_print(snprintf(msg, size, "UNKNOWN_SAFETY_PREINIT"));
         }
@@ -245,15 +264,40 @@ static void safety_format_reset_cause_entry(struct crash_log_entry *entry, char 
             inc_safety_print(
                 snprintf(msg, size, "ASSERT_FAIL (File: 0x%08lX Line: %ld)", entry->scratch_1, entry->scratch_2));
         }
-        else if (entry->reset_reason == IN_ROS_TRANSPORT_LOOP) {
-            inc_safety_print(snprintf(msg, size, "IN_ROS_TRANSPORT_LOOP"));
+        else if (entry->reset_reason == HARD_ASSERT) {
+            inc_safety_print(snprintf(msg, size, "HARD_ASSERT (Call Address: 0x%08lX)", entry->scratch_1));
+        }
+        else if (entry->reset_reason == WATCHDOG_TIMEOUT) {
+            inc_safety_print(snprintf(msg, size, "WATCHDOG_TIMEOUT (Last Address: 0x%08lX)", entry->scratch_1));
+        }
+        else if (entry->reset_reason == CORE1_TIMEOUT) {
+            inc_safety_print(snprintf(msg, size, "CORE1_TIMEOUT (Last Address: 0x%08lX)", entry->scratch_1));
         }
         else {
             inc_safety_print(snprintf(msg, size, "Invalid Data in Reason Register"));
         }
 
-        inc_safety_print(
-            snprintf(msg, size, " - Faults: 0x%08lX - Uptime: %.2f %c", entry->faults, uptime_pretty, uptime_units));
+        inc_safety_print(snprintf(msg, size, " - Faults: 0x%08lX", entry->faults));
+    }
+
+    // Uptime valid if non-zero
+    if (entry->uptime) {
+        float uptime_pretty;
+        char uptime_units;
+        if (entry->uptime > 3600 * uptime_ticks_per_sec) {
+            uptime_pretty = (float) (entry->uptime) / (3600 * uptime_ticks_per_sec);
+            uptime_units = 'h';
+        }
+        else if (entry->uptime > 60 * uptime_ticks_per_sec) {
+            uptime_pretty = (float) (entry->uptime) / (60 * uptime_ticks_per_sec);
+            uptime_units = 'm';
+        }
+        else {
+            uptime_pretty = (float) (entry->uptime) / uptime_ticks_per_sec;
+            uptime_units = 's';
+        }
+
+        inc_safety_print(snprintf(msg, size, " - Uptime: %.2f %c", uptime_pretty, uptime_units));
     }
 }
 
@@ -326,11 +370,19 @@ static void safety_process_last_reset_cause(void) {
 
     // Handle data in watchdog registers
     struct crash_log_entry *next_entry = &crash_data.crash_log[crash_data.header.next_entry];
+
+    // Pull uptime data if valid
+    if (safety_uptime_ticks == (safety_uptime_ticks_xor ^ UPTIME_TICK_XOR_MAGIC)) {
+        next_entry->uptime = safety_uptime_ticks;
+    }
+    else {
+        next_entry->uptime = 0;
+    }
+
     if (watchdog_enable_caused_reboot()) {
         // Extract data on watchdog reset
         next_entry->reset_reason = *reset_reason_reg;
         next_entry->faults = *fault_list_reg;
-        next_entry->uptime = *uptime_reg;
         next_entry->scratch_1 = watchdog_hw->scratch[1];
         next_entry->scratch_2 = watchdog_hw->scratch[2];
 
@@ -342,14 +394,14 @@ static void safety_process_last_reset_cause(void) {
             crash_data.crash_counter.hard_fault_count++;
         if (next_entry->reset_reason == ASSERT_FAIL && crash_data.crash_counter.assert_fail_count != 0xFF)
             crash_data.crash_counter.assert_fail_count++;
+        if (next_entry->reset_reason == HARD_ASSERT && crash_data.crash_counter.assert_fail_count != 0xFF)
+            crash_data.crash_counter.assert_fail_count++;
 
         if (next_entry->reset_reason == CLEAN_BOOT) {
             LOG_ERROR("Clean boot specified in reset_reason register, but the watchdoog has reported a reset");
         }
 
-        if (crash_data.crash_counter.total_crashes) {
-            should_raise_fault = true;
-        }
+        should_raise_fault = true;
 
         // Dump profiler data from last session
         profiler_dump();
@@ -384,7 +436,8 @@ static void safety_process_last_reset_cause(void) {
     }
 
     // Clear all watchdog registers that contain state for current reboot session
-    *uptime_reg = 0;
+    safety_uptime_ticks = 1;  // Setting to 1 since 0 is invalid (and it's already a rough estimate anyways)
+    safety_uptime_ticks_xor = safety_uptime_ticks ^ UPTIME_TICK_XOR_MAGIC;
     *fault_list_reg = 0;
     profiler_reset(false);
 
@@ -412,8 +465,11 @@ static void safety_process_last_reset_cause(void) {
 void safety_internal_crash_reporting_handle_reset(void) {
     safety_process_last_reset_cause();
 
+    // Claim spinlock for fault handling
+    spin_lock_claim(SAFETY_CRASH_LOGGED_SPINLOCK_ID);
+
     // Set hardfault handler
-    original_hardfault_handler = exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, &safety_hard_fault_handler);
 
     // Enable systick for uptime counting
     exception_set_exclusive_handler(SYSTICK_EXCEPTION, &safety_systick_handler);

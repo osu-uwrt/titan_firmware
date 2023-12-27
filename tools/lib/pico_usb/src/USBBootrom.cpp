@@ -1,10 +1,16 @@
 #include "DeviceMap.hpp"
 #include "pico_usb/USBDiscovery.hpp"
+#include "pico_usb/cfg_watchdog.h"
 #include "pico_usb/flash_getid.h"
 
 #include <iostream>
 
 using namespace PicoUSB;
+
+// Load stub to read flash unique ID and JEDEC ID into end of memory
+// This will be fine to write our stub, since this space is reserved for the boot2 writeout during boot
+#define flash_stub_max_len 256
+const static uint32_t flash_bin_stub_loc = SRAM_END - flash_stub_max_len;
 
 static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> handle) {
     struct libusb_config_descriptor *config;
@@ -39,10 +45,9 @@ RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> 
     try {
         // Load stub to read flash unique ID and JEDEC ID into end of memory
         // This will be fine to write our stub, since this space is reserved for the boot2 writeout during boot
-        if (flash_getid_bin_len > 256) {
+        if (flash_getid_bin_len > flash_stub_max_len) {
             throw std::logic_error("Flash Binary Stub won't fit into space");
         }
-        const uint32_t flash_bin_stub_loc = SRAM_END - 256;
 
         conn.write(flash_bin_stub_loc, flash_getid_bin, flash_getid_bin_len);
         conn.exec(flash_bin_stub_loc);
@@ -123,4 +128,15 @@ uint64_t RP2040BootromInterface::getFlashId() {
 
 uint32_t RP2040BootromInterface::getFlashSize() {
     return cachedFlashSize;
+}
+
+void RP2040BootromInterface::reboot() {
+    if (cfg_watchdog_bin_len > flash_stub_max_len) {
+        throw std::logic_error("Configure Watchdog Stub won't fit into space");
+    }
+
+    conn.write(flash_bin_stub_loc, cfg_watchdog_bin, cfg_watchdog_bin_len);
+    conn.exec(flash_bin_stub_loc);
+
+    conn.reboot(0, 0, 10);
 }

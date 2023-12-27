@@ -8,6 +8,17 @@
 #endif
 #define UWRT_BOARD_DEFINED
 
+// ==============================
+// Board Address Definitions
+// ==============================
+
+#define ETHERNET_IP                                                                                                    \
+    { 192, 168, 1, 43 }
+
+// ==============================
+// Board Pin Definitions
+// ==============================
+
 // I2C Busses
 #define SENSOR_I2C 0
 #define SENSOR_SDA_PIN 0

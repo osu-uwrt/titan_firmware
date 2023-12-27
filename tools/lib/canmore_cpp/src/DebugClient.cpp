@@ -149,6 +149,33 @@ MemoryStats DebugClient::getMemoryStats() {
     return stats;
 }
 
+uint32_t DebugClient::readMemory(uint32_t addr) {
+    RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
+    gdbStubPage.writeRegister(CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET, addr);
+    return gdbStubPage.readRegister(CANMORE_DBG_GDB_STUB_MEMORY_DATA_OFFSET);
+}
+
+void DebugClient::writeMemory(uint32_t addr, uint32_t data) {
+    RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
+    gdbStubPage.writeRegister(CANMORE_DBG_GDB_STUB_MEMORY_DATA_OFFSET, data);
+    gdbStubPage.writeRegister(CANMORE_DBG_GDB_STUB_WRITE_WORD_ADDR_OFFSET, addr);
+}
+
+uint32_t DebugClient::getGDBStubPC() {
+    RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET);
+}
+
+uint32_t DebugClient::getGDBStubSP() {
+    RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET);
+}
+
+uint32_t DebugClient::getGDBStubLR() {
+    RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET);
+}
+
 void DebugClient::reboot() {
     RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
     mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET, 1);

@@ -36,6 +36,25 @@
                 "break main",
                 "continue"
             ]
+        },
+        {
+            "name": "Canmore Debug",
+            "cwd": "${command:cmake.getLaunchTargetDirectory}",
+            "executable": "${command:cmake.getLaunchTargetPath}",
+            "request": "attach",
+            "type": "cortex-debug",
+            "servertype": "external",
+            // Using localhost:3333 for gdbserver on CanmoreCLI
+            "gdbTarget": "localhost:3333",
+            // Configure toolchain path
+            "gdbPath": "arm-none-eabi-gdb",
+            // Using our custom upload task (since bootloader gets squirly when you upload the raw elf)
+            "preLaunchTask": "Verify Remote Version",
+            "overrideAttachCommands": [],
+            // Configure how we want vscode to interact with things
+            "device": "RP2040",
+            "svdFile": "${workspaceRoot}/lib/pico-sdk/src/rp2040/hardware_regs/rp2040.svd",
+            "breakAfterReset": false
         }
     ]
 }

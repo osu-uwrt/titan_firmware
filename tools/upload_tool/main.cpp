@@ -184,27 +184,38 @@ int main(int argc, char **argv) {
             return 0;
         }
 
-        if (blArgs.forceOpenocd) {
-            auto itf = std::make_shared<PicoUSB::PicoprobeClient>("");
-            UploadTool::flashImage(itf, uf2, !blArgs.allowBootloaderOverwrite);
-            return 0;
-        }
-
         // ===== Discover devices =====
         std::vector<std::shared_ptr<RP2040Discovery>> discoverySources;
-        discoverySources.push_back(Canmore::EthernetDiscovery::create());
-        discoverySources.push_back(PicoUSB::USBDiscovery::create());
+        bool skipDelay = false;
 
-        // Discover all CAN interfaces
-        struct if_nameindex *if_nidxs, *intf;
-        if_nidxs = if_nameindex();
-        if (if_nidxs != NULL) {
-            for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++) {
-                if (isValidCANDevice(intf->if_name)) {
-                    discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
-                }
+        if (blArgs.forceOpenocd) {
+            // If we are told to do a custom openocd init script, don't try to search, blindly trust OpenOCD
+            if (PicoUSB::OpenOCDInstance::hasCustomInit()) {
+                auto itf = std::make_shared<PicoUSB::PicoprobeClient>("");
+                UploadTool::flashImage(itf, uf2, !blArgs.allowBootloaderOverwrite);
+                return 0;
             }
-            if_freenameindex(if_nidxs);
+            else {
+                // If not, just do a usb discovery for picoprobes
+                discoverySources.push_back(PicoUSB::USBDiscovery::create(true));
+                skipDelay = true;
+            }
+        }
+        else {
+            discoverySources.push_back(Canmore::EthernetDiscovery::create());
+            discoverySources.push_back(PicoUSB::USBDiscovery::create());
+
+            // Discover all CAN interfaces
+            struct if_nameindex *if_nidxs, *intf;
+            if_nidxs = if_nameindex();
+            if (if_nidxs != NULL) {
+                for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++) {
+                    if (isValidCANDevice(intf->if_name)) {
+                        discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
+                    }
+                }
+                if_freenameindex(if_nidxs);
+            }
         }
 
         std::shared_ptr<RP2040FlashInterface> interface;
@@ -214,7 +225,8 @@ int main(int argc, char **argv) {
         else {
             // Wait for devices to appear
             std::cout << "Waiting for devices..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            if (!skipDelay)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
             // Find all discovered devices
             std::vector<std::shared_ptr<RP2040Device>> discovered;
