@@ -1,0 +1,391 @@
+Chemsitry ID: 1356
+Max Voltage to Charge (per cell): 4.15V
+
+Things to go through:
+ - Setttings
+  - Manufacturing Status Init
+    - LED_EN
+      - No leds
+    - FUSE_EN
+      - No fuse right now (and probably for a little bit)
+    - BBR_EN
+      - No black box recorder right now
+    - PF_EN
+      - No permanent fail right now
+    - LF_EN
+      - 1 Enable lifetime logging on this cell
+    - FET_EN
+      - 1 Enable the FETs (we want poewr control)
+    - GAUGE_EN
+      - 1 Enable gas gauge (we're calibrated)
+ - Permanent Fail
+ - Gas Gauging
+   - Current Thresholds
+     - Discharge Current Threshold: 100 mA
+     - Charge Current Threshold: 48 mA
+     - Quit Current: 12 mA (below this current for relax time it enters relax mode)
+     - Discharge relax time: 1s (default)
+     - Charge relax time: 60s (default)
+   - Design
+     - Design Capacity: 8000 mAh
+     - Design Capacity: 148 Wh
+     - Design Voltage: 18.5V
+   - Cycle
+     - Cycle Count Percentage 90% (leave at default)
+   - Fully Discharged
+   - Fully Charged
+   - Terminate Discharge
+   - Terminate Charge
+   - State
+     - Don't modify
+   - Turbo Cfg
+     - Not Used
+   - IT Cfg
+   - Smoothing
+   - Condition Flag
+   - Max Error
+   - SoH
+ - Advanced Charge Algorithm
+   - Charge term taper current
+
+Things to verify:
+ - The precharge fet works
+ - Measure idle, sleep, and shutdown current
+ - All other IOs on the board
+
+Pre pool test setup:
+ - Settings
+   - Enabled Permanent Failure
+   - Permanent Failure Fuse
+ - Enable all the systems (Manufacturing Status Init)
+
+Investigate for Gas Gauging/Balancing:
+ - Configuration -> FET Options -> CHGFET
+   - Check which mode we want
+      - Should be set if we're fine with the battery charger freaking out when we get full charge and it disables charging
+      - Shouldn't be set if we're confident the charger will know when to charge
+ - Configuration -> SOC Flag Config
+ - Configuration -> Balancing Configuration
+ - Configuration -> IT Gauging Configuration [No TDELTAV]
+ - Configuration -> IT Gauging Ext
+ - Settings -> AFE -> ZVCHG Exit Threshold
+   - Voltage at which below this the battery won't be able to be charged
+ - Enable overcharge protection
+ - Enable overvoltage/overcurrent/overprecharge request protection
+
+Investigate for Advanced Charge Altorithms:
+ - Settings
+   - Configuration
+    - Charging Configuration
+       - To be done after enabling advanced charging algorithms
+    - FET Options
+       - CHGFET: Set after it's smart enough to know to terminate charge
+       - CHGIN: Set after we've configured the charge inhibit mode
+       - CHGSU: Set after we've configured charge suspend mode
+
+Done:
+- Settings
+  - Enabled Protections
+    - Protection Configuration (03)
+      - CUV_RECOV_CHG
+        - 1, We will require the battery to charge once it drops below shutdown voltage
+      - SUV_MODE
+        - 1, Yeah we want this
+        - If it shouldn't let you charge during power up while it's checking for copper deposition
+      - CUDEP_REQ_CHG (charge current requested to be non-zero to prevent charger shutdown during check)
+        - Should be 0 unless charger will shut down during copper deposition check thinking charging isn't needed
+    - Enabled Protections
+     - See protections
+  - Configuration
+    - Temperature Enable (02)
+      - We only have TS1 actually giving protection data
+      - TSInt isn't used as it won't reflect true cell/fet temperature (heatsinked on the other side of the board)
+    - Temperature Mode (04)
+      - Only field that matters is TS1 as this is the only enabled. TS1 is on the cell, so it's cell temperature
+    - DA Configuration (0030)
+      - CTEMP
+        - Show maximum cell temperature (although doesn't matter, only 1 temp sensor)
+      - EMSHUT_PEXIT_DIS
+        - Don't care, shutdown pin isn't mapped
+      - FTEMP
+        - Don't care, we don't use FET temperature
+      - EMSHUT_EN
+        - Enabled since we need to use the emergency FET shutdown command over I2C
+      - SLEEP
+        - Enabled We want to enable sleep mode to reduce power draw when unplugged
+      - IN_SYSTEM_SLEEP
+        - Disabled We don't need to enter sleep mode while running since we aren't a removable pack, so we shouldn't enter sleep unless we're removed
+      - NR
+        - Zero, we are in removable mode
+    - Cell Configuration (5)
+      - 5 Cell Configuration
+    - FET Options (0000)
+      - PDSG
+        - Disable: Board doesn't have predischarge
+      - PACK_FUSE
+        - We'll want battery stack voltage as chemical fuse is powered on the battery stack side
+      - SLEEPCHG
+        - Don't allow charging during sleep, we can't sleep while plugged in [NR=0], and can only charge when plugged in
+      - CHGFET
+        - Not setting right now, as we haven't configured charging yet (might be changed after we configure charging)
+        - Should be set if we're fine with the battery charger freaking out when we get full charge and it disables charging
+        - Shouldn't be set if we're confident the charger will know when to charge
+      - CHGIN
+        - Not set right now, as we haven't configured advanced charging yet
+      - CHGSU
+        - Not set right now, as we haven't configured advanced charging yet
+      -  OTFET
+        - Don't care, fet not configured
+      - PARALLEL_FETS
+        - We've got series fets
+      - PCHG_COMM
+        - We have a PHG fet installed on this board
+    - Sbs Gauging Configuration (0d)
+      - RSOC_RND_OFF
+        - Enabled, round the SOC to nearest rather than cieling (more accurate)
+        - I think this is just a legacy option
+      - LOCK0
+        - Enabled, we want the SOC to stay at 0 after discharge, since it can't be re-used until recharge
+      - RSOC_HOLD
+        - Disable, allow rebounding during operation
+      - RSOCL
+        - Enabled, have the SOC appear as 99% until it reaches full charge
+    - SBS Configuration (24)
+      - FLASH_BUSY_WAIT
+        - Don't block bus, we shouldn't program flash, and if we do we should just be mindful
+      - SMB_CELL_TEMP
+        - 0: Host can't set temperature, no need for this
+      - BLT:
+        - 2 second bus low timeout (disconnect after 2 seconds of no bus)
+        - This can be adjusted as needed, but right now we should have firmware come up within 1 second, so 2 seconds is safe for loss of communication (although the pull up resistors should keep it active as long as the 3V3 on the SBH MCU is alvie)
+      - XL
+        - Normal speed, We aren't trying to beam the I2C bus
+      - HPE
+        - Enable PEC in case the bus is on the fritz we don't try to decode garbage data
+      - CPE
+        - Don't care, we don't have charger broadcast
+      - BCAST
+        - Don't enable broadcast, we'll query the battery ourselves from the MCU
+    - Auth Config (00)
+      - Don't care, we're not doing authentication
+    - Power Config (0011)
+      - SLEEPWKCHG
+        - We shouldn't care since we disabled the charge fet in sleep mode
+      - SLP_ACCUM
+        - We shouldn't be charging in sleep mode, we've disabled the charge fet in sleep mode
+      - CHECK_WAKE_FET
+        - 0, Don't turn on fets until we have checked for wakeup. This being 1 could actually interfere with unintended wake because an unintended wake would start up the MCU and start communications
+      - CHECK_WAKE
+        - 1 check for i2c communication to prevent unintended wakeups
+      - EMSHUT_EXIT_COMM
+        - 0, We don't want to exit emergency shutdown on communication since we will want to use emergency shutdown to power off the vehicle, so we don't want it to come back on while we're polling it
+      - EMSHUT_EXIT_VPACK
+        - 0, In the event the diode or pushes enough voltage to trick it into thinking we have VPACK. Instead we'll just rely on a pack insert/removal, or command from the MCU to exit emergency shutdown
+      - PWR_SAVE_VSHUT
+        - 0, we won't enter power save when voltage is low (we do have actual shutdown when a cell goes below 2.4V), but instead we'll rely on auto ship tocontrol this
+      - AUTO_SHIP_EN
+        - 1 to enter shutdown after long periods of inactivity
+    - IO Config (0)
+      - We don't need battery trip point
+    - Pin Configuration (e2fa)
+      - 111 MFP20 (pins 20, 21, 22): [LEDCDNTLx/GPIO]
+        - Unused
+      - 000 MFP17 (pin 17): [PRES/SHUTDN/DISP/GPIO]
+        - PRES pin
+      - 10 MFP16 (pin 16): [CB7EN/PDSG/GPIO]
+        - GPIO pin
+      - 11 MFP15 (pin 15): [VC7EN/DISP/GPIO]
+        - Unused
+      - 111 MFP13 (pin 13): [DISP/TS4/ADCIN2/GPIO]
+        - Unused
+      - 010 MFP12 (pin 12): [V7SENSE/TS3/ADCIN1/GPIO]
+        - ADC input
+    - GPIO Sealed Access Config (09)
+      - By default 0 except for GPIO we want
+      - Pin 16 (side detect), Pin 12 (adc input)
+    - FlagMapSetUp (all 0000)
+      - No interrupts required
+    - LED Configuration (00d0)
+      - We don't use LEDs, don't care/leave at default
+    - Balancing Configuration (01)
+      - CBS
+        - 0 for now, but we'll investigate this during sleep
+      - CB_RLX_DOD0EW
+        - ??? Figure out when we do balancing
+      - CB_CHG_DOD0EW
+        - ??? Figure out when we do balacning
+      - CBR
+        - 0 for now, but we'll want this enabled
+      - CBM
+        - 0, we have internal cell balancing
+      - CB
+        - 1 Enable cell balancing during charge
+  - Configuration
+    - IT Gauging Configuration
+    - IT Gauging Ext
+  - AFE
+    - AFE Protection Control (73)
+      - SCDDx2
+        - Double SCD delay times (we're running near max of AFE)
+      - RSNS
+        - Normal thresholds (we're running near max of the AFE)
+    - ZVCHG Exit Threshold (2200 mV)
+      - Right now left at 0 of 2200 mV
+  - SMBus Address
+    - Using defaults
+  - Current Scaling
+    - We want to express currents up to 80A, so we need at least 3x scaling
+    - To make our lives easier, just divide by 4 rather than 3
+  - BTP
+    - We're not using battery trip point, leave all at default
+ - Protections
+   - Cell Undervoltage [Enabled]
+     - Hard stop discharge at 3.0V for 2 seconds (according to battery datasheet)
+     - Charge up past 3.5V to clear the fault
+   - Cell Undervoltage Compensated [Enabled]
+     - Compensate an extra 0.1V (default that TI used)
+     - Same recovery and delay as undervoltage
+   - Cell Overvoltage [Enabled]
+     - Above 4.2V we'll overvoltage (according to battery datasheet)
+     - Discharge below 4.0V before you can start charging again
+     - Leaving all latches at default
+   - Overcurrent Charge [Enabled]
+     - Remember all currents divided by 4
+     - Max charge current @5A - limited by charging fuse on board
+     - Slower limit for 5 seconds
+     - Limit peak current 10A for 1 second
+     - Fault can only be cleared by discharging @500mA for 1 second
+   - Overcurrent Discharge [Enabled]
+     - Slower limit at 45A (fuse rating) for 5 seconds
+     - Faster limit at 80A for 2 seconds (peak current draw)
+     - Recover by having
+   - (AFE) Overload Discharge [Always Enabled, Latch enabled]
+     - Can't disable, but set to max threshold - 100A for 31ms
+     - Leave all reset/latching at default
+   - (AFE) Short circuit charge [Always Enabled, Latch enabled]
+     - Set to 66A for 915uS
+     - Leave all reset/latching at default
+   - (AFE) Short Circuit discharge [Always enabled, latch enabled]
+     - Set to max of 200A for 916/1830uS
+     - Leave all reset/	latching default
+   - Overtemperature Charge [Enabled]
+     - 50 degC charging max @2s 45 degC recovery (datasheet doesn't give max charge)
+   - Overtemperature Discharge [Enabled]
+     - 60 degC discharge max @2s 55C recovery (max operating according to batt datasheet)
+   - Overtemperature FET [Disabled]
+   - Undertemperature Charge
+     - 0C for 2s, 5C recovery [from datasheet]
+   - Undertemperature Discharge
+     - 0C for 2s, 5C recovery [from datasheet]
+   - Host Watchdog [Disabled]
+   - Precharge Timeout [Enabled]
+     - Precharging at 800mA or more for more than 30 minutes
+     - Reset after discharging 8 mAh
+   - Charge Timeout [Enabled]
+     - Charging at 800mA or more for more than 15 hours, something's probably wrong
+     - Reset after discharging 8 mAh
+   - Overcharge [Should be enabled after battery learned]
+     - Over 300mAh was counted into
+     - Recovery doesn't matter, nonremovable
+   - Over Requested Charging Voltage [Enabled]
+    - 500 mV over requested for charging voltage
+    - Below 500 mV requested to recover
+   - Over Requested Charging Current [Enabled]
+    - 500 mA over requested for 2 seconds
+    - Current below 100 mA for 2 seconds to recover
+   - Over Requested Precharging Current [Enabled]
+    - 60 mA over requested charging current for 2 seconds
+    - 12 mA recovery for 2 seconds
+ - Power
+   - Valid Update Voltage (3500 mV)
+     - Leave at TI default
+   - Shutdown
+     - Shutdown Voltage (2400 mV)
+       - Note that PF cell voltage might not fire if its below shutdown voltage
+     - Shutdown Time (10s)
+       - Leave at TI Default
+     - PF Shutdown Voltage (2400 mV)
+        - Keep same as normal shutdown
+     - PF Shutdown Time (10s)
+        - Keep same as normal shutdown
+     - PS Shutdown Voltage
+        - Don't care: No power save shutdown, we're going to rely on auto ship to shutdown for us
+     - PS NoLoadResCap Threshold
+        - Don't care: No power save shutdown, we're going to rely on auto ship to shutdown for us
+     - Charger Present Threshold (3000 mV)
+       - Leave at TI Default
+   - Sleep
+     - Sleep Current (10)
+       - Shouldn't really be above 0 if not present, but will only sleep if under 40 mA
+     - Bus Timeout (5s)
+       - Enters sleep after 5s without I2C
+     - Voltage Time (5s)
+       - Leave at TI Default
+     - Current Time (20s)
+       - Leave at TI Default
+     - Wake Comparator (00)
+       - Leave at default of 625 mA (shouldn't matter though as we should only sleep when not present)
+   - Ship
+     - FET Off Time (10s)
+       - Time from shutdown command to turning off discharge FETs
+     - Delay (20s)
+       - Time from shutdown command to actual BQ entering shutdown mode
+     - Auto Ship Time (10080 min)
+       - We'll enter shutdown if the pack isn't touched for 1 week
+   - Power Off
+     - Timeout (0min)
+       - So the emergency shutdown will latch indefinitely, until either a pack removal or a command from the MCU
+       - It's debatable since we probably won't have an extended (30 minute) emergency shutdown, but if someone *really* wants to, its better it does what expected rather than the chance it might turn back on when someone doesn't want it to
+   - Manual FET Control (1)
+     - We want the emergency shutdown to fire after 0.25s
+   - Pre-Discharge
+     - Don't care, we don't have a predischarge fet
+   - IATA
+     - Don't care, we aren't doing IATA stuff (we can control our charge if needed to ship)
+ - SBS Configuration
+   - Remaining Capacity Alarms
+     - Unused right now, might be set if firmware reads these to notify of errorr
+   - Initial Battery Mode (6081)
+     - CAPM
+       - 0, Leave in mA mode (default)
+     - CHGM
+       - 1, disable broadcasts (we want to poll)
+     - AM
+       - 1, Disable broadcasts (we want to poll)
+     - PB
+       - Not sure what this is for, leaving as default
+     - CC
+       - Not sure what this is for, leaving at default
+     - CF
+       - Read-only field
+     - PBS
+       - Read-only field
+     - ICC
+       - Read-only field
+   - Specification Information (0031)
+     - Leave at default, even though we aren't connecting to SBS compliant system
+   - Manufacture Date
+     - Set to the date of the cell used in the pack [Not when we assembled the pack]
+   - Serial Number
+     - Incremented for each of our packs we made
+   - Manufacturer Name (OSU UWRT)
+   - Device Name (SBH_Mk1)
+     - Stands for smart battery housing mark 1, increment on new hardware revs
+   - Device Chemistry (LiPo)
+ - Calibration
+  - Cell Gain [Verified]
+  - Current Gain [Verified]
+  - Vc6-Vss Gain [Verified]
+  - Pack Gain [Verified]
+  - External Cell Voltage [Not used]
+  - Coulomb Counting Offset [Not needed/done automatically]
+  - Current Deadband [Not needed/done automatically]
+  - Temperature Offset [Leaving at default, no good way to calibrate]
+ - LED Support [Not touched, we don't have LEDs]
+ - System Data [No system data yet]
+
+Contains Runtime Data:
+- PF Status
+- Black Box
+- Lifetimes
+- Ra Table

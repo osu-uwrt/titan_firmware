@@ -1,0 +1,24 @@
+
+Function SPI Read Configuration at time Thu Apr 06 13:32:37 2023
+  String: SPI Read Configuration: polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1
+
+Function SPIConfigure at time Thu Apr 06 13:32:37 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1
+
+Function SPIConfigure at time Thu Apr 06 13:32:37 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 0
+
+Function SPIConfigure at time Thu Apr 06 13:32:37 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1
+
+Function SPI Read Configuration at time Thu Apr 06 14:20:44 2023
+  String: SPI Read Configuration: polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1
+
+Function SPIConfigure at time Thu Apr 06 14:20:44 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1
+
+Function SPIConfigure at time Thu Apr 06 14:20:44 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 0
+
+Function SPIConfigure at time Thu Apr 06 14:20:44 2023
+  String: SPI Configure:  polarity 0: phase 0: ClockSpeed 125: SPICRCEnabled 1

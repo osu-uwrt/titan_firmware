@@ -1,0 +1,202 @@
+Chemistry ID selection tool, rev=2.54		
+		
+Configuration used in present fit:		
+ProcessingType=2		
+NumCellSeries=5		
+ElapsedTimeColumn=0		
+VoltageColumn=1		
+TemperatureColumn=2		
+CurrentColumn=3		
+		
+Best chemical ID : 1356	Best chemical ID max. deviation, % : 0.8	
+		
+		
+		
+Summary of all IDs with max. DOD deviation below 3%		
+		
+Chem ID	max DOD error, %	Max R deviation, ratio
+1356	0.8	0.86
+363	1.06	4.03
+1620	1.07	0.93
+533	1.11	3.08
+1376	1.27	3.14
+5754	1.31	0.71
+1359	1.33	1.54
+1371	1.39	1.97
+1360	1.39	2.72
+1923	1.4	2.1
+3107	1.41	3.92
+3106	1.42	5.64
+1751	1.42	2.64
+1224	1.45	2.4
+2015	1.47	0.87
+3721	1.49	3.57
+1530	1.51	0.52
+1763	1.53	2.02
+1304	1.56	6.56
+1378	1.56	1.01
+1184	1.57	2.72
+1377	1.58	2.14
+1270	1.6	0.91
+1375	1.61	2.63
+3731	1.62	5.24
+2304	1.62	2.85
+2992	1.63	3.21
+1343	1.65	0.99
+1328	1.67	0.44
+1565	1.67	2.84
+380	1.67	4.16
+1450	1.68	0.44
+1362	1.69	0.69
+1364	1.69	-2.49
+2596	1.7	3.19
+2489	1.72	2.26
+1198	1.73	4.54
+584	1.75	0.89
+1363	1.75	0.39
+2892	1.75	0.72
+2455	1.75	2.09
+148	1.76	0.72
+1906	1.76	2.5
+1944	1.79	3.95
+1225	1.81	3.92
+3771	1.82	5.4
+1344	1.83	1.84
+1289	1.83	6.1
+1374	1.84	2.65
+2727	1.84	4.17
+396	1.85	2.24
+354	1.88	6.14
+2339	1.88	2
+116	1.9	0.9
+1373	1.91	2.95
+2116	1.91	5.45
+467	1.91	5.45
+2195	1.91	2.83
+341	1.92	0.93
+469	1.93	1.25
+2118	1.93	1.25
+1529	1.94	0.51
+1619	1.95	0.78
+3397	1.95	4.88
+2340	1.96	2.51
+3416	1.96	4.88
+2680	1.96	0.7
+1262	1.96	2.24
+330	1.99	1.15
+5712	1.99	0.89
+3446	1.99	3.2
+2027	2	3.5
+1345	2.01	2
+2312	2.02	1.57
+1452	2.02	2.67
+5716	2.02	0.58
+1496	2.03	3.53
+1503	2.03	3.53
+379	2.03	4.4
+3262	2.04	4.33
+1372	2.04	2.61
+1196	2.05	4.8
+327	2.05	3.59
+395	2.06	6.2
+1536	2.06	1.52
+1209	2.06	4.74
+1497	2.07	1.11
+189	2.08	4.35
+2955	2.09	0.71
+1327	2.11	4.88
+372	2.13	5.15
+1531	2.14	2.2
+1188	2.16	6.05
+5715	2.17	0.93
+1199	2.17	3.37
+1197	2.18	4.53
+5717	2.19	0.95
+2117	2.21	1.15
+468	2.21	1.15
+3230	2.21	7.24
+131	2.22	1.27
+1208	2.26	2.88
+3562	2.27	2.72
+1535	2.3	3.69
+3238	2.31	6.99
+129	2.31	0.89
+1260	2.32	3.21
+2452	2.32	2.29
+350	2.32	2.57
+3594	2.32	3.41
+2865	2.32	0.76
+5727	2.32	1.86
+1189	2.35	6.12
+3806	2.38	2.61
+1336	2.4	1.42
+1231	2.4	6.06
+107	2.42	1.17
+1178	2.44	2.72
+1206	2.46	4.29
+3610	2.47	5
+1228	2.48	2.64
+1124	2.5	2.23
+161	2.5	2.23
+1118	2.51	2.25
+1334	2.52	1.64
+1239	2.53	1.6
+125	2.54	0.86
+180	2.57	2.31
+329	2.59	1.59
+3684	2.59	4.62
+1193	2.61	4.3
+3315	2.65	3.37
+3161	2.66	4.8
+172	2.67	2.6
+185	2.68	1.87
+1287	2.69	1.33
+149	2.7	0.72
+1210	2.73	3.86
+2959	2.75	1.06
+160	2.76	2.74
+1177	2.76	2.57
+1277	2.78	0.97
+1240	2.8	1.52
+1229	2.84	4.84
+165	2.85	2.91
+197	2.9	4.79
+2147	2.93	3.37
+1354	2.96	3.79
+2675	2.96	2.14
+1136	2.96	4.99
+		
+Max. deviations for best ID is within recommended range. Chosen best chemical ID is suitable for programming the gauge.		
+		
+		
+Selection of best generic ID for ROM based devices like bq274xx		
+		
+		
+Device / Family #1		
+Generic Chem ID	Device/ Voltage/ Chemistry	max DOD error, %
+354	bq27411-G1C: 4.35V LiCoO2	1.88
+128	bq27421-G1A: 4.2V LiCoO2	3.13
+3142	bq27421-G1D: 4.4V LiCoO2	3.34
+312	bq27421-G1B: 4.3V LiCoO2	4.54
+Best generic ID 354		
+Max. deviations for best generic ID is within recommended range. Please chose this ID in your device configuration or device family.		
+		
+		
+Device / Family #2		
+Generic Chem ID	Device/ Voltage/ Chemistry	max DOD error, %
+354	bq27621:  (ALT_CHEM2) 4.35V LiCoO2	1.88
+1210	bq27621:  (ALT_CHEM1) 4.3V LiCoO2	2.73
+1202	bq27621: (default) 4.2V LiCoO2	3.08
+Best generic ID 354		
+Max. deviations for best generic ID is within recommended range. Please chose this ID in your device configuration or device family.		
+		
+		
+Device / Family #3		
+Generic Chem ID	Device/ Voltage/ Chemistry	max DOD error, %
+3230	bq27426: (default) 4.35V LiCoO2	2.21
+1202	bq27426: (ALT_CHEM1) 4.2V LiCoO2	3.08
+3142	bq27426: (ALT-CHEM2) 4.4V LiCoO2	3.34
+Best generic ID 3230		
+Max. deviations for best generic ID is within recommended range. Please chose this ID in your device configuration or device family.		
+		
+		
