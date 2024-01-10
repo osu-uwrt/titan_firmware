@@ -21,6 +21,15 @@ extern "C" {
  * The utility channels defined by the CANmore protocol are allocated as follows:
  *
  * 0: Thruster Commands for ESC Board (allows low latency command publishing)
+ *   Each packet is 8 bytes, with 2 bytes per thruster command. Each thruster command is in big endian, with the
+ *   lowest thruster first:
+ *
+ * Thruster Command Frame Format (T0 = Thruster idx 0 for that board):
+ *     +--------+--------+--------+--------+--------+--------+--------+--------+
+ *     | T0 MSB | T0 LSB | T1 MSB | T1 LSB | T2 MSB | T2 LSB | T3 MSB | T3 LSB |
+ *     +--------+--------+--------+--------+--------+--------+--------+--------+
+ * Idx:    0        1        2        3        4        5        6        7
+ *
  * 1 - 13: RFU
  *
  * 14: Control Interface

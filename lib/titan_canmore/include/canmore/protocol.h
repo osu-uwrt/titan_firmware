@@ -111,10 +111,11 @@ extern "C" {
  *
  * CLIENT ID: The client this frame is intended for (if sent from the agent) or originating from (if sent from the
  * client). Up to 31 clients supported (client ID 0 reserved). Due to CAN arbitration, lower client IDs have higher
- * priority TYPE (T): Signifies the frame type. 0 for message type frames; 1 for utility type frames. DIRECTION (D): The
- * direction of the request. 0 for client to agent, 1 for agent to client NOC: [Number or Channel] The sequence number
- * (if message type) or communication channel (if utility type). CRC: A CRC-18 checksum to ensure the message is
- * re-assembled properly. Only valid in message type frames.
+ * priority
+ * TYPE (T): Signifies the frame type. 0 for message type frames; 1 for utility type frames.
+ * DIRECTION (D): The direction of the request. 0 for client to agent, 1 for agent to client
+ * NOC: [Number or Channel] The sequence number (if message type) or communication channel (if utility type).
+ * CRC: A CRC-18 checksum to ensure the message is re-assembled properly. Only valid in message type frames.
  *
  *
  * Message Frame Protocol
