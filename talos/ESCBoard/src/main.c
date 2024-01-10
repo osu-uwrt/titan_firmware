@@ -9,6 +9,7 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "titan/binary_info.h"
+#include "titan/canmore.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
@@ -124,6 +125,22 @@ static void tick_background_tasks() {
     }
 }
 
+static void thruster_cmd_callback(__unused uint32_t channel, uint8_t *buf, size_t len) {
+    // This needs to be copied before casting since buf might not be halfword aligned
+    int16_t thruster_cmds[NUM_THRUSTERS];
+
+    if (len != sizeof(thruster_cmds)) {
+        LOG_DEBUG("Dropping invalid packet with length %d", len);
+        return;
+    }
+
+    memcpy(thruster_cmds, buf, sizeof(thruster_cmds));
+    core1_update_target_rpm(thruster_cmds);
+
+    // Disabled since alex didn't need it, uncomment if you want to get RPM sent back after each command
+    // dshot_command_received = true;
+}
+
 int main() {
     // Initialize stdio
     stdio_init_all();
@@ -135,6 +152,7 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     core1_init(esc_board_num);
+    canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_THRUSTER_CMDS, &thruster_cmd_callback);
 
     // Initialize ROS Transport
     if (!transport_can_init(client_id)) {
