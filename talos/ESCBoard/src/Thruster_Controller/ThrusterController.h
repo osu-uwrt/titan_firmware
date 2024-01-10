@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "pico/time.h"
 
 /**
  * @brief The length of the average buffer for the controller
@@ -41,6 +42,9 @@ typedef struct thruster_controller_state {
 
     // has the rolling rpm buffer been filled yet
     bool avgBufferFilled;
+
+    // Thruster Direction Change Timeout
+    absolute_time_t directionChangeTimeout;
 
 } thruster_controller_state_t;
 
