@@ -101,7 +101,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
-rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info);
+rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info);
 
 rcl_ret_t ros_update_temp_humidity_publisher();
 

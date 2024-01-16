@@ -1,5 +1,7 @@
 #include "ros.h"
 
+#include "core1.h"
+
 #include "driver/sht41.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
@@ -140,7 +142,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
+rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     riptide_msgs2__msg__BatteryStatus status;
 
     // push in the common cell info
@@ -150,8 +152,8 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
 
     // test for port and stbd
     status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
-    if (bq_pack_present()) {
-        if (bq_pack_side_det_port()) {
+    if (core1_check_present()) {
+        if (core1_check_port_detected()) {
             status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
         }
         else {
@@ -160,11 +162,11 @@ rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
     }
 
     // read cell info
-    status.pack_voltage = ((float) bq_pack_voltage()) / 1000.0;
-    status.pack_current = ((float) bq_pack_current()) / 1000.0;
-    status.average_current = ((float) bq_avg_current()) / 1000.0;
-    status.time_to_dischg = bq_time_to_empty();
-    status.soc = bq_pack_soc();
+    status.pack_voltage = ((float) core1_voltage()) / 1000.0;
+    status.pack_current = ((float) core1_current()) / 1000.0;
+    status.average_current = ((float) core1_avg_current()) / 1000.0;
+    status.time_to_dischg = core1_remaining_time();
+    status.soc = core1_soc();
 
     // send out the ros message
     rcl_ret_t ret = rcl_publish(&battery_status_publisher, &status, NULL);

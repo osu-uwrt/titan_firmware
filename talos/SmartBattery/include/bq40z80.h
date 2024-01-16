@@ -50,6 +50,7 @@ enum bq_reg_map {
     BQ_READ_OPER_STAT = 0x54,
     BQ_READ_CHRG_STAT = 0x55,
     BQ_READ_MFG_STATS = 0x57,
+    BQ_READ_CYCLE_COUNT = 0x17,
 };
 
 enum bq_mac_cmds {
@@ -82,34 +83,4 @@ bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info
 // important communication with the BQ40z80 during this
 void bq_open_dschg_temp(const int64_t open_time_ms);
 
-// function for reading pack presence of the SBH
-uint8_t bq_pack_present();
-
-// function for determining if the discharge fet is closed
-
-// function for updating the SOC LEDS on the front of the SBH
-void bq_update_soc_leds();
-
-// functions for getting readings from the chip
-
-// get the pack state of charge as a value between 100 and 0
-uint8_t bq_pack_soc();
-
-// get the current pack voltage in millivolts
-uint16_t bq_pack_voltage();
-
-// get the current current reading in signed milliamps
-int16_t bq_pack_current();
-
-// get the average cell current draw
-int16_t bq_avg_current();
-
-// get the current runtime approximation in minutes
-uint16_t bq_time_to_empty();
-
-// get the manufacturing info from the pack
-struct bq_pack_info_t bq_pack_mfg_info();
-
-// Check if the side detect pin reports port (pack present must be true for this to be valid)
-bool bq_pack_side_det_port();
 #endif

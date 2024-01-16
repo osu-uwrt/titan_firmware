@@ -9,6 +9,7 @@
 
 uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
 uint pio_i2c_program;
+
 static bq40z80_error_cb client_error_callback;
 static bool battery_connected;
 static int err_count = 2;
@@ -97,6 +98,10 @@ static int sbs_read_h4(uint32_t *data, uint8_t cmd) {
     }
     *data = rx_buf[4] << 24 | rx_buf[3] << 16 | rx_buf[2] << 8 | rx_buf[1];
     return ret_code;
+}
+
+static int sbs_read_block(uint8_t *data, uint8_t len, uint8_t cmd) {
+    // TODO
 }
 
 /**
@@ -305,4 +310,21 @@ void bq_open_dschg_temp(const int64_t open_time_ms) {
 
     // send a cleanup reset command
     send_mac_command(BQ_MAC_EMG_FET_ON_CMD);
+}
+
+uint16_t bq_cycle_count() {
+    uint16_t data;
+    sbs_read_u2(&data, BQ_READ_CYCLE_COUNT);
+    return data;
+}
+
+void bq_device_chemistry(char *name) {
+    uint8_t data[5] = { 0, 0, 0, 0, 0 };
+    uint8_t cmd = 0x22;
+    bq_handle_i2c_transfer(&cmd, data, 5);
+    for (int i = 0; i < data[0]; i++) {
+        name[i] = data[i + 1];
+    }
+    name[data[0] + 1] = 0;
+    // TODO make sure to double check
 }

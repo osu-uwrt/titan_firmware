@@ -12,8 +12,6 @@
 #define BQ40Z80_REFRESH_TIME_MS 100
 #define FIFO_REQ_VALUE_WIDTH 24
 
-uint8_t BQ_LEDS_CORE1[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
-uint pio_i2c_program;
 static uint32_t fet_open_time_ms;
 static bool read_once_cached = false;
 static uint8_t sbh_mcu_serial;
@@ -26,6 +24,9 @@ typedef union sio_fifo_req {
     struct __packed {
         enum __packed cmd_type {
             BQ_POWER_CYCLE,
+            BQ_CYCLE_COUNT,
+            BQ_CHEMISTRY,
+            BQ_STATE_OF_HEALTH,
             // TODO might add more
             // BQ_CYCLE_COUNT,
             // BQ_CHEMISTRY,
@@ -175,6 +176,8 @@ static void __time_critical_func(core1_main)(void) {
     bq40z80_init(&core1_bq40z80_error_cb);
 
     while (1) {
+        safety_core1_checkin();
+
         if (timer_ready(&next_bq40z80_refresh, BQ40Z80_REFRESH_TIME_MS, false)) {
             if (bq40z80_refresh_reg(sbh_mcu_serial, read_once_cached, &battery_status_info, &battery_mfg_info)) {
                 if (!read_once_cached) {
@@ -182,6 +185,7 @@ static void __time_critical_func(core1_main)(void) {
                     core1_bq40z80_flush_mfg_info(&battery_mfg_info);
                 }
                 core1_bq40z80_flush_battery_info(&battery_status_info);
+                // Handle fifo affairs
                 while (multicore_fifo_rvalid()) {
                     sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
                     if (req.type == BQ_POWER_CYCLE) {
@@ -202,7 +206,7 @@ void core1_init(uint8_t expected_serial) {
     shared_mfg_info.lock = spin_lock_init(spin_lock_claim_unused(true));
 
     sbh_mcu_serial = expected_serial;
-    multicore_launch_core1(core1_main);
+    safety_launch_core1(core1_main);
 }
 bool core1_get_pack_mfg_info(bq_mfg_info_t *pack_info_out) {
     bool read_successful = false;

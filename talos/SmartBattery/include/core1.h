@@ -32,6 +32,4 @@ uint16_t core1_voltage(void);
 uint16_t core1_current(void);
 
 void core1_open_dsg_temp(const uint32_t open_time_ms);
-
-// TODO bq_pack_side_det_port(), bq_update_soc_leds()
 #endif

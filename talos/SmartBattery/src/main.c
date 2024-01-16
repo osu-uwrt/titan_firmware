@@ -1,4 +1,4 @@
-#include "bq40z80.h"
+#include "core1.h"
 #include "display.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -42,7 +42,8 @@ absolute_time_t next_display_update = { 0 };
 absolute_time_t lcd_poweron_delay = { 0 };
 
 uint8_t presence_fail_count = 0;
-bq_pack_info_t bq_pack_info;
+
+bq_mfg_info_t bq_mfg_info;
 uint can_id;
 
 /**
@@ -118,7 +119,7 @@ static void tick_ros_tasks() {
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_battery_status(bq_pack_info));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info));
     }
 
     if (sht41_temp_rh_set_on_read) {
@@ -133,9 +134,6 @@ static void tick_background_tasks() {
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         // update the RGB led
         led_network_online_set(canbus_check_online());
-
-        // update the battery status leds
-        bq_update_soc_leds();
     }
 
     // Update LCD if reed switch held and we are in time for a display update
@@ -143,12 +141,12 @@ static void tick_background_tasks() {
         next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
 
         // Show pack info
-        display_show_stats(bq_pack_info.serial, bq_pack_soc(), bq_pack_voltage() / 1000.0);
+        display_show_stats(bq_mfg_info.serial, core1_soc(), core1_voltage() / 1000.0);
     }
 
     if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
         // check if we need to update the presence counter
-        if (!(canbus_check_online() || bq_pack_present())) {
+        if (!(canbus_check_online() || core1_check_present())) {
             presence_fail_count++;
         }
         else {
@@ -186,6 +184,10 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+
+    uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
+    core1_init(sbh_mcu_serial_num);
+
     async_i2c_init(PERIPH_SDA_PIN, PERIPH_SCL_PIN, -1, -1, 400000, 20);
     display_init();
     sht41_init(&sht41_sensor_error_cb, PERIPH_I2C);
@@ -194,28 +196,37 @@ int main() {
     safety_tick();
 
     // start the bq40z80
-    int err = bq_init();
-    if (err > 0) {
-        LOG_ERROR("Failed to initialize the bq40z80 after %d attempts", err);
+
+    // FIXME old code
+    // int err = bq_init();
+    // if (err > 0) {
+    //     LOG_ERROR("Failed to initialize the bq40z80 after %d attempts", err);
+    //     panic("BQ40Z80 Init failed!");
+    // }
+
+    // grab the pack info from the bq40z80
+    if (core1_get_pack_mfg_info(&bq_mfg_info)) {
+        LOG_ERROR("Failed to initialize the bq40z80");
         panic("BQ40Z80 Init failed!");
     }
 
-    // grab the pack info from the bq40z80
-    bq_pack_info = bq_pack_mfg_info();
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo, bq_pack_info.mfg_day,
-             bq_pack_info.mfg_year, bq_pack_info.serial);
+    // FIXME old code
+    // bq_pack_info = bq_pack_mfg_info();
+
+    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_mfg_info.name, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
+             bq_mfg_info.mfg_year, bq_mfg_info.serial);
 
     // Initialize ROS Transports
-    uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
     if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
         panic("Unprogrammed serial number");
     }
 
-    if (bq_pack_info.serial != sbh_mcu_serial_num) {
-        LOG_ERROR("BQ serial number (%d) does not match programmed serial (%d)", bq_pack_info.serial,
-                  sbh_mcu_serial_num);
-        safety_raise_fault(FAULT_BQ40_ERROR);
-    }
+    // FIXME old code
+    // if (bq_pack_info.serial != sbh_mcu_serial_num) {
+    //     LOG_ERROR("BQ serial number (%d) does not match programmed serial (%d)", bq_pack_info.serial,
+    //               sbh_mcu_serial_num);
+    //     safety_raise_fault(FAULT_BQ40_ERROR);
+    // }
 
     can_id = sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
