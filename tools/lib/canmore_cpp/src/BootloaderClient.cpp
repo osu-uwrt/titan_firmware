@@ -7,6 +7,8 @@
 
 using namespace Canmore;
 
+#define cmd_retry_attempts 3
+
 #define bootloader_itf_mode CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER
 
 #define EXPECTED_VERSION_MAJOR 1
@@ -127,9 +129,23 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
         flashContents.at(word) = value;
     }
 
-    // Write the data
-    client->writeArray(bootloader_itf_mode, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0, flashContents);
-    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
+    // Write the data (Trying a few times in the event of a comm error, this can sometimes happen with bad cables)
+    int attempts = cmd_retry_attempts;
+    bool successful = false;
+    while (!successful) {
+        try {
+            client->writeArray(bootloader_itf_mode, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0, flashContents);
+            flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
+            successful = true;
+        } catch (RegMappedClientError &e) {
+            attempts--;
+            if (attempts == 0) {
+                throw;
+            }
+        }
+    }
+
+    // Write the data. Can't retry this, if this fails once, abort
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_WRITE);
 }
 
@@ -159,11 +175,24 @@ bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_S
     // Compute CRC
     uint32_t crcExpected = crc32_compute(bytes.data(), bytes.size());
 
-    // Read CRC from device
-    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
-    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_READ);
-    flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_CRC);
-    uint32_t crcRead = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_CRC_OFFSET);
+    // Read CRC from device (retrying a few times in case of a bad cable or other comm problem)
+    int attempts = cmd_retry_attempts;
+    bool successful = false;
+    uint32_t crcRead = 0;
+    while (!successful) {
+        try {
+            flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
+            flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_READ);
+            flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_CRC);
+            crcRead = flashCtrlPage.readRegister(CANMORE_BL_FLASH_CONTROL_CRC_OFFSET);
+            successful = true;
+        } catch (RegMappedClientError &e) {
+            attempts--;
+            if (attempts == 0) {
+                throw;
+            }
+        }
+    }
 
     return crcExpected == crcRead;
 }

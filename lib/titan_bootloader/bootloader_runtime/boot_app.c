@@ -12,8 +12,6 @@
 
 extern void __boot2_start__(void);
 extern void __boot_trampoline_entry__(void);
-extern const void __boot_trampoline_end__;
-extern const void __boot_trampoline_source__;
 
 extern const void __flash_app;
 
