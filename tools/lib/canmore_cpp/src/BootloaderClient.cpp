@@ -7,6 +7,8 @@
 
 using namespace Canmore;
 
+#define bootloader_itf_mode CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER
+
 #define EXPECTED_VERSION_MAJOR 1
 #define EXPECTED_VERSION_MINOR 0
 
@@ -35,9 +37,8 @@ uint32_t crc32_compute(const uint8_t *data, size_t len) {
 }
 
 BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): client(client) {
-    RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
-    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
-                               CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+    RegisterPage mcuCtrlPage(client, bootloader_itf_mode, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+    RegisterPage flashCtrlPage(client, bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     // Make sure we're talking to what we expect to
     uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
@@ -77,7 +78,7 @@ BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): cli
 }
 
 std::string BootloaderClient::getVersion() {
-    return client->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_VERSION_STRING_PAGE_NUM);
+    return client->readStringPage(bootloader_itf_mode, CANMORE_BL_VERSION_STRING_PAGE_NUM);
 }
 
 void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
@@ -86,14 +87,13 @@ void BootloaderClient::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZ
         throw std::logic_error("Invalid Read Address");
     }
 
-    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
-                               CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+    RegisterPage flashCtrlPage(client, bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     std::vector<uint32_t> flashContents;
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_READ);
-    client->readArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0,
-                      flashContents, CANMORE_BL_FLASH_BUFFER_SIZE / sizeof(uint32_t));
+    client->readArray(bootloader_itf_mode, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0, flashContents,
+                      CANMORE_BL_FLASH_BUFFER_SIZE / sizeof(uint32_t));
 
     for (size_t i = 0; i < flashContents.size(); i++) {
         uint32_t word = flashContents.at(i);
@@ -113,8 +113,7 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
         throw std::logic_error("Invalid Write Address");
     }
 
-    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
-                               CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+    RegisterPage flashCtrlPage(client, bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     // Convert 8-bit array to 32-bit word vector which can be written
     std::vector<uint32_t> flashContents(CANMORE_BL_FLASH_BUFFER_SIZE / sizeof(uint32_t), 0);
@@ -129,8 +128,7 @@ void BootloaderClient::writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SI
     }
 
     // Write the data
-    client->writeArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0,
-                       flashContents);
+    client->writeArray(bootloader_itf_mode, CANMORE_BL_FLASH_BUFFER_PAGE_NUM, 0, flashContents);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_WRITE);
 }
@@ -141,8 +139,7 @@ void BootloaderClient::eraseSector(uint32_t addr) {
         throw std::logic_error("Invalid Write Address");
     }
 
-    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
-                               CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+    RegisterPage flashCtrlPage(client, bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_TARGET_ADDR_OFFSET, addr);
     flashCtrlPage.writeRegister(CANMORE_BL_FLASH_CONTROL_COMMAND_OFFSET, CANMORE_BL_FLASH_CONTROL_COMMAND_ERASE);
@@ -157,8 +154,7 @@ bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_S
         throw std::logic_error("Buffer does not match flash page size");
     }
 
-    RegisterPage flashCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
-                               CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
+    RegisterPage flashCtrlPage(client, bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM);
 
     // Compute CRC
     uint32_t crcExpected = crc32_compute(bytes.data(), bytes.size());
@@ -173,17 +169,44 @@ bool BootloaderClient::verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_S
 }
 
 void BootloaderClient::enableBootloaderOverwrite() {
-    client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_FLASH_CONTROL_PAGE_NUM,
+    client->writeRegister(bootloader_itf_mode, CANMORE_BL_FLASH_CONTROL_PAGE_NUM,
                           CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_OFFSET, CANMORE_BL_FLASH_CONTROL_BL_WRITE_KEY_VALUE);
 }
 
 void BootloaderClient::reboot() {
-    client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM,
+    client->writeRegister(bootloader_itf_mode, CANMORE_BL_MCU_CONTROL_PAGE_NUM,
                           CANMORE_BL_MCU_CONTROL_REBOOT_MCU_OFFSET, 1);
 }
 
+uint32_t BootloaderClient::readMemory(uint32_t addr) {
+    RegisterPage gdbStubPage(client, bootloader_itf_mode, CANMORE_BL_GDB_STUB_PAGE_NUM);
+    gdbStubPage.writeRegister(CANMORE_BL_GDB_STUB_READ_WORD_ADDR_OFFSET, addr);
+    return gdbStubPage.readRegister(CANMORE_BL_GDB_STUB_MEMORY_DATA_OFFSET);
+}
+
+void BootloaderClient::writeMemory(uint32_t addr, uint32_t data) {
+    RegisterPage gdbStubPage(client, bootloader_itf_mode, CANMORE_BL_GDB_STUB_PAGE_NUM);
+    gdbStubPage.writeRegister(CANMORE_BL_GDB_STUB_MEMORY_DATA_OFFSET, data);
+    gdbStubPage.writeRegister(CANMORE_BL_GDB_STUB_WRITE_WORD_ADDR_OFFSET, addr);
+}
+
+uint32_t BootloaderClient::getGDBStubPC() {
+    RegisterPage gdbStubPage(client, bootloader_itf_mode, CANMORE_BL_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_BL_GDB_STUB_PC_REGISTER_OFFSET);
+}
+
+uint32_t BootloaderClient::getGDBStubSP() {
+    RegisterPage gdbStubPage(client, bootloader_itf_mode, CANMORE_BL_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_BL_GDB_STUB_SP_REGISTER_OFFSET);
+}
+
+uint32_t BootloaderClient::getGDBStubLR() {
+    RegisterPage gdbStubPage(client, bootloader_itf_mode, CANMORE_BL_GDB_STUB_PAGE_NUM);
+    return gdbStubPage.readRegister(CANMORE_BL_GDB_STUB_LR_REGISTER_OFFSET);
+}
+
 void BootloaderClient::ping() {
-    RegisterPage mcuCtrlPage(client, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
+    RegisterPage mcuCtrlPage(client, bootloader_itf_mode, CANMORE_BL_MCU_CONTROL_PAGE_NUM);
     uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
 
     if (bl_magic != CANMORE_BL_MCU_CONTROL_MAGIC_VALUE) {

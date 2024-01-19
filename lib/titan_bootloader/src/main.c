@@ -99,7 +99,7 @@ int main(void) {
 
     // Initialize CAN Bus
     if (!bl_interface_init()) {
-        dbg_uart_puts("BL INIT FAIL!");
+        dbg_uart_puts("BL Interface Init Fail!");
 
         // If CAN fails to bring up, just abort (and change the LED to show that it messed up)
         status_led_set(LED_HW_FAIL);
@@ -109,6 +109,8 @@ int main(void) {
         boot_app_attempt(notify_watchdog_reset);
         return 0;
     }
+
+    status_led_set(LED_BOOT_DELAY);
 
     bl_server_init();
 
@@ -137,7 +139,7 @@ int main(void) {
     if (!enter_bootloader) {
         watchdog_update();
         boot_app_attempt(notify_watchdog_reset);
-        dbg_uart_puts("APP ERR - ENTERING BL");
+        dbg_uart_puts("Error booting app... Entering BL");
     }
 
     // Fallthrough into bootloader

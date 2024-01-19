@@ -32,7 +32,6 @@ target_compile_options(titan_bootloader PUBLIC -Os)
 # Define linking and targets
 target_link_libraries(titan_bootloader PUBLIC
     bootloader_runtime
-    hardware_uart
 
     # We need canmore protocol in all builds as the bl_server depends on it
     titan_canmore

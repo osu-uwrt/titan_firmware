@@ -1,6 +1,7 @@
 #include "GDBServer.hpp"
 
 #include "TerminalDraw.hpp"
+#include "canmore_cpp/Canmore.hpp"
 
 #include <arpa/inet.h>
 #include <cstring>
@@ -127,7 +128,7 @@ static bool convertHexStr(const std::string_view &data, uint64_t &valOut) {
 
 class GDBPacketHandler {
 public:
-    GDBPacketHandler(std::shared_ptr<Canmore::DebugClient> client): client(client) {}
+    GDBPacketHandler(std::shared_ptr<Canmore::GDBClient> client): client(client) {}
 
     std::string processPacket(const std::string_view &req) {
         if (req.at(0) == '?') {
@@ -233,7 +234,7 @@ public:
     bool shouldSendAck() { return sendAck; }
 
 private:
-    std::shared_ptr<Canmore::DebugClient> client;
+    std::shared_ptr<Canmore::GDBClient> client;
     bool detachReceived = false;
     bool sendAck = true;
 
@@ -788,7 +789,7 @@ private:
     int socketFd;
 };
 
-void runGdbServer(uint16_t port, std::shared_ptr<Canmore::DebugClient> client) {
+void runGdbServer(uint16_t port, std::shared_ptr<Canmore::GDBClient> client) {
     auto handler = std::make_shared<GDBPacketHandler>(client);
 
     try {

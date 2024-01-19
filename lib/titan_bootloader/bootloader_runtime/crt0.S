@@ -240,15 +240,28 @@ _reset_handler:
     ldr r3, =(XIP_CTRL_BASE | REG_ALIAS_CLR_BITS)
     str r1, [r3, #XIP_CTRL_OFFSET]
 
-    // Copy data from flash into XIP cache
-    ldr r0, ram_copyout_start
-    ldr r1, ram_copyout_source
-    ldr r2, ram_copyout_end
-    subs r2, r2, r0 // Compute length of copyout
-    blx r4
-    ldr r0, =__logical_binary_start
+    // Copy out the data_cpy_table, copying the data region and bootloader trampoline
+    adr r5, data_cpy_table
+1:
+    // Grab the source address
+    ldr r1, [r5, #0]
 
+    // If source is NULL, then we've hit the end of the list
+    cmp r1, #0
+    beq 1f
+
+    ldr r0, [r5, #4]  // Grab the destination
+    ldr r2, [r5, #8]  // Grab the end of the destination
+    subs r2, r2, r0   // Compute length of copyout
+    blx r4            // Call memcpy
+
+    // Repeat for the next entry
+    adds r5, r5, #12  // Go to next entry
+    b 1b
+
+1:
     // Now that we've copied out the data, fixup the vector table pointed to by r3 and to be all in flash
+    ldr r0, =__logical_binary_start
     ldr r1, =_ram_reset_entry
     str r1, [r0, #4]
 
@@ -270,14 +283,6 @@ hold_non_core0_in_bootrom:
     // Lookup bootrom (based on instruction flow before this call here)
     blx r3
     bx r0
-
-.align 2
-ram_copyout_start:
-.word __ram_copyout_start__
-ram_copyout_source:
-.word __ram_copyout_source__
-ram_copyout_end:
-.word __ram_copyout_end__
 
 // Data cpy table must live in flash so that the address isn't in RAM (since this is needed to get those maps)
 .align 2

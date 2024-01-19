@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Canmore.hpp"
+#include "GDBClient.hpp"
 #include "RP2040FlashInterface.hpp"
 #include "RegMappedClient.hpp"
 
@@ -20,12 +21,12 @@ class BootloaderError : public CanmoreError {
     using CanmoreError::CanmoreError;
 };
 
-class BootloaderClient : public RP2040FlashInterface {
+class BootloaderClient : public RP2040FlashInterface, public GDBClient {
 public:
     BootloaderClient(std::shared_ptr<RegMappedClient> client);
     std::string getVersion();
 
-    // Overidden Functions
+    // RP2040FlashInterface overrides
     void eraseSector(uint32_t addr) override;
     void readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) override;
     void writeBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes) override;
@@ -38,8 +39,15 @@ public:
     uint32_t getFlashSize() override { return cachedFlashSize; }
     uint32_t tryGetBootloaderSize() override { return cachedBootloaderSize; }
 
+    // GDB Stub Overrides
+    uint32_t readMemory(uint32_t addr) override;
+    void writeMemory(uint32_t addr, uint32_t data) override;
+    uint32_t getGDBStubPC() override;
+    uint32_t getGDBStubSP() override;
+    uint32_t getGDBStubLR() override;
+
     // Canmore Functions
-    void ping();
+    void ping() override;
 
 private:
     std::shared_ptr<RegMappedClient> client;

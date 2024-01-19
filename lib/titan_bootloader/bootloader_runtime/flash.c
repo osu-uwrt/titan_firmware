@@ -108,8 +108,6 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
 #ifdef PICO_FLASH_SIZE_BYTES
     hard_assert(flash_offs + count <= PICO_FLASH_SIZE_BYTES);
 #endif
-    invalid_params_if(FLASH, flash_offs & (FLASH_PAGE_SIZE - 1));
-    invalid_params_if(FLASH, count & (FLASH_PAGE_SIZE - 1));
     rom_connect_internal_flash_fn connect_internal_flash =
         (rom_connect_internal_flash_fn) rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
     rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
@@ -123,7 +121,7 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
     // As we exited XIP, we should be running in a compatible mode with a slow clock
     // 03h reads should be fine, as we shouldn't be beaming the clock
 
-    uint8_t cmd_buf[] = { 0x03, (flash_offs >> 16) & 0xFF, (flash_offs >> 8) & 0xFF, (flash_offs) &0xFF };
+    uint8_t cmd_buf[] = { 0x03, (flash_offs >> 16) & 0xFF, (flash_offs >> 8) & 0xFF, (flash_offs) & 0xFF };
 
     // Send command, starting with the command (discarding the command results), then receiving the actual data
     flash_cs_force(0);

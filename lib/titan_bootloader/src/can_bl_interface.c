@@ -117,19 +117,17 @@ MCP251XFD mcp251xfd_device = {
     .SPIClockSpeed = 20000000,  // 20MHz (must be at most mcp251x sysclk/2)
 };
 
-MCP251XFD_BitTimeStats mcp251xfd_device_btstats;
-uint32_t mcp251xfd_device_sysclk;
 MCP251XFD_Config mcp251xfd_device_config = {
     //--- Controller clocks ---
     .XtalFreq = 0,                                     // CLKIN is not a crystal
     .OscFreq = MCP2517FD_OSC_RATE,                     // CLKIN is a 4MHz oscillator generated from the RP2040
     .SysclkConfig = MCP251XFD_SYSCLK_IS_CLKIN_MUL_10,  // Generate 40 MHz clock
     .ClkoPinConfig = MCP251XFD_CLKO_SOF,
-    .SYSCLK_Result = &mcp251xfd_device_sysclk,
+    .SYSCLK_Result = NULL,
     //--- CAN configuration ---
     .NominalBitrate = CAN_BUS_RATE,
     .DataBitrate = CAN_BUS_FD_RATE,
-    .BitTimeStats = &mcp251xfd_device_btstats,
+    .BitTimeStats = NULL,
     .Bandwidth = MCP251XFD_NO_DELAY,
     .ControlFlags = MCP251XFD_CAN_RESTRICTED_MODE_ON_ERROR | MCP251XFD_CAN_ESI_REFLECTS_ERROR_STATUS |
                     MCP251XFD_CAN_RESTRICTED_RETRANS_ATTEMPTS | MCP251XFD_CANFD_BITRATE_SWITCHING_ENABLE |
