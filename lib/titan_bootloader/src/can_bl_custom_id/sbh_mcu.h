@@ -6,7 +6,6 @@
 #include "hardware/irq.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/timer.h"
-#include "hardware/uart.h"
 #include "hardware/watchdog.h"
 
 #include <stdint.h>
