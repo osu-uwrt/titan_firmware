@@ -33,13 +33,13 @@ void safety_setup(void) {
     hardware_alarm_claim(SAFETY_WATCHDOG_ALARM_NUM);
 
     // Disarm alarm in case it is running
-    timer_hw->armed = (1 << SAFETY_WATCHDOG_ALARM_NUM);
+    hw_set_bits(&timer_hw->armed, (1 << SAFETY_WATCHDOG_ALARM_NUM));
 
     // Clear pending IRQ in timer (in case it fired for whatever reason)
-    timer_hw->intr = 1u << SAFETY_WATCHDOG_ALARM_NUM;
+    hw_set_bits(&timer_hw->intr, 1u << SAFETY_WATCHDOG_ALARM_NUM);
 
     // Enable IRQ in timer hardware
-    timer_hw->inte = 1u << SAFETY_WATCHDOG_ALARM_NUM;
+    hw_set_bits(&timer_hw->inte, 1u << SAFETY_WATCHDOG_ALARM_NUM);
 
     // Set the NMI handler to point to watchdog timeout handling
     exception_set_exclusive_handler(NMI_EXCEPTION, &safety_nmi_handler);

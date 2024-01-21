@@ -2,6 +2,7 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
 #include "DeviceMap.hpp"
+#include "GDBServer.hpp"
 #include "canmore_cpp/BootloaderClient.hpp"
 
 #include <iostream>
@@ -127,11 +128,35 @@ public:
     }
 };
 
+class BLGdbServer : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+public:
+    BLGdbServer(): CanmoreCommandHandler("gdbserver") {}
+
+    const uint16_t default_port = 3333;
+
+    std::string getArgList() const override { return "[port: Default " + std::to_string(default_port) + "]"; }
+    std::string getHelp() const override { return "Starts gdb server over Canmore"; }
+
+    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
+                      std::vector<std::string> const &args) override {
+        uint32_t port = default_port;
+        if (args.size() > 0) {
+            if (!decodeU32(args.at(0), port, UINT16_MAX)) {
+                interface.writeLine("Invalid port number");
+                return;
+            }
+        }
+
+        runGdbServer(port, interface.handle);
+    }
+};
+
 BootloaderCLI::BootloaderCLI(std::shared_ptr<Canmore::BootloaderClient> handle): CLIInterface(handle) {
     registerCommand(std::make_shared<BLVersionCommand>());
     registerCommand(std::make_shared<BLRebootCommand>());
     registerCommand(std::make_shared<BLBinaryInfoCommand>());
     registerCommand(std::make_shared<BLReadCommand>());
+    registerCommand(std::make_shared<BLGdbServer>());
     setBackgroundTask(std::make_shared<BLKeepaliveTask>());
 
     auto devMap = DeviceMap::create();

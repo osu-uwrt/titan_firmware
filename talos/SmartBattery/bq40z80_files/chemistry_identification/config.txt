@@ -1,0 +1,6 @@
+ProcessingType=2
+NumCellSeries=5
+ElapsedTimeColumn=0
+VoltageColumn=1
+TemperatureColumn=2
+CurrentColumn=3

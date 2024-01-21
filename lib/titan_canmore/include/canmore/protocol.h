@@ -18,11 +18,13 @@ extern "C" {
  * CANmore Specification
  * **********************
  * CANmore is a transport layer definition, addressing scheme, and protocol to allow bandwidth-efficient communication
- * on ISO 11898-1 CAN networks carrying DDS-XRCE messages.
+ * on ISO 11898-1 CAN and ISO 11898-1:2015 CAN-FD networks carrying DDS-XRCE messages.
  *
  *
  * Purpose
  * =======
+ * This specification is designed to build upon the CAN and CAN-FD.
+ *
  * This speicfication is designed to allow DDS-XRCE communication with minimal framing overhead. Presently, XRCE-DDS has
  * two transport types: stream and packet. Packet transports send raw DDS-XRCE messages over the transport, but does not
  * allow fragmentation. In packet transport mode, if the MTU is less than the message size, the message will be dropped.
@@ -39,9 +41,9 @@ extern "C" {
  *
  * Definitions
  * ===========
- * Agent: The CAN node with the DDS-XRCE agent
+ * Agent: The primary CAN node linking the clients into the ROS network. This is typically the main robot computer
  * Bus: A network of interconnected CAN nodes, with one agent at least one one client node
- * Client: A CAN node running a DDS-XRCE client
+ * Client: A CAN node that primarily communicates with the agent. This is usually a microcontroller
  * Client ID: A unique ID assigned to each client on the bus
  * Channel: The utility frame channel number
  * Frame: An ISO 11898 CAN Bus Frame
@@ -94,7 +96,7 @@ extern "C" {
  * frame for all utility type frames. For a message type, every frame is standard except the last, which is an extended
  * frame, where the additional 18 bits are allocated for a CRC.
  *
- * RTR frames are not supported, nor are frames with the DLC field set to 0 or a value greater than 8.
+ * RTR frames are not supported, nor are frames with the DLC field set to 0.
  *
  *
  * Standard CAN Frame Identifier Format:
@@ -103,18 +105,28 @@ extern "C" {
  *   +-*-*-*-*-*-+-*-+-*-+-*-*-*-*-+
  *    10       6   5   4   3     0
  *
- * Extended CAN Frame Identifier Format:
+ * Extended CAN Frame Identifier Format (First Packet):
+ *   +-*-*-*-*-*-+-*-+-*-+-*-*-*-*-+-*-+-*-*-*-*-*-*-+-*-*-*-*-*-*-*-*-*-*-*-+
+ *   | CLIENT ID | T | D | NOC = 0 | S | MSG SUBTYPE |        LENGTH         |  (Extended 29-bit ID)
+ *   +-*-*-*-*-*-+-*-+-*-+-*-*-*-*-+-*-+-*-*-*-*-*-*-+-*-*-*-*-*-*-*-*-*-*-*-+
+ *    28      24  23  22  21    18  17  16        11  10                   0
+ *
+ * Extended CAN Frame Identifier Format (Last Packet):
  *   +-*-*-*-*-*-+-*-+-*-+-*-*-*-*-+-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-+
- *   | CLIENT ID | T | D |   NOC   |                 CRC                 |  (Extended 29-bit ID)
+ *   | CLIENT ID | T | D | NOC !=0 |                 CRC                 |  (Extended 29-bit ID)
  *   +-*-*-*-*-*-+-*-+-*-+-*-*-*-*-+-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-+
  *    28      24  23  22  21    18  17                                 0
  *
  * CLIENT ID: The client this frame is intended for (if sent from the agent) or originating from (if sent from the
  * client). Up to 31 clients supported (client ID 0 reserved). Due to CAN arbitration, lower client IDs have higher
- * priority TYPE (T): Signifies the frame type. 0 for message type frames; 1 for utility type frames. DIRECTION (D): The
- * direction of the request. 0 for client to agent, 1 for agent to client NOC: [Number or Channel] The sequence number
- * (if message type) or communication channel (if utility type). CRC: A CRC-18 checksum to ensure the message is
- * re-assembled properly. Only valid in message type frames.
+ * priority
+ * TYPE (T): Signifies the frame type. 0 for message type frames; 1 for utility type frames.
+ * DIRECTION (D): The direction of the request. 0 for client to agent, 1 for agent to client
+ * NOC: [Number or Channel] The sequence number (if message type) or communication channel (if utility type).
+ * SINGLE (S): Set to 1 if this message frame is only a single message (and to not expect a last packet)
+ * MSG SUBTYPE: A 6-bit integer which can be used by higher level protcols to designate the type of this message
+ * LENGTH: The total length of the canmore message about to be sent. Required for CAN FD to properly trim large packets
+ * CRC: A CRC-18 checksum to ensure the message is re-assembled properly. Only valid in message type frames.
  *
  *
  * Message Frame Protocol

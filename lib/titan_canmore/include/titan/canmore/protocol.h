@@ -20,7 +20,17 @@ extern "C" {
  * ===========================
  * The utility channels defined by the CANmore protocol are allocated as follows:
  *
- * 0 - 13: RFU
+ * 0: Thruster Commands for ESC Board (allows low latency command publishing)
+ *   Each packet is 8 bytes, with 2 bytes per thruster command. Each thruster command is in big endian, with the
+ *   lowest thruster first:
+ *
+ * Thruster Command Frame Format (T0 = Thruster idx 0 for that board):
+ *     +--------+--------+--------+--------+--------+--------+--------+--------+
+ *     | T0 MSB | T0 LSB | T1 MSB | T1 LSB | T2 MSB | T2 LSB | T3 MSB | T3 LSB |
+ *     +--------+--------+--------+--------+--------+--------+--------+--------+
+ * Idx:    0        1        2        3        4        5        6        7
+ *
+ * 1 - 13: RFU
  *
  * 14: Control Interface
  *   If Client Heartbeat:Mode = Boot Delay:
@@ -52,6 +62,8 @@ extern "C" {
  * V (Term Valid): 1 if the termination state is valid, 0 if it should be ignored
  * T (Term Enabled): 1 if the node has its termination resistor enabled, 0 if disabled
  */
+
+#define CANMORE_TITAN_CHAN_THRUSTER_CMDS 0
 
 #define CANMORE_TITAN_CHAN_CONTROL_INTERFACE 14
 #define CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST                                                             \

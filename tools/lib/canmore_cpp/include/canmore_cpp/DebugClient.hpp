@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Canmore.hpp"
+#include "GDBClient.hpp"
 #include "RegMappedClient.hpp"
 
 #include <array>
@@ -270,7 +271,7 @@ struct FaultData {
     }
 };
 
-class DebugClient {
+class DebugClient : public GDBClient {
 public:
     DebugClient(std::shared_ptr<RegMappedClient> client);
 
@@ -278,7 +279,7 @@ public:
     uint64_t getFlashId() { return cachedFlashID.doubleword; }
     void enterBootloader();
     void reboot();
-    void ping();
+    void ping() override;
     MemoryStats getMemoryStats();
     SafetyStatus getSafetyStatus();
     Uptime getUptime();
@@ -286,11 +287,11 @@ public:
     CrashLogEntry getLastResetEntry();
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
 
-    uint32_t readMemory(uint32_t addr);
-    void writeMemory(uint32_t addr, uint32_t data);
-    uint32_t getGDBStubPC();
-    uint32_t getGDBStubSP();
-    uint32_t getGDBStubLR();
+    uint32_t readMemory(uint32_t addr) override;
+    void writeMemory(uint32_t addr, uint32_t data) override;
+    uint32_t getGDBStubPC() override;
+    uint32_t getGDBStubSP() override;
+    uint32_t getGDBStubLR() override;
 
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);

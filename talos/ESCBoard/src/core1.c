@@ -380,9 +380,23 @@ static void __time_critical_func(core1_main)() {
                     if (dshot_get_rpm(i, &rpm[i]) && (waiting & (1 << i))) {
                         rpm_valid[i] = true;
                         // If the decode was successful, tick the controller
-                        // Store the resulting command to be executed for next tick
-                        throttle_commands[i] = thruster_controller_tick(&controller_state[i], target_rpm_cached[i],
+                        // Store the resulting commthrottle_commands[i]and to be executed for next tick
+                        int16_t new_cmd = thruster_controller_tick(&controller_state[i], target_rpm_cached[i],
                                                                         rpm[i], time_difference);
+
+                        bool sign_changed = (new_cmd > 0 && throttle_commands[i] < 0) || (new_cmd < 0 && throttle_commands[i] > 0);
+
+                        if (!time_reached(controller_state[i].directionChangeTimeout)) {
+                            thruster_controller_zero(&controller_state[i]);
+                            new_cmd = 0;
+                        }
+                        else if (sign_changed) {
+                            controller_state[i].directionChangeTimeout = make_timeout_time_ms(2);
+                            thruster_controller_zero(&controller_state[i]);
+                            new_cmd = 0;
+                        }
+
+                        throttle_commands[i] = new_cmd;
                     }
                     // Clear waiting, even on unsuccessful response
                     waiting &= ~(1 << i);

@@ -27,7 +27,6 @@ static uint32_t mcu_control_minor_version;
 static uint32_t mcu_control_release_type;
 static bool enter_bootloader_on_return = false;
 static bool reboot_mcu_on_return = false;
-static uint32_t gdb_stub_memory_data = 0;
 
 static union {
     pico_unique_board_id_t id_pico;
@@ -47,6 +46,74 @@ static bool reboot_mcu_cb(__unused const struct reg_mapped_server_register_defin
     reboot_mcu_on_return = true;
     return true;
 }
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+static bool can_intr_en_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
+                           __unused uint32_t *data_ptr) {
+    canbus_reenable_intr();
+    return true;
+}
+
+static bool can_fifo_clear_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
+                              __unused uint32_t *data_ptr) {
+    canbus_fifo_clear();
+    return true;
+}
+
+static bool can_reset_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
+                         __unused uint32_t *data_ptr) {
+    canbus_reset();
+    return true;
+}
+#endif
+
+// ========================================
+// Memory Stats Bindings
+// ========================================
+
+extern char __StackLimit;
+extern char __StackTop;
+extern char __StackBottom;
+extern char __data_start__;
+extern char end;
+
+static uint32_t mem_stats_total_mem = 0;
+static uint32_t mem_stats_heap_use = 0;
+static uint32_t mem_stats_stack_use = 0;
+static uint32_t mem_stats_static_use = 0;
+static uint32_t mem_stats_arena = 0;
+static uint32_t mem_stats_ordblks = 0;
+static uint32_t mem_stats_hblks = 0;
+static uint32_t mem_stats_hblkhd = 0;
+static uint32_t mem_stats_uordblks = 0;
+static uint32_t mem_stats_fordblks = 0;
+static uint32_t mem_stats_keepcost = 0;
+
+static bool mem_stats_capture_cb(__unused const struct reg_mapped_server_register_definition *reg,
+                                 __unused bool is_write, __unused uint32_t *data_ptr) {
+    struct mallinfo mi = mallinfo();
+
+    mem_stats_total_mem = (&__StackTop - &__data_start__);
+    mem_stats_heap_use = (&__StackLimit - &end);
+    mem_stats_stack_use = (&__StackTop - &__StackBottom);
+    mem_stats_static_use = (&end - &__data_start__);
+
+    mem_stats_arena = mi.arena;
+    mem_stats_ordblks = mi.ordblks;
+    mem_stats_hblks = mi.hblks;
+    mem_stats_hblkhd = mi.hblkhd;
+    mem_stats_uordblks = mi.uordblks;
+    mem_stats_fordblks = mi.fordblks;
+    mem_stats_keepcost = mi.keepcost;
+
+    return true;
+}
+
+// ========================================
+// GDB Stub Bindings
+// ========================================
+
+static uint32_t gdb_stub_memory_data = 0;
 
 static bool gdb_stub_write_mem_cb(__unused const struct reg_mapped_server_register_definition *reg,
                                   __unused bool is_write, uint32_t *data_ptr) {
@@ -162,6 +229,8 @@ static bool gdb_stub_read_mem_cb(const struct reg_mapped_server_register_definit
     }
 
     // Perform the read. This must be protected so the compiler doesn't optimize it away
+    // If these get optimized apart, then GDB will get a PC and SP that are misaligned, and you won't be able to see
+    // local variables.
     __dsb();
     __isb();
     register uint32_t val;
@@ -178,7 +247,7 @@ static bool gdb_stub_read_mem_cb(const struct reg_mapped_server_register_definit
 
     if (is_sp_read || is_pc_read || is_lr_read) {
         if (is_write) {
-            return false;  // PC and SP reads must be reads
+            return false;  // PC, SP, and LR reads must be reads
         }
         *data_ptr = val;
     }
@@ -186,68 +255,6 @@ static bool gdb_stub_read_mem_cb(const struct reg_mapped_server_register_definit
         // It's a memory fetch, store into the appropriate register
         gdb_stub_memory_data = val;
     }
-    return true;
-}
-
-#ifdef MICRO_ROS_TRANSPORT_CAN
-static bool can_intr_en_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
-                           __unused uint32_t *data_ptr) {
-    canbus_reenable_intr();
-    return true;
-}
-
-static bool can_fifo_clear_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
-                              __unused uint32_t *data_ptr) {
-    canbus_fifo_clear();
-    return true;
-}
-
-static bool can_reset_cb(__unused const struct reg_mapped_server_register_definition *reg, __unused bool is_write,
-                         __unused uint32_t *data_ptr) {
-    canbus_reset();
-    return true;
-}
-#endif
-
-// ========================================
-// Memory Stats Bindings
-// ========================================
-
-extern char __StackLimit;
-extern char __StackTop;
-extern char __StackBottom;
-extern char __data_start__;
-extern char end;
-
-static uint32_t mem_stats_total_mem = 0;
-static uint32_t mem_stats_heap_use = 0;
-static uint32_t mem_stats_stack_use = 0;
-static uint32_t mem_stats_static_use = 0;
-static uint32_t mem_stats_arena = 0;
-static uint32_t mem_stats_ordblks = 0;
-static uint32_t mem_stats_hblks = 0;
-static uint32_t mem_stats_hblkhd = 0;
-static uint32_t mem_stats_uordblks = 0;
-static uint32_t mem_stats_fordblks = 0;
-static uint32_t mem_stats_keepcost = 0;
-
-static bool mem_stats_capture_cb(__unused const struct reg_mapped_server_register_definition *reg,
-                                 __unused bool is_write, __unused uint32_t *data_ptr) {
-    struct mallinfo mi = mallinfo();
-
-    mem_stats_total_mem = (&__StackTop - &__data_start__);
-    mem_stats_heap_use = (&__StackLimit - &end);
-    mem_stats_stack_use = (&__StackTop - &__StackBottom);
-    mem_stats_static_use = (&end - &__data_start__);
-
-    mem_stats_arena = mi.arena;
-    mem_stats_ordblks = mi.ordblks;
-    mem_stats_hblks = mi.hblks;
-    mem_stats_hblkhd = mi.hblkhd;
-    mem_stats_uordblks = mi.uordblks;
-    mem_stats_fordblks = mi.fordblks;
-    mem_stats_keepcost = mi.keepcost;
-
     return true;
 }
 

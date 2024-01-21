@@ -32,7 +32,6 @@ target_compile_options(titan_bootloader PUBLIC -Os)
 # Define linking and targets
 target_link_libraries(titan_bootloader PUBLIC
     bootloader_runtime
-    hardware_uart
 
     # We need canmore protocol in all builds as the bl_server depends on it
     titan_canmore
@@ -46,7 +45,9 @@ titan_generate_version_tag(titan_bootloader 1 0)
 pico_add_extra_outputs(titan_bootloader)
 
 # Disable PIO assembler for bootloader (we don't use it)
-set_target_properties(PioasmBuild PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+if (TARGET PioasmBuild)
+    set_target_properties(PioasmBuild PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+endif()
 
 ####################################
 # Define Bootloader Variants

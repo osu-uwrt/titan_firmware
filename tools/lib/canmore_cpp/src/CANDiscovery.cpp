@@ -222,3 +222,27 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
     }
     return dev->getClient();
 }
+
+std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t timeoutMs) {
+    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+
+    // Get a discovery context to wait for next boot delay
+    auto discovery = CANDiscovery::create(ifIndex);
+    auto bdDev = discovery->waitForDevice<BootDelayDevice>(clientId, timeoutMs);
+    if (!bdDev) {
+        throw BootloaderError("Failed to discover boot delay device again within timeout");
+    }
+
+    // Send the command to enter bootloader
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    interface->sendRaw(enterBootloaderMagic);
+
+    // Wait for it to come back in bootlodaer mode
+    std::shared_ptr<BootloaderDevice> dev =
+        discovery->waitForDevice<BootloaderDevice>(clientId, CAN_MODE_SWITCH_TIMEOUT_MS);
+
+    if (!dev) {
+        throw BootloaderError("Failed to reconnect to device in bootloader mode");
+    }
+    return dev->getClient();
+}

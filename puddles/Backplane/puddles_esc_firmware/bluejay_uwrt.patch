@@ -1,0 +1,73 @@
+diff --git a/Bluejay.asm b/Bluejay.asm
+index e01bb54..d622204 100644
+--- a/Bluejay.asm
++++ b/Bluejay.asm
+@@ -144,12 +144,12 @@ $include (Common.inc)					; Include common source code for EFM8BBx based ESCs
+ ;**** **** **** **** ****
+ ; Programming defaults
+ DEFAULT_PGM_RPM_POWER_SLOPE		EQU	9	; 0=Off, 1..13 (Power limit factor in relation to rpm)
+-DEFAULT_PGM_COMM_TIMING			EQU	4	; 1=Low		2=MediumLow	3=Medium		4=MediumHigh	5=High
+-DEFAULT_PGM_DEMAG_COMP			EQU	2	; 1=Disabled	2=Low		3=High
+-DEFAULT_PGM_DIRECTION			EQU	1	; 1=Normal	2=Reversed	3=Bidir		4=Bidir rev
+-DEFAULT_PGM_BEEP_STRENGTH		EQU	40	; 0..255 (BLHeli_S is 1..255)
++DEFAULT_PGM_COMM_TIMING			EQU	3	; 1=Low		2=MediumLow	3=Medium		4=MediumHigh	5=High
++DEFAULT_PGM_DEMAG_COMP			EQU	1	; 1=Disabled	2=Low		3=High
++DEFAULT_PGM_DIRECTION			EQU	4	; 1=Normal	2=Reversed	3=Bidir		4=Bidir rev
++DEFAULT_PGM_BEEP_STRENGTH		EQU	152	; 0..255 (BLHeli_S is 1..255)
+ DEFAULT_PGM_BEACON_STRENGTH		EQU	80	; 0..255
+-DEFAULT_PGM_BEACON_DELAY			EQU	4	; 1=1m		2=2m			3=5m			4=10m		5=Infinite
++DEFAULT_PGM_BEACON_DELAY			EQU	5	; 1=1m		2=2m			3=5m			4=10m		5=Infinite
+ DEFAULT_PGM_ENABLE_TEMP_PROT		EQU	7	; 0=Disabled	1=80C	2=90C	3=100C	4=110C	5=120C	6=130C	7=140C
+ 
+ DEFAULT_PGM_BRAKE_ON_STOP		EQU	0	; 1=Enabled	0=Disabled
+@@ -346,8 +346,8 @@ IF MCU_48MHZ == 2
+ ELSE
+ 	CSEG AT 1A00h
+ ENDIF
+-EEPROM_FW_MAIN_REVISION		EQU	0	; Main revision of the firmware
+-EEPROM_FW_SUB_REVISION		EQU	18	; Sub revision of the firmware
++EEPROM_FW_MAIN_REVISION		EQU	16	; Main revision of the firmware
++EEPROM_FW_SUB_REVISION		EQU	8	; Sub revision of the firmware
+ EEPROM_LAYOUT_REVISION		EQU	204	; Revision of the EEPROM layout
+ 
+ Eep_FW_Main_Revision:		DB	EEPROM_FW_MAIN_REVISION		; EEPROM firmware main revision number
+@@ -407,7 +407,14 @@ IF MCU_48MHZ == 2
+ ELSE
+ 	CSEG AT 1A70h
+ ENDIF
+-Eep_Pgm_Beep_Melody:		DB	2, 58, 4, 32, 52, 66, 13, 0, 69, 45, 13, 0, 52, 66, 13, 0, 78, 39, 211, 0, 69, 45, 208, 25, 52, 25, 0
++; Default Melody
++;Eep_Pgm_Beep_Melody:		DB	2, 58, 4, 32, 52, 66, 13, 0, 69, 45, 13, 0, 52, 66, 13, 0, 78, 39, 211, 0, 69, 45, 208, 25, 52, 25, 0
++
++; Rick Roll Melody
++;Eep_Pgm_Beep_Melody:		DB	0, 200, 5, 4, 118, 35, 132, 30, 157, 23, 132, 30, 255, 15, 141, 15, 150, 0, 255, 15, 141, 15, 150, 0, 255, 18, 255, 18, 19, 18, 255, 0, 45, 0, 150, 0, 118, 35, 132, 30, 157, 23, 132, 30, 255, 18, 97, 18, 150, 0, 255, 18, 97, 18, 150, 0, 255, 23, 59, 23, 148, 25, 255, 30, 141, 30, 0
++
++; Tetris Melody
++Eep_Pgm_Beep_Melody:		DB	0, 160, 5, 4, 255, 15, 239, 15, 185, 25, 196, 23, 220, 18, 124, 15, 110, 18, 196, 23, 185, 25, 255, 30, 75, 30, 0
+ 
+ ;**** **** **** **** ****
+ Interrupt_Table_Definition			; SiLabs interrupts
+diff --git a/Makefile b/Makefile
+index a10548b..0983c7c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ # Current version
+ TAG			:= $(shell git describe --tags --abbrev=0)
+-VERSION		?= $(TAG)
++VERSION		?= uwrt
+ 
+ # Target parameters
+ LAYOUTS		= A B C D E F G H I J K L M N O P Q R S T U V W Z
+diff --git a/tools/build.sh b/tools/build.sh
+index aa4e2c9..fffc4f6 100755
+--- a/tools/build.sh
++++ b/tools/build.sh
+@@ -46,6 +46,6 @@ fi
+ echo "Building ${target}"
+ 
+ docker run -t -d --name bluejay-$target --mount type=bind,source="$source_path",target=/root/source bluejay-build:latest
+-docker exec bluejay-$target sh -c "cd /root/source && make $params"
++docker exec bluejay-$target sh -c "cd /root/source && git config --global --add safe.directory /root/source && make $params"
+ docker stop bluejay-$target > /dev/null
+ docker rm bluejay-$target > /dev/null

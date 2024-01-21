@@ -101,6 +101,7 @@ public:
     using Device::Device;
 
     virtual std::shared_ptr<BootloaderClient> enterBootloader() = 0;
+    virtual std::shared_ptr<BootloaderClient> waitForBootloader(int64_t timeoutMs) = 0;
 
     // RP2040Device overrides
     std::string getMode() const override { return "Boot Delay"; }
@@ -306,6 +307,7 @@ public:
         ifIndex(parentInterface.getInterfaceNum()) {}
 
     std::shared_ptr<BootloaderClient> enterBootloader() override;
+    std::shared_ptr<BootloaderClient> waitForBootloader(int64_t timeoutMs) override;
 
 private:
     int ifIndex;
@@ -398,6 +400,7 @@ public:
     }
 
     std::shared_ptr<BootloaderClient> enterBootloader() override;
+    std::shared_ptr<BootloaderClient> waitForBootloader(int64_t timeoutMs) override;
 
 private:
     in_addr devAddr;

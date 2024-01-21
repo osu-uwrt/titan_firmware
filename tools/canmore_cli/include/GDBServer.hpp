@@ -1,5 +1,7 @@
 #pragma once
 
-#include "canmore_cpp/DebugClient.hpp"
+#include "canmore_cpp/GDBClient.hpp"
 
-void runGdbServer(uint16_t port, std::shared_ptr<Canmore::DebugClient> client);
+#include <memory>
+
+void runGdbServer(uint16_t port, std::shared_ptr<Canmore::GDBClient> client);

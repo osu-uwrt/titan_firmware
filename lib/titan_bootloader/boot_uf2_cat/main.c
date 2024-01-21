@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #define BOOTLOADER_SIZE 0x4000
 #define FLASH_BASE 0x10000000
@@ -168,7 +167,6 @@ static struct uf2_block padding_block = {
     .flags = UF2_FLAG_FAMILY_ID_PRESENT,
     .payload_size = UF2_PAGE_SIZE,
     .file_size = RP2040_FAMILY_ID,
-    .data = { [0 ...(UF2_PAGE_SIZE - 1)] = 0xFF },
     .magic_end = UF2_MAGIC_END,
 };
 
@@ -296,6 +294,9 @@ int main(int argc, char **argv) {
     struct uf2_handle bl_handle, app_handle;
     bool successful = false;
 
+    // Initialize padding block properly
+    memset(padding_block.data, 0xFF, UF2_PAGE_SIZE);
+
     if (argc < 4) {
         printf("Usage: %s <bootloader uf2> <app uf2> <output uf2>\n", argv[0]);
         return 1;
@@ -345,7 +346,7 @@ cleanup_output:
     }
 
     if (!successful) {
-        if (unlink(write_handle.filename)) {
+        if (remove(write_handle.filename)) {
             printf("[%s] Failed to delete incomplete output file: %s\n", write_handle.filename, strerror(errno));
         }
     }
