@@ -1,5 +1,10 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
+#include "pico/time.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+extern absolute_time_t display_poweroff_time;
 
 /**
  * @brief Initialize LCD screen
@@ -15,6 +20,18 @@ void display_init(void);
  * @param voltage Battery current voltage
  */
 void display_show_stats(unsigned int serial, unsigned int soc, float voltage);
+
+void display_show_menu(uint8_t op_hl);
+
+void display_show_option(unsigned int serial, uint8_t op_hl, bool dsg_mode);
+
+// void display_show_soc(unsigned int serial, uint8_t soc, bool dsg_mode);
+
+// void display_show_voltage(unsigned int serial, float voltage, bool dsg_mode);
+
+// void display_show_current(unsigned int serial, float current, bool dsg_mode);
+
+// void display_show_remain_time(unsigned int serial, uint16_t remain_time, bool dsg_mode);
 
 /**
  * @brief Show ROS connections screen
