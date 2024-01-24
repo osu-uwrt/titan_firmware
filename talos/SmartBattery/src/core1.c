@@ -28,9 +28,6 @@ typedef union sio_fifo_req {
             BQ_CHEMISTRY,
             BQ_STATE_OF_HEALTH,
             // TODO might add more
-            // BQ_CYCLE_COUNT,
-            // BQ_CHEMISTRY,
-            // BQ_STATE_OF_HEALTH,
             // BQ_MAC_REG_ADDR,
             // BQ_MAC_RESET_CMD,
             // BQ_MAC_SHTDN_CMD,
@@ -156,11 +153,13 @@ static void core1_bq40z80_flush_battery_info(bq_battery_info_t *bat_stat) {
     shared_status.port_detected = bat_stat->port_detected;
     shared_status.avg_current = bat_stat->avg_current;
     shared_status.soc = bat_stat->soc;
+    // DSCH Mode
     if ((shared_status.dsg_mode = bat_stat->dsg_mode)) {
         shared_status.remaining_time = bat_stat->time_to_empty;
         shared_status.voltage = bat_stat->voltage;
         shared_status.current = (uint16_t) bat_stat->current;
     }
+    // CHG Mode
     else {
         shared_status.remaining_time = bat_stat->time_to_full;
         shared_status.voltage = bat_stat->chg_voltage;
@@ -191,6 +190,7 @@ static void __time_critical_func(core1_main)(void) {
                     if (req.type == BQ_POWER_CYCLE) {
                         bq_open_dschg_temp(fet_open_time_ms);
                     }
+                    // TODO still WIP for pack chemistry, cycle count and stateofhealth
                 }
             }
         }
@@ -208,6 +208,7 @@ void core1_init(uint8_t expected_serial) {
     sbh_mcu_serial = expected_serial;
     safety_launch_core1(core1_main);
 }
+
 bool core1_get_pack_mfg_info(bq_mfg_info_t *pack_info_out) {
     bool read_successful = false;
     if (read_once_cached) {
@@ -216,7 +217,7 @@ bool core1_get_pack_mfg_info(bq_mfg_info_t *pack_info_out) {
         pack_info_out->mfg_day = shared_mfg_info.pack_info.mfg_day;
         pack_info_out->mfg_mo = shared_mfg_info.pack_info.mfg_mo;
         pack_info_out->mfg_year = shared_mfg_info.pack_info.mfg_year;
-        // TODO double check passing on array
+
         for (uint8_t i = 0; i < 21; i++) {
             pack_info_out->name[i] = shared_mfg_info.pack_info.name[i];
             if (pack_info_out->name[i] == 0)

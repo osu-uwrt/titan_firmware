@@ -10,7 +10,7 @@
 uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
 uint pio_i2c_program;
 
-static bq40z80_error_cb client_error_callback;
+static bq40z80_error_cb board_error_callback;
 static bool battery_connected;
 static int err_count = 2;
 
@@ -161,7 +161,7 @@ static void bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
     bat_out->battery_presence = (safety_status & 0x1) != 0;
     if ((safety_status & 0x800) != 0) {
         sbs_read_h4(&safety_status, BQ_READ_SAFE_STAT);
-        client_error_callback(BQ_ERROR_SAFETY_STATUS, safety_status);
+        board_error_callback(BQ_ERROR_SAFETY_STATUS, safety_status);
     }
 }
 
@@ -184,11 +184,11 @@ static void bq40z80_on_error() {
         err_count++;
         if (err_count >= 3) {
             battery_connected = false;
-            client_error_callback(BQ_ERROR_I2C_DISCONNECT, 0);
+            board_error_callback(BQ_ERROR_I2C_DISCONNECT, 0);
         }
     }
     else {
-        client_error_callback(BQ_ERROR_OFFLINE, 0);
+        board_error_callback(BQ_ERROR_OFFLINE, 0);
         // wake up battery and wait for 1 second
         gpio_put(BMS_WAKE_PIN, 1);
         sleep_ms(1000);
@@ -196,10 +196,6 @@ static void bq40z80_on_error() {
     }
 }
 
-/**
- * @brief initialize PIO hardware for i2c usage, GPIO for BQ_LEDS_CORE1, and BMS_WAKE_PIN
- *
- */
 void bq40z80_init(bq40z80_error_cb error_cb) {
     // Init the wake pin, active high
     gpio_init(BMS_WAKE_PIN);
@@ -217,21 +213,11 @@ void bq40z80_init(bq40z80_error_cb error_cb) {
     pio_sm_claim(pio0, PIO_SM);
     i2c_program_init(pio0, PIO_SM, pio_i2c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 
-    client_error_callback = error_cb;
+    board_error_callback = error_cb;
 
     battery_connected = false;
 }
 
-/**
- * @brief first check serial number, and if matched it does other register reads
- *
- * @param connected the current state of battery
- * @param sbh_mcu_serial the expected serial num, used for checking if battery is connected
- * @param bat_out
- * @param mfg_out
- * @return true     i2c works and the battery is connected
- * @return false    i2c fails due to battery offline
- */
 bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info_t *bat_out, bq_mfg_info_t *mfg_out) {
     uint16_t serial;
     sbs_read_u2(&serial, BQ_READ_CELL_SERI);
@@ -292,20 +278,15 @@ void bq_open_dschg_temp(const int64_t open_time_ms) {
     uint8_t reg_addr[1] = { BQ_READ_PACK_STAT };
     bq_handle_i2c_transfer(reg_addr, data, 2);
     if (data[0] & 0x7) {
-        // char err[9] = "ERROR:#|#";
-        // itoa(data[0] & 0x7, err + 6, 10);
-        // *(err + 7) = '|';
-        // itoa(data[1] & 0x7, err + 8, 10);
-        // panic(err);
         uint32_t err_code = (data[0] & 0x7);
-        client_error_callback(BQ_ERROR_POWER_CYCLE_FAIL, err_code);
+        board_error_callback(BQ_ERROR_POWER_CYCLE_FAIL, err_code);
     }
 
     // verify fet is actually open via operation status
     if (bq_pack_discharging()) {
         // this is a bad state. we requested fet open and it didnt happen
         send_mac_command(BQ_MAC_RESET_CMD);
-        client_error_callback(BQ_ERROR_POWER_CYCLE_FAIL, 0);
+        board_error_callback(BQ_ERROR_POWER_CYCLE_FAIL, 0);
     }
 
     // send a cleanup reset command
@@ -326,5 +307,4 @@ void bq_device_chemistry(char *name) {
         name[i] = data[i + 1];
     }
     name[data[0] + 1] = 0;
-    // TODO make sure to double check
 }

@@ -71,11 +71,22 @@ typedef enum {
 
 typedef void (*bq40z80_error_cb)(const bq_error type, const int error_code);
 
-// handler for the bq i2c transactions
-//  static void bq_handle_i2c_transfer(uint8_t* bq_reg, uint8_t* rx_buf, uint len);
-
+/**
+ * @brief initialize PIO hardware for i2c usage, GPIO for BQ_LEDS_CORE1, and BMS_WAKE_PIN
+ *
+ */
 void bq40z80_init(bq40z80_error_cb error_cb);
 
+/**
+ * @brief first check serial number, and if matched it does other register reads
+ *
+ * @param connected the current state of battery
+ * @param sbh_mcu_serial the expected serial num, used for checking if battery is connected
+ * @param bat_out
+ * @param mfg_out
+ * @return true     i2c works and the battery is connected
+ * @return false    i2c fails due to battery offline
+ */
 bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info_t *bat_out, bq_mfg_info_t *mfg_out);
 
 // used for opening the discharge fets for a specified amount of time
@@ -83,4 +94,7 @@ bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info
 // important communication with the BQ40z80 during this
 void bq_open_dschg_temp(const int64_t open_time_ms);
 
+uint16_t bq_cycle_count();
+
+void bq_device_chemistry(char *name);
 #endif

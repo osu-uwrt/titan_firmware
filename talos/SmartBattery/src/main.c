@@ -195,23 +195,11 @@ int main() {
     sleep_ms(1000);
     safety_tick();
 
-    // start the bq40z80
-
-    // FIXME old code
-    // int err = bq_init();
-    // if (err > 0) {
-    //     LOG_ERROR("Failed to initialize the bq40z80 after %d attempts", err);
-    //     panic("BQ40Z80 Init failed!");
-    // }
-
-    // grab the pack info from the bq40z80
-    if (core1_get_pack_mfg_info(&bq_mfg_info)) {
-        LOG_ERROR("Failed to initialize the bq40z80");
-        panic("BQ40Z80 Init failed!");
+    uint8_t retry = 0;
+    while (!core1_get_pack_mfg_info(&bq_mfg_info)) {
+        if (++retry > 5)
+            panic("BQ40Z80 Init failed!");
     }
-
-    // FIXME old code
-    // bq_pack_info = bq_pack_mfg_info();
 
     LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_mfg_info.name, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
              bq_mfg_info.mfg_year, bq_mfg_info.serial);
@@ -220,13 +208,6 @@ int main() {
     if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
         panic("Unprogrammed serial number");
     }
-
-    // FIXME old code
-    // if (bq_pack_info.serial != sbh_mcu_serial_num) {
-    //     LOG_ERROR("BQ serial number (%d) does not match programmed serial (%d)", bq_pack_info.serial,
-    //               sbh_mcu_serial_num);
-    //     safety_raise_fault(FAULT_BQ40_ERROR);
-    // }
 
     can_id = sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
