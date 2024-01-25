@@ -13,22 +13,11 @@ Before tagging, ensure you have committed all changes:
     git commit -m "Your message here"
     git push
 
-You can now tag your current commit: (Note to tag a different commit, add a commit hash after the `git tag` command)
-
-    # An example tag name would be pool-test-2023-08-25 or robosub-2023
-    # An example description would be "Talos Involvement Fair Pool Test 8/25/2023"
-
-    git tag -a pool-test-YYYY-MM-DD -m "Your Message Here"
-    git push origin pool-test-YYYY-MM-DD
-
 ## Compiling All Firmware
 
 To simplify building the firmware, a script has been developed which compiles all firmware and saves it in a specific
 directory for archival and deployment. This makes it even easier to roll back to the exact firmware that ran at a
 specific test if required.
-
-Ensure this step is performed **after** tagging the commit, to ensure that the compiled-in version information reflects
-the git tag.
 
 ### First Setup
 
@@ -50,13 +39,14 @@ and patch firmware at the pool test. (I typically just append `-patch` to the ta
     # Run this in the firmware_archive/ directory
     # If you tagged the commit as pool-test-2023-08-25, you would pass that as the argument
 
-    ./archive.sh [your_tag_here]
+    ./archive.sh
 
 After the script runs, you should now have a directory which looks like:
 
     $ ls pool-test-YYYY-MM-DD/
     actuator_mk2/        camera_cage_bb/  full_ota.tar  smart_battery/
-    backplane_firmware/  esc_board/       power_board/
+    backplane_firmware/  esc_board/       power_board/  firmware_archive.tgz
+    libmicroros_build.tgz
 
 ## Deploying to the Vehicle
 
@@ -124,23 +114,6 @@ ESC board, this requires that you reflash both board 0 and board 1, as well as e
 Publishing GitHub releases allows anyone to easily access the firmware from that pool test in the future, without
 needing access to your local `firmware_archive/` directory.
 
-To archive the contents of a pool test folder, run the following command:
-
-    # Run inside the pool-test-YYYY-MM-DD directory
-
-    tar -czvf build_archive.tgz $(ls -d */)
-
-**Note this command ignores any files in the top level pool-test folder, so it won't save any of the tar archives
-such as `full_ota.tar`.**
-
-It is recommended to have a copy of the libmicroros install you are building with. If a bug appears in MicroROS, having
-a known good version to roll back to is useful, as MicroROS will build with the most recent versions of all the ROS
-repositories.
-
-To archive MicroROS, run the following command from your `firmware_archive/` folder:
-
-    tar -czvf libmicroros_build.tgz -C ../titan_firmware/lib/micro_ros_pico/ built_packages available_ros2_types libmicroros/
-
 To publish a release:
 
 1. Ensure you are logged in and authorized on our GitHub org
@@ -149,5 +122,5 @@ To publish a release:
 4. Select the "Draft a New Release" button
 5. Add a descriptive title (Ex. "Pool Test Firmware - August 25, 2023")
 6. Select the tag name you gave to that release
-7. Add the `build_archive.tgz` and the `libmicroros_build.tgz` files to the release
+7. Add the `firmware_archive.tgz` and the `libmicroros_build.tgz` files to the release
 8. Publish the release
