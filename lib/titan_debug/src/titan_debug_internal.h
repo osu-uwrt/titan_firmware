@@ -10,4 +10,8 @@
 extern reg_mapped_server_inst_t debug_server_inst;
 extern reg_mapped_server_page_def_t debug_server_pages[];
 
+// Remote Command Function Handler
+void debug_remote_cmd_init(void);
+int debug_remote_cmd_handle(const char *args, size_t resp_size, char *resp);
+
 #endif

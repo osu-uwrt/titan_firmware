@@ -106,6 +106,11 @@ typedef struct reg_mapped_client_cfg {
      * @brief Timeout to use for receive callback
      */
     unsigned int timeout_ms;
+    /**
+     * @brief Maximum number of outstanding packets to have in flight before waiting for a response
+     * This must not be greater than the buffer size on the server, or else packets can be lost
+     */
+    unsigned int max_in_flight;
 } reg_mapped_client_cfg_t;
 
 /**

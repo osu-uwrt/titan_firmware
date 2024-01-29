@@ -4,6 +4,7 @@
 #include "titan/canmore.h"
 
 #include <stdint.h>
+#include <stdio.h>
 
 #if TITAN_SAFETY
 
@@ -35,6 +36,10 @@ void debug_init(reg_mapped_server_tx_func tx_func);
  * @param len Length of message
  */
 void debug_process_message(uint8_t *msg_buffer, size_t len);
+
+typedef int (*debug_remote_cmd_cb)(size_t argc, const char *const *argv, FILE *fout);
+
+void debug_remote_cmd_register(const char *name, const char *usage, const char *help_msg, debug_remote_cmd_cb callback);
 
 #endif
 

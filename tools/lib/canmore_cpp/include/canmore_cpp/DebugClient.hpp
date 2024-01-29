@@ -280,6 +280,10 @@ public:
     void enterBootloader();
     void reboot();
     void ping() override;
+
+    int executeRemoteCmd(std::vector<std::string> const &args, std::string &response);
+
+    // Misc Debug Information
     MemoryStats getMemoryStats();
     SafetyStatus getSafetyStatus();
     Uptime getUptime();
@@ -287,12 +291,14 @@ public:
     CrashLogEntry getLastResetEntry();
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
 
+    // GDB Bindings
     uint32_t readMemory(uint32_t addr) override;
     void writeMemory(uint32_t addr, uint32_t data) override;
     uint32_t getGDBStubPC() override;
     uint32_t getGDBStubSP() override;
     uint32_t getGDBStubLR() override;
 
+    // Safety Fault Bindings
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);
     uint32_t getActiveFaults();

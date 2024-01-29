@@ -209,6 +209,7 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
 
     if (inst->in_bulk_request && !request_type_bulk) {
         result_code = REG_MAPPED_RESULT_BULK_REQUEST_SEQ_ERROR;
+        inst->in_bulk_request = false;  // If we get a non-bulk request in bulk mode, exit now
         goto finish_request;
     }
 

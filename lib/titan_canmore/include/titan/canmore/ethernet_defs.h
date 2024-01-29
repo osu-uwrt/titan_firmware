@@ -10,8 +10,9 @@ extern "C" {
  * This enables RP2040s which use an Ethernet interface to communicate with the same protocols as CANmore, specifically
  * for accessing the CANmore control interface.
  *
- * Note that the ethernet protocol inherits from the data fields defined by the CANmore protocol. Ethernet has its own
- * mechanism to allocate channels which will be defined in this file, now mapping to ports rather than channels.
+ * Note that the ethernet protocol inherits from the data fields defined by the CANmore protocol. However, Ethernet has
+ * its own mechanism to allocate "channels" (known as ports) which will be defined in this file, now mapping canmore
+ * services to ports rather than channels.
  *
  * Although CANmore was designed with CAN traffic in mind (max MTU of 8 bytes), transactions can still occur over UDP
  * sockets, as they have similar characteristics of packet-oriented best-effort protocols (alhtough the error-detction

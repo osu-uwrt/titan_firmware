@@ -168,7 +168,7 @@ MCP251XFD_FIFO mcp251xfd_utility_tx_fifo_config = {
 
 MCP251XFD_FIFO mcp251xfd_utility_rx_fifo_config = {
     .Name = mcp251xfd_utility_rx_fifo,
-    .Size = MCP251XFD_FIFO_8_MESSAGE_DEEP,
+    .Size = MCP251XFD_FIFO_32_MESSAGE_DEEP,
     .Payload = UTILITY_MSG_PAYLOAD_SIZE_ENUM,
     .Direction = MCP251XFD_RECEIVE_FIFO,
     .ControlFlags = MCP251XFD_FIFO_ADD_TIMESTAMP_ON_RX,

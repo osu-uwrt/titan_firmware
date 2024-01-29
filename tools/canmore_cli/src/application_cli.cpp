@@ -583,6 +583,107 @@ public:
     }
 };
 
+class AppRemoteCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppRemoteCommand(): CanmoreCommandHandler("remotecmd") {}
+
+    std::string getArgList() const override { return "[Remote Command...]"; }
+    std::string getHelp() const override {
+        return "Executes the requested remote command on the target.\n"
+               "This allows extension of Canmore CLI using a standard POSIX style command callback in firmware.\n"
+               "See debug_remote_cmd_register in titan/debug.h for more details.";
+    }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        if (args.size() == 0) {
+            interface.writeLine("Cannot send empty remote command");
+            return;
+        }
+        std::string response;
+        int returncode = interface.handle->executeRemoteCmd(args, response);
+
+        interface.writeMultiline(response, "");
+        if (response.length() == CANMORE_DBG_REMOTE_CMD_RESP_MAX_LEN - 1) {
+            interface.writeLine(COLOR_NOTICE "... Notice: Output may be truncated");
+        }
+        if (returncode != 0) {
+            interface.writeLine(COLOR_NOTICE "Client responded with non-zero status code: " +
+                                std::to_string(returncode));
+        }
+    }
+};
+
+class AppGetRemoteCommands : public CanmoreCommandHandler<Canmore::DebugClient> {
+public:
+    AppGetRemoteCommands(): CanmoreCommandHandler("remotecmdlist") {}
+
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Test function to get the remote command list"; }
+
+    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        (void) args;
+
+        // Get the command count from the client
+        std::string response;
+        std::vector<std::string> cmdCountCmd = { "help", "-n" };
+        int returncode = interface.handle->executeRemoteCmd(cmdCountCmd, response);
+        if (returncode != 0) {
+            interface.writeLine(COLOR_ERROR "Non-zero status code when retreiving command count");
+            return;
+        }
+
+        // Decode string to a number
+        uint32_t cmdCount;
+        if (!decodeU32(response, cmdCount)) {
+            interface.writeLine(COLOR_ERROR "Invalid integer response from command count: " + response);
+            return;
+        }
+
+        // Retrieve the help from the device, formatting in the same format as our help
+        std::stringstream remoteHelp;
+        for (uint32_t i = 0; i < cmdCount; i++) {
+            std::vector<std::string> getCmdHelpArgs = { "help", "-i", std::to_string(i) };
+            int returncode = interface.handle->executeRemoteCmd(getCmdHelpArgs, response);
+            if (returncode != 0) {
+                interface.writeLine(COLOR_ERROR "Non-zero status code when retreiving remote command help");
+                return;
+            }
+
+            std::istringstream iss(response);
+
+            // Retrieve the command name line
+            std::string line;
+            if (!std::getline(iss, line)) {
+                interface.writeLine(COLOR_ERROR "Malformed response - Could not retrieve command name from help");
+            }
+            remoteHelp << COLOR_NAME << line;
+
+            // Retrieve the command usage line
+            if (!std::getline(iss, line)) {
+                interface.writeLine(COLOR_ERROR "Malformed response - Could not retrieve command usage from help");
+            }
+            remoteHelp << " " COLOR_BODY << line << COLOR_RESET << std::endl;
+
+            // Consume the rest of the response as help message
+            bool had_help = false;
+            while (std::getline(iss, line)) {
+                had_help = true;
+                if (!line.empty()) {
+                    remoteHelp << "\t" << line << std::endl;
+                }
+                else {
+                    remoteHelp << std::endl;
+                }
+            }
+            if (!had_help) {
+                remoteHelp << "\t<No Help Message Provided>" << std::endl;
+            }
+        }
+
+        interface.writeLine(remoteHelp.str());
+    }
+};
+
 class AppCanDebugCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
 public:
     AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
@@ -634,6 +735,8 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppMemWriteCommand>());
     registerCommand(std::make_shared<AppMemReadStrCommand>());
     registerCommand(std::make_shared<AppGdbServer>());
+    registerCommand(std::make_shared<AppRemoteCommand>());
+    registerCommand(std::make_shared<AppGetRemoteCommands>());
     registerCommand(std::make_shared<AppCanDebugCommand>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 

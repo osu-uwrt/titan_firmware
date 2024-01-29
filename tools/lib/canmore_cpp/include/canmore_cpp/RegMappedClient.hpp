@@ -14,6 +14,8 @@
 
 // The W25Q16JV datasheet specifies max sector erase time to be 400ms
 #define REG_MAPPED_TIMEOUT_MS 1000
+#define REG_MAPPED_MAX_IN_FLIGHT_PACKETS_CAN 32  // Matches config stored in CAN bus (32 frame long FIFO)
+#define REG_MAPPED_MAX_IN_FLIGHT_PACKETS_ETH 8
 
 namespace Canmore {
 

@@ -45,7 +45,8 @@ void runCli(std::shared_ptr<Canmore::Device> dev) {
             cli.run();
         }
         else if (auto bootDelayDevice = std::dynamic_pointer_cast<Canmore::BootDelayDevice>(dev)) {
-            auto cli = BootloaderCLI(bootDelayDevice->waitForBootloader(5000));
+            std::cout << "Waiting for 15 seconds for boot delay device to reappear..." << std::endl;
+            auto cli = BootloaderCLI(bootDelayDevice->waitForBootloader(15000));
             cli.run();
         }
         else {

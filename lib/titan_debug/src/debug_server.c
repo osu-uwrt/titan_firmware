@@ -14,6 +14,7 @@
 #include "bindings/gdb_stub.h"
 #include "bindings/safety_status.h"
 #include "bindings/crash_log.h"
+#include "bindings/remote_cmd.h"
 // clang-format on
 
 // Map included pages defined in above header files to the global page map
@@ -23,6 +24,12 @@ reg_mapped_server_page_def_t debug_server_pages[] = {
     DEFINE_PAGE_UNIMPLEMENTED(CANMORE_DBG_VERSION_STRING_PAGE_NUM),  // To be filled in at startup
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MEM_STATS_PAGE_NUM, debug_server_memory_stats_regs),
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_GDB_STUB_PAGE_NUM, debug_server_gdb_stub_regs),
+    DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_REMOTE_CMD_PAGE_NUM, debug_server_remote_cmd_regs),
+    // Handle remote_cmd as ptr rather than array since we have extra length to allow terminating, so we don't want to
+    // expose that to the client. Instead, lie and say it's smaaller than it actually is.
+    DEFINE_PAGE_MEMMAPPED_BYTE_PTR(CANMORE_DBG_REMOTE_CMD_ARGS_PAGE_NUM, remote_cmd_args,
+                                   CANMORE_DBG_REMOTE_CMD_ARGS_MAX_LEN, REGISTER_PERM_READ_WRITE),
+    DEFINE_PAGE_MEMMAPPED_BYTE_ARRAY(CANMORE_DBG_REMOTE_CMD_RESP_PAGE_NUM, remote_cmd_resp, REGISTER_PERM_READ_ONLY),
 
     // Safety Status Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_SAFETY_STATUS_PAGE_NUM, debug_server_safety_status_regs),
@@ -48,8 +55,9 @@ reg_mapped_server_inst_t debug_server_inst = {
 void debug_init(reg_mapped_server_tx_func tx_func) {
     debug_server_inst.tx_func = tx_func;
 
-    // Initialize MCU Control Bindings
+    // Run any other initialization routines
     mcu_control_bindings_init();
+    debug_remote_cmd_init();
 }
 
 void debug_process_message(uint8_t *msg_buffer, size_t len) {

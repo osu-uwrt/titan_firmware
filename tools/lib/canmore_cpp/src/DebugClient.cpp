@@ -190,6 +190,44 @@ std::string DebugClient::getVersion() {
     return client->readStringPage(debug_itf_mode, CANMORE_DBG_VERSION_STRING_PAGE_NUM);
 }
 
+int DebugClient::executeRemoteCmd(std::vector<std::string> const &args, std::string &response) {
+    // Create the compressed arg string to send to the client
+    std::stringstream argStream;
+    for (std::string const &arg : args) {
+        argStream << arg << '\0';
+    }
+    argStream << '\0';
+
+    // Verify that the args can fit into the register page
+    const std::string &argCompressed = argStream.str();
+    if (argCompressed.length() > CANMORE_DBG_REMOTE_CMD_ARGS_MAX_LEN) {
+        throw DebugError("Remote command arguments are too large for remote command register on device");
+    }
+
+    // Convert the 8-bit string into a 32-bit array that can be written
+    std::vector<uint32_t> argWordArray((argCompressed.length() + 3) / 4, 0);
+    size_t bytesSize = argCompressed.size();
+    for (size_t word = 0; (word * 4) < bytesSize; word++) {
+        uint32_t value = 0;
+        for (int byteOff = 0; byteOff + (word * 4) < bytesSize && byteOff < 4; byteOff++) {
+            value |= argCompressed.at(byteOff + (word * 4)) << (8 * byteOff);
+        }
+
+        argWordArray.at(word) = value;
+    }
+
+    // Finally write the args converted to a word array
+    client->writeArray(debug_itf_mode, CANMORE_DBG_REMOTE_CMD_ARGS_PAGE_NUM, 0, argWordArray);
+
+    // Execute the command
+    RegisterPage remoteCmdPage(client, debug_itf_mode, CANMORE_DBG_REMOTE_CMD_PAGE_NUM);
+    int32_t rc = (int32_t) remoteCmdPage.readRegister(CANMORE_DBG_REMOTE_CMD_EXECUTE_OFFSET);
+
+    // Read back the resulting string
+    response = client->readStringPage(debug_itf_mode, CANMORE_DBG_REMOTE_CMD_RESP_PAGE_NUM);
+    return rc;
+}
+
 void DebugClient::canDbgIntrEn() {
     RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
     mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET, 1);
