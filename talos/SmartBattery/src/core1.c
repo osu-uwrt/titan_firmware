@@ -81,6 +81,7 @@ static volatile struct core1_mfg_info_shared_mem {
     struct bq_mfg_info_t pack_info;
 } shared_mfg_info = { 0 };
 
+// Axe the timer ready
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
  *
@@ -162,6 +163,7 @@ static void core1_bq40z80_flush_battery_info(bq_battery_info_t *bat_stat) {
     // CHG Mode
     else {
         shared_status.remaining_time = bat_stat->time_to_full;
+        // Separate out into another value, read both
         shared_status.voltage = bat_stat->chg_voltage;
         shared_status.current = bat_stat->chg_current;
     }
@@ -177,6 +179,7 @@ static void __time_critical_func(core1_main)(void) {
     while (1) {
         safety_core1_checkin();
 
+        // Switch to time_reached
         if (timer_ready(&next_bq40z80_refresh, BQ40Z80_REFRESH_TIME_MS, false)) {
             if (bq40z80_refresh_reg(sbh_mcu_serial, read_once_cached, &battery_status_info, &battery_mfg_info)) {
                 if (!read_once_cached) {
@@ -184,15 +187,16 @@ static void __time_critical_func(core1_main)(void) {
                     core1_bq40z80_flush_mfg_info(&battery_mfg_info);
                 }
                 core1_bq40z80_flush_battery_info(&battery_status_info);
-                // Handle fifo affairs
-                while (multicore_fifo_rvalid()) {
-                    sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
-                    if (req.type == BQ_POWER_CYCLE) {
-                        bq_open_dschg_temp(fet_open_time_ms);
-                    }
-                    // TODO still WIP for pack chemistry, cycle count and stateofhealth
-                }
             }
+        }
+
+        // Handle fifo affairs
+        while (multicore_fifo_rvalid()) {
+            sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
+            if (req.type == BQ_POWER_CYCLE) {
+                bq_open_dschg_temp(fet_open_time_ms);
+            }
+            // TODO still WIP for pack chemistry, cycle count and stateofhealth
         }
     }
 }

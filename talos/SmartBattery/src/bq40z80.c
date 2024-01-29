@@ -128,12 +128,16 @@ static void bq40z80_read_mfg_info(bq_mfg_info_t *mfg_out) {
     mfg_out->name[data[0] + 1] = 0;
 }
 
+// Add checks into all code, and make sure this check is valid
+#define I2CCHECK(func)                                                                                                 \
+    if (func != 0)                                                                                                     \
+        return false;
 /**
  * @brief read bq40z80 SOC, average current, DSG/CHG mode and their respective voltage, current, and time
  *
  * @param bat_out
  */
-static void bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
+static bool bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
     uint16_t data;
     uint32_t safety_status;
 
@@ -143,7 +147,7 @@ static void bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
     if (data & 0x40) {
         // DISCHARGING mode
         bat_out->dsg_mode = true;
-        sbs_read_u2(&bat_out->voltage, BQ_READ_PACK_VOLT);
+        I2CCHECK(sbs_read_u2(&bat_out->voltage, BQ_READ_PACK_VOLT));
         sbs_read_i2(&bat_out->current, BQ_READ_PACK_CURR);
         sbs_read_u2(&bat_out->time_to_empty, BQ_READ_TIME_EMPT);
     }
@@ -163,6 +167,7 @@ static void bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
         sbs_read_h4(&safety_status, BQ_READ_SAFE_STAT);
         board_error_callback(BQ_ERROR_SAFETY_STATUS, safety_status);
     }
+    return true;
 }
 
 static void bq40z80_update_soc_leds(uint8_t soc) {
@@ -220,7 +225,9 @@ void bq40z80_init(bq40z80_error_cb error_cb) {
 
 bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info_t *bat_out, bq_mfg_info_t *mfg_out) {
     uint16_t serial;
+    // Better handling between serial errors and connection faults
     sbs_read_u2(&serial, BQ_READ_CELL_SERI);
+    // Take into account failure return code on serial number things
     if (serial == sbh_mcu_serial) {
         err_count = 0;
         if (!battery_connected) {
@@ -231,6 +238,7 @@ bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info
             bq40z80_read_mfg_info(mfg_out);
         }
         bq40z80_read_battery_info(bat_out);
+        // Take this out of here
         bq40z80_update_soc_leds(bat_out->soc);
         return true;
     }
