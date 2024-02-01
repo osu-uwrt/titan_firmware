@@ -208,7 +208,8 @@ struct CrashLogEntry {
                 uptime_pretty = (float) (uptime) / uptime_ticks_per_sec;
                 uptime_units = 's';
             }
-            reasonStream << " - Uptime: " << std::setw(0) << std::setprecision(2) << uptime_pretty << uptime_units;
+            reasonStream << " - Prev. Uptime: " << std::setw(0) << std::setprecision(2) << uptime_pretty
+                         << uptime_units;
         }
 
         return reasonStream.str();
@@ -304,11 +305,6 @@ public:
     uint32_t getActiveFaults();
     void raiseFault(uint32_t faultId);
     void lowerFault(uint32_t faultId);
-
-    // TODO Remove me CAN Debug Stuff
-    void canDbgIntrEn();
-    void canDbgFifoClear();
-    void canDbgReset();
 
 private:
     union flash_id cachedFlashID;

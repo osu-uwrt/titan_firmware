@@ -227,18 +227,3 @@ int DebugClient::executeRemoteCmd(std::vector<std::string> const &args, std::str
     response = client->readStringPage(debug_itf_mode, CANMORE_DBG_REMOTE_CMD_RESP_PAGE_NUM);
     return rc;
 }
-
-void DebugClient::canDbgIntrEn() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET, 1);
-}
-
-void DebugClient::canDbgFifoClear() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET, 1);
-}
-
-void DebugClient::canDbgReset() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET, 1);
-}

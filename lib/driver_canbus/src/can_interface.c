@@ -289,6 +289,33 @@ void canbus_utility_frame_register_cb(uint32_t channel, canbus_utility_chan_cb_t
 }
 
 #if TITAN_SAFETY
+static int candbg_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc != 2) {
+        fprintf(fout, "Usage: candbg [action]\n");
+        return 1;
+    }
+
+    if (!strcmp(argv[1], "intr_en")) {
+        fprintf(fout, "Issuing CAN Interrupt Enable Signal\n");
+        canbus_reenable_intr();
+        return 0;
+    }
+    else if (!strcmp(argv[1], "fifo_clear")) {
+        fprintf(fout, "Issuing CAN FIFO Reset Signal\n");
+        canbus_fifo_clear();
+        return 0;
+    }
+    else if (!strcmp(argv[1], "hw_reset")) {
+        fprintf(fout, "Issuing CAN FIFO Reset Signal\n");
+        canbus_reset();
+        return 0;
+    }
+    else {
+        fprintf(fout, "Invalid Action: '%s'\n", argv[1]);
+        return 1;
+    }
+}
+
 void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
     if (channel != CANMORE_TITAN_CHAN_CONTROL_INTERFACE) {
         return;
@@ -328,6 +355,11 @@ bool canbus_init(unsigned int client_id) {
     // If not, we don't have any way to control the chip's watchdog/query chip status
     debug_init(&canbus_control_interface_transmit);
     canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
+
+    debug_remote_cmd_register("candbg", "[action]",
+                              "Issues a debug action to the can bus (trying to solve weird glitches)\n"
+                              "Valid Actions: intr_en, fifo_clear, hw_reset",
+                              candbg_cmd_cb);
 #endif
 
     return true;

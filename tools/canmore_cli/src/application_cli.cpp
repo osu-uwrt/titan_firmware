@@ -72,14 +72,14 @@ private:
     uint32_t lastFaultState;
 };
 
-class AppEnterBootloaderCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppEnterBootloaderCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppEnterBootloaderCommand(): CanmoreCommandHandler("enterbl") {}
+    AppEnterBootloaderCommand(): CLICommandHandler("enterbl") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Reboots the device into bootloader mode."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         interface.writeLine("Requesting reboot into bootloader mode...");
         interface.handle->enterBootloader();
@@ -88,14 +88,14 @@ public:
     }
 };
 
-class AppCrashlogCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppCrashlogCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppCrashlogCommand(): CanmoreCommandHandler("crashlog") {}
+    AppCrashlogCommand(): CLICommandHandler("crashlog") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the full device crash log."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto crashcounter = interface.handle->getCrashCounter();
         std::vector<Canmore::CrashLogEntry> crashlog;
@@ -110,14 +110,14 @@ public:
     }
 };
 
-class AppSafetyStatusCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppSafetyStatusCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppSafetyStatusCommand(): CanmoreCommandHandler("safetystatus") {}
+    AppSafetyStatusCommand(): CLICommandHandler("safetystatus") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the current safety status."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto safetyStatus = interface.handle->getSafetyStatus();
         renderField("Safety Setup", (safetyStatus.safetySetup ? "Yes" : "No"));
@@ -127,16 +127,16 @@ public:
     }
 };
 
-class AppFaultsCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppFaultsCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppFaultsCommand(): CanmoreCommandHandler("faults") {}
+    AppFaultsCommand(): CLICommandHandler("faults") {}
 
     std::string getArgList() const override { return "[-a]"; }
     std::string getHelp() const override {
         return "Returns the list of active faults.\nPassing -a requests all faults";
     }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         // Command Parsing
         bool show_all = false;
         for (auto &arg : args) {
@@ -287,14 +287,14 @@ public:
     };
 };
 
-class AppRaiseFaultCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppRaiseFaultCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppRaiseFaultCommand(): CanmoreCommandHandler("raisefault") {}
+    AppRaiseFaultCommand(): CLICommandHandler("raisefault") {}
 
     std::string getArgList() const override { return "[fault id]"; }
     std::string getHelp() const override { return "Raises the requested fault id."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -312,14 +312,14 @@ public:
     }
 };
 
-class AppLowerFaultCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppLowerFaultCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppLowerFaultCommand(): CanmoreCommandHandler("lowerfault") {}
+    AppLowerFaultCommand(): CLICommandHandler("lowerfault") {}
 
     std::string getArgList() const override { return "[fault id]"; }
     std::string getHelp() const override { return "Lowers the requested fault id."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -337,40 +337,40 @@ public:
     }
 };
 
-class AppUptimeCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppUptimeCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppUptimeCommand(): CanmoreCommandHandler("uptime") {}
+    AppUptimeCommand(): CLICommandHandler("uptime") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the current uptime."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderField("Uptime", interface.handle->getUptime().format());
     }
 };
 
-class AppVersionCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppVersionCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppVersionCommand(): CanmoreCommandHandler("version") {}
+    AppVersionCommand(): CLICommandHandler("version") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the current application version."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderField("App Version", interface.handle->getVersion());
     }
 };
 
-class AppRebootCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppRebootCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppRebootCommand(): CanmoreCommandHandler("reboot") {}
+    AppRebootCommand(): CLICommandHandler("reboot") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Reboots the device."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         interface.writeLine("Sending reboot command...");
         interface.handle->reboot();
@@ -381,17 +381,19 @@ public:
     }
 };
 
-class AppMemoryStatsCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppMemoryStatsCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppMemoryStatsCommand(): CanmoreCommandHandler("memstats") {}
+    AppMemoryStatsCommand(): CLICommandHandler("memstats") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Reports device memory statistics."; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto stats = interface.handle->getMemoryStats();
         uint32_t reservedMem = stats.totalMem - stats.heapUse;
+
+        // TODO: Move to remote command
 
         renderField("Memory Usage", formatPercent(stats.arena - stats.keepcost + reservedMem, stats.totalMem), 40);
         renderField("Total memory on chip", formatMemory(stats.totalMem), 40);
@@ -432,16 +434,16 @@ private:
     }
 };
 
-class AppGdbServer : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppGdbServer : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppGdbServer(): CanmoreCommandHandler("gdbserver") {}
+    AppGdbServer(): CLICommandHandler("gdbserver") {}
 
     const uint16_t default_port = 3333;
 
     std::string getArgList() const override { return "[port: Default " + std::to_string(default_port) + "]"; }
     std::string getHelp() const override { return "Starts gdb server over Canmore"; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         uint32_t port = default_port;
         if (args.size() > 0) {
             if (!decodeU32(args.at(0), port, UINT16_MAX)) {
@@ -454,14 +456,14 @@ public:
     }
 };
 
-class AppMemReadCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppMemReadCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppMemReadCommand(): CanmoreCommandHandler("mem_read") {}
+    AppMemReadCommand(): CLICommandHandler("mem_read") {}
 
     std::string getArgList() const override { return "[address]"; }
     std::string getHelp() const override { return "Reads the specified address in memory"; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -487,14 +489,14 @@ public:
     }
 };
 
-class AppMemWriteCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppMemWriteCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppMemWriteCommand(): CanmoreCommandHandler("mem_write") {}
+    AppMemWriteCommand(): CLICommandHandler("mem_write") {}
 
     std::string getArgList() const override { return "[address] [data]"; }
     std::string getHelp() const override { return "Writes data to the specified address in memory"; }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 2) {
             interface.writeLine("Expected 2 arguments");
             interface.showHelp(commandName, true);
@@ -523,16 +525,16 @@ public:
     }
 };
 
-class AppMemReadStrCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppMemReadStrCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppMemReadStrCommand(): CanmoreCommandHandler("mem_readstr") {}
+    AppMemReadStrCommand(): CLICommandHandler("mem_readstr") {}
 
     std::string getArgList() const override { return "[address] [maxlen: Default 256]"; }
     std::string getHelp() const override {
         return "Reads the string at the corresponding address in memory (maxes at 256 bytes)";
     }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         uint32_t address;
         uint32_t maxLen = 256;
 
@@ -583,18 +585,11 @@ public:
     }
 };
 
-class AppRemoteCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
+class AppRemoteCmdPrefix : public CLICommandPrefixHandler<Canmore::DebugClient> {
 public:
-    AppRemoteCommand(): CanmoreCommandHandler("remotecmd") {}
+    AppRemoteCmdPrefix(): CLICommandPrefixHandler('@') {}
 
-    std::string getArgList() const override { return "[Remote Command...]"; }
-    std::string getHelp() const override {
-        return "Executes the requested remote command on the target.\n"
-               "This allows extension of Canmore CLI using a standard POSIX style command callback in firmware.\n"
-               "See debug_remote_cmd_register in titan/debug.h for more details.";
-    }
-
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() == 0) {
             interface.writeLine("Cannot send empty remote command");
             return;
@@ -611,116 +606,96 @@ public:
                                 std::to_string(returncode));
         }
     }
-};
 
-class AppGetRemoteCommands : public CanmoreCommandHandler<Canmore::DebugClient> {
-public:
-    AppGetRemoteCommands(): CanmoreCommandHandler("remotecmdlist") {}
-
-    std::string getArgList() const override { return ""; }
-    std::string getHelp() const override { return "Test function to get the remote command list"; }
-
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        (void) args;
-
-        // Get the command count from the client
-        std::string response;
-        std::vector<std::string> cmdCountCmd = { "help", "-n" };
-        int returncode = interface.handle->executeRemoteCmd(cmdCountCmd, response);
-        if (returncode != 0) {
-            interface.writeLine(COLOR_ERROR "Non-zero status code when retreiving command count");
+    void showHelp(CLIInterface<Canmore::DebugClient> &interface, bool showUsage) override {
+        if (showUsage) {
+            std::stringstream oss;
+            oss << "Usage: " << prefixChar << "[Remote Command] [Remote Command Args]";
+            interface.writeLine(oss.str());
             return;
         }
 
-        // Decode string to a number
-        uint32_t cmdCount;
-        if (!decodeU32(response, cmdCount)) {
-            interface.writeLine(COLOR_ERROR "Invalid integer response from command count: " + response);
-            return;
-        }
-
-        // Retrieve the help from the device, formatting in the same format as our help
-        std::stringstream remoteHelp;
-        for (uint32_t i = 0; i < cmdCount; i++) {
-            std::vector<std::string> getCmdHelpArgs = { "help", "-i", std::to_string(i) };
-            int returncode = interface.handle->executeRemoteCmd(getCmdHelpArgs, response);
-            if (returncode != 0) {
-                interface.writeLine(COLOR_ERROR "Non-zero status code when retreiving remote command help");
-                return;
-            }
-
-            std::istringstream iss(response);
-
-            // Retrieve the command name line
-            std::string line;
-            if (!std::getline(iss, line)) {
-                interface.writeLine(COLOR_ERROR "Malformed response - Could not retrieve command name from help");
-            }
-            remoteHelp << COLOR_NAME << line;
-
-            // Retrieve the command usage line
-            if (!std::getline(iss, line)) {
-                interface.writeLine(COLOR_ERROR "Malformed response - Could not retrieve command usage from help");
-            }
-            remoteHelp << " " COLOR_BODY << line << COLOR_RESET << std::endl;
-
-            // Consume the rest of the response as help message
-            bool had_help = false;
-            while (std::getline(iss, line)) {
-                had_help = true;
-                if (!line.empty()) {
-                    remoteHelp << "\t" << line << std::endl;
+        try {
+            // Read remote help data from device if it hasn't been fetched yet
+            if (!remoteHelpFetched) {
+                // Get the command count from the client
+                std::string response;
+                std::vector<std::string> cmdCountCmd = { "help", "-n" };
+                int returncode = interface.handle->executeRemoteCmd(cmdCountCmd, response);
+                if (returncode != 0) {
+                    throw Canmore::DebugError("Non-zero status code when retreiving command count");
                 }
-                else {
-                    remoteHelp << std::endl;
+
+                // Decode string to a number
+                uint32_t cmdCount;
+                if (!decodeU32(response, cmdCount)) {
+                    throw Canmore::DebugError("Invalid integer response from command count: " + response);
                 }
+
+                // Retrieve the help from the device, formatting in the same format as our help
+                std::stringstream remoteHelp;
+                if (cmdCount > 0) {
+                    remoteHelp << std::endl
+                               << COLOR_TITLE "====Remote Commands (Prefixed with " << prefixChar << ")====" COLOR_RESET
+                               << std::endl;
+                }
+
+                for (uint32_t i = 0; i < cmdCount; i++) {
+                    std::vector<std::string> getCmdHelpArgs = { "help", "-i", std::to_string(i) };
+                    int returncode = interface.handle->executeRemoteCmd(getCmdHelpArgs, response);
+                    if (returncode != 0) {
+                        throw Canmore::DebugError("Non-zero status code when retreiving remote command help");
+                    }
+
+                    std::istringstream iss(response);
+
+                    // Retrieve the command name line
+                    std::string line;
+                    if (!std::getline(iss, line)) {
+                        throw Canmore::DebugError("Malformed response - Could not retrieve command name from help");
+                    }
+                    remoteHelp << COLOR_NAME << prefixChar << line;
+
+                    // Retrieve the command usage line
+                    if (!std::getline(iss, line)) {
+                        throw Canmore::DebugError("Malformed response - Could not retrieve command usage from help");
+                    }
+                    remoteHelp << " " COLOR_BODY << line << COLOR_RESET << std::endl;
+
+                    // Consume the rest of the response as help message
+                    bool had_help = false;
+                    while (std::getline(iss, line)) {
+                        had_help = true;
+                        if (!line.empty()) {
+                            remoteHelp << "\t" << line << std::endl;
+                        }
+                        else {
+                            remoteHelp << std::endl;
+                        }
+                    }
+                    if (!had_help) {
+                        remoteHelp << "\t<No Help Message Provided>" << std::endl;
+                    }
+                }
+                remoteHelpMsg = remoteHelp.str();
+                remoteHelpFetched = true;
             }
-            if (!had_help) {
-                remoteHelp << "\t<No Help Message Provided>" << std::endl;
-            }
+
+            // Show the remote help message
+            interface.writeLine(remoteHelpMsg);
+        } catch (Canmore::CanmoreError &e) {
+            interface.writeLine(COLOR_ERROR "Exception caught while fetching remote help:" COLOR_RESET);
+            interface.writeLine(COLOR_ERROR "  what(): " + std::string(e.what()) + COLOR_RESET);
         }
-
-        interface.writeLine(remoteHelp.str());
-    }
-};
-
-class AppCanDebugCommand : public CanmoreCommandHandler<Canmore::DebugClient> {
-public:
-    AppCanDebugCommand(): CanmoreCommandHandler("candbg") {}
-
-    std::string getArgList() const override { return "[action]"; }
-    std::string getHelp() const override {
-        return "Issues a can debug operation\nValid Actions:\n1: Issue intr en\n2: Issue fifo clear\n3: Reset CAN "
-               "hardware";
     }
 
-    void callbackSafe(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        if (args.size() != 1) {
-            interface.writeLine("Expected 1 argument");
-            interface.showHelp(commandName, true);
-            return;
-        }
-
-        std::string const &action = args.at(0);
-        if (action == "1") {
-            interface.writeLine("Issuing CAN Interrupt Enable Signal");
-            interface.handle->canDbgIntrEn();
-        }
-        else if (action == "2") {
-            interface.writeLine("Issuing CAN FIFO Reset Signal");
-            interface.handle->canDbgIntrEn();
-        }
-        else if (action == "3") {
-            interface.writeLine("Issuing CAN Debug Reset Subsystem Signal");
-            interface.handle->canDbgReset();
-        }
-        else {
-            interface.writeLine("Invalid action: '" + action + "'");
-        }
-    }
+private:
+    bool remoteHelpFetched = false;
+    std::string remoteHelpMsg;
 };
 
 ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CLIInterface(handle) {
+    // TODO: Consolidate some of the commands (like fault and mem commands)
     registerCommand(std::make_shared<AppUptimeCommand>());
     registerCommand(std::make_shared<AppVersionCommand>());
     registerCommand(std::make_shared<AppRebootCommand>());
@@ -735,14 +710,14 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommand(std::make_shared<AppMemWriteCommand>());
     registerCommand(std::make_shared<AppMemReadStrCommand>());
     registerCommand(std::make_shared<AppGdbServer>());
-    registerCommand(std::make_shared<AppRemoteCommand>());
-    registerCommand(std::make_shared<AppGetRemoteCommands>());
-    registerCommand(std::make_shared<AppCanDebugCommand>());
+    registerCommandPrefix(std::make_shared<AppRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 
     auto devMap = DeviceMap::create();
     uint64_t flashId = handle->getFlashId();
     auto devDescr = devMap.lookupSerial(flashId);
+
+    // Show general device information on connect
 
     std::cout << std::endl;
     renderHeader("Connecting to Application");

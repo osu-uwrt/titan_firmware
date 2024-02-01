@@ -67,7 +67,7 @@ public:
         std::cout << COLOR_RESET BUFFER_ALT_DISABLE CURSOR_ENABLE << std::flush;
 
         // Restore default terminal behavior
-        // No use checking for error since it'll just terminate
+        // No use checking for error since it'll just terminate if we throw an exception
         tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
         signal(SIGINT, oldHandler);
 
@@ -242,7 +242,7 @@ static void showDiscovered(const DeviceMap &devMap,
             auto devDescr = devMap.lookupSerial(flashId);
 
             renderName(devDescr.name, selectedIndex == i);
-            if (devDescr.boardType != "unknown")
+            if (!devDescr.isUnknown)
                 renderField("Board Type", devDescr.boardType);
             else if (flashId != 0)
                 renderField("Unique ID", devDescr.hexSerialNum());
@@ -286,10 +286,12 @@ std::shared_ptr<Device> getTargetDevice(const DeviceMap &devMap,
         std::sort(discovered.begin(), discovered.end(), canmore_device_fixed_sort());
 
         // Then look up the next best index for the previous loop's device in the new table
+        // since devices can appear and disappear, and we want to try to keep the cursor from jumping randomly around
         size_t selectionIndex = remapDeviceIndex(discovered, lastSelection);
 
-        // Only redraw if keypress available
-        // Prevent slowdowns from constant redrawing of the terminal to stop processing of stdin
+        // Only redraw if keypress isn't available
+        // Prevent slowdowns from constant redrawing of the terminal if someone holds down a key, filling up stdin
+        // and it'll be redrawing as it tries to eat up the backlog
         if (!keypressAvailable()) {
             cnt++;
             showDiscovered(devMap, flashIdCache, discovered, selectionIndex);
