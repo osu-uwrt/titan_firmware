@@ -10,7 +10,6 @@
 // This fragments the assorted responsibilities of the titan debug server into smaller files, making it easier to manage
 // clang-format off
 #include "bindings/mcu_control.h"
-#include "bindings/memory_stats.h"
 #include "bindings/gdb_stub.h"
 #include "bindings/safety_status.h"
 #include "bindings/crash_log.h"
@@ -22,7 +21,6 @@ reg_mapped_server_page_def_t debug_server_pages[] = {
     // General Control Region
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MCU_CONTROL_PAGE_NUM, debug_server_mcu_control_regs),
     DEFINE_PAGE_UNIMPLEMENTED(CANMORE_DBG_VERSION_STRING_PAGE_NUM),  // To be filled in at startup
-    DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_MEM_STATS_PAGE_NUM, debug_server_memory_stats_regs),
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_GDB_STUB_PAGE_NUM, debug_server_gdb_stub_regs),
     DEFINE_PAGE_REG_MAPPED(CANMORE_DBG_REMOTE_CMD_PAGE_NUM, debug_server_remote_cmd_regs),
     // Handle remote_cmd as ptr rather than array since we have extra length to allow terminating, so we don't want to
@@ -58,6 +56,7 @@ void debug_init(reg_mapped_server_tx_func tx_func) {
     // Run any other initialization routines
     mcu_control_bindings_init();
     debug_remote_cmd_init();
+    debug_register_global_remote_cmds();
 }
 
 void debug_process_message(uint8_t *msg_buffer, size_t len) {

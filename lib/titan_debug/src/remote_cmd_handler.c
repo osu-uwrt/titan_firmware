@@ -174,15 +174,14 @@ static cmd_handler_t *debug_remote_cmd_get_handler(const char *cmd_name) {
 
 static int debug_remote_cmd_help_handler(size_t argc, const char *const *argv, FILE *fout) {
     if (argc == 1) {
-        fputs("List of Commands:\n", fout);
+        fputs("=====List of Commands=====\n", fout);
         for (size_t i = 0; i < debug_remote_cmd_handler_count; i++) {
             cmd_handler_t *handler = debug_remote_cmd_handler_by_idx(i);
             // This shouldn't happen, but in case it does (e.g. memory corruption), handle it deterministically
             if (!handler)
                 return -1;
 
-            fputs(handler->name, fout);
-            fputc('\n', fout);
+            fprintf(fout, " %s\n", handler->name);
         }
         return 0;
     }

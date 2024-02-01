@@ -127,60 +127,115 @@ public:
     }
 };
 
-class AppFaultsCommand : public CLICommandHandler<Canmore::DebugClient> {
+class AppFaultCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppFaultsCommand(): CLICommandHandler("faults") {}
+    AppFaultCommand(): CLICommandHandler("fault") {}
 
-    std::string getArgList() const override { return "[-a]"; }
+    std::string getArgList() const override { return "[action] [fault num (for raise/lower)]"; }
     std::string getHelp() const override {
-        return "Returns the list of active faults.\nPassing -a requests all faults";
+        return "Interfaces with the Titan Safety Fault System\n"
+               "Valid Actions:\n"
+               "  list: Lists active faults (Default)\n"
+               "  listall: Lists all faults, including inactive ones\n"
+               "  raise: Raises the specified fault number\n"
+               "  lower: Lowers the specified fault number";
     }
 
     void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
+        if (args.size() > 2) {
+            interface.writeLine("Invalid Syntax!");
+            interface.showHelp(commandName, true);
+            return;
+        }
+
         // Command Parsing
-        bool show_all = false;
-        for (auto &arg : args) {
-            if (arg == "-a") {
-                show_all = true;
+        bool doRaise = false;
+        bool doLower = false;
+        bool listAll = false;
+        if (args.size() > 0) {
+            const std::string &action = args.at(0);
+            if (action == "raise") {
+                doRaise = true;
             }
-            else {
-                interface.writeLine("Unexpected arg: " + arg);
-                interface.showHelp(commandName, true);
+            else if (action == "lower") {
+                doLower = true;
+            }
+            else if (action == "listall") {
+                listAll = true;
+            }
+            else if (action != "list") {
+                interface.writeLine("Invalid Action: " + action);
+                return;
             }
         }
 
-        // Extract Fault Data
-        uint32_t activeFaults = interface.handle->getActiveFaults();
-        std::vector<Canmore::FaultData> faultList;
-        if (show_all) {
-            for (uint32_t i = 0; i < 32; i++) {
-                faultList.push_back(interface.handle->lookupFaultData(i));
+        // Do the action
+        if (doRaise || doLower) {
+            // Doing a raise/lower
+            if (args.size() != 2) {
+                interface.writeLine("Invalid Syntax: Fault number argument required");
+                interface.showHelp(commandName, true);
+                return;
+            }
+
+            uint32_t faultId;
+            if (!decodeU32(args.at(1), faultId, 31)) {
+                interface.writeLine("Invalid fault id specified, expected integer <32.");
+                interface.writeLine("Use 'listall' action to view ID to name mapping");
+                return;
+            }
+
+            if (doRaise) {
+                interface.writeLine("Raising fault " + interface.handle->lookupFaultName(faultId));
+                interface.handle->raiseFault(faultId);
+            }
+            else {
+                interface.writeLine("Lowering fault " + interface.handle->lookupFaultName(faultId));
+                interface.handle->lowerFault(faultId);
             }
         }
         else {
-            for (uint32_t i = 0; i < 32; i++) {
-                if (activeFaults & (1ul << i)) {
+            // Doing list, don't need any extra args
+            if (args.size() > 1) {
+                interface.writeLine("Invalid Syntax!");
+                interface.showHelp(commandName, true);
+                return;
+            }
+
+            // Extract Fault Data
+            uint32_t activeFaults = interface.handle->getActiveFaults();
+            std::vector<Canmore::FaultData> faultList;
+            if (listAll) {
+                for (uint32_t i = 0; i < 32; i++) {
                     faultList.push_back(interface.handle->lookupFaultData(i));
                 }
             }
-        }
-
-        // Render fault data
-        if (faultList.size() > 0) {
-            FaultRenderer renderer(faultList, show_all);
-            std::string headerRow = renderer.renderHeader();
-
-            // Render header
-            renderHeader((show_all ? "All Faults" : "Active Faults"), headerRow.length() - 13);  // Subtract ansi codes
-            interface.writeLine(headerRow);
-
-            // Render faults
-            for (auto row : renderer) {
-                interface.writeLine(row);
+            else {
+                for (uint32_t i = 0; i < 32; i++) {
+                    if (activeFaults & (1ul << i)) {
+                        faultList.push_back(interface.handle->lookupFaultData(i));
+                    }
+                }
             }
-        }
-        else {
-            interface.writeLine(COLOR_HEADER "    No faults" COLOR_RESET CLEAR_LINE_AFTER);
+
+            // Render fault data
+            if (faultList.size() > 0) {
+                FaultRenderer renderer(faultList, listAll);
+                std::string headerRow = renderer.renderHeader();
+
+                // Render header
+                renderHeader((listAll ? "All Faults" : "Active Faults"),
+                             headerRow.length() - 13);  // Subtract ansi codes
+                interface.writeLine(headerRow);
+
+                // Render faults
+                for (auto row : renderer) {
+                    interface.writeLine(row);
+                }
+            }
+            else {
+                interface.writeLine(COLOR_HEADER "    No faults" COLOR_RESET CLEAR_LINE_AFTER);
+            }
         }
     }
 
@@ -287,56 +342,6 @@ public:
     };
 };
 
-class AppRaiseFaultCommand : public CLICommandHandler<Canmore::DebugClient> {
-public:
-    AppRaiseFaultCommand(): CLICommandHandler("raisefault") {}
-
-    std::string getArgList() const override { return "[fault id]"; }
-    std::string getHelp() const override { return "Raises the requested fault id."; }
-
-    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        if (args.size() != 1) {
-            interface.writeLine("Expected 1 argument");
-            interface.showHelp(commandName, true);
-            return;
-        }
-
-        uint32_t faultId;
-        if (!decodeU32(args.at(0), faultId, 31)) {
-            interface.writeLine("Invalid fault id specified, expected integer <32.");
-            return;
-        }
-
-        interface.writeLine("Raising fault " + interface.handle->lookupFaultName(faultId));
-        interface.handle->raiseFault(faultId);
-    }
-};
-
-class AppLowerFaultCommand : public CLICommandHandler<Canmore::DebugClient> {
-public:
-    AppLowerFaultCommand(): CLICommandHandler("lowerfault") {}
-
-    std::string getArgList() const override { return "[fault id]"; }
-    std::string getHelp() const override { return "Lowers the requested fault id."; }
-
-    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        if (args.size() != 1) {
-            interface.writeLine("Expected 1 argument");
-            interface.showHelp(commandName, true);
-            return;
-        }
-
-        uint32_t faultId;
-        if (!decodeU32(args.at(0), faultId, 31)) {
-            interface.writeLine("Invalid fault id specified, expected integer <32.");
-            return;
-        }
-
-        interface.writeLine("Lowering fault " + interface.handle->lookupFaultName(faultId));
-        interface.handle->lowerFault(faultId);
-    }
-};
-
 class AppUptimeCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
     AppUptimeCommand(): CLICommandHandler("uptime") {}
@@ -381,59 +386,6 @@ public:
     }
 };
 
-class AppMemoryStatsCommand : public CLICommandHandler<Canmore::DebugClient> {
-public:
-    AppMemoryStatsCommand(): CLICommandHandler("memstats") {}
-
-    std::string getArgList() const override { return ""; }
-    std::string getHelp() const override { return "Reports device memory statistics."; }
-
-    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        (void) args;
-        auto stats = interface.handle->getMemoryStats();
-        uint32_t reservedMem = stats.totalMem - stats.heapUse;
-
-        // TODO: Move to remote command
-
-        renderField("Memory Usage", formatPercent(stats.arena - stats.keepcost + reservedMem, stats.totalMem), 40);
-        renderField("Total memory on chip", formatMemory(stats.totalMem), 40);
-        renderField("Static memory reserved", formatMemory(stats.staticUse), 40);
-        renderField("Stack memory reserved", formatMemory(stats.stackUse), 40);
-        renderField("Total heap memory", formatMemory(stats.heapUse), 40);
-        renderField("Heap reserved [Used & Free] (arena)", formatMemory(stats.arena), 40);
-        renderField("# of free chunks (ordblks)", std::to_string(stats.ordblks) + " blocks", 40);
-        renderField("Total allocated (uordblks)", formatMemory(stats.uordblks), 40);
-        renderField("Total free space (fordblks)", formatMemory(stats.fordblks), 40);
-        renderField("Free space at top of heap (keepcost)", formatMemory(stats.keepcost), 40);
-        if (stats.hblks > 0 || stats.hblkhd > 0) {
-            renderField("# of mem-mapped regions (hblks)", std::to_string(stats.hblks) + " blocks", 40);
-            renderField("Bytes in mem-mapped regions (hblkhd)", formatMemory(stats.hblkhd), 40);
-        }
-    }
-
-private:
-    std::string formatMemory(unsigned int bytes) {
-        std::stringstream output;
-        output << std::fixed << std::setprecision(2);
-        if (bytes > 1024 * 1024) {
-            output << (float) bytes / (1024 * 1024) << " MB";
-        }
-        else if (bytes > 1024) {
-            output << (float) bytes / 1024 << " KB";
-        }
-        else {
-            output << bytes << " bytes";
-        }
-        return output.str();
-    }
-
-    std::string formatPercent(double numerator, double denominator) {
-        std::stringstream output;
-        output << std::fixed << std::setprecision(2) << 100 * (numerator / denominator) << " %";
-        return output.str();
-    }
-};
-
 class AppGdbServer : public CLICommandHandler<Canmore::DebugClient> {
 public:
     AppGdbServer(): CLICommandHandler("gdbserver") {}
@@ -456,132 +408,162 @@ public:
     }
 };
 
-class AppMemReadCommand : public CLICommandHandler<Canmore::DebugClient> {
+class AppMemCommand : public CLICommandHandler<Canmore::DebugClient> {
 public:
-    AppMemReadCommand(): CLICommandHandler("mem_read") {}
+    AppMemCommand(): CLICommandHandler("mem") {}
 
-    std::string getArgList() const override { return "[address]"; }
-    std::string getHelp() const override { return "Reads the specified address in memory"; }
-
-    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        if (args.size() != 1) {
-            interface.writeLine("Expected 1 argument");
-            interface.showHelp(commandName, true);
-            return;
-        }
-
-        uint32_t address;
-        if (!decodeU32(args.at(0), address)) {
-            interface.writeLine("Invalid 32-bit integer provided for address");
-            return;
-        }
-
-        if (address % 4 != 0) {
-            interface.writeLine("Invalid address: must be 32-bit aligned");
-            return;
-        }
-
-        uint32_t data = interface.handle->readMemory(address);
-
-        std::stringstream out;
-        out << "0x" << std::setw(8) << std::hex << std::uppercase << std::setfill('0') << data;
-        interface.writeLine(out.str());
-    }
-};
-
-class AppMemWriteCommand : public CLICommandHandler<Canmore::DebugClient> {
-public:
-    AppMemWriteCommand(): CLICommandHandler("mem_write") {}
-
-    std::string getArgList() const override { return "[address] [data]"; }
-    std::string getHelp() const override { return "Writes data to the specified address in memory"; }
-
-    void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        if (args.size() != 2) {
-            interface.writeLine("Expected 2 arguments");
-            interface.showHelp(commandName, true);
-            return;
-        }
-
-        uint32_t address;
-        uint32_t data;
-
-        if (!decodeU32(args.at(0), address)) {
-            interface.writeLine("Invalid 32-bit integer provided for address");
-            return;
-        }
-
-        if (address % 4 != 0) {
-            interface.writeLine("Invalid address: must be 32-bit aligned");
-            return;
-        }
-
-        if (!decodeU32(args.at(1), data)) {
-            interface.writeLine("Invalid 32-bit integer provided for data");
-            return;
-        }
-
-        interface.handle->writeMemory(address, data);
-    }
-};
-
-class AppMemReadStrCommand : public CLICommandHandler<Canmore::DebugClient> {
-public:
-    AppMemReadStrCommand(): CLICommandHandler("mem_readstr") {}
-
-    std::string getArgList() const override { return "[address] [maxlen: Default 256]"; }
+    std::string getArgList() const override { return "[action] [...]"; }
     std::string getHelp() const override {
-        return "Reads the string at the corresponding address in memory (maxes at 256 bytes)";
+        return "Performs various low-level actions to device memory:\n"
+               "Actions:\n"
+               "  read [address]\n"
+               "    Reads the word at the specified address\n"
+               "  write [address] [data]\n"
+               "    Writes the provided data word to the specified word-aligned address\n"
+               "  readstr [address] [optional max len]\n"
+               "    Reads the null-terminated string at the specified word-aligned address\n"
+               "    The max len determines how far to search for the null termination (Defaults to 256)\n"
+               "  dump [address] [length]\n"
+               "    Shows a hex dump starting at the provided address (must be word-aligned)";
     }
 
     void callback(CLIInterface<Canmore::DebugClient> &interface, std::vector<std::string> const &args) override {
-        uint32_t address;
-        uint32_t maxLen = 256;
-
-        if (args.size() == 2) {
-            if (!decodeU32(args.at(1), maxLen)) {
-                interface.writeLine("Invalid 32-bit integer provided for max length");
-                return;
-            }
-        }
-        else if (args.size() != 1) {
-            interface.writeLine("Expected 1 argument");
+        if (args.size() < 2 || args.size() > 3) {
+            interface.writeLine("Invalid Syntax: Expected 2-3 arguments");
             interface.showHelp(commandName, true);
             return;
         }
 
-        if (!decodeU32(args.at(0), address)) {
+        // Decode Action
+        const std::string &action = args.at(0);
+        bool isWrite = false;
+        bool readString = false;
+        bool isDump = false;
+        if (action == "write") {
+            isWrite = true;
+        }
+        else if (action == "dump") {
+            isDump = true;
+        }
+        else if (action == "readstr") {
+            readString = true;
+        }
+        else if (action != "read") {
+            interface.writeLine("Invalid Action: " + action);
+            interface.showHelp(commandName, true);
+            return;
+        }
+
+        // Decode Address
+        uint32_t address;
+        if (!decodeU32(args.at(1), address)) {
             interface.writeLine("Invalid 32-bit integer provided for address");
             return;
         }
 
-        uint32_t curLen = 0;
-        std::stringstream data;
-        data << COLOR_HEADER "String @0x" << std::hex << std::setw(8) << std::setfill('0') << address
-             << ": " COLOR_RESET;
+        if (address % 4 != 0 && !readString) {
+            interface.writeLine("Invalid address: must be 32-bit aligned");
+            return;
+        }
 
-        bool addrValid = false;
-        uint32_t addrAligned = 0;
-        uint32_t curData = 0;
-        while (curLen < maxLen) {
-            uint32_t curIdx = (uint32_t) ((address + curLen) % 4);
-            uint32_t curWord = (uint32_t) ((address + curLen) - curIdx);
-
-            if (!addrValid || curWord != addrAligned) {
-                addrAligned = curWord;
-                curData = interface.handle->readMemory(addrAligned);
-            }
-
-            char curChar = (curData >> (curIdx * 8)) & 0xFF;
-            if (curChar == 0) {
-                interface.writeLine(data.str());
+        // Decode optional third argument
+        bool hasThirdArg = (args.size() >= 3);
+        uint32_t thirdArg;
+        if (hasThirdArg) {
+            if (!decodeU32(args.at(2), thirdArg)) {
+                interface.writeLine("Invalid integer provided in third argument (must be either hex or decimal)");
                 return;
             }
-            data << curChar;
-            curLen++;
         }
-        interface.writeLine(data.str());
-        interface.writeLine("[WARN] Reached maximum length of " + std::to_string(maxLen));
+
+        // Perform operation
+        if (isWrite) {
+            // Perform Write
+            if (!hasThirdArg) {
+                interface.writeLine("Invalid Syntax: Write requires data argument to be provided");
+                interface.showHelp(commandName, true);
+                return;
+            }
+
+            interface.handle->writeMemory(address, thirdArg);
+        }
+        else if (readString) {
+            uint32_t maxLen = (hasThirdArg ? thirdArg : 256);
+
+            // Perform String Read
+            uint32_t curLen = 0;
+            std::stringstream data;
+            data << COLOR_HEADER "String @0x" << std::hex << std::setw(8) << std::setfill('0') << address
+                 << ": \"" COLOR_RESET;
+
+            bool addrValid = false;
+            uint32_t addrAligned = 0;
+            uint32_t curData = 0;
+            while (curLen < maxLen) {
+                uint32_t curIdx = (uint32_t) ((address + curLen) % 4);
+                uint32_t curWord = (uint32_t) ((address + curLen) - curIdx);
+
+                if (!addrValid || curWord != addrAligned) {
+                    addrAligned = curWord;
+                    curData = interface.handle->readMemory(addrAligned);
+                }
+
+                char curChar = (curData >> (curIdx * 8)) & 0xFF;
+                if (curChar == 0) {
+                    data << COLOR_HEADER "\"" COLOR_RESET;
+                    interface.writeLine(data.str());
+                    return;
+                }
+                data << curChar;
+                curLen++;
+            }
+            interface.writeLine(data.str());
+            interface.writeLine(COLOR_NOTICE "[WARN] Reached maximum length of " + std::to_string(maxLen) +
+                                COLOR_RESET);
+        }
+        else if (isDump) {
+            // Perform hex dump
+            if (!hasThirdArg) {
+                interface.writeLine("Invalid Syntax: Hex dump requires length argument to be provided");
+                interface.showHelp(commandName, true);
+                return;
+            }
+
+            uint32_t length = thirdArg;
+
+            if (length % 4 != 0 || length == 0) {
+                interface.writeLine("Invalid Length: Must be divisible by word size");
+                return;
+            }
+
+            renderHeader("Memory Hex Dump");
+            std::vector<uint8_t> data;
+            data.reserve(length);
+
+            for (uint32_t i = 0; i < length; i += 4) {
+                uint32_t word = interface.handle->readMemory(address + i);
+                data.push_back(word & 0xFF);
+                data.push_back((word >> 8) & 0xFF);
+                data.push_back((word >> 16) & 0xFF);
+                data.push_back((word >> 24) & 0xFF);
+            }
+
+            DumpHex(address, data.data(), data.size());
+        }
+        else {
+            if (hasThirdArg) {
+                interface.writeLine("Invalid Syntax: Expected 2 arguments");
+                interface.showHelp(commandName, true);
+                return;
+            }
+
+            // Perform Word Read
+            uint32_t data = interface.handle->readMemory(address);
+
+            std::stringstream out;
+            out << "0x" << std::setw(8) << std::hex << std::uppercase << std::setfill('0') << data;
+            interface.writeLine(out.str());
+        }
     }
 };
 
@@ -695,20 +677,14 @@ private:
 };
 
 ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CLIInterface(handle) {
-    // TODO: Consolidate some of the commands (like fault and mem commands)
     registerCommand(std::make_shared<AppUptimeCommand>());
     registerCommand(std::make_shared<AppVersionCommand>());
     registerCommand(std::make_shared<AppRebootCommand>());
     registerCommand(std::make_shared<AppEnterBootloaderCommand>());
     registerCommand(std::make_shared<AppCrashlogCommand>());
-    registerCommand(std::make_shared<AppFaultsCommand>());
-    registerCommand(std::make_shared<AppRaiseFaultCommand>());
-    registerCommand(std::make_shared<AppLowerFaultCommand>());
+    registerCommand(std::make_shared<AppFaultCommand>());
     registerCommand(std::make_shared<AppSafetyStatusCommand>());
-    registerCommand(std::make_shared<AppMemoryStatsCommand>());
-    registerCommand(std::make_shared<AppMemReadCommand>());
-    registerCommand(std::make_shared<AppMemWriteCommand>());
-    registerCommand(std::make_shared<AppMemReadStrCommand>());
+    registerCommand(std::make_shared<AppMemCommand>());
     registerCommand(std::make_shared<AppGdbServer>());
     registerCommandPrefix(std::make_shared<AppRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());

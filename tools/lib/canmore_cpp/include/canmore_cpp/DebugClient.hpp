@@ -216,20 +216,6 @@ struct CrashLogEntry {
     }
 };
 
-struct MemoryStats {
-    uint32_t totalMem;
-    uint32_t heapUse;
-    uint32_t stackUse;
-    uint32_t staticUse;
-    uint32_t arena;
-    uint32_t ordblks;
-    uint32_t hblks;
-    uint32_t hblkhd;
-    uint32_t uordblks;
-    uint32_t fordblks;
-    uint32_t keepcost;
-};
-
 struct FaultData {
     uint32_t faultId;
     std::string name;
@@ -282,10 +268,10 @@ public:
     void reboot();
     void ping() override;
 
+    // Remote Command Execution
     int executeRemoteCmd(std::vector<std::string> const &args, std::string &response);
 
     // Misc Debug Information
-    MemoryStats getMemoryStats();
     SafetyStatus getSafetyStatus();
     Uptime getUptime();
     CrashCounter getCrashCounter();

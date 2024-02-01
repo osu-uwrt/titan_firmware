@@ -129,26 +129,6 @@ void DebugClient::getCrashLog(std::vector<CrashLogEntry> &crashLogOut) {
     }
 }
 
-MemoryStats DebugClient::getMemoryStats() {
-    RegisterPage memoryStatsPage(client, debug_itf_mode, CANMORE_DBG_MEM_STATS_PAGE_NUM);
-    MemoryStats stats;
-
-    memoryStatsPage.writeRegister(CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET, 1);
-    stats.totalMem = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET);
-    stats.heapUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET);
-    stats.stackUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET);
-    stats.staticUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET);
-    stats.arena = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ARENA_OFFSET);
-    stats.ordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET);
-    stats.hblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKS_OFFSET);
-    stats.hblkhd = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET);
-    stats.uordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET);
-    stats.fordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET);
-    stats.keepcost = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET);
-
-    return stats;
-}
-
 uint32_t DebugClient::readMemory(uint32_t addr) {
     RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
     gdbStubPage.writeRegister(CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET, addr);

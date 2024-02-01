@@ -14,4 +14,7 @@ extern reg_mapped_server_page_def_t debug_server_pages[];
 void debug_remote_cmd_init(void);
 int debug_remote_cmd_handle(const char *args, size_t resp_size, char *resp);
 
+// Handles registration for global remote commands (rather than passing complex data objects over titan debug)
+void debug_register_global_remote_cmds(void);
+
 #endif

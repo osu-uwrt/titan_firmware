@@ -12,6 +12,7 @@
 #include <vector>
 
 bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max = UINT32_MAX);
+void DumpHex(uint32_t address, const void *data, size_t size);
 
 template <class T> class CLIInterface;
 
