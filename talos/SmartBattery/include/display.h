@@ -4,8 +4,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-extern absolute_time_t display_poweroff_time;
-
 /**
  * @brief Initialize LCD screen
  *
@@ -20,6 +18,8 @@ void display_init(void);
  * @param voltage Battery current voltage
  */
 void display_show_stats(unsigned int serial, unsigned int soc, float voltage);
+
+void display_tick(uint16_t serial);
 
 void display_show_menu(uint8_t op_hl);
 

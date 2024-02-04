@@ -14,6 +14,11 @@ static bq40z80_error_cb board_error_callback;
 static bool battery_connected;
 static int err_count = 2;
 
+// Add checks into all code, and make sure this check is valid
+#define I2CCHECK(func)                                                                                                 \
+    if (func != 0)                                                                                                     \
+        return false;
+
 /**
  * @brief perform i2c pio transfer
  *
@@ -128,10 +133,6 @@ static void bq40z80_read_mfg_info(bq_mfg_info_t *mfg_out) {
     mfg_out->name[data[0] + 1] = 0;
 }
 
-// Add checks into all code, and make sure this check is valid
-#define I2CCHECK(func)                                                                                                 \
-    if (func != 0)                                                                                                     \
-        return false;
 /**
  * @brief read bq40z80 SOC, average current, DSG/CHG mode and their respective voltage, current, and time
  *
@@ -141,36 +142,29 @@ static bool bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
     uint16_t data;
     uint32_t safety_status;
 
-    sbs_read_u2(&data, BQ_READ_GPIO);
+    I2CCHECK(sbs_read_u2(&data, BQ_READ_GPIO));
     bat_out->port_detected = (data & 0x8) != 0;
-    sbs_read_u2(&data, BQ_READ_PACK_STAT);
-    if (data & 0x40) {
-        // DISCHARGING mode
-        bat_out->dsg_mode = true;
-        I2CCHECK(sbs_read_u2(&bat_out->voltage, BQ_READ_PACK_VOLT));
-        sbs_read_i2(&bat_out->current, BQ_READ_PACK_CURR);
-        sbs_read_u2(&bat_out->time_to_empty, BQ_READ_TIME_EMPT);
-    }
-    else {
-        // CHARGING mode
-        bat_out->dsg_mode = false;
-        sbs_read_u2(&bat_out->chg_voltage, BQ_READ_CHG_VOLT);
-        sbs_read_u2(&bat_out->chg_current, BQ_READ_CHG_CURR);
-        sbs_read_u2(&bat_out->time_to_full, BQ_READ_TIME_FULL);
-    }
-    sbs_read_i2(&bat_out->avg_current, BQ_READ_AVRG_CURR);
-    sbs_read_u1(&bat_out->soc, BQ_READ_RELAT_SOC);
+    I2CCHECK(sbs_read_u2(&data, BQ_READ_PACK_STAT));
+    bat_out->dsg_mode = (data & 0x40) ? true : false;
+    I2CCHECK(sbs_read_u2(&bat_out->voltage, BQ_READ_PACK_VOLT));
+    I2CCHECK(sbs_read_i2(&bat_out->current, BQ_READ_PACK_CURR));
+    I2CCHECK(sbs_read_u2(&bat_out->time_to_empty, BQ_READ_TIME_EMPT));
+    I2CCHECK(sbs_read_u2(&bat_out->chg_voltage, BQ_READ_CHG_VOLT));
+    I2CCHECK(sbs_read_u2(&bat_out->chg_current, BQ_READ_CHG_CURR));
+    I2CCHECK(sbs_read_u2(&bat_out->time_to_full, BQ_READ_TIME_FULL));
+    I2CCHECK(sbs_read_i2(&bat_out->avg_current, BQ_READ_AVRG_CURR));
+    I2CCHECK(sbs_read_u1(&bat_out->soc, BQ_READ_RELAT_SOC));
     // Checks for Battery Presense and Safety Status alarms
-    sbs_read_h4(&safety_status, BQ_READ_OPER_STAT);
+    I2CCHECK(sbs_read_h4(&safety_status, BQ_READ_OPER_STAT));
     bat_out->battery_presence = (safety_status & 0x1) != 0;
     if ((safety_status & 0x800) != 0) {
-        sbs_read_h4(&safety_status, BQ_READ_SAFE_STAT);
+        I2CCHECK(sbs_read_h4(&safety_status, BQ_READ_SAFE_STAT));
         board_error_callback(BQ_ERROR_SAFETY_STATUS, safety_status);
     }
     return true;
 }
 
-static void bq40z80_update_soc_leds(uint8_t soc) {
+void bq40z80_update_soc_leds(uint8_t soc) {
     uint8_t state = 0;
     if (soc > WARN_SOC_THRESH) {
         state = 2;
@@ -226,9 +220,16 @@ void bq40z80_init(bq40z80_error_cb error_cb) {
 bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info_t *bat_out, bq_mfg_info_t *mfg_out) {
     uint16_t serial;
     // Better handling between serial errors and connection faults
-    sbs_read_u2(&serial, BQ_READ_CELL_SERI);
-    // Take into account failure return code on serial number things
-    if (serial == sbh_mcu_serial) {
+    // sbs_read_u2(&serial, BQ_READ_CELL_SERI);
+    if (sbs_read_u2(&serial, BQ_READ_CELL_SERI) != 0 || serial == 0xffff || serial == 0x0000) {
+        bq40z80_on_error();
+        return false;
+    }
+    else if (serial != sbh_mcu_serial) {
+        board_error_callback(BQ_ERROR_SERIAL_MISMATCHED, 0);
+        return false;
+    }
+    else {
         err_count = 0;
         if (!battery_connected) {
             battery_connected = true;
@@ -238,13 +239,7 @@ bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info
             bq40z80_read_mfg_info(mfg_out);
         }
         bq40z80_read_battery_info(bat_out);
-        // Take this out of here
-        bq40z80_update_soc_leds(bat_out->soc);
         return true;
-    }
-    else {
-        bq40z80_on_error();
-        return false;
     }
 }
 

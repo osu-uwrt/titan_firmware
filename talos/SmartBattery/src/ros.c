@@ -165,7 +165,7 @@ rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     status.pack_voltage = ((float) core1_voltage()) / 1000.0;
     status.pack_current = ((float) core1_current()) / 1000.0;
     status.average_current = ((float) core1_avg_current()) / 1000.0;
-    status.time_to_dischg = core1_remaining_time();
+    status.time_to_dischg = core1_time_to_empty();
     status.soc = core1_soc();
 
     // send out the ros message

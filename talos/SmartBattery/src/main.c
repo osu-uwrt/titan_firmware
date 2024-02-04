@@ -24,7 +24,6 @@
 #define PRESENCE_TIMEOUT_COUNT 10
 #define PWRCYCL_CHECK_INTERVAL_MS 250
 #define PWR_CYCLE_DURATION_MS 10000
-#define DISPLAY_UPDATE_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -36,18 +35,6 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_pack_present_update = { 0 };
 absolute_time_t next_battery_status_update = { 0 };
 absolute_time_t next_pwrcycl_update = { 0 };
-absolute_time_t next_display_update = { 0 };
-
-// Forces lcd to draw for the first bit of power on, prevents needing to hold the magnet near the pack
-absolute_time_t lcd_poweron_delay = { 0 };
-
-static absolute_time_t hold_time = { 0 };
-
-static uint8_t menu_option = 3;
-
-static bool next_menu_option = false;
-
-static bool battery_input_hold = false;
 
 uint8_t presence_fail_count = 0;
 
@@ -145,31 +132,7 @@ static void tick_background_tasks() {
     }
 
     // Update LCD if reed switch held and we are in time for a display update
-    if (time_reached(next_display_update)) {
-        if (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay)) {
-            if (next_menu_option) {
-                next_menu_option = false;
-                menu_option = (menu_option >= 3) ? 0 : menu_option + 1;
-            }
-            if (!battery_input_hold) {
-                // Hold 3 seconds to choose menu option
-                hold_time = make_timeout_time_ms(3000);
-                battery_input_hold = true;
-            }
-            next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
-            display_show_menu(menu_option);
-        }
-        else if (!time_reached(display_poweroff_time)) {
-            if (time_reached(hold_time) && battery_input_hold)
-                display_show_option(bq_mfg_info.serial, menu_option, core1_dsg_mode());
-            else
-                next_menu_option = true;
-            battery_input_hold = false;
-        }
-        else {
-            menu_option = 3;
-        }
-    }
+    display_tick(bq_mfg_info.serial);
 
     if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
         // check if we need to update the presence counter
@@ -241,9 +204,6 @@ int main() {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
-
-    // Force display to refresh for the first 5s of poweron
-    lcd_poweron_delay = make_timeout_time_ms(5000);
 
     // Enter main loop
     // This is split into two sections of timers

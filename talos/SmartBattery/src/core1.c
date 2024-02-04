@@ -60,9 +60,12 @@ static volatile struct core1_status_shared_mem {
     int16_t avg_current;
     uint8_t soc;
     bool dsg_mode;
-    uint16_t remaining_time;
+    uint16_t time_to_empty;
+    uint16_t time_to_full;
     uint16_t voltage;
-    uint16_t current;
+    int16_t current;
+    uint16_t chg_voltage;
+    uint16_t chg_current;
 
 } shared_status = { 0 };
 
@@ -80,40 +83,6 @@ static volatile struct core1_mfg_info_shared_mem {
      */
     struct bq_mfg_info_t pack_info;
 } shared_mfg_info = { 0 };
-
-// Axe the timer ready
-/**
- * @brief Check if a timer is ready. If so advance it to the next interval.
- *
- * This will also raise a fault if timers are missed
- *
- * @param next_fire_ptr A pointer to the absolute_time_t holding the time the timer should next fire
- * @param interval_ms The interval the timer fires at
- * @return true The timer has fired, any action which was waiting for this timer should occur
- * @return false The timer has not fired
- */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
-    absolute_time_t time_tmp = *next_fire_ptr;
-    if (time_reached(time_tmp)) {
-        time_tmp = delayed_by_ms(time_tmp, interval_ms);
-        if (time_reached(time_tmp)) {
-            unsigned int i = 0;
-            while (time_reached(time_tmp)) {
-                time_tmp = delayed_by_ms(time_tmp, interval_ms);
-                i++;
-            }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
-                     next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
-        }
-        *next_fire_ptr = time_tmp;
-        return true;
-    }
-    else {
-        return false;
-    }
-}
 
 static void core1_bq40z80_error_cb(const bq_error type, const int error_code) {
     if (type == BQ_ERROR_SAFETY_STATUS) {
@@ -154,19 +123,14 @@ static void core1_bq40z80_flush_battery_info(bq_battery_info_t *bat_stat) {
     shared_status.port_detected = bat_stat->port_detected;
     shared_status.avg_current = bat_stat->avg_current;
     shared_status.soc = bat_stat->soc;
-    // DSCH Mode
-    if ((shared_status.dsg_mode = bat_stat->dsg_mode)) {
-        shared_status.remaining_time = bat_stat->time_to_empty;
-        shared_status.voltage = bat_stat->voltage;
-        shared_status.current = (uint16_t) bat_stat->current;
-    }
-    // CHG Mode
-    else {
-        shared_status.remaining_time = bat_stat->time_to_full;
-        // Separate out into another value, read both
-        shared_status.voltage = bat_stat->chg_voltage;
-        shared_status.current = bat_stat->chg_current;
-    }
+    shared_status.dsg_mode = bat_stat->dsg_mode;
+    shared_status.time_to_empty = bat_stat->time_to_empty;
+    shared_status.voltage = bat_stat->voltage;
+    shared_status.current = bat_stat->current;
+    shared_status.time_to_full = bat_stat->time_to_full;
+    shared_status.chg_voltage = bat_stat->chg_voltage;
+    shared_status.chg_current = bat_stat->chg_current;
+
     spin_unlock(shared_status.lock, irq);
 }
 
@@ -179,9 +143,10 @@ static void __time_critical_func(core1_main)(void) {
     while (1) {
         safety_core1_checkin();
 
-        // Switch to time_reached
-        if (timer_ready(&next_bq40z80_refresh, BQ40Z80_REFRESH_TIME_MS, false)) {
+        if (time_reached(next_bq40z80_refresh)) {
+            next_bq40z80_refresh = make_timeout_time_ms(BQ40Z80_REFRESH_TIME_MS);
             if (bq40z80_refresh_reg(sbh_mcu_serial, read_once_cached, &battery_status_info, &battery_mfg_info)) {
+                bq40z80_update_soc_leds(core1_soc());
                 if (!read_once_cached) {
                     read_once_cached = true;
                     core1_bq40z80_flush_mfg_info(&battery_mfg_info);
@@ -274,10 +239,10 @@ uint8_t core1_soc(void) {
     return soc_out;
 }
 
-uint16_t core1_remaining_time(void) {
+uint16_t core1_time_to_empty(void) {
     uint16_t remaining_time_out;
     uint32_t irq = spin_lock_blocking(shared_status.lock);
-    remaining_time_out = shared_status.remaining_time;
+    remaining_time_out = shared_status.time_to_empty;
     spin_unlock(shared_status.lock, irq);
     return remaining_time_out;
 }
@@ -290,8 +255,8 @@ uint16_t core1_voltage(void) {
     return voltage_out;
 }
 
-uint16_t core1_current(void) {
-    uint16_t current_out;
+int16_t core1_current(void) {
+    int16_t current_out;
     uint32_t irq = spin_lock_blocking(shared_status.lock);
     current_out = shared_status.current;
     spin_unlock(shared_status.lock, irq);

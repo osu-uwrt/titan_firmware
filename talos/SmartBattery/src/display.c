@@ -9,8 +9,21 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-bool display_on = false;
+#define DISPLAY_UPDATE_INTERVAL_MS 1000
+
+absolute_time_t next_display_update = { 0 };
 absolute_time_t display_poweroff_time;
+absolute_time_t lcd_poweron_delay = { 0 };
+absolute_time_t hold_time = { 0 };
+
+static uint8_t menu_option = 3;
+
+static bool next_menu_option = false;
+
+static bool battery_input_hold = false;
+
+bool display_on = false;
+
 void display_init(void) {
     ssd1306_Init();
 
@@ -26,6 +39,39 @@ void display_init(void) {
     ssd1306_WriteString("Robotics", Font_7x10, White);
     ssd1306_DrawBitmap(79, 0, uwrt_logo_bin, uwrt_logo_bin_width, uwrt_logo_bin_height, White);
     ssd1306_UpdateScreen();
+
+    // Force display to refresh for the first 5s of poweron
+    lcd_poweron_delay = make_timeout_time_ms(5000);
+}
+
+void display_tick(uint16_t serial) {
+    if (time_reached(next_display_update)) {
+        if (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay)) {
+            if (next_menu_option) {
+                next_menu_option = false;
+                menu_option = (menu_option >= 3) ? 0 : menu_option + 1;
+            }
+            if (!battery_input_hold) {
+                // Hold 3 seconds to choose menu option
+                hold_time = make_timeout_time_ms(3000);
+                battery_input_hold = true;
+            }
+            next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
+            display_show_menu(menu_option);
+        }
+        else if (!time_reached(display_poweroff_time)) {
+            if (time_reached(hold_time) && battery_input_hold) {
+                display_show_option(serial, menu_option, core1_dsg_mode());
+            }
+            else {
+                next_menu_option = true;
+            }
+            battery_input_hold = false;
+        }
+        else {
+            menu_option = 3;
+        }
+    }
 }
 
 void display_show_stats(unsigned int serial, unsigned int soc, float voltage) {
@@ -116,7 +162,7 @@ void display_show_option(unsigned int serial, uint8_t op_hl, bool dsg_mode) {
     else if (op_hl == 2)
         snprintf(buf, sizeof(buf), "%.2f A", (float) core1_current() / 1000.0);
     else if (op_hl == 3)
-        snprintf(buf, sizeof(buf), "%d'", core1_remaining_time());
+        snprintf(buf, sizeof(buf), "%d'", core1_time_to_empty());
     ssd1306_WriteString(buf, Font_11x18, Black);
 
     ssd1306_SetCursor(86, 22);

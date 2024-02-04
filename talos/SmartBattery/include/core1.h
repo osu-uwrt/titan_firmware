@@ -25,11 +25,11 @@ int16_t core1_avg_current(void);
 
 uint8_t core1_soc(void);
 
-uint16_t core1_remaining_time(void);
+uint16_t core1_time_to_empty(void);
 
 uint16_t core1_voltage(void);
 
-uint16_t core1_current(void);
+int16_t core1_current(void);
 
 void core1_open_dsg_temp(const uint32_t open_time_ms);
 #endif

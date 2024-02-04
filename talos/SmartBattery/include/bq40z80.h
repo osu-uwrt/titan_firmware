@@ -66,6 +66,7 @@ typedef enum {
     BQ_ERROR_OFFLINE = 1,
     BQ_ERROR_SAFETY_STATUS,
     BQ_ERROR_I2C_DISCONNECT,
+    BQ_ERROR_SERIAL_MISMATCHED,
     BQ_ERROR_POWER_CYCLE_FAIL,
 } bq_error;
 
@@ -76,6 +77,8 @@ typedef void (*bq40z80_error_cb)(const bq_error type, const int error_code);
  *
  */
 void bq40z80_init(bq40z80_error_cb error_cb);
+
+void bq40z80_update_soc_leds(uint8_t soc);
 
 /**
  * @brief first check serial number, and if matched it does other register reads
