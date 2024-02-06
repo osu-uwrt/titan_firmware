@@ -165,8 +165,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 
     dest_dir_name="$(basename -- $dest_dir)"
     ssh ros@orin mkdir $remote_firmware_deploy_path/$dest_dir_name
-    scp $dest_dir/full_ota.tar ros@orin:/$remote_firmware_deploy_path/$dest_dir_name
-    ssh ros@orin tar -C "$remote_firmware_deploy_path/$dest_dir_name" -xvf full_ota.tar
+    scp $dest_dir/full_ota.tar ros@orin:$remote_firmware_deploy_path/$dest_dir_name
+    ssh ros@orin tar -C "$remote_firmware_deploy_path/$dest_dir_name" -xvf $remote_firmware_deploy_path/$dest_dir_name/full_ota.tar
 
     echo
     read -p "Would you like to flash the firmware to the robot? [y/N]: " -n 1 -r
