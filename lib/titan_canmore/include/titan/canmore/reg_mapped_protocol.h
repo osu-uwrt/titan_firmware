@@ -18,9 +18,13 @@ extern "C" {
  * it can be implemented as a sequence of register accesses, which will acknowledge the recipt, and report if the access
  * was successful.
  *
+ * This exposes a reliable interfaces to read and write logical units of data (registers) over an unreliable interface.
+ * This is useful for several applications, such as accessing large amounts of debug information, and acting as an
+ * interface for the bootloader, ensuring that data arrives intact, and no packets were dropped in the process.
  *
- * High-Level Definition
- * =====================
+ *
+ * High-Level Interface
+ * ====================
  *
  * All registers are 32-bits wide with a unique 16-bit address. Registers can represent a variety of objects by
  * the implementation, whether it be a single 32-bit word (to store configuration data such as a target address for an
@@ -33,6 +37,24 @@ extern "C" {
  * unimplemented register), the response to the request will notify the agent of this error.
  *
  * All multibyte fields in the CAN frame are in little endian.
+ *
+ *
+ * Protocol Flow
+ * =============
+ *
+ * The register mapped protocol works on a request response structure, where the register mapped client (usually a
+ * computer, called the "agent" can canmore protocol docs) sends a packet to the server (usually the microcontroller,
+ * called the "client" can canmore protocol docs). This packet will either attempt to read or write to a register (or
+ * multiple registers if multiword mode). The server will then send a response back to the client. Each register is
+ * assigned a unique address, defined by the higher level interface.
+ *
+ * The only time a response is not sent is if a bulk write is performed, where the state is saved until the end of the
+ * bulk write, upon which the bulk write is finished and the server will respond if all register writes were
+ * successfully received.
+ *
+ * Other than bulk writes, no state is saved by the server (although the higher level register interfaces may save
+ * state). This allows the server to continue to reliably operate even if transfers fail, as well as seamlessly support
+ * multiple clients* (however, bulk writes only support one client at a time).
  *
  *
  * Address Structure
@@ -56,14 +78,18 @@ extern "C" {
  * With this allocation scheme, each page can address up to 256 words, or 1024 (1K) bytes. This results in a total
  * addressable space of 64K words, or 256K bytes.
  *
- * The page-offset distinction can be ignored most of the time from the agent except for logical organization.
- * However, pages are important for multiword requests, where only certain pages support multiword requests and
- * a multiword request cannot cross a page boundary.
+ * The page-offset distinction is important when writing reg-mapped server code, as the reg-mapped server server to
+ * define a page as being backed by a series of individual registers or a contiguous block of memory (see
+ * reg_mapped_server.h)
+ *
+ * The page-offset distinction can be ignored most of the time from the reg-mapped client (usually the same node as
+ * the ROS agent) except for logical organization. However, pages are important for multiword requests, where only
+ * certain pages support multiword requests and a multiword request cannot cross a page boundary.
  *
  *
  * Bulk Requests
  * =============
- * Bulk requests are a agent to client requests which do not require a client to agent response after every request.
+ * Bulk requests are a client to server request which do not require a server to client response after every request.
  * This allows for a large amount of data to be queued without the overhead of waiting for a response. This can
  * increase throughput, especially when filling a number of registers representing a buffer.
  *
@@ -90,8 +116,8 @@ extern "C" {
  * requests, and only
  *
  *
- * Agent to Client Request
- * =======================
+ * Client to Server Request
+ * ========================
  *
  * Read Request Structure:
  *   +--------+--------+--------+--------+
@@ -115,16 +141,21 @@ extern "C" {
  *   +-*-*-*-+-*-+-*-+-*-+-*-+-*-+
  *     7   5   4   3   2   1   0
  *   Mode: The Control Interface Mode implemented by this protocol (See titan canmore heartbeat extension mode
- * description) R (RFU): Reserved for future use, set to 0 W (Write): Set to 1 if write request, 0 if read request B
- * (Bulk Request): Set to 1 if a bulk request, 0 if normal request E (Bulk End): Set to 1 if the last transfer in a bulk
- * request, 0 if not last request or not a bulk request M (Multiword): Set to 1 if multiple data words are being written
+ *         description)
+ *   R (RFU): Reserved for future use, set to 0
+ *   W (Write): Set to 1 if write request, 0 if read request
+ *   B (Bulk Request): Set to 1 if a bulk request, 0 if normal request
+ *   E (Bulk End): Set to 1 if the last transfer in a bulk request, 0 if not last request or not a bulk request
+ *   M (Multiword): Set to 1 if multiple data words are being written
+ *
  * Count: The number of words to read/write if If bulk request, an increasing counter for the bulk request
+ *
  * Reg Address: The 16-bit address for the register to access in little-endian. This is defined by the higher-level
  * protocol Data Word (Only if W=1): The 32-bit word to write in little-endian format
  *
  *
- * Client to Agent Response
- * ========================
+ * Server to Client Response
+ * =========================
  * A response should always be received for a request (or after a series of requests if performing a bulk request).
  * If a response is not received after a given timeout, the previous request can be re-transmitted. Care should be
  * taken by the client to ensure that repeated requests will not result in undesired results (such as if the request
@@ -160,10 +191,13 @@ extern "C" {
  *   3: Invalid Register Address
  *   4: Invalid Register Mode (Ex: Trying to write to a read-only register, multiword write across page boundary)
  *   5: Invalid Data (If attempting to write an invalid value, such an invalid command to a register which executes the
- * command) 6: Invalid Mode (The mode in the request does not match the mode for the reg mapped server) Seq No: The last
- * sequence number received from the agent if successful, or the sequence number the error occurred on (all subsequent
- * requests ignored) Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error
- * occurred
+ *      command)
+ *   6: Invalid Mode (The mode in the request does not match the mode for the reg mapped server)
+ *
+ * Seq No: The last sequence number received from the agent if successful, or the sequence number the error occurred on
+ * (all subsequent requests ignored)
+ *
+ * Data Word: The 32-bit word read from the register in little-endian if successful, or 0 if an error occurred
  */
 
 union reg_mapped_request_flags {

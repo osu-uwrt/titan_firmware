@@ -9,51 +9,19 @@
 #include <sstream>
 #include <thread>
 
-static void DumpHex(const void *data, size_t size) {
-    char ascii[17];
-    size_t i, j;
-    ascii[16] = '\0';
-    for (i = 0; i < size; ++i) {
-        printf("%02X ", ((unsigned char *) data)[i]);
-        if (((unsigned char *) data)[i] >= ' ' && ((unsigned char *) data)[i] <= '~') {
-            ascii[i % 16] = ((unsigned char *) data)[i];
-        }
-        else {
-            ascii[i % 16] = '.';
-        }
-        if ((i + 1) % 8 == 0 || i + 1 == size) {
-            printf(" ");
-            if ((i + 1) % 16 == 0) {
-                printf("|  %s \n", ascii);
-            }
-            else if (i + 1 == size) {
-                ascii[(i + 1) % 16] = '\0';
-                if ((i + 1) % 16 <= 8) {
-                    printf(" ");
-                }
-                for (j = (i + 1) % 16; j < 16; ++j) {
-                    printf("   ");
-                }
-                printf("|  %s \n", ascii);
-            }
-        }
-    }
-}
-
 class BLKeepaliveTask : public CLIBackgroundTask<Canmore::BootloaderClient> {
 public:
     void callback(CLIInterface<Canmore::BootloaderClient> &interface) override { interface.handle->ping(); }
 };
 
-class BLBinaryInfoCommand : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+class BLBinaryInfoCommand : public CLICommandHandler<Canmore::BootloaderClient> {
 public:
-    BLBinaryInfoCommand(): CanmoreCommandHandler("binary_info") {}
+    BLBinaryInfoCommand(): CLICommandHandler("binary_info") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the current binary info for the application."; }
 
-    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
-                      std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::BootloaderClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         BinaryInfo::AppInfo info;
         BinaryInfo::extractAppInfo(*interface.handle, info, FLASH_BASE + interface.handle->tryGetBootloaderSize());
@@ -62,17 +30,16 @@ public:
     }
 };
 
-class BLReadCommand : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+class BLReadCommand : public CLICommandHandler<Canmore::BootloaderClient> {
 public:
-    BLReadCommand(): CanmoreCommandHandler("read") {}
+    BLReadCommand(): CLICommandHandler("read") {}
 
     std::string getArgList() const override { return "[address]"; }
     std::string getHelp() const override {
         return "Reads a page at the specified address\nAddress must be a flash address in hex";
     }
 
-    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
-                      std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::BootloaderClient> &interface, std::vector<std::string> const &args) override {
         if (args.size() != 1) {
             interface.writeLine("Expected 1 argument");
             interface.showHelp(commandName, true);
@@ -90,36 +57,34 @@ public:
             return;
         }
 
-        renderHeader("Reading Page @" + args.at(0));
+        renderHeader("Reading Flash Page");
         std::array<uint8_t, UF2_PAGE_SIZE> readData;
         interface.handle->readBytes(address, readData);
-        DumpHex(readData.data(), readData.size());
+        DumpHex(address, readData.data(), readData.size());
     }
 };
 
-class BLVersionCommand : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+class BLVersionCommand : public CLICommandHandler<Canmore::BootloaderClient> {
 public:
-    BLVersionCommand(): CanmoreCommandHandler("version") {}
+    BLVersionCommand(): CLICommandHandler("version") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Returns the current application version."; }
 
-    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
-                      std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::BootloaderClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         renderField("BL Version", interface.handle->getVersion() + COLOR_RESET);
     }
 };
 
-class BLRebootCommand : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+class BLRebootCommand : public CLICommandHandler<Canmore::BootloaderClient> {
 public:
-    BLRebootCommand(): CanmoreCommandHandler("reboot") {}
+    BLRebootCommand(): CLICommandHandler("reboot") {}
 
     std::string getArgList() const override { return ""; }
     std::string getHelp() const override { return "Reboots the device into application"; }
 
-    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
-                      std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::BootloaderClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         interface.writeLine("Sending reboot command...");
         interface.handle->reboot();
@@ -128,17 +93,16 @@ public:
     }
 };
 
-class BLGdbServer : public CanmoreCommandHandler<Canmore::BootloaderClient> {
+class BLGdbServer : public CLICommandHandler<Canmore::BootloaderClient> {
 public:
-    BLGdbServer(): CanmoreCommandHandler("gdbserver") {}
+    BLGdbServer(): CLICommandHandler("gdbserver") {}
 
     const uint16_t default_port = 3333;
 
     std::string getArgList() const override { return "[port: Default " + std::to_string(default_port) + "]"; }
     std::string getHelp() const override { return "Starts gdb server over Canmore"; }
 
-    void callbackSafe(CLIInterface<Canmore::BootloaderClient> &interface,
-                      std::vector<std::string> const &args) override {
+    void callback(CLIInterface<Canmore::BootloaderClient> &interface, std::vector<std::string> const &args) override {
         uint32_t port = default_port;
         if (args.size() > 0) {
             if (!decodeU32(args.at(0), port, UINT16_MAX)) {

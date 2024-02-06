@@ -11,8 +11,8 @@ extern "C" {
  * CANmore Titan-Specific Modifications
  * ************************************
  *
- * This file contains titan firmware specific modifications to the CANmore protocol.
- * This is primarily to define any application-specific fields of the CANmore protocol.
+ * This file contains titan firmware specific modifications to the CANmore protocol (see canmore/protocol.h for the
+ * base). This is primarily to define any application-specific fields of the CANmore protocol.
  *
  * Refer to each of the children header files for information on each
  *

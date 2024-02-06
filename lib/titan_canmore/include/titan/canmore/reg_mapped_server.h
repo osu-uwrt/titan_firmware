@@ -11,6 +11,50 @@
 extern "C" {
 #endif
 
+/*
+ * Register-Mapped Server Implementation
+ * *************************************
+ *
+ * This file defines a register-mapped server which handles the heavy lifting of decoding the canmore register mapped
+ * packets and provides several ways to expose "registers" over the canmore register-mapped protocol. This allows the
+ * higher-level code to not have to worry about how the register mapped protocol works, and instead exposes a variety
+ * of flexible interfaces for handling register accesses.
+ *
+ * Refer to reg_mapped_protocol.h to understand the theory of the register mapped protocol before continuing.
+ *
+ * Registers are broken into pages. Each page can be implemented in two ways:
+ *  - A page as a contiguous region of memory (which can be read-only, write-only, or read-write)
+ *    - This page can either be an array of 32-bit words
+ *    - Or, it can be an array of 8-bit words. The server handles properly converting between words and bytes
+ *    - The register mapped server transparently handles reading and writing to this memory region
+ *  - A Register Mapped Page. This is the most flexible, as it allows individual registers to be be defined
+ *
+ * Each register defined by the server in a register mapped page can be one of two types:
+ *  - A 32-bit word, which is written/read transparently by the register mapped server
+ *  - Or a callback, which allows user code to handle reads/writes accordingly
+ *
+ * Each register can additionally have permissions set, enforcing read-only or write-only regisisters (for both memory
+ * and callback based registers).
+ *
+ * The process for using this register mapped server library is as follows:
+ *  - Create a reg_mapped_server_inst object:
+ *    - Create each page you want to have exposed over the register mapped interface
+ *      - For register mapped pages, create an array of reg_mapped_server_register_definition structs defined using
+ *        the DEFINE_REG_* macros
+ *      - For contiguous pages, create the regions of memory you want to expose as a page
+ *    - Create an array of reg_mapped_server_page_definition structs using the DEFINE_PAGE_* macros
+ *    - Create a reg_mapped_server_inst struct, passing a pointer to the page definition array above and number of
+ *      of defined pages.
+ *    - Define which control interface mode is assigned to this server instance (this must be unique and defined in
+ *      the titan/canmore/protocol.h file to ensure that it does not overlap with other control interfaces. This
+ *      prevents a message intended for a different mode from accidentally corrupting the current state of this server.
+ *    - Create the transmit callback which will be called with the encoded register mapped response. This should send
+ *      the encoded packet back over the network to the client.
+ *  - Create a method to receive the register mapped protocol packets. Whenever a new packet is received for the
+ *    register mapped protocol, it is passed to the reg_mapped_server_handle_request along with a handle to the register
+ *    mapped server instance.
+ */
+
 struct reg_mapped_server_register_definition;
 
 // ========================================
@@ -19,11 +63,19 @@ struct reg_mapped_server_register_definition;
 
 /**
  * @brief Transmit function
+ *
+ * This is called by the reg mapped server handler code to send responses back to the client. No responses are returned
+ * to the function who calls handle_request. Instead, this callback is used when handle_request is called.
+ *
+ * This must be filled out in the reg_mapped_server_inst_t before calling handle_request.
  */
 typedef void (*reg_mapped_server_tx_func)(uint8_t *msg, size_t len);
 
 /**
- * @brief Callback for exec type register write
+ * @brief Callback for exec type register accesses.
+ *
+ * This is implemented in the code creating the reg_mapped_server_register_definition, allowing for code to execute
+ * when a specific register is written.
  *
  * @param reg The register referencing the callback
  * @param is_write True if register write, False if register read
@@ -46,6 +98,8 @@ enum reg_mapped_server_register_permissions {
 
 /**
  * @brief Individual Register Definition for Register Mapped Server Memory Map
+ *
+ * These are combined together into an array to define a page.
  */
 typedef struct reg_mapped_server_register_definition {
     enum reg_mapped_server_register_type {
@@ -71,6 +125,8 @@ typedef struct reg_mapped_server_register_definition {
 
 /**
  * @brief Individual Page Definition for Register Mapped Server Memory Map
+ *
+ * These are combined together in an array to define the server instance.
  */
 typedef struct reg_mapped_server_page_definition {
     enum reg_mapped_server_page_type {
@@ -113,7 +169,7 @@ typedef struct reg_mapped_server_inst {
                                      // this value to be processed
 
     // Should be initialized to 0, holds state tracking data
-    // ... Put stuff here
+    // This is noot to be modified by the caller of reg_mapped_server_handle_request
     uint8_t bulk_last_seq_num;
     uint8_t bulk_error_code;
     bool in_bulk_request;

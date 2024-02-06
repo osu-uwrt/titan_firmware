@@ -208,25 +208,12 @@ struct CrashLogEntry {
                 uptime_pretty = (float) (uptime) / uptime_ticks_per_sec;
                 uptime_units = 's';
             }
-            reasonStream << " - Uptime: " << std::setw(0) << std::setprecision(2) << uptime_pretty << uptime_units;
+            reasonStream << " - Prev. Uptime: " << std::setw(0) << std::setprecision(2) << uptime_pretty
+                         << uptime_units;
         }
 
         return reasonStream.str();
     }
-};
-
-struct MemoryStats {
-    uint32_t totalMem;
-    uint32_t heapUse;
-    uint32_t stackUse;
-    uint32_t staticUse;
-    uint32_t arena;
-    uint32_t ordblks;
-    uint32_t hblks;
-    uint32_t hblkhd;
-    uint32_t uordblks;
-    uint32_t fordblks;
-    uint32_t keepcost;
 };
 
 struct FaultData {
@@ -280,29 +267,30 @@ public:
     void enterBootloader();
     void reboot();
     void ping() override;
-    MemoryStats getMemoryStats();
+
+    // Remote Command Execution
+    int executeRemoteCmd(std::vector<std::string> const &args, std::string &response);
+
+    // Misc Debug Information
     SafetyStatus getSafetyStatus();
     Uptime getUptime();
     CrashCounter getCrashCounter();
     CrashLogEntry getLastResetEntry();
     void getCrashLog(std::vector<CrashLogEntry> &crashLogOut);
 
+    // GDB Bindings
     uint32_t readMemory(uint32_t addr) override;
     void writeMemory(uint32_t addr, uint32_t data) override;
     uint32_t getGDBStubPC() override;
     uint32_t getGDBStubSP() override;
     uint32_t getGDBStubLR() override;
 
+    // Safety Fault Bindings
     std::string lookupFaultName(uint32_t faultId);
     FaultData lookupFaultData(uint32_t faultId);
     uint32_t getActiveFaults();
     void raiseFault(uint32_t faultId);
     void lowerFault(uint32_t faultId);
-
-    // TODO Remove me CAN Debug Stuff
-    void canDbgIntrEn();
-    void canDbgFifoClear();
-    void canDbgReset();
 
 private:
     union flash_id cachedFlashID;

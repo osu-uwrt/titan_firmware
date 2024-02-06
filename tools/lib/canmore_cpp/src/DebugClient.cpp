@@ -129,26 +129,6 @@ void DebugClient::getCrashLog(std::vector<CrashLogEntry> &crashLogOut) {
     }
 }
 
-MemoryStats DebugClient::getMemoryStats() {
-    RegisterPage memoryStatsPage(client, debug_itf_mode, CANMORE_DBG_MEM_STATS_PAGE_NUM);
-    MemoryStats stats;
-
-    memoryStatsPage.writeRegister(CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET, 1);
-    stats.totalMem = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET);
-    stats.heapUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET);
-    stats.stackUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET);
-    stats.staticUse = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET);
-    stats.arena = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ARENA_OFFSET);
-    stats.ordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET);
-    stats.hblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKS_OFFSET);
-    stats.hblkhd = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET);
-    stats.uordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET);
-    stats.fordblks = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET);
-    stats.keepcost = memoryStatsPage.readRegister(CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET);
-
-    return stats;
-}
-
 uint32_t DebugClient::readMemory(uint32_t addr) {
     RegisterPage gdbStubPage(client, debug_itf_mode, CANMORE_DBG_GDB_STUB_PAGE_NUM);
     gdbStubPage.writeRegister(CANMORE_DBG_GDB_STUB_READ_WORD_ADDR_OFFSET, addr);
@@ -190,17 +170,40 @@ std::string DebugClient::getVersion() {
     return client->readStringPage(debug_itf_mode, CANMORE_DBG_VERSION_STRING_PAGE_NUM);
 }
 
-void DebugClient::canDbgIntrEn() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET, 1);
-}
+int DebugClient::executeRemoteCmd(std::vector<std::string> const &args, std::string &response) {
+    // Create the compressed arg string to send to the client
+    std::stringstream argStream;
+    for (std::string const &arg : args) {
+        argStream << arg << '\0';
+    }
+    argStream << '\0';
 
-void DebugClient::canDbgFifoClear() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET, 1);
-}
+    // Verify that the args can fit into the register page
+    const std::string &argCompressed = argStream.str();
+    if (argCompressed.length() > CANMORE_DBG_REMOTE_CMD_ARGS_MAX_LEN) {
+        throw DebugError("Remote command arguments are too large for remote command register on device");
+    }
 
-void DebugClient::canDbgReset() {
-    RegisterPage mcuCtrlPage(client, debug_itf_mode, CANMORE_DBG_MCU_CONTROL_PAGE_NUM);
-    mcuCtrlPage.writeRegister(CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET, 1);
+    // Convert the 8-bit string into a 32-bit array that can be written
+    std::vector<uint32_t> argWordArray((argCompressed.length() + 3) / 4, 0);
+    size_t bytesSize = argCompressed.size();
+    for (size_t word = 0; (word * 4) < bytesSize; word++) {
+        uint32_t value = 0;
+        for (int byteOff = 0; byteOff + (word * 4) < bytesSize && byteOff < 4; byteOff++) {
+            value |= argCompressed.at(byteOff + (word * 4)) << (8 * byteOff);
+        }
+
+        argWordArray.at(word) = value;
+    }
+
+    // Finally write the args converted to a word array
+    client->writeArray(debug_itf_mode, CANMORE_DBG_REMOTE_CMD_ARGS_PAGE_NUM, 0, argWordArray);
+
+    // Execute the command
+    RegisterPage remoteCmdPage(client, debug_itf_mode, CANMORE_DBG_REMOTE_CMD_PAGE_NUM);
+    int32_t rc = (int32_t) remoteCmdPage.readRegister(CANMORE_DBG_REMOTE_CMD_EXECUTE_OFFSET);
+
+    // Read back the resulting string
+    response = client->readStringPage(debug_itf_mode, CANMORE_DBG_REMOTE_CMD_RESP_PAGE_NUM);
+    return rc;
 }

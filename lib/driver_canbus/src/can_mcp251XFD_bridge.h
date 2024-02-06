@@ -94,4 +94,11 @@ void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code);
 #define canbus_report_driver_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, true)
 #define canbus_report_library_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, false)
 
+// Debug Bindings
+// TODO: Remove me when can bus bug fixed
+
+void canbus_reenable_intr(void);
+void canbus_fifo_clear(void);
+void canbus_reset(void);
+
 #endif

@@ -134,7 +134,9 @@ template <typename T> struct range_map {
 
     void insert(const range &r, T t) {
         if (r.to != r.from) {
-            assert(r.to > r.from);
+            if (r.to < r.from) {
+                throw std::runtime_error("r.to < r.from: This shouldn't happen??? Did you corrupt the binary info?");
+            }
             // check we don't overlap any existing map entries
 
             auto f = m.upper_bound(r.from);  // first element that starts after r.from

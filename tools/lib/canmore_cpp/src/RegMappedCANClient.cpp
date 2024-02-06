@@ -44,6 +44,7 @@ RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t ch
     clientCfg.transfer_mode = TRANSFER_MODE_BULK;
     clientCfg.arg = this;
     clientCfg.timeout_ms = REG_MAPPED_TIMEOUT_MS;
+    clientCfg.max_in_flight = REG_MAPPED_MAX_IN_FLIGHT_PACKETS_CAN;
 }
 
 RegMappedCANClient::~RegMappedCANClient() {

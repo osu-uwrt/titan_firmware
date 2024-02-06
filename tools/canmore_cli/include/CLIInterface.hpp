@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TerminalDraw.hpp"
+#include "canmore_cpp/Canmore.hpp"
 
 #include <chrono>
 #include <list>
@@ -11,6 +12,7 @@
 #include <vector>
 
 bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max = UINT32_MAX);
+void DumpHex(uint32_t address, const void *data, size_t size);
 
 template <class T> class CLIInterface;
 
@@ -23,6 +25,15 @@ public:
 
     virtual std::string getArgList() const { return "[???]"; }
     virtual std::string getHelp() const { return "No description available"; }
+};
+
+template <class T> class CLICommandPrefixHandler {
+public:
+    CLICommandPrefixHandler(char prefixChar): prefixChar(prefixChar) {}
+    const char prefixChar;
+
+    virtual void callback(CLIInterface<T> &interface, std::vector<std::string> const &args) = 0;
+    virtual void showHelp(CLIInterface<T> &interface, bool onlyUsage = false) = 0;
 };
 
 template <class T> class CLIBackgroundTask {
@@ -114,12 +125,28 @@ public:
         while (!should_exit) {
             auto cmd = cliCore.getCommand(args);
             if (cmd.size() > 0) {
-                auto itr = handlers.find(cmd);
-                if (itr == handlers.end())
-                    writeLine(cmd + ": command not found");
-                else
-                    itr->second->callback(*this, args);
-                args.clear();
+                try {
+                    // First try to find prefix command
+                    auto prefixItr = prefixHandlers.find(cmd.at(0));
+                    if (prefixItr != prefixHandlers.end()) {
+                        // Add the remainder of the prefix command to the args
+                        args.insert(args.begin(), cmd.substr(1));
+                        // Execute the command
+                        prefixItr->second->callback(*this, args);
+                    }
+                    else {
+                        // Not a special prefix, try to find a normal command
+                        auto itr = handlers.find(cmd);
+                        if (itr == handlers.end())
+                            writeLine(cmd + ": command not found");
+                        else
+                            itr->second->callback(*this, args);
+                    }
+                    args.clear();
+                } catch (Canmore::CanmoreError &e) {
+                    writeLine(COLOR_ERROR "Exception caught while running command:" COLOR_RESET);
+                    writeLine(COLOR_ERROR "  what(): " + std::string(e.what()) + COLOR_RESET);
+                }
             }
 
             if (std::chrono::steady_clock::now() - lastRefresh > std::chrono::milliseconds(1500) && !should_exit) {
@@ -132,14 +159,25 @@ public:
 
     void showHelp(std::string const &cmdName, bool onlyUsage = false) {
         if (cmdName.empty()) {
-            for (auto entry : handlers) {
-                // writeLine("");
+            for (const auto &entry : handlers) {
                 auto handler = entry.second;
                 writeLine(COLOR_NAME + handler->commandName + " " COLOR_BODY + handler->getArgList() + COLOR_RESET);
                 writeMultiline(handler->getHelp());
             }
+
+            for (const auto &entry : prefixHandlers) {
+                entry.second->showHelp(*this);
+            }
         }
         else {
+            if (cmdName.size() == 1) {
+                auto prefixItr = prefixHandlers.find(cmdName.at(0));
+                if (prefixItr != prefixHandlers.end()) {
+                    prefixItr->second->showHelp(*this, onlyUsage);
+                    return;
+                }
+            }
+
             auto itr = handlers.find(cmdName);
             if (itr == handlers.end()) {
                 writeLine("No such command: " + cmdName);
@@ -188,11 +226,19 @@ protected:
         handlers.emplace(handler->commandName, handler);
     }
 
+    void registerCommandPrefix(std::shared_ptr<CLICommandPrefixHandler<T>> handler) {
+        if (prefixHandlers.count(handler->prefixChar) > 0) {
+            throw std::runtime_error("Prefix already registered");
+        }
+        prefixHandlers.emplace(handler->prefixChar, handler);
+    }
+
     void setBackgroundTask(std::shared_ptr<CLIBackgroundTask<T>> bgTask) { this->bgTask = bgTask; }
 
 private:
     bool should_exit;
     CLICore cliCore;
     std::map<std::string, std::shared_ptr<CLICommandHandler<T>>> handlers;
+    std::map<char, std::shared_ptr<CLICommandPrefixHandler<T>>> prefixHandlers;
     std::shared_ptr<CLIBackgroundTask<T>> bgTask;
 };

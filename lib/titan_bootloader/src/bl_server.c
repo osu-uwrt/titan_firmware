@@ -165,7 +165,7 @@ static bool gdb_stub_read_mem_cb(const struct reg_mapped_server_register_definit
     // local variables.
     __dsb();
     __isb();
-    register uint32_t val;
+    register uint32_t val = 0;
     if (is_pc_read)
         pico_default_asm_volatile("mov %0, pc\n" : "=r"(val));
     else if (is_sp_read)

@@ -7,7 +7,9 @@ extern "C" {
 
 /*
  * Debug Interface Map
- * Implemented control interface for CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL
+ *
+ * Canmore Register Mapped Interface Definitions for debugging MCUs during normal operation (see reg_mapped_protocol.h)
+ * Implemented control interface for CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL (see titan/canmore/protocol.h)
  *
  * Page Map:
  * ==========
@@ -17,9 +19,15 @@ extern "C" {
  *       +----------------+
  * 0x01: | Version String |  RO  (Mem-mapped)
  *       +----------------+
- * 0x02: |  Memory Stats  |  (Reg)
+ * 0x02: |       ...      |
  *       +----------------+
  * 0x03: |    GDB Stub    |  (Reg)
+ *       +----------------+
+ * 0x04: |   Remote Cmd   |  (Reg)
+ *       +----------------+
+ * 0x05: |  Rem. Cmd Args |  RW (Mem-mapped)
+ *       +----------------+
+ * 0x06: |  Rem. Cmd Resp |  RO (Mem-mapped)
  *       +----------------+
  *       |                |
  *       |      ...       |
@@ -37,11 +45,17 @@ extern "C" {
  *       +----------------+
  */
 
+// ========================================
+// General Control Region
+// ========================================
+
 // Page Number Definitions
 #define CANMORE_DBG_MCU_CONTROL_PAGE_NUM 0x00
 #define CANMORE_DBG_VERSION_STRING_PAGE_NUM 0x01
-#define CANMORE_DBG_MEM_STATS_PAGE_NUM 0x02
 #define CANMORE_DBG_GDB_STUB_PAGE_NUM 0x03
+#define CANMORE_DBG_REMOTE_CMD_PAGE_NUM 0x04
+#define CANMORE_DBG_REMOTE_CMD_ARGS_PAGE_NUM 0x05
+#define CANMORE_DBG_REMOTE_CMD_RESP_PAGE_NUM 0x06
 #define CANMORE_DBG_SAFETY_STATUS_PAGE_NUM 0x08
 #define CANMORE_DBG_CRASH_LOG_PAGE_NUM 0x09
 #define CANMORE_DBG_FAULT_NAME_PAGE_NUM 0x0A
@@ -94,9 +108,6 @@ extern "C" {
 #define CANMORE_DBG_MCU_CONTROL_MINOR_VERSION_OFFSET 0x05
 #define CANMORE_DBG_MCU_CONTROL_RELEASE_TYPE_OFFSET 0x06
 #define CANMORE_DBG_MCU_CONTROL_REBOOT_MCU_OFFSET 0x07
-#define CANMORE_DBG_MCU_CONTROL_CAN_INTR_EN_OFFSET 0x08  // TODO: Remove me when bug fixed
-#define CANMORE_DBG_MCU_CONTROL_CAN_FIFO_CLEAR_OFFSET 0x09
-#define CANMORE_DBG_MCU_CONTROL_CAN_RESET_OFFSET 0x0A
 
 /* Version String
  * ==============
@@ -104,68 +115,10 @@ extern "C" {
  * register past the 0x00 byte will result in an invalid address error.
  */
 
-/* Memory Stats
- * ========================
- * Contains information on device memory usage.
- *
- *       +----------------+
- * 0x00: |     Capture    | WO
- *       +----------------+
- * 0x01: |    Total Mem   | RO
- *       +----------------+
- * 0x02: |    Heap Use    | RO
- *       +----------------+
- * 0x03: |   Stack Use    | RO
- *       +----------------+
- * 0x04: |   Static Use   | RO
- *       +----------------+
- * 0x05: |     Arena      | RO
- *       +----------------+
- * 0x06: |    Ordblks     | RO
- *       +----------------+
- * 0x07: |     Hblks      | RO
- *       +----------------+
- * 0x08: |     Hblkhd     | RO
- *       +----------------+
- * 0x09: |    Uordblks    | RO
- *       +----------------+
- * 0x0A: |    Fordblks    | RO
- *       +----------------+
- * 0x0B: |    Keepcost    | RO
- *       +----------------+
- *
- * Capture:         Captures the current memory usage into the other registers in this page.
- *                  Must be called before reading any of the other registers in this page.
- * Total Mem:       Total memory available in the device
- * Heap Use:        Memory available to the heap
- * Stack Use:       Memory available to the core 0 stack
- * Static Use:      Memory used by static allocations
- * Arena:           Total non-mmapped bytes (mallinfo() arena)
- * Ordblks:         # of free chunks (mallinfo() ordblks)
- * Hblks:           # of mapped regions (mallinfo() hblks)
- * Hblkhd:          Bytes in mapped regions (mallinfo() hblkhd)
- * Uordblks:        Total allocated space (mallinfo() uordblks)
- * Fordblks:        Total free space (mallinfo() fordblks)
- * Keepcost:        Topmost releasable block (mallinfo() keepcost)
- */
-
-// Memory Stats Register Definitions
-#define CANMORE_DBG_MEM_STATS_CAPTURE_OFFSET 0x00
-#define CANMORE_DBG_MEM_STATS_TOTAL_MEM_OFFSET 0x01
-#define CANMORE_DBG_MEM_STATS_HEAP_USE_OFFSET 0x02
-#define CANMORE_DBG_MEM_STATS_STACK_USE_OFFSET 0x03
-#define CANMORE_DBG_MEM_STATS_STATIC_USE_OFFSET 0x04
-#define CANMORE_DBG_MEM_STATS_ARENA_OFFSET 0x05
-#define CANMORE_DBG_MEM_STATS_ORDBLKS_OFFSET 0x06
-#define CANMORE_DBG_MEM_STATS_HBLKS_OFFSET 0x07
-#define CANMORE_DBG_MEM_STATS_HBLKHD_OFFSET 0x08
-#define CANMORE_DBG_MEM_STATS_UORDBLKS_OFFSET 0x09
-#define CANMORE_DBG_MEM_STATS_FORDBLKS_OFFSET 0x0A
-#define CANMORE_DBG_MEM_STATS_KEEPCOST_OFFSET 0x0B
-
 /* GDB Stub
- * ========================
- * Contains registers to allow debugging via GDB
+ * ========
+ * Contains registers to allow debugging via GDB. All GDB requires at a minimum is a way to access device memory, and
+ * know the current PC and SP.
  *
  *       +----------------+
  * 0x00: | Read Word Addr | WO
@@ -196,6 +149,65 @@ extern "C" {
 #define CANMORE_DBG_GDB_STUB_PC_REGISTER_OFFSET 0x03
 #define CANMORE_DBG_GDB_STUB_SP_REGISTER_OFFSET 0x04
 #define CANMORE_DBG_GDB_STUB_LR_REGISTER_OFFSET 0x05
+
+/* Remote Cmd
+ * ==========
+ * Allows executing commands in the standard "command arg1 arg2" format, and receiving back output. Implementing new
+ * canmore CLI commands via this register interface requires a lot of work (as this requires editing this file, the
+ * debug server in firmware, the debug client in canmore cli, then adding a command handler to Canmore CLI). I should
+ * know since I need to do all of that to implement this remote command interface.
+ *
+ * However, after adding this interface, all that is required to create a new command is make a simple string based
+ * stub in the firmware, which handles the standard argc argv format used by posix, then filling out the result string
+ * to be displayed by canmore CLI.
+ *
+ * This should make it significantly easier to register new commands for debugging, which should allow canmore CLI to be
+ * even more valuable when testing prototype code.
+ *
+ *       +----------------+
+ * 0x00: |    Execute     | RO
+ *       +----------------+
+ *
+ * Execute: Reading this register executes the command contained in the Remote Command Args page. The result string is
+ *          written to the remote command response page. Additionally, the return code is read out of this regsiter
+ *          after execution.
+ */
+
+// Remote Cmd Register Definitions
+#define CANMORE_DBG_REMOTE_CMD_EXECUTE_OFFSET 0x00
+
+/* Remote Cmd Args
+ * ===============
+ * Write the command and arguments to execute as a remote command to this register page.
+ *
+ * The command is written, followed by a null character. Each argument is then written, separated by null characters.
+ * After the last argument, a null-terminated empty string is placed, signifying the end of arguments. All other data
+ * after the empty string ignored.
+ *
+ * If the command "test arg1 arg2 arg3" was to be executed, resulting in the command "test" being ran with arguments
+ * {"arg1", "arg2", "arg3"}, the data would be encoded as:
+ *
+ *     "test\0arg1\0arg2\0arg3\0\0"
+ *
+ * This register is set to "\0" to avoid multiple reads from accidentally executing the command multiple times if the
+ * execute register is read twice.
+ * Note that all bytes after the first is still preserved (as the command decoder stops after the first empty string).
+ */
+
+#define CANMORE_DBG_REMOTE_CMD_ARGS_MAX_LEN REG_MAPPED_PAGE_SIZE
+
+/* Remote Cmd Resp
+ * ===============
+ *
+ * Page containing the response from the remote command as a string. This will ALWAYS be updated after each execute,
+ * even if the command does not exist. If this is the case, the command handler is responsible for updating this string.
+ */
+
+#define CANMORE_DBG_REMOTE_CMD_RESP_MAX_LEN REG_MAPPED_PAGE_SIZE
+
+// ========================================
+// Safety Status Region
+// ========================================
 
 /* Safety Status Register Map
  * ==========================
@@ -241,7 +253,7 @@ extern "C" {
 #define CANMORE_DBG_SAFETY_STATUS_LOWER_FAULT_OFFSET 0x05
 
 /* Crash Log
- * ==============
+ * =========
  * Contains registers to read through the MCU crash log
  *
  *       +----------------+
@@ -315,13 +327,13 @@ extern "C" {
 #define CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_2_OFFSET 0x08
 
 /* Fault Name
- * ==============
+ * ==========
  * Contains string of the fault name specified in the Fault Idx Register. Note until the Fault Idx register is written
  * this page cannot be read.
  */
 
 /* Fault Data
- * ==============
+ * ==========
  * Contains data for the fault selected by the Fault Idx Register. Note until the Fault Idx register is written this
  * page cannot be read.
  *

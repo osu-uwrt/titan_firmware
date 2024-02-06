@@ -7,6 +7,8 @@ extern "C" {
 
 /*
  * Bootloader Interface Map
+ *
+ * Canmore Register Mapped Interface Definitions for reflashing the MCU in bootloader mode (see reg_mapped_protocol.h)
  * Implemented control interface for CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER
  *
  * Page Map:

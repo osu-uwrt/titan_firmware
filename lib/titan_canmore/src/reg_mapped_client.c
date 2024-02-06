@@ -76,8 +76,9 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
 
         // Loop until no words left to read
         while (num_words--) {
-            if (!num_words) {
-                // If last request, set bulk_end to true
+            if (!num_words || req.write_pkt.count + 1u >= cfg->max_in_flight) {
+                // If we don't have any more data to send, or we've hit the max number of packets in flight,
+                // end the bulk transfer and wait for a response
                 req.write_pkt.flags.f.bulk_end = true;
             }
 
@@ -89,21 +90,27 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
 
             req.write_pkt.count++;
             req.write_pkt.offset++;
-        }
 
-        // Finally read the bulk transfer result
-        reg_mapped_response_t resp;
-        if (!cfg->rx_func(resp.data, sizeof(resp.write_bulk_pkt), cfg->timeout_ms, cfg->arg)) {
-            return REG_MAPPED_CLIENT_RESULT_RX_FAIL;
-        }
+            if (req.write_pkt.flags.f.bulk_end) {
+                // If this is a bulk end packet, get the response back
+                reg_mapped_response_t resp;
+                if (!cfg->rx_func(resp.data, sizeof(resp.write_bulk_pkt), cfg->timeout_ms, cfg->arg)) {
+                    return REG_MAPPED_CLIENT_RESULT_RX_FAIL;
+                }
 
-        // Check for errors
-        if (resp.write_bulk_pkt.result != REG_MAPPED_RESULT_SUCCESSFUL) {
-            return resp.write_bulk_pkt.result;
-        }
+                // Check for errors in the response
+                if (resp.write_bulk_pkt.result != REG_MAPPED_RESULT_SUCCESSFUL) {
+                    return resp.write_bulk_pkt.result;
+                }
 
-        if ((resp.write_bulk_pkt.seq_no + 1) != req.write_pkt.count) {
-            return REG_MAPPED_CLIENT_RESULT_INVALID_BULK_COUNT;
+                if ((resp.write_bulk_pkt.seq_no + 1) != req.write_pkt.count) {
+                    return REG_MAPPED_CLIENT_RESULT_INVALID_BULK_COUNT;
+                }
+
+                // Reset the packet for the next bulk transfer
+                req.write_pkt.count = 0;
+                req.write_pkt.flags.f.bulk_end = false;
+            }
         }
     }
     else {
