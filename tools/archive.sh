@@ -164,7 +164,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     remote_firmware_deploy_path="~/firmware_deploy"
 
     dest_dir_name="$(basename -- $dest_dir)"
-
+    ssh ros@orin cd ~
     ssh ros@orin mkdir $remote_firmware_deploy_path/$dest_dir_name
     scp $dest_dir/full_ota.tar ros@orin:/$remote_firmware_deploy_path/$dest_dir_name
     ssh ros@orin tar -C "$remote_firmware_deploy_path/$dest_dir_name" -xvf full_ota.tar
