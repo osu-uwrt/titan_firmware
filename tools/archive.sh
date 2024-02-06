@@ -156,3 +156,25 @@ tar -C "$dest_dir" -zcf "$dest_dir"/firmware_archive.tgz $(find $dest_dir -maxde
 micro_ros_pico_folder=$firmware_repo/lib/micro_ros_pico/
 echo "Creating libmicroros archive for git release"
 tar -C "$micro_ros_pico_folder" -zcf "$dest_dir"/libmicroros_build.tgz libmicroros available_ros2_types built_packages
+
+read -p "Would you like to upload firmware to the Orin? [y/N]: " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    remote_firmware_deploy_path="$(realpath ~/firmware_deploy)"
+
+    dest_dir_name="$(basename -- $dest_dir)"
+
+    ssh ros@orin mkdir $remote_firmware_deploy_path/$dest_dir_name
+    scp $dest_dir/full_ota.tar ros@orin:/$remote_firmware_deploy_path/$dest_dir_name
+    ssh ros@orin tar -C "$remote_firmware_deploy_path/$dest_dir_name" -xvf full_ota.tar
+
+    read -p "Would you like to flash the firmware to the robot? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/power_board_ota.uf2
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/actuator_mk2_ota.uf2_ota.uf2
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/camera_cage_bb_ota.uf2
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2
+    fi
+fi
