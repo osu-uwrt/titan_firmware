@@ -27,7 +27,7 @@
 
 typedef uint8_t IPAddress[4];
 #if TITAN_SAFETY
-void ethernet_control_interface_transmit(uint8_t *msg, size_t len);
+void ethernet_control_interface_transmit(uint8_t *msg, size_t len, void *arg);
 #endif
 
 /**
@@ -225,7 +225,7 @@ bool ethernet_check_online() {
 absolute_time_t ethernet_next_heartbeat = { 0 };
 static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
 
-void ethernet_control_interface_transmit(uint8_t *msg, size_t len) {
+void ethernet_control_interface_transmit(uint8_t *msg, size_t len, __unused void *arg) {
     // This will respond to the last parsed packet
     // So this should respond to the appropriate device
     if (!eth_udp_beginPacket(&control_interface_socket, control_interface_socket.remoteIP,

@@ -49,6 +49,23 @@ void RegMappedClient::writeArray(uint8_t mode, uint8_t page, uint8_t offsetStart
     }
 }
 
+void RegMappedClient::writeStringPage(uint8_t mode, uint8_t page, const std::string &data) {
+    // Convert the 8-bit string into a 32-bit array that can be written
+    std::vector<uint32_t> dataArray((data.length() + 3) / 4, 0);
+    size_t bytesSize = data.size();
+    for (size_t word = 0; (word * 4) < bytesSize; word++) {
+        uint32_t value = 0;
+        for (int byteOff = 0; byteOff + (word * 4) < bytesSize && byteOff < 4; byteOff++) {
+            value |= dataArray.at(byteOff + (word * 4)) << (8 * byteOff);
+        }
+
+        dataArray.at(word) = value;
+    }
+
+    // Finally write the args converted to a word array
+    writeArray(mode, page, 0, dataArray);
+}
+
 std::string RegMappedClient::readStringPage(uint8_t mode, uint8_t page) {
     const size_t strMaxSize = REG_MAPPED_PAGE_SIZE + 1;
     auto strArray = new char[strMaxSize];

@@ -203,10 +203,10 @@ static bool can_mcp251x_get_term_state(bool *term_state_out) {
 
     if (err == ERR_OK) {
         if (pin_state & MCP251XFD_GPIO0_HIGH) {
-            *term_state_out = false;
+            *term_state_out = true;
         }
         else {
-            *term_state_out = true;
+            *term_state_out = false;
         }
 
         return true;

@@ -19,6 +19,7 @@ target_sources(canmore_cpp INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/RegMappedCANClient.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/RegMappedEthernetClient.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/BootloaderClient.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/LinuxClient.cpp
 )
 
 target_include_directories(canmore_cpp INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)

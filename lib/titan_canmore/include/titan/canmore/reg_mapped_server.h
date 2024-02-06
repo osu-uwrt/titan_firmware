@@ -69,7 +69,7 @@ struct reg_mapped_server_register_definition;
  *
  * This must be filled out in the reg_mapped_server_inst_t before calling handle_request.
  */
-typedef void (*reg_mapped_server_tx_func)(uint8_t *msg, size_t len);
+typedef void (*reg_mapped_server_tx_func)(uint8_t *msg, size_t len, void *arg);
 
 /**
  * @brief Callback for exec type register accesses.
@@ -118,6 +118,7 @@ typedef struct reg_mapped_server_register_definition {
         struct {
             enum reg_mapped_server_register_permissions perm;
             reg_mapped_server_register_cb_t callback;
+            void *arg;
         } exec;
     } type;
 
@@ -163,6 +164,7 @@ typedef struct reg_mapped_server_page_definition {
 typedef struct reg_mapped_server_inst {
     // Must be populated by code calling reg_mapped_server_handle_request
     reg_mapped_server_tx_func tx_func;               // Function called by request handler to transmit responses
+    void *arg;                                       // Argument to pass to transmit function
     const reg_mapped_server_page_def_t *page_array;  // Array of register mapped pages implemented by the server
     size_t num_pages;                                // Number of elements in page_array
     uint8_t control_interface_mode;  // The mode implemented by the reg mapped server. A packet's mode field must match

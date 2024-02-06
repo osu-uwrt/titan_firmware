@@ -337,14 +337,16 @@ public:
         // This can be rendered by calling render
         name = devDescr.name;
         if (!devDescr.isUnknown)
-            fields.emplace("Board Type", devDescr.boardType);
+            fields.emplace_back("Board Type", devDescr.boardType);
         else if (flashId != 0)
-            fields.emplace("Unique ID", devDescr.hexSerialNum());
-        fields.emplace("Interface", dev->getInterface());
-        fields.emplace("Mode", dev->getMode());
-        fields.emplace("Error State", dev->inErrorState ? COLOR_ERROR "Fault Present" : "Normal");
+            fields.emplace_back("Unique ID", devDescr.hexSerialNum());
+        else
+            fields.emplace_back("Unique ID", "<Error Retrieving ID>");
+        fields.emplace_back("Interface", dev->getInterface());
+        fields.emplace_back("Mode", dev->getMode());
+        fields.emplace_back("Error State", dev->inErrorState ? COLOR_ERROR "Fault Present" : "Normal");
         if (dev->termValid)
-            fields.emplace("Term Resistor", dev->termEnabled ? "On" : "Off");
+            fields.emplace_back("Term Resistor", dev->termEnabled ? "On" : "Off");
     }
 
     void render(bool selected, int numLines) const override {
@@ -385,7 +387,7 @@ public:
 
 private:
     std::string name;
-    std::map<std::string, std::string> fields;
+    std::vector<std::pair<std::string, std::string>> fields;
 };
 
 typedef std::vector<std::shared_ptr<MenuItem>>::const_iterator MenuItemConstIterator;

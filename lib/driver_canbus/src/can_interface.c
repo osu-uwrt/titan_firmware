@@ -324,7 +324,7 @@ void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
     debug_process_message(buf, len);
 }
 
-void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
+void canbus_control_interface_transmit(uint8_t *msg, size_t len, __unused void *arg) {
     canbus_utility_frame_write(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, msg, len);
 }
 #endif

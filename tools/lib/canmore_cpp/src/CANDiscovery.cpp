@@ -93,6 +93,9 @@ void CANDiscovery::handleSocketData(int socketFd) {
         device =
             std::static_pointer_cast<Device>(std::make_shared<CANBootloaderDevice>(*this, clientId, heartbeatData));
     }
+    else if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX) {
+        device = std::static_pointer_cast<Device>(std::make_shared<CANLinuxDevice>(*this, clientId, heartbeatData));
+    }
     else {
         device = std::make_shared<Device>(interfaceName, clientId, heartbeatData);
     }
@@ -245,4 +248,24 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t 
         throw BootloaderError("Failed to reconnect to device in bootloader mode");
     }
     return dev->getClient();
+}
+
+uint64_t CANLinuxDevice::getFlashId() {
+    if (!isFlashIdCached) {
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            auto linuxClient = LinuxClient(interface);
+            cachedFlashId.doubleword = linuxClient.getFlashId();
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
+        }
+    }
+
+    return cachedFlashId.doubleword;
+}
+
+std::shared_ptr<LinuxClient> CANLinuxDevice::getClient() {
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    return std::make_shared<LinuxClient>(interface);
 }

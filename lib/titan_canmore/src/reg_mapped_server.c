@@ -290,7 +290,7 @@ finish_request:
             response_size = sizeof(response.write_bulk_pkt);
 
             // Send response and exit bulk request mode
-            inst->tx_func(response.data, response_size);
+            inst->tx_func(response.data, response_size, inst->arg);
             inst->in_bulk_request = false;
         }
         // If it's not the last transfer, store error if occurs in request (but only if it hasn't already errored)
@@ -309,6 +309,6 @@ finish_request:
             response_size = sizeof(response.read_pkt);
         }
 
-        inst->tx_func(response.data, response_size);
+        inst->tx_func(response.data, response_size, inst->arg);
     }
 }

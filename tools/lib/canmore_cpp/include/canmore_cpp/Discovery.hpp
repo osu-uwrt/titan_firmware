@@ -2,6 +2,7 @@
 
 #include "BootloaderClient.hpp"
 #include "DebugClient.hpp"
+#include "LinuxClient.hpp"
 #include "RP2040FlashInterface.hpp"
 
 #include "titan/canmore.h"
@@ -131,6 +132,19 @@ public:
     std::shared_ptr<RP2040FlashInterface> getFlashInterface() override {
         return std::static_pointer_cast<RP2040FlashInterface>(getClient());
     }
+};
+
+class LinuxDevice : public Device {
+public:
+    using Device::Device;
+
+    virtual uint64_t getFlashId() = 0;
+    virtual std::shared_ptr<LinuxClient> getClient() = 0;
+
+    // RP2040Device overrides
+    // We're not an RP2040, so there isn't much to give here
+    std::string getMode() const override { return "Linux Machine"; }
+    bool supportsFlashInterface() const override { return false; }
 };
 
 class Discovery : public RP2040Discovery {
@@ -311,6 +325,21 @@ public:
 
 private:
     int ifIndex;
+};
+
+class CANLinuxDevice : public LinuxDevice {
+public:
+    CANLinuxDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+        LinuxDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
+        ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false) {}
+
+    uint64_t getFlashId() override;
+    std::shared_ptr<LinuxClient> getClient() override;
+
+private:
+    int ifIndex;
+    union flash_id cachedFlashId;
+    bool isFlashIdCached;
 };
 
 // ========================================

@@ -22,6 +22,7 @@ add_executable(canmore_cli
     src/cli_selection.cpp
     src/application_cli.cpp
     src/bootloader_cli.cpp
+    src/linux_cli.cpp
     src/gdbserver.cpp
 )
 

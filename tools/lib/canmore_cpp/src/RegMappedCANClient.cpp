@@ -27,6 +27,8 @@ RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t ch
     addr.can_ifindex = ifIndex;
 
     if (bind(socketFd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+        close(socketFd);
+        socketFd = -1;
         throw std::system_error(errno, std::generic_category(), "CAN bind");
     }
 
@@ -34,6 +36,8 @@ RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t ch
     struct can_filter rfilter[] = { { .can_id = CANMORE_CALC_UTIL_ID_C2A(clientId, channel),
                                       .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_SFF_MASK) } };
     if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
+        close(socketFd);
+        socketFd = -1;
         throw std::system_error(errno, std::generic_category(), "CAN setsockopt");
     }
 

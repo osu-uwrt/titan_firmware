@@ -9,6 +9,8 @@
 using namespace Canmore;
 
 bool isValidCANDevice(const char *name) {
+    if (name[0] == 'v')
+        name++;
     return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' && (name[3] >= '0' && name[3] <= '9'));
 }
 
