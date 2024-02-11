@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CANSocket.hpp"
+
 #include "titan/canmore.h"
 
 #include <functional>
@@ -103,6 +105,7 @@ private:
      * @brief Prevent copying
      */
     RegMappedRegisterPage(const RegMappedRegisterPage &) = delete;
+    RegMappedRegisterPage &operator=(RegMappedRegisterPage const &) = delete;
 
     /**
      * @brief Callback for C reg_mapped_server library.
@@ -193,7 +196,7 @@ public:
      *
      * @param data The packet data to process
      */
-    void processPacket(const std::span<uint8_t> &data);
+    void processPacket(const std::span<const uint8_t> &data);
 
 protected:
     /**
@@ -237,21 +240,31 @@ private:
 // Register Mapped Server CAN Implementation
 // ========================================
 
-class RegMappedCANServer : public Canmore::RegMappedServer {
+class RegMappedCANServer : public Canmore::RegMappedServer, public CANSocket {
 public:
-    RegMappedCANServer(int ifIndex, uint8_t clientId, uint8_t channel, uint8_t interfaceMode);
-    ~RegMappedCANServer();
+    RegMappedCANServer(int ifIndex, uint8_t clientId, uint8_t channel, uint8_t interfaceMode):
+        RegMappedServer(interfaceMode), CANSocket(ifIndex), clientId(clientId), channel(channel) {
+        // Configure agent to receive agent to client communication on the control interface channel
+        struct can_filter rfilter[] = { { .can_id = CANMORE_CALC_UTIL_ID_A2C(clientId, channel),
+                                          .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_SFF_MASK) } };
 
-    void waitForPacket(unsigned int timeoutMs);
+        setRxFilters(std::span { rfilter });
+    }
+
+    const uint8_t clientId;
+    const uint8_t channel;
 
 protected:
-    void transmit(const std::span<uint8_t> &data) override;
+    void handleFrame(canid_t can_id, const std::span<const uint8_t> &data) override {
+        if (can_id != CANMORE_CALC_UTIL_ID_A2C(clientId, channel)) {
+            throw std::logic_error("Received a packet with invalid CAN ID - Somehow the filters broke?");
+        }
 
-private:
-    int ifIndex;
-    uint8_t clientId;
-    uint8_t channel;
-    int socketFd;
+        processPacket(data);
+    }
+    void transmit(const std::span<uint8_t> &data) override {
+        transmitFrame(CANMORE_CALC_UTIL_ID_C2A(clientId, channel), data);
+    }
 };
 
 }  // namespace Canmore

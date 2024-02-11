@@ -295,7 +295,7 @@ typedef struct reg_mapped_server_inst {
  * @param msg Received request
  * @param len Length of msg
  */
-void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *msg, size_t len);
+void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, const uint8_t *msg, size_t len);
 
 #ifdef __cplusplus
 }

@@ -245,6 +245,10 @@ private:
 
     // Flag set during running, cleared to stop the thread
     std::atomic_flag threadStopFlag;
+
+public:
+    Discovery(Discovery const &) = delete;
+    Discovery &operator=(Discovery const &) = delete;
 };
 
 // ========================================

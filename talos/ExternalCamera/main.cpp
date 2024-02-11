@@ -18,7 +18,15 @@ int main(int argc, char **argv) {
     heartbeatTx.start();
 
     CanmoreLinuxServer server(ifIdx, 6);
-    server.run();
+    CanmoreTTYServer ttyServer(ifIdx, 6);
+
+    Canmore::PollGroup group;
+    group.addFd(&server);
+    group.addFd(&ttyServer);
+
+    while (!server.stopRequested()) {
+        group.processEvent(1000);
+    }
 
     return 0;
 }

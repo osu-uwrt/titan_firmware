@@ -74,6 +74,11 @@ bool RegMappedEthernetClient::clientRx(uint8_t *buf, size_t len, unsigned int ti
         return false;
     }
 
+    if (!(fds[0].revents & POLLIN)) {
+        // Poll didn't return a POLLIN event, so that means that we must have gotten an error
+        return false;
+    }
+
     struct sockaddr_in recvaddr;
     socklen_t recvaddrlen = sizeof(recvaddr);
     if (recvfrom(socketFd, buf, len, 0, (sockaddr *) &recvaddr, &recvaddrlen) != (ssize_t) len) {

@@ -12,8 +12,8 @@ project(dfc_daemon)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# Add common titan libraries
-add_subdirectory(${REPO_DIR}/lib/titan_canmore titan_canmore)
+# Add Canmore CPP Core Libraries
+add_subdirectory(${REPO_DIR}/tools/lib/canmore_cpp_core canmore_cpp_core)
 
 # Find threading support
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -24,14 +24,14 @@ add_executable(dfc_daemon
     main.cpp
     HeartbeatTransmitter.cpp
     CanmoreLinuxServer.cpp
-    RegMappedCANServer.cpp
-    RegMappedServer.cpp
+    PTYMaster.cpp
+    RemoteTTYServer.cpp
 )
 
 target_compile_options(dfc_daemon PUBLIC -Wno-unused-parameter -Wall -Wextra)
 
 target_link_libraries(dfc_daemon
-    titan_canmore
+    canmore_cpp_core
     Threads::Threads
 )
 

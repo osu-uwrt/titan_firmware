@@ -1,4 +1,4 @@
-#include "RegMappedServer.hpp"
+#include "canmore_cpp/RegMappedServer.hpp"
 
 using namespace Canmore;
 
@@ -52,7 +52,7 @@ void RegMappedServer::addWordMappedPage(uint8_t page_num, AccessPerm perm, const
     page_def.type.mem_mapped_word.num_words = memory.size();
 }
 
-void RegMappedServer::processPacket(const std::span<uint8_t> &data) {
+void RegMappedServer::processPacket(const std::span<const uint8_t> &data) {
     // Fill out in case the vector was modified since we last called this function
     inst.page_array = pages.data();
     inst.num_pages = pages.size();

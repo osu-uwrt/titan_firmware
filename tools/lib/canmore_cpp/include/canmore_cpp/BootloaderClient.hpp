@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Canmore.hpp"
 #include "GDBClient.hpp"
 #include "RP2040FlashInterface.hpp"
-#include "RegMappedClient.hpp"
+#include "canmore_cpp/Canmore.hpp"
+#include "canmore_cpp/RegMappedClient.hpp"
 
 #include "titan/canmore.h"
 

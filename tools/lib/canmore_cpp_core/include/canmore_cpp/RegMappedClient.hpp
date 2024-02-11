@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CANSocket.hpp"
 #include "Canmore.hpp"
 #include "SocketSingleton.hpp"
 
@@ -8,6 +9,7 @@
 #include <arpa/inet.h>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -92,6 +94,7 @@ public:
     void writeRegister(uint8_t mode, uint8_t page, uint8_t offset, uint32_t data);
     void readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst, uint8_t numWords);
     void writeArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &data);
+    // TODO: Upgrade to using std::span
     void writeStringPage(uint8_t mode, uint8_t page, const std::string &data);
     std::string readStringPage(uint8_t mode, uint8_t page);
 
@@ -143,6 +146,7 @@ struct CANSocketKeyHasher {
 };
 
 class RegMappedCANClient :
+    public CANSocket,
     public RegMappedClient,
     public SocketSingleton<RegMappedCANClient, CANSocketKey, CANSocketKeyHasher> {
 public:
@@ -150,41 +154,50 @@ public:
     // To prevent creating of duplicate sockets (which would break things), there will only be one socket per channel
     // per client per interface per application The factory will need to be used to check if one exists already, and if
     // so, return it static std::shared_ptr<RegMappedCANClient> create(int ifIndex, uint8_t clientId, uint8_t channel);
-
     // However if all references are removed, then we can destroy it and recreate it next time its needed
-    ~RegMappedCANClient();
 
-    void sendRaw(const std::vector<uint8_t> data);
+    void sendRaw(const std::span<const uint8_t> &data);
+
+    // Configured clientId and channel
+    const uint8_t clientId;
+    const uint8_t channel;
 
 private:
     // Instance handles
     // static std::unordered_map<CANSocketKey,std::weak_ptr<RegMappedCANClient>,CANSocketKeyHasher> clients;
     RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t channel);
 
-    // State Variables
-    int ifIndex;
-    uint8_t clientId;
-    uint8_t channel;
-    int socketFd;
+    // This will hold the received id and data from the frame during the CANSocket frame callback
+    std::shared_ptr<std::pair<canid_t, std::vector<uint8_t>>> frameMailbox;
+    void handleFrame(canid_t can_id, const std::span<const uint8_t> &data) {
+        if (frameMailbox) {
+            // If this has data, then we somehow got handleFrame twice before the mailbox was flushed
+            // This shouldn't be possible as the poll is only ran for one event loop
+            throw std::logic_error("Packet mailbox already has a frame in it");
+        }
+        frameMailbox = std::make_shared<std::pair<canid_t, std::vector<uint8_t>>>();
+        frameMailbox->first = can_id;
+        frameMailbox->second.assign(data.begin(), data.end());
+    }
 
     // Function Callbacks
-    bool clientTx(const uint8_t *buf, size_t len);
-    bool clientRx(uint8_t *buf, size_t len, unsigned int timeoutMs);
-    bool clearRx(void);
+    bool clientRx(const std::span<uint8_t> &buf, unsigned int timeoutMs);
 
     static bool clientRxCB(uint8_t *buf, size_t len, unsigned int timeout, void *arg) {
         auto inst = (RegMappedCANClient *) arg;
-        return inst->clientRx(buf, len, timeout);
+        return inst->clientRx(std::span<uint8_t>(buf, len), timeout);
     }
 
     static bool clearRxCB(void *arg) {
         auto inst = (RegMappedCANClient *) arg;
-        return inst->clearRx();
+        inst->clearRxBuffer();
+        return true;
     }
 
     static bool clientTxCB(const uint8_t *buf, size_t len, void *arg) {
         auto inst = (RegMappedCANClient *) arg;
-        return inst->clientTx(buf, len);
+        inst->sendRaw(std::span<const uint8_t>(buf, len));
+        return true;
     }
 
 public:
@@ -257,6 +270,10 @@ private:
         auto inst = (RegMappedEthernetClient *) arg;
         return inst->clientTx(buf, len);
     }
+
+public:
+    RegMappedEthernetClient(RegMappedEthernetClient const &) = delete;
+    RegMappedEthernetClient &operator=(RegMappedEthernetClient const &) = delete;
 };
 
 }  // namespace Canmore

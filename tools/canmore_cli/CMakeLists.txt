@@ -9,7 +9,7 @@ set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 
 project(canmore_cli)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 # Add common titan libraries
 add_subdirectory(../lib titan_tools_lib)
@@ -24,6 +24,7 @@ add_executable(canmore_cli
     src/bootloader_cli.cpp
     src/linux_cli.cpp
     src/gdbserver.cpp
+    src/remote_tty_client_task.cpp
 )
 
 target_include_directories(canmore_cli PUBLIC include/)

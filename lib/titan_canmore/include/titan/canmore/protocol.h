@@ -56,14 +56,19 @@ extern "C" {
  *    - 000: No Control Interface Present
  *    - 001: Normal Mode
  *    - 010: Bootloader Mode
- *    - 011-100: RFU
+ *    - 011: Linux Mode
+ *    - 100: RFU
  *    - 101: Boot Delay - Sent on boot to notify the client is online and allow entering bootloader mode
  *    - 110-111: RFU
  * V (Term Valid): 1 if the termination state is valid, 0 if it should be ignored
  * T (Term Enabled): 1 if the node has its termination resistor enabled, 0 if disabled
  */
 
+// Channel Assignments
 #define CANMORE_TITAN_CHAN_THRUSTER_CMDS 0
+
+#define CANMORE_TITAN_CHAN_UNDERWATER_CAM 12
+#define CANMORE_TITAN_CHAN_REMOTE_TTY 13
 
 #define CANMORE_TITAN_CHAN_CONTROL_INTERFACE 14
 #define CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST                                                             \

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Canmore.hpp"
-#include "RegMappedClient.hpp"
+#include "canmore_cpp/Canmore.hpp"
+#include "canmore_cpp/RegMappedClient.hpp"
 
 namespace Canmore {
 
@@ -19,9 +19,10 @@ public:
     void restartDaemon();
     void ping();
 
+    const std::shared_ptr<RegMappedClient> client;
+
 private:
     union flash_id cachedFlashID;
-    std::shared_ptr<RegMappedClient> client;
 };
 
 };  // namespace Canmore

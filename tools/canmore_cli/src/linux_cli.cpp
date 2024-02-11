@@ -1,6 +1,7 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
 #include "DeviceMap.hpp"
+#include "RemoteTTYClientTask.hpp"
 #include "canmore_cpp/LinuxClient.hpp"
 
 #include <iostream>
@@ -57,10 +58,33 @@ public:
     }
 };
 
+class LinuxRemoteTTYCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxRemoteTTYCommand(): CLICommandHandler("remotesh") {}
+
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Launches a remote shell on the host"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        (void) args;
+        auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
+        if (canClient) {
+            // TODO: Start the client over the control interface
+
+            RemoteTTYClientTask ttyClient(canClient);
+            ttyClient.run();
+        }
+        else {
+            interface.writeLine(COLOR_ERROR "Current interface is not CAN bus, cannot create TTY client" COLOR_RESET);
+        }
+    }
+};
+
 LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(handle) {
     registerCommand(std::make_shared<LinuxVersionCommand>());
     registerCommand(std::make_shared<LinuxRebootCommand>());
     registerCommand(std::make_shared<LinuxDaemonRestartCommand>());
+    registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());
 
     auto devMap = DeviceMap::create();

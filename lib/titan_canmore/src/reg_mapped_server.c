@@ -1,7 +1,7 @@
 #include "titan/canmore.h"
 
 static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *inst,
-                                                     struct reg_mapped_write_request *req) {
+                                                     const struct reg_mapped_write_request *req) {
     if (req->page >= inst->num_pages) {
         return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
     }
@@ -91,8 +91,8 @@ static uint8_t reg_mapped_server_handle_single_write(reg_mapped_server_inst_t *i
     }
 }
 
-static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *inst, struct reg_mapped_read_request *req,
-                                                    uint32_t *data_out) {
+static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *inst,
+                                                    const struct reg_mapped_read_request *req, uint32_t *data_out) {
     if (req->page >= inst->num_pages) {
         return REG_MAPPED_RESULT_INVALID_REGISTER_ADDRESS;
     }
@@ -179,7 +179,7 @@ static uint8_t reg_mapped_server_handle_single_read(reg_mapped_server_inst_t *in
     }
 }
 
-void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *msg, size_t len) {
+void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, const uint8_t *msg, size_t len) {
     if (len < 1) {
         // If request is empty, just return
         // There isn't enough data to determine what format the error repsonse should be sent in
@@ -194,7 +194,7 @@ void reg_mapped_server_handle_request(reg_mapped_server_inst_t *inst, uint8_t *m
     bool request_type_multiword = (flags.f.multiword ? true : false);
 
     // Initialize decode variables
-    reg_mapped_request_t *req = (reg_mapped_request_t *) msg;
+    const reg_mapped_request_t *req = (const reg_mapped_request_t *) msg;
     uint8_t result_code = REG_MAPPED_RESULT_MALFORMED_REQUEST;
     uint32_t read_data = 0;
     reg_mapped_response_t response = { 0 };

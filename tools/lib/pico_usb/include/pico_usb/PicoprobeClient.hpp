@@ -45,6 +45,11 @@ private:
     pid_t openocdPid;
     int stdinFd;
     int stdoutFd;
+
+public:
+    // Disable copying since we have a file descriptor
+    OpenOCDInstance(OpenOCDInstance const &) = delete;
+    OpenOCDInstance &operator=(OpenOCDInstance const &) = delete;
 };
 
 class RP2040OCDTarget {

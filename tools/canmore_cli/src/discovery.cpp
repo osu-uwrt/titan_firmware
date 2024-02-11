@@ -129,7 +129,15 @@ bool keypressAvailable(unsigned int timeoutMs) {
         else
             throw std::system_error(errno, std::generic_category(), "poll");
     }
-    return pfd.revents != 0;
+    if (pfd.revents & POLLIN) {
+        return true;
+    }
+    else if (pfd.revents) {
+        throw std::runtime_error("Unexpected Poll Event on stdin: " + std::to_string(pfd.revents));
+    }
+    else {
+        return false;
+    }
 }
 
 static Keypress getKeypress(unsigned int timeoutMs = 500) {

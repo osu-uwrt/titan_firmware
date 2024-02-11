@@ -76,7 +76,7 @@ std::shared_ptr<RP2040BootromInterface> NormalDevice::switchToBootromMode() {
 
     // Send reboot request
     // Don't check for errors since it doesn't respond to this request
-    libusb_control_transfer(handle->handle, LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+    libusb_control_transfer(handle->handle, ((int) LIBUSB_REQUEST_TYPE_CLASS) | ((int) LIBUSB_RECIPIENT_INTERFACE),
                             RESET_REQUEST_BOOTSEL, disable_mask, resetItf, NULL, 0, 500);
 
     // Wait for the new device to appear

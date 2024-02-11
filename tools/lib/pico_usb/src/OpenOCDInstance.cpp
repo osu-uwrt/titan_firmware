@@ -239,7 +239,7 @@ std::string OpenOCDInstance::readData(int timeout_ms) {
             return std::string(buf, ret);
         }
     }
-    else if (fds[0].revents & POLLHUP) {
+    else if (fds[0].revents & (POLLHUP | POLLERR)) {
         // If hangup event, then the other end of the pipe was broken
         throw PicoprobeError("OpenOCD stdout pipe broken");
     }

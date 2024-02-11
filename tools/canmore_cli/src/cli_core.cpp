@@ -21,7 +21,7 @@ void CLICore::initTerminal() {
     }
 }
 
-void CLICore::cleanupTerminal() {
+void CLICore::cleanupTerminal() noexcept {
     if (promptShown) {
         std::cout << std::endl;
     }

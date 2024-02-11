@@ -19,5 +19,6 @@
 #include "titan/canmore/reg_mapped_client.h"
 #include "titan/canmore/reg_mapped_protocol.h"
 #include "titan/canmore/reg_mapped_server.h"
+#include "titan/canmore/remote_tty_interface.h"
 
 #endif

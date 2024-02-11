@@ -61,7 +61,7 @@ private:
     std::list<std::string> cmdHistory;
     std::list<std::string>::iterator historyItr;
     void initTerminal();
-    void cleanupTerminal();
+    void cleanupTerminal() noexcept;
 
     struct termios oldt;
 };

@@ -9,7 +9,7 @@ set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 
 project(upload_tool)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 # Add common titan libraries
 add_subdirectory(../lib titan_tools_lib)
