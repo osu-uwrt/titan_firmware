@@ -1,6 +1,5 @@
 #include "DFCDaemon.hpp"
 
-#include <iostream>  // TODO: Remove when debugging done
 #include <string.h>
 
 #define bind_reg_cb(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
@@ -40,7 +39,7 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
 
 bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
     if (*data_ptr == CANMORE_LINUX_GEN_CONTROL_RESTART_DAEMON_MAGIC) {
-        shouldStop = true;
+        shouldStop_ = true;
         return true;
     }
     else {
@@ -48,21 +47,33 @@ bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t 
     }
 }
 
-bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
-    // TODO: Implement register
-    if (is_write) {
-        uint16_t windowRows = windowSzReg_ >> 16;
-        uint16_t windowCols = (uint16_t) (windowSzReg_ & 0xFFFF);
-        const char *termEnvPtr = reinterpret_cast<char *>(termStrBuf_.data());
-        size_t termEnvSize = strnlen(termEnvPtr, termStrBuf_.size());
-        std::string_view termEnv(termEnvPtr, termEnvSize);
+void CanmoreLinuxServer::getTtyInitialConfig(std::string &termEnv, uint16_t &initialRows, uint16_t &initialCols) {
+    // Decode window size register
+    initialRows = windowSzReg_ >> 16;
+    initialCols = (uint16_t) (windowSzReg_ & 0xFFFF);
 
-        std::cout << "Spawning new terminal - " << windowRows << " rows, " << windowCols << " cols" << std::endl;
-        std::cout << "\tTerminal Type: " << termEnv << std::endl;
-        return true;
+    // Decode the terminal environment string
+    const char *termEnvPtr = reinterpret_cast<char *>(termStrBuf_.data());
+    size_t termEnvSize = strnlen(termEnvPtr, termStrBuf_.size());
+    termEnv.assign(termEnvPtr, termEnvSize);
+}
+
+bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
+    if (is_write) {
+        if (*data_ptr == 1) {
+            remoteTtyEnabled_ = true;
+            return true;
+        }
+        else if (*data_ptr == 0) {
+            remoteTtyEnabled_ = false;
+            return true;
+        }
+        else {
+            return false;
+        }
     }
     else {
-        *data_ptr = 0;
+        *data_ptr = remoteTtyEnabled_;
         return true;
     }
 }

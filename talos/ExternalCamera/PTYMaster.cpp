@@ -1,6 +1,8 @@
 #include "DFCDaemon.hpp"
 
-CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId): canmoreServer_(*this, ifIndex, clientId) {}
+CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId, const std::string &termEnv, uint16_t initialRows,
+                                   uint16_t initialCols):
+    canmoreServer_(*this, ifIndex, clientId) {}
 
 void CanmoreTTYServer::handleStdin(const std::span<const uint8_t> &data) {
     canmoreServer_.stdoutWrite(data);
