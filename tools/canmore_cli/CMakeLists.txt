@@ -9,7 +9,7 @@ set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 
 project(canmore_cli)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # Add common titan libraries
 add_subdirectory(../lib titan_tools_lib)
@@ -32,9 +32,9 @@ target_include_directories(canmore_cli PUBLIC include/)
 target_compile_options(canmore_cli PUBLIC -Wno-psabi -Wall -Wextra)
 
 target_link_libraries(canmore_cli
-        canmore_cpp
-        rp2040_flash_itf
-        binary_info_cpp
+    canmore_cpp
+    rp2040_flash_itf
+    binary_info_cpp
 )
 
 install(TARGETS canmore_cli RUNTIME DESTINATION bin)

@@ -22,6 +22,30 @@ std::string LinuxClient::getVersion() {
     return client->readStringPage(linux_itf_mode, CANMORE_LINUX_VERSION_STRING_PAGE_NUM);
 }
 
+void LinuxClient::enableRemoteTty(const std::string &term_env, uint16_t windowRows, uint16_t windowCols) {
+    // Write terminal environment variable
+    if (term_env.size() >= REG_MAPPED_PAGE_SIZE) {
+        throw CanmoreError("Terminal environment variable too large to transmit");
+    }
+    client->writeStringPage(linux_itf_mode, CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM, term_env);
+
+    // Set the initial window size, then enable the remote tty
+    RegisterPage ttyCtrlPage(client, linux_itf_mode, CANMORE_LINUX_TTY_CONTROL_PAGE_NUM);
+    uint32_t windowSize = ((uint32_t) windowRows) << 16 | windowCols;
+    ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_WINDOW_SIZE_OFFSET, windowSize);
+    ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_ENABLE_OFFSET, 1);
+}
+
+void LinuxClient::disableRemoteTty() {
+    RegisterPage ttyCtrlPage(client, linux_itf_mode, CANMORE_LINUX_TTY_CONTROL_PAGE_NUM);
+    ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_ENABLE_OFFSET, 0);
+}
+
+bool LinuxClient::remoteTtyEnabled() {
+    RegisterPage ttyCtrlPage(client, linux_itf_mode, CANMORE_LINUX_TTY_CONTROL_PAGE_NUM);
+    return ttyCtrlPage.readRegister(CANMORE_LINUX_TTY_CONTROL_ENABLE_OFFSET) != 0;
+}
+
 void LinuxClient::ping() {
     RegisterPage genCtrlPage(client, linux_itf_mode, CANMORE_LINUX_GEN_CONTROL_PAGE_NUM);
 

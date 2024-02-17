@@ -94,7 +94,6 @@ public:
     void writeRegister(uint8_t mode, uint8_t page, uint8_t offset, uint32_t data);
     void readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst, uint8_t numWords);
     void writeArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &data);
-    // TODO: Upgrade to using std::span
     void writeStringPage(uint8_t mode, uint8_t page, const std::string &data);
     std::string readStringPage(uint8_t mode, uint8_t page);
 

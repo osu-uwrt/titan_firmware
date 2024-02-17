@@ -15,6 +15,10 @@ public:
 
     std::string getVersion();
     uint64_t getFlashId() { return cachedFlashID.doubleword; }
+    void enableRemoteTty(const std::string &term_env, uint16_t windowRows, uint16_t windowCols);
+    void disableRemoteTty();
+    bool remoteTtyEnabled();
+
     void reboot();
     void restartDaemon();
     void ping();

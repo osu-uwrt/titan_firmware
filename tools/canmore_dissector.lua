@@ -218,6 +218,15 @@ end
 
 
 local reg_mapped_protocol = Proto("canmore.reg_mapped", "CANmore Reg Mapped")
+local reg_mapped_result_table = {
+    [0] = "Successful",
+    [1] = "Malformed Request",
+    [2] = "Bulk Request Sequence Error",
+    [3] = "Invalid Register Address",
+    [4] = "Invalid Register Mode",
+    [5] = "Invalid Data",
+    [6] = "Invalid Mode"
+}
 local reg_mapped_f = {
     access = ProtoField.uint8("canmore.reg_mapped.access", "Access Type", base.DEC, { [0] = "Read", [1] = "Write"}),
     bulk_req = ProtoField.bool("canmore.reg_mapped.bulk_req", "Bulk Request"),
@@ -227,7 +236,8 @@ local reg_mapped_f = {
     count = ProtoField.uint8("canmore.reg_mapped.count", "Sequence Count", base.DEC),
     addr_page = ProtoField.uint8("canmore.reg_mapped.addr_page", "Reg Page", base.DEC),
     addr_offset = ProtoField.uint8("canmore.reg_mapped.addr_offset", "Reg Offset", base.DEC),
-    write_data = ProtoField.uint32("canmore.reg_mapped.wdata", "Write Data", base.HEX)
+    write_data = ProtoField.uint32("canmore.reg_mapped.wdata", "Write Data", base.HEX),
+    result = ProtoField.uint32("canmore.reg_mapped.result", "Result", base.DEC, reg_mapped_result_table)
 }
 reg_mapped_protocol.fields = reg_mapped_f
 function reg_mapped_protocol.dissector(buffer, pinfo, tree)
@@ -235,10 +245,10 @@ function reg_mapped_protocol.dissector(buffer, pinfo, tree)
         return
     end
 
-    pinfo.cols.protocol:set("Reg Mapped")
-
     if (pinfo.private["canmore_dir"] == "1") then
-        local flag_data = buffer(0, 1):range(0, 1):uint()
+        pinfo.cols.protocol:set("Reg Mapped")
+
+        local flag_data = buffer:range(0, 1):uint()
         local access_val = bitfield(flag_data, 0, 1)
         local bulk_req_val = bitfield(flag_data, 1, 1)
         local bulk_end_val = bitfield(flag_data, 2, 1)
@@ -286,5 +296,20 @@ function reg_mapped_protocol.dissector(buffer, pinfo, tree)
         end
 
         pinfo.cols.info:set(tree_title)
+    else
+        pinfo.cols.protocol:set("Reg Mapped")
+        local result_val = buffer:range(0, 1):uint()
+
+        local result_str = "Result "
+        if reg_mapped_result_table[result_val] ~= nil then
+            result_str = result_str .. reg_mapped_result_table[result_val]
+        else
+            result_str = result_str .. "Unknown Result (" .. tostring(result_val) .. ")"
+        end
+
+        local subtree = tree:add(reg_mapped_protocol, buffer, "CANmore Reg Mapped: " .. result_str)
+        subtree:add(reg_mapped_f.result, result_val)
+
+        pinfo.cols.info:set(result_str)
     end
 end

@@ -50,7 +50,7 @@ protected:
     void transmitAck(uint16_t seqNum) override;
 
     // Need to override PollFD to enable timer support
-    void populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) override;
+    void populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) override;
     void handleEvent(const pollfd &fd) override;
 
 private:
@@ -58,6 +58,7 @@ private:
     bool disconnectedInError_ = false;
     bool notifyRequested_ = false;
     int timerFd_ = -1;
+    std::shared_ptr<PollFDDescriptor> timerPollDescriptor_;
     RemoteTTYClientEventHandler &handler_;
     RemoteTTYStreamTXScheduler txScheduler_;
     RemoteTTYStreamRXScheduler rxScheduler_;

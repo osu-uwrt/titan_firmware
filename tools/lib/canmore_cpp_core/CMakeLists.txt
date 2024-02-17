@@ -19,4 +19,5 @@ target_include_directories(canmore_cpp_core INTERFACE ${CMAKE_CURRENT_LIST_DIR}/
 
 target_link_libraries(canmore_cpp_core INTERFACE
     titan_canmore
+    span_cpp
 )

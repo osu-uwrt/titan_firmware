@@ -30,6 +30,9 @@ private:
     bool shouldStop = false;
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
+    bool enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
+    uint32_t windowSzReg_;
+    std::vector<uint8_t> termStrBuf_;
 };
 
 class PTYMaster {
@@ -41,7 +44,7 @@ class CanmoreTTYServer : public Canmore::RemoteTTYServerEventHandler, public Can
 public:
     CanmoreTTYServer(int ifIndex, uint8_t clientId);
 
-    void populateFds(std::vector<std::pair<Canmore::PollFDHandler *, pollfd>> &fds) override;
+    void populateFds(std::vector<std::weak_ptr<Canmore::PollFDDescriptor>> &descriptors) override;
 
 protected:
     void handleStdin(const std::span<const uint8_t> &data) override;
@@ -49,5 +52,5 @@ protected:
     void handleStdioReady() override;
 
 private:
-    Canmore::RemoteTTYServer server_;
+    Canmore::RemoteTTYServer canmoreServer_;
 };

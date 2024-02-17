@@ -10,10 +10,11 @@ using namespace Canmore;
 RemoteTTYServer::RemoteTTYServer(RemoteTTYServerEventHandler &handler_, int ifIndex, uint8_t clientId):
     CANSocket(ifIndex), clientId(clientId), handler_(handler_), txScheduler_(*this), rxScheduler_(*this) {
     // Create the timer fd so we can properly time the receiver callback
-    timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timerFd_ < 0) {
         throw std::system_error(errno, std::generic_category(), "timerfd_create");
     }
+    timerPollDescriptor_ = PollFDDescriptor::create(*this, timerFd_, POLLIN);
 
     // Configure the CANSocket to receive all packets for the remote tty interface
     // The remote tty interface only uses extended frame packets, so we just watch for those
@@ -42,7 +43,7 @@ void RemoteTTYServer::disconnect(bool isError) {
         return;
     }
 
-    canmore_remote_tty_cmd_disconnect_t pkt = { .pkt = { .is_err = true } };
+    canmore_remote_tty_cmd_disconnect_t pkt = { .pkt = { .is_err = isError } };
     sendControlCommand(CANMORE_REMOTE_TTY_CMD_DISCONNECT_ID, { pkt.data, sizeof(pkt) });
 
     disconnected_ = true;
@@ -54,18 +55,18 @@ void RemoteTTYServer::stdioNotifyWhenReady() {
 }
 
 bool RemoteTTYServer::stdioCanWrite() {
-    return txScheduler_.transmitterSpaceAvailable();
+    return txScheduler_.spaceAvailable();
 }
 
 void RemoteTTYServer::stderrWrite(const std::span<const uint8_t> &data) {
     if (!disconnected_) {
-        txScheduler_.transmitterWrite(CANMORE_REMOTE_TTY_SUBCH_STDERR, data);
+        txScheduler_.write(CANMORE_REMOTE_TTY_SUBCH_STDERR, data);
     }
 }
 
 void RemoteTTYServer::stdoutWrite(const std::span<const uint8_t> &data) {
     if (!disconnected_) {
-        txScheduler_.transmitterWrite(CANMORE_REMOTE_TTY_SUBCH_STDOUT, data);
+        txScheduler_.write(CANMORE_REMOTE_TTY_SUBCH_STDOUT, data);
     }
 }
 
@@ -88,7 +89,7 @@ void RemoteTTYServer::handleFrame(canid_t can_id, const std::span<const uint8_t>
     else if (subch == CANMORE_REMOTE_TTY_SUBCH_STDIN) {
         // Not control, must be stream. Try to handle it
         // If the check fails, then just drop the packet
-        if (rxScheduler_.receiverCheckPacket(seqCmd)) {
+        if (rxScheduler_.checkPacket(seqCmd)) {
             handler_.handleStdin(data);
         }
     }
@@ -111,12 +112,12 @@ void RemoteTTYServer::transmitAck(uint16_t seqNum) {
     sendControlCommand(CANMORE_REMOTE_TTY_CMD_ACK_ID, { pkt.data, sizeof(pkt) });
 }
 
-void RemoteTTYServer::populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) {
+void RemoteTTYServer::populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) {
     // Register the CANSocket fds
-    CANSocket::populateFds(fds);
+    CANSocket::populateFds(descriptors);
 
     // Also register our timer fd
-    fds.push_back({ this, { .fd = timerFd_, .events = POLLIN, .revents = 0 } });
+    descriptors.push_back(timerPollDescriptor_);
 }
 
 void RemoteTTYServer::handleEvent(const pollfd &fd) {
@@ -124,7 +125,9 @@ void RemoteTTYServer::handleEvent(const pollfd &fd) {
     if (fd.fd == timerFd_) {
         // Read the timer fd, we don't care about the data since it's only a single shot timer
         uint8_t buf[8];
-        read(timerFd_, buf, sizeof(buf));
+        if (read(timerFd_, buf, sizeof(buf)) < 0) {
+            throw std::system_error(errno, std::generic_category(), "timerFd read");
+        }
 
         // Only tick if we're not disconnected_
         if (!disconnected_) {
@@ -157,7 +160,7 @@ void RemoteTTYServer::handleControlCommand(uint16_t cmd, const std::span<const u
     else if (cmd == CANMORE_REMOTE_TTY_CMD_ACK_ID && data.size_bytes() == CANMORE_REMOTE_TTY_CMD_ACK_LEN) {
         canmore_remote_tty_cmd_ack_t ack;
         std::copy(data.begin(), data.end(), ack.data);
-        txScheduler_.transmitterNotifyAck(ack.pkt.last_seq_num);
+        txScheduler_.notifyAck(ack.pkt.last_seq_num);
     }
     else if (cmd == CANMORE_REMOTE_TTY_CMD_WINDOW_SIZE_ID &&
              data.size_bytes() == CANMORE_REMOTE_TTY_CMD_WINDOW_SIZE_LEN) {
@@ -169,7 +172,7 @@ void RemoteTTYServer::handleControlCommand(uint16_t cmd, const std::span<const u
 
 void RemoteTTYServer::tickRxScheduler() {
     // Schedule the timer to fire for the time requested by the rxScheduler_
-    long nextTimerFireMs = (long) rxScheduler_.receiverHandleTimer();
+    long nextTimerFireMs = (long) rxScheduler_.handleTimer();
     itimerspec nextFire = { .it_interval = { .tv_sec = 0, .tv_nsec = 0 },
                             .it_value = { .tv_sec = nextTimerFireMs / 1000,
                                           .tv_nsec = (nextTimerFireMs % 1000) * 1000000 } };

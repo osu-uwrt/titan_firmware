@@ -14,6 +14,10 @@ CANSocket::CANSocket(int ifIndex): ifIndex(ifIndex), socketFd(-1) {
         throw std::system_error(errno, std::generic_category(), "CAN socket");
     }
 
+    // TODO: Figure out nonblocking
+    // I mean, I'd say blocking is fine, but only for a certain amount of time, since CAN bus can completely fill the
+    // buffer up, but also if we are on a broken bus, the buffer will be permanently stuck until another node appears
+
     // Bind to requested interface
     struct sockaddr_can addr = {};
     addr.can_family = AF_CAN;
@@ -24,6 +28,9 @@ CANSocket::CANSocket(int ifIndex): ifIndex(ifIndex), socketFd(-1) {
         socketFd = -1;
         throw std::system_error(errno, std::generic_category(), "CAN bind");
     }
+
+    // Create poll descriptor for pollfd
+    socketPollDescriptor = PollFDDescriptor::create(*this, socketFd, POLLIN);
 }
 
 CANSocket::CANSocket(int ifIndex, const std::span<can_filter> &&rxFilters): CANSocket(ifIndex) {
@@ -49,9 +56,8 @@ void CANSocket::setRxFiltersInternal(const std::span<can_filter> &rxFilters, boo
     }
 }
 
-void CANSocket::populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) {
-    // Register socketFd for POLLIN events, calling back to this function
-    fds.push_back({ this, { .fd = socketFd, .events = POLLIN, .revents = 0 } });
+void CANSocket::populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) {
+    descriptors.push_back(socketPollDescriptor);
 }
 
 void CANSocket::transmitFrame(canid_t can_id, const std::span<const uint8_t> &data) {
@@ -59,7 +65,7 @@ void CANSocket::transmitFrame(canid_t can_id, const std::span<const uint8_t> &da
         throw std::logic_error("Attempting to transmit packet greater than maximum CAN data length");
     }
 
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = can_id;
     frame.can_dlc = data.size();
     std::copy_n(data.data(), data.size(), frame.data);

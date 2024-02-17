@@ -84,8 +84,8 @@ extern "C" {
  * 0x01: |  Window Size   | RW
  *       +----------------+
  *
- * Enable:          Writing 1 to this register will initialize the debug session. Writing 0 will kill the session.
- * Window Size:     Sets the TTY's window size. Lower 16-bits are num cols, upper 16-bits are num rows.
+ * Enable:          Writing 1 to this register will initialize the remote tty session. Writing 0 will kill the session.
+ * Window Size:     Sets the TTY's initial window size. Lower 16-bits are num cols, upper 16-bits are num rows.
  *
  */
 

@@ -21,8 +21,8 @@ int main(int argc, char **argv) {
     CanmoreTTYServer ttyServer(ifIdx, 6);
 
     Canmore::PollGroup group;
-    group.addFd(&server);
-    group.addFd(&ttyServer);
+    group.addFd(server);
+    group.addFd(ttyServer);
 
     while (!server.stopRequested()) {
         group.processEvent(1000);

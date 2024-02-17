@@ -4,8 +4,8 @@
 
 using namespace Canmore;
 
-void RemoteTTYStreamTXScheduler::transmitterWrite(uint8_t streamId, const std::span<const uint8_t> &data) {
-    if (!transmitterSpaceAvailable())
+void RemoteTTYStreamTXScheduler::write(uint8_t streamId, const std::span<const uint8_t> &data) {
+    if (!spaceAvailable())
         throw std::logic_error("Cannot write to full TTY transmit buffer");
 
     // Store the packet locally so it can be retransmitted if required
@@ -19,7 +19,7 @@ void RemoteTTYStreamTXScheduler::transmitterWrite(uint8_t streamId, const std::s
     callback.transmitStreamPacket(streamId, seqNum, data);
 }
 
-void RemoteTTYStreamTXScheduler::transmitterNotifyAck(uint16_t seqNum) {
+void RemoteTTYStreamTXScheduler::notifyAck(uint16_t seqNum) {
     if (seqNum == 0) {
         // Sequence number 0 is never a valid packet, always just reset state
         lastAckedSeqNum = 0;
@@ -54,7 +54,7 @@ void RemoteTTYStreamTXScheduler::transmitterNotifyAck(uint16_t seqNum) {
         // This shouldn't be possible, as we only remove packets after they are acked
         // To recover the connection, just say that's the last acked packet and clear our local buffer
         if (ackedIdx >= unackedBuffer.size()) {
-            std::cerr << "Receiver lost sync with transmitter (THIS SHOULDN'T HAPPEN) - resetting buffer state"
+            std::cerr << "Receiver lost sync with transmitter (THIS SHOULDN'T HAPPEN) - resetting buffer state\r"
                       << std::endl;  // TODO: Remove once validated
 
             unackedBuffer.clear();
@@ -75,7 +75,7 @@ void RemoteTTYStreamTXScheduler::transmitterNotifyAck(uint16_t seqNum) {
     }
 }
 
-bool RemoteTTYStreamRXScheduler::receiverCheckPacket(uint16_t seqNum) {
+bool RemoteTTYStreamRXScheduler::checkPacket(uint16_t seqNum) {
     uint16_t expectedSeqNum = lastReceivedSeqNum + 1;
     if (expectedSeqNum == 0) {
         // On overflow, 0 isn't a valid sequence number, add another to get it to 1
@@ -104,7 +104,7 @@ bool RemoteTTYStreamRXScheduler::receiverCheckPacket(uint16_t seqNum) {
     return true;
 }
 
-unsigned long RemoteTTYStreamRXScheduler::receiverHandleTimer() {
+unsigned long RemoteTTYStreamRXScheduler::handleTimer() {
     // Next scheduled ack is in the past, send an ack
     auto now = std::chrono::steady_clock::now();
     if (nextScheduledAck <= now) {

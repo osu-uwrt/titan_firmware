@@ -10,10 +10,11 @@ set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
 project(dfc_daemon)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # Add Canmore CPP Core Libraries
 add_subdirectory(${REPO_DIR}/tools/lib/canmore_cpp_core canmore_cpp_core)
+add_subdirectory(${REPO_DIR}/tools/lib/span_compat span_cpp)
 
 # Find threading support
 set(THREADS_PREFER_PTHREAD_FLAG ON)

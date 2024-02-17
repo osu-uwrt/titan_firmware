@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits.h>
+#include <memory>
 #include <poll.h>
 #include <system_error>
 #include <vector>
@@ -7,6 +9,49 @@
 namespace Canmore {
 
 class PollFDHandler;
+
+class PollFDDescriptor {
+    friend class PollGroup;
+
+public:
+    /**
+     * @brief Creates a new PollFD Descriptor.
+     *
+     * @attention Because PollFDDescriptor contains a reference to the handler, the handler class must keep a owning
+     * reference to that object.
+     *
+     * @param handler The given PollFDHandler for this fd
+     * @param fd The fd to monitor
+     * @param events Events to monitor (see pollfd struct man page)
+     * @param enabled If this given PollFDDescriptor starts enabled. Defaults to true
+     * @return std::shared_ptr<PollFDDescriptor> A shared pointer to the new object. This must be kept by the Handler
+     * class
+     */
+    static std::shared_ptr<PollFDDescriptor> create(PollFDHandler &handler, int fd, short events, bool enabled = true) {
+        return std::shared_ptr<PollFDDescriptor>(new PollFDDescriptor(handler, fd, events, enabled));
+    }
+
+    // Disable all copying, we want this to be purely managed via shared ptrs
+    PollFDDescriptor(const PollFDDescriptor &) = delete;
+    PollFDDescriptor &operator=(PollFDDescriptor const &) = delete;
+
+    /**
+     * @brief Enables/disables the requested PollFD descriptor. This will apply the next time the poll syscall is ran.
+     *
+     * @param enabled True to enable the given pollfd, false to disable
+     */
+    void setEnabled(bool enabled) { enabled_ = enabled; }
+
+protected:
+    PollFDHandler &handler_;
+    const int fd_;
+    const short events_;
+    bool enabled_;
+
+private:
+    PollFDDescriptor(PollFDHandler &handler, int fd, short events, bool enabled):
+        handler_(handler), fd_(fd), events_(events), enabled_(enabled) {}
+};
 
 /**
  * @brief Class which can be added to a PollGroup.
@@ -21,13 +66,13 @@ class PollFDHandler;
 class PollFD {
 public:
     /**
-     * @brief Populates the vector with a pair of pollfd structs
+     * @brief Populates the vector with the pollfd descriptors to monitor for.
      *
-     * The PollGroup will call the provided PollFDHandler if the given pollfd matches
+     * These can be created with PollFDDescriptor::create(). See more details on that method
      *
-     * @param fds A vector of pollfd structs and the corresponding handler for that struct
+     * @param fds A vector of weak pointers to PollFDDescriptors
      */
-    virtual void populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) = 0;
+    virtual void populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) = 0;
 };
 
 /**
@@ -70,15 +115,19 @@ public:
      *
      * @param fd The PollFD object to poll for
      */
-    void addFd(PollFD *fd) {
+    void addFd(PollFD &fd) {
         // Get the fds that are to be registered
-        std::vector<std::pair<PollFDHandler *, pollfd>> pollFds;
-        fd->populateFds(pollFds);
+        std::vector<std::weak_ptr<PollFDDescriptor>> descriptors;
+        fd.populateFds(descriptors);
 
         // Copy all the fds into the local
-        for (auto &fd : pollFds) {
-            fds.push_back(fd.second);
-            fdBackends.push_back(fd.first);
+        for (auto &descrWeak : descriptors) {
+            auto descr = descrWeak.lock();
+            if (descr) {
+                pollfd fd = { .fd = descr->fd_, .events = descr->events_, .revents = 0 };
+                fds_.push_back(fd);
+                fdDescriptors_.push_back(descrWeak);
+            }
         }
     };
 
@@ -94,7 +143,10 @@ public:
      * @param timeoutMs The maximum timeout to wait. 0 will return immediately, a negative number blocks indefinitely.
      */
     void processEvent(int timeoutMs) {
-        int rc = poll(fds.data(), fds.size(), timeoutMs);
+        // Refresh the fds_ (enabling/disabling as requested) before calling poll
+        refreshFdConfig();
+
+        int rc = poll(fds_.data(), fds_.size(), timeoutMs);
         if (rc == 0) {
             return;
         }
@@ -111,31 +163,90 @@ public:
         // If we get here, then we have events to process
         // Iterate through the events, checking which ones fired
         // Also keep backend itr so we can pair call the appropriate backend
-        auto backendItr = fdBackends.begin();
-        auto itr = fds.begin();
-        while (itr != fds.end()) {
-            int revents = itr->revents;
-            auto backend = *backendItr;
+        auto descrItr = fdDescriptors_.begin();
+        auto itr = fds_.begin();
+        while (itr != fds_.end()) {
+            // Skip if no event pending
+            if (!itr->revents) {
+                itr++;
+                descrItr++;
+                continue;
+            }
 
-            if (revents & POLLNVAL) {
+            // Try lock, erasing the reference if it's been invalidated
+            // This shouldn't happen since we check it above, but just in case
+            auto descr = descrItr->lock();
+            if (!descr) {
+                itr = fds_.erase(itr);
+                descrItr = fdDescriptors_.erase(descrItr);
+                continue;
+            }
+
+            if (itr->revents & POLLNVAL) {
                 // If we get an invalid FD, report it to the PollFD object, and then remove it from the poll group
-                itr = fds.erase(itr);
-                backendItr = fdBackends.erase(backendItr);
-                backend->handleInvalidFd();
+                itr = fds_.erase(itr);
+                descrItr = fdDescriptors_.erase(descrItr);
+                descr->handler_.handleInvalidFd();
             }
             else {
-                if (revents) {
-                    backend->handleEvent(*itr);
-                }
+                // We have a normal event, handle it
+                descr->handler_.handleEvent(*itr);
                 itr++;
-                backendItr++;
+                descrItr++;
             }
         }
     }
 
 private:
-    std::vector<struct pollfd> fds;
-    std::vector<PollFDHandler *> fdBackends;
+    std::vector<struct pollfd> fds_;
+    std::vector<std::weak_ptr<PollFDDescriptor>> fdDescriptors_;
+
+    /**
+     * @brief Reconfigures the pollfd struct depending on if a given descriptor is enabled/disabled
+     * Also garbage collects any invalid PollFDDescriptor objects
+     *
+     * This should be called before running poll
+     */
+    void refreshFdConfig() {
+        auto fdItr = fds_.begin();
+        for (auto itr = fdDescriptors_.begin(); itr != fdDescriptors_.end(); itr++) {
+            if (auto descr = itr->lock()) {
+                configureFd(*fdItr, descr->enabled_);
+                fdItr++;
+            }
+            else {
+                itr = fdDescriptors_.erase(itr);
+                fdItr = fds_.erase(fdItr);
+            }
+        }
+    }
+
+    /**
+     * @brief Enables/disables the requested pollfd
+     *
+     * Disabling an fd causes poll to not alert on events for that specific pollfd until it is re-enabled
+     *
+     * @param fd Pollfd reference to configure
+     * @param enable If true enables the fd for polling, if false disables the fd for polling
+     */
+    void configureFd(pollfd &fd, bool enable) {
+        if (enable) {
+            // Special check for INT_MIN since this is used to represent 0 (since there's no such thing as negative 0)
+            if (fd.fd == INT_MIN)
+                fd.fd = 0;
+            else if (fd.fd < 0)
+                fd.fd = -fd.fd;
+        }
+        else {
+            // Disable the fd
+            // Since negative 0 is still 0, we need special handling
+            if (fd.fd == 0)
+                fd.fd = INT_MIN;  // We can use the fact that INT_MIN does not have a corresponding 2s complemnet value
+                                  // Instead, INT_MIN will encode negative 0
+            else if (fd.fd > 0)
+                fd.fd = -fd.fd;
+        }
+    }
 };
 
 };  // namespace Canmore

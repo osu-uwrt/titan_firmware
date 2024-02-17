@@ -69,9 +69,7 @@ public:
         (void) args;
         auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
         if (canClient) {
-            // TODO: Start the client over the control interface
-
-            RemoteTTYClientTask ttyClient(canClient);
+            RemoteTTYClientTask ttyClient(interface.handle, canClient);
             ttyClient.run();
         }
         else {

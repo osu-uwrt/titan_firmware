@@ -56,7 +56,7 @@ void RegMappedClient::writeStringPage(uint8_t mode, uint8_t page, const std::str
     for (size_t word = 0; (word * 4) < bytesSize; word++) {
         uint32_t value = 0;
         for (int byteOff = 0; byteOff + (word * 4) < bytesSize && byteOff < 4; byteOff++) {
-            value |= dataArray.at(byteOff + (word * 4)) << (8 * byteOff);
+            value |= data.at(byteOff + (word * 4)) << (8 * byteOff);
         }
 
         dataArray.at(word) = value;
@@ -73,12 +73,12 @@ std::string RegMappedClient::readStringPage(uint8_t mode, uint8_t page) {
     clientCfg.control_interface_mode = mode;
     int ret = reg_mapped_client_read_string_page(&clientCfg, page, strArray, strMaxSize);
     if (ret < 0) {
-        delete strArray;
+        delete[] strArray;
         throw RegMappedClientError(-ret, mode, page);
     }
 
     auto readStr = std::string(strArray);
-    delete strArray;
+    delete[] strArray;
 
     return readStr;
 }

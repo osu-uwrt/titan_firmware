@@ -1,18 +1,25 @@
 #include "DFCDaemon.hpp"
 
-CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId): server_(*this, ifIndex, clientId) {}
+CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId): canmoreServer_(*this, ifIndex, clientId) {}
 
 void CanmoreTTYServer::handleStdin(const std::span<const uint8_t> &data) {
-    server_.stdoutWrite(data);
+    canmoreServer_.stdoutWrite(data);
+
+    if (std::find(data.begin(), data.end(), 2) != data.end()) {
+        canmoreServer_.disconnect(true);
+    }
+    if (std::find(data.begin(), data.end(), 1) != data.end()) {
+        canmoreServer_.disconnect(false);
+    }
 }
 
-void CanmoreTTYServer::populateFds(std::vector<std::pair<Canmore::PollFDHandler *, pollfd>> &fds) {
-    server_.populateFds(fds);
+void CanmoreTTYServer::populateFds(std::vector<std::weak_ptr<Canmore::PollFDDescriptor>> &descriptors) {
+    canmoreServer_.populateFds(descriptors);
 }
 
 void CanmoreTTYServer::handleWindowSize(uint16_t rows, uint16_t cols) {
     unsigned char data[] = "WDWSZ\r\n";
-    server_.stderrWrite({ data });
+    canmoreServer_.stderrWrite({ data });
 }
 
 void CanmoreTTYServer::handleStdioReady() {

@@ -38,7 +38,7 @@ void HeartbeatTransmitter::start() {
     struct {
         struct bcm_msg_head msg_head;
         struct can_frame frame[num_frames];
-    } heartbeat_msg;
+    } heartbeat_msg = {};
 
     // Configure the repeating message
     // Will transmit every heartbeat interval, looping through all the frame indices

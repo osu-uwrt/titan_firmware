@@ -53,13 +53,14 @@ protected:
     void handleEvent(const pollfd &fd) override;
 
 public:
-    void populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) override;
+    void populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) override;
 
 private:
     bool disconnected_ = false;
     bool disconnectedInError_ = false;
     bool notifyRequested_ = false;
     int timerFd_ = -1;
+    std::shared_ptr<PollFDDescriptor> timerPollDescriptor_;
     RemoteTTYServerEventHandler &handler_;
     RemoteTTYStreamTXScheduler txScheduler_;
     RemoteTTYStreamRXScheduler rxScheduler_;

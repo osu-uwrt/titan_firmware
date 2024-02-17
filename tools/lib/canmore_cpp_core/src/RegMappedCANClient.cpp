@@ -1,5 +1,7 @@
 #include "canmore_cpp/RegMappedClient.hpp"
 
+#include <chrono>
+
 using namespace Canmore;
 
 RegMappedCANClient::RegMappedCANClient(int ifIndex, uint8_t clientId, uint8_t channel):
@@ -28,13 +30,23 @@ bool RegMappedCANClient::clientRx(const std::span<uint8_t> &buf, unsigned int ti
         return false;
     }
 
-    PollGroup group;
-    group.addFd(this);
-
     // Run a simple PollGroup with just this FD
     // The frame handler will put the frame into the mailbox
-    group.processEvent(timeoutMs);
-    // TODO: If a signal fires, this may return before timeoutMs. Make it not do that
+    PollGroup group;
+    group.addFd(*this);
+
+    // We need to keep track of the time elapsed since signals can make PollGroup exit before timeoutMs, without
+    // the fd processing an event
+    auto start_time = std::chrono::high_resolution_clock::now();
+    int remainingMs = timeoutMs;
+    do {
+        // Process events until we fill the mailbox or we run out of time
+        group.processEvent(remainingMs);
+
+        remainingMs = timeoutMs - std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      std::chrono::high_resolution_clock::now() - start_time)
+                                      .count();
+    } while (remainingMs > 0 && !frameMailbox);
 
     if (!frameMailbox) {
         // Nothing in the mailbox, we didn't receive data in time

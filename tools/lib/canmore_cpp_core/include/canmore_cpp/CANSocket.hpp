@@ -43,13 +43,14 @@ protected:
     /*
      * Overrides for PollFD - Implemented by this class
      */
-    void populateFds(std::vector<std::pair<PollFDHandler *, pollfd>> &fds) override;
+    void populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) override;
     void handleEvent(const pollfd &fd) override;
 
 private:
     // Separate internal function so the constructor can request that the socket be closed when an exception is thrown
     void setRxFiltersInternal(const std::span<can_filter> &rxFilters, bool closeOnFail);
     int socketFd;
+    std::shared_ptr<PollFDDescriptor> socketPollDescriptor;
 };
 
 };  // namespace Canmore

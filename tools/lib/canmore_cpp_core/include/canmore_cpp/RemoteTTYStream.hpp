@@ -65,7 +65,7 @@ public:
      * @return true If there is space for another packet to be written
      * @return false No more space is available for in flight packets. transmitterWrite should not be called
      */
-    bool transmitterSpaceAvailable() { return unackedBuffer.size() < maxInFlight; }
+    bool spaceAvailable() { return unackedBuffer.size() < maxInFlight; }
 
     /**
      * @brief Transmits the requested packet on the given stream
@@ -75,7 +75,7 @@ public:
      * @param streamId The stream ID for this packet (passed to transmitPacket)
      * @param data The data to transmit
      */
-    void transmitterWrite(uint8_t streamId, const std::span<const uint8_t> &data);
+    void write(uint8_t streamId, const std::span<const uint8_t> &data);
 
     /**
      * @brief Notifies that an ack has been received from the receiver.
@@ -85,7 +85,7 @@ public:
      *
      * @param seqNum The sequence number that was acked
      */
-    void transmitterNotifyAck(uint16_t seqNum);
+    void notifyAck(uint16_t seqNum);
 
     /**
      * @brief The maximum number of unacked packets that can be in flight. Set during construction
@@ -150,7 +150,7 @@ public:
      * @return true The packet is the next in the sequence. The receiver should process this packet
      * @return false The packet is not the next in the sequence. The receiver should discard this packet
      */
-    bool receiverCheckPacket(uint16_t seqNum);
+    bool checkPacket(uint16_t seqNum);
 
     /**
      * @brief Reports that the timer has fired, and does any background required by the timer (such as sending a
@@ -175,7 +175,7 @@ public:
      *
      * @return unsigned long The duration in ms for when this function should be called again
      */
-    unsigned long receiverHandleTimer();
+    unsigned long handleTimer();
 
     /**
      * @brief Transmits an ack when this many packets have been successfully received since an ack has last been sent

@@ -121,9 +121,9 @@ OpenOCDInstance::OpenOCDInstance():
         std::stringstream errStream;
         errStream << "Failed to execute '" << execPath << "': " << std::strerror(errno) << std::endl;
         auto errStr = errStream.str();
-
-        // No use checking for error, as if we can't actually write to stderr, we don't have anywhere to put it
         write(stderrFd, errStr.c_str(), errStr.size());
+
+        // Abort with error code
         exit(1);
     }
     else if (openocdPid < 0) {
