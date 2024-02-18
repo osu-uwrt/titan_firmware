@@ -47,7 +47,7 @@ public:
     }
 
     void printHelp() {
-        std::cout << "Usage: " << progname << " [-fiopw] [uf2]" << std::endl;
+        std::cout << "Usage: " << progname << " [-fiopw] [uf2] [board_name]" << std::endl;
         std::cout << "\t-h: Show this help message" << std::endl;
         std::cout << "\t-f: Full Image Flash (if omitted, uf2 is assumed ota file)" << std::endl;
         std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA"

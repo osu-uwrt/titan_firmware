@@ -172,10 +172,20 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     read -p "Would you like to flash the firmware to the robot? [y/N]: " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Flashing Power Board"
+        echo
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/power_board_ota.uf2
+        echo "Flashing Actuator Board"
+        echo
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/actuator_mk2_ota.uf2
+        echo "Flashing Camera Cage"
+        echo
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/camera_cage_bb_ota.uf2
+        echo "Flashing ESC Board 0"
+        echo
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "Mark 2 ESC Board 0"
+        echo "Flashing ESC Board 1"
+        echo
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "Mark 2 ESC Board 1"
     fi
 fi
