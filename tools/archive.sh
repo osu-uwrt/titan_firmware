@@ -183,9 +183,9 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/camera_cage_bb_ota.uf2
         echo
         echo "Flashing ESC Board 0"
-        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "Mark 2 ESC Board 0"
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "'Mark 2 ESC Board 0'"
         echo
         echo "Flashing ESC Board 1"
-        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "Mark 2 ESC Board 1"
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "'Mark 2 ESC Board 1'"
     fi
 fi
