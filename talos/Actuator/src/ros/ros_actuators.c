@@ -44,6 +44,7 @@ rcl_ret_t ros_actuators_update_status(void) {
     RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
 
     riptide_msgs2__msg__ActuatorStatus status_msg;
+    status_msg.actuators_armed = actuators_armed;
     status_msg.claw_state = claw_get_state();
     status_msg.torpedo_state = torpedo_get_state();
     status_msg.torpedo_available_count = torpedo_get_available();
