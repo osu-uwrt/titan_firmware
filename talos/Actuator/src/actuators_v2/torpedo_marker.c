@@ -273,6 +273,11 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
         return false;
     }
 
+    if (torpedo_marker_hardware_err) {
+        *errMsgOut = "Hardware Error";
+        return false;
+    }
+
     if (!torpedo_marker_enabled || !actuators_armed) {
         *errMsgOut = "Not Armed";
         return false;
@@ -280,11 +285,6 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
 
     if (torpedo_marker_moving) {
         *errMsgOut = "Busy";
-        return false;
-    }
-
-    if (torpedo_marker_hardware_err) {
-        *errMsgOut = "Hardware Error";
         return false;
     }
 

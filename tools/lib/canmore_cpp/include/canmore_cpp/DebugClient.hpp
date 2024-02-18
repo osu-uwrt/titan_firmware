@@ -220,16 +220,18 @@ struct FaultData {
     uint32_t faultId;
     std::string name;
     bool sticky;
+    bool multipleFires;
     uint64_t timestamp;
     uint32_t extraData;
     std::string filename;
     uint16_t line;
 
-    FaultData(uint32_t faultId, const std::string &name, bool sticky, uint32_t timestampLower, uint32_t timestampUpper,
-              uint32_t extraData, const std::string &filename, uint16_t line):
+    FaultData(uint32_t faultId, const std::string &name, bool sticky, bool multipleFires, uint32_t timestampLower,
+              uint32_t timestampUpper, uint32_t extraData, const std::string &filename, uint16_t line):
         faultId(faultId),
-        name(name), sticky(sticky), timestamp((((uint64_t) timestampUpper) << 32) + timestampLower),
-        extraData(extraData), filename(filename), line(line) {}
+        name(name), sticky(sticky), multipleFires(multipleFires),
+        timestamp((((uint64_t) timestampUpper) << 32) + timestampLower), extraData(extraData), filename(filename),
+        line(line) {}
 
     std::string formatTimestamp() const {
         std::stringstream out;
