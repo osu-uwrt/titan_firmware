@@ -35,6 +35,10 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
     // Define terminal environment variable string
     termStrBuf_.resize(REG_MAPPED_PAGE_SIZE);
     addByteMappedPage(CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM, REGISTER_PERM_READ_WRITE, termStrBuf_);
+
+    // Define command string
+    cmdBuf_.resize(REG_MAPPED_PAGE_SIZE);
+    addByteMappedPage(CANMORE_LINUX_TTY_CMD_PAGE_NUM, REGISTER_PERM_READ_WRITE, cmdBuf_);
 }
 
 bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
@@ -47,7 +51,8 @@ bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t 
     }
 }
 
-void CanmoreLinuxServer::getTtyInitialConfig(std::string &termEnv, uint16_t &initialRows, uint16_t &initialCols) {
+void CanmoreLinuxServer::getTtyInitialConfig(std::string &termEnv, uint16_t &initialRows, uint16_t &initialCols,
+                                             std::string &cmd) {
     // Decode window size register
     initialRows = windowSzReg_ >> 16;
     initialCols = (uint16_t) (windowSzReg_ & 0xFFFF);
@@ -56,6 +61,11 @@ void CanmoreLinuxServer::getTtyInitialConfig(std::string &termEnv, uint16_t &ini
     const char *termEnvPtr = reinterpret_cast<char *>(termStrBuf_.data());
     size_t termEnvSize = strnlen(termEnvPtr, termStrBuf_.size());
     termEnv.assign(termEnvPtr, termEnvSize);
+
+    // Decode the terminal command string
+    const char *cmdPtr = reinterpret_cast<char *>(cmdBuf_.data());
+    size_t cmdSize = strnlen(cmdPtr, cmdBuf_.size());
+    cmd.assign(cmdPtr, cmdSize);
 }
 
 bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {

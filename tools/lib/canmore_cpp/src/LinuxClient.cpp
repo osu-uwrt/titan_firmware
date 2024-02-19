@@ -22,12 +22,14 @@ std::string LinuxClient::getVersion() {
     return client->readStringPage(linux_itf_mode, CANMORE_LINUX_VERSION_STRING_PAGE_NUM);
 }
 
-void LinuxClient::enableRemoteTty(const std::string &term_env, uint16_t windowRows, uint16_t windowCols) {
+void LinuxClient::enableRemoteTty(const std::string &term_env, uint16_t windowRows, uint16_t windowCols,
+                                  const std::string &cmd) {
     // Write terminal environment variable
     if (term_env.size() >= REG_MAPPED_PAGE_SIZE) {
         throw CanmoreError("Terminal environment variable too large to transmit");
     }
     client->writeStringPage(linux_itf_mode, CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM, term_env);
+    client->writeStringPage(linux_itf_mode, CANMORE_LINUX_TTY_CMD_PAGE_NUM, cmd);
 
     // Set the initial window size, then enable the remote tty
     RegisterPage ttyCtrlPage(client, linux_itf_mode, CANMORE_LINUX_TTY_CONTROL_PAGE_NUM);

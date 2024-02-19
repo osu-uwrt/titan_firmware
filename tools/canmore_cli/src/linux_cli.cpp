@@ -62,14 +62,27 @@ class LinuxRemoteTTYCommand : public CLICommandHandler<Canmore::LinuxClient> {
 public:
     LinuxRemoteTTYCommand(): CLICommandHandler("remotesh") {}
 
-    std::string getArgList() const override { return ""; }
-    std::string getHelp() const override { return "Launches a remote shell on the host"; }
+    std::string getArgList() const override { return "[optional command]"; }
+    std::string getHelp() const override {
+        return "Launches a remote shell on the host. If the optional command is provided, that is executed instead of "
+               "the login shell.";
+    }
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
         if (canClient) {
-            RemoteTTYClientTask ttyClient(interface.handle, canClient);
+            std::stringstream iss;
+            auto itr = args.begin();
+            while (itr != args.end()) {
+                iss << *itr;
+                itr++;
+                if (itr != args.end()) {
+                    iss << ' ';
+                }
+            }
+
+            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str());
             ttyClient.run();
         }
         else {

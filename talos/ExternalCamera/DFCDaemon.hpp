@@ -29,7 +29,7 @@ public:
     CanmoreLinuxServer(int ifIndex, uint8_t clientId);
 
     bool stopRequested() { return shouldStop_; }
-    void getTtyInitialConfig(std::string &termEnv, uint16_t &initialRows, uint16_t &initialCols);
+    void getTtyInitialConfig(std::string &termEnv, uint16_t &initialRows, uint16_t &initialCols, std::string &cmd);
     bool getTtyEnabled() { return remoteTtyEnabled_; }
     void notifyTtyShutdown() { remoteTtyEnabled_ = false; }
 
@@ -45,6 +45,7 @@ private:
     bool remoteTtyEnabled_ = false;
     uint32_t windowSzReg_ = 0;
     std::vector<uint8_t> termStrBuf_;
+    std::vector<uint8_t> cmdBuf_;
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
     bool enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
@@ -53,7 +54,7 @@ private:
 class CanmoreTTYServer : public Canmore::RemoteTTYServerEventHandler, public Canmore::PollFDHandler {
 public:
     CanmoreTTYServer(int ifIndex, uint8_t clientId, const std::string &termEnv = "", uint16_t initialRows = 0,
-                     uint16_t initialCols = 0);
+                     uint16_t initialCols = 0, const std::string &cmd = "");
     ~CanmoreTTYServer();
 
     // Override to configure PollFDHandler

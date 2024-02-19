@@ -164,7 +164,7 @@ void USBDiscovery::discoverDevices(std::vector<std::shared_ptr<RP2040Device>> &d
         } catch (picoboot::connection_error &e) {
             std::cerr << "Error discovering usb device on Bus " << (int) libusb_get_bus_number(entry) << " Addr "
                       << (int) libusb_get_device_address(entry) << std::endl;
-            std::cerr << "  Picoboot Connection Failur: Libusb error " << e.libusb_code << std::endl;
+            std::cerr << "  Picoboot Connection Failure: Libusb error " << e.libusb_code << std::endl;
             std::cerr << std::endl;
         } catch (PicoprobeError &e) {
             std::cerr << "Error discovering RP2040 via Picoprobe:" << std::endl;

@@ -80,21 +80,20 @@ int main(int argc, char **argv) {
                     // TTY enabled, but no server. That means we need to start it
                     // Grab the initial config from the reg mapped server
                     std::string termName;
+                    std::string cmd;
                     uint16_t initialRows;
                     uint16_t initialCols;
-                    regMappedServer.getTtyInitialConfig(termName, initialRows, initialCols);
+                    regMappedServer.getTtyInitialConfig(termName, initialRows, initialCols, cmd);
 
-                    ttyServer = std::make_shared<CanmoreTTYServer>(ifIdx, clientId, termName, initialRows, initialCols);
+                    ttyServer =
+                        std::make_shared<CanmoreTTYServer>(ifIdx, clientId, termName, initialRows, initialCols, cmd);
                     group.addFd(*ttyServer);
-                    std::cout << "TTY Server Started" << std::endl;
                 }
                 else {
                     bool termInError;
                     if (ttyServer->isTerminated(termInError)) {
                         // TTY was enabled, but the server shut down
                         // Notify the reg mapped server that we shut down, then destroy the tty server
-                        std::cout << "TTY Server terminated " << (termInError ? "in error state" : "cleanly")
-                                  << std::endl;
                         regMappedServer.notifyTtyShutdown();
                         ttyServer.reset();
                     }
@@ -103,7 +102,6 @@ int main(int argc, char **argv) {
             else {
                 if (ttyServer) {
                     // Reg mapped server must have shut off the tty, destroy the tty server
-                    std::cout << "TTY Server terminated via reg mapped request" << std::endl;
                     ttyServer.reset();
                 }
             }

@@ -184,9 +184,10 @@ void RemoteTTYStdioManager::handleEvent(const pollfd &fd) {
 // ========================================
 
 RemoteTTYClientTask::RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> linuxRegClient,
-                                         std::shared_ptr<Canmore::RegMappedCANClient> canClient):
+                                         std::shared_ptr<Canmore::RegMappedCANClient> canClient,
+                                         const std::string &cmd):
     linuxRegClient_(linuxRegClient),
-    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, CANMORE_FRAME_SIZE) {}
+    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, CANMORE_FRAME_SIZE), cmd_(cmd) {}
 
 void RemoteTTYClientTask::run() {
     if (linuxRegClient_->remoteTtyEnabled()) {
@@ -205,7 +206,7 @@ void RemoteTTYClientTask::run() {
         }
 
         // Startup remote tty on server side
-        linuxRegClient_->enableRemoteTty(termName_, windowRows_, windowCols_);
+        linuxRegClient_->enableRemoteTty(termName_, windowRows_, windowCols_, cmd_);
     }
 
     // Initialize terminal and event loops

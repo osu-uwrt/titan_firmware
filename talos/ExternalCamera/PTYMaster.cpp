@@ -107,7 +107,7 @@ void CanmoreTTYServer::sigchldUnblock() {
 // ========================================
 
 CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId, const std::string &termEnv, uint16_t initialRows,
-                                   uint16_t initialCols):
+                                   uint16_t initialCols, const std::string &cmd):
     canmoreServer_(*this, ifIndex, clientId) {
     // Open the eventfd for reporting when the child dies
     sigchldEventFd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -136,13 +136,22 @@ CanmoreTTYServer::CanmoreTTYServer(int ifIndex, uint8_t clientId, const std::str
         // We are the child
         // TODO: Do some things
 
-        if (setenv("TERM", termEnv.c_str(), true)) {
-            throw std::system_error(errno, std::generic_category(), "setenv(\"TERM\", ...)");
+        if (!termEnv.empty()) {
+            if (setenv("TERM", termEnv.c_str(), true)) {
+                perror("setenv");
+                _exit(1);
+            }
         }
 
-        execl("/bin/bash", "bash", NULL);
+        if (!cmd.empty()) {
+            execl("/bin/bash", "bash", "-c", cmd.c_str(), NULL);
+        }
+        else {
+            execl("/bin/bash", "bash", NULL);
+        }
 
-        throw std::system_error(errno, std::generic_category(), "execl(/bin/bash)");
+        perror("execl");
+        _exit(1);
     }
 
     // Add the childpid to the active children map
@@ -184,6 +193,7 @@ void CanmoreTTYServer::populateFds(std::vector<std::weak_ptr<Canmore::PollFDDesc
 }
 
 void CanmoreTTYServer::handleStdin(const std::span<const uint8_t> &data) {
+    // No point in writing, since we just disconnected so we're about to send a SIGHUP
     if (canmoreServer_.isDisconnected())
         return;
 
@@ -196,13 +206,6 @@ void CanmoreTTYServer::handleStdin(const std::span<const uint8_t> &data) {
 
 void CanmoreTTYServer::handleEvent(const pollfd &fd) {
     if (fd.fd == ptyMasterFd_) {
-        // If we're disconnected, no use handling any other input. Just disable poll events and exit
-        // This is because we disconnect when the pty disconnects, so we might have the read syscall fail
-        if (canmoreServer_.isDisconnected()) {
-            ptyDescriptor_->setEnabled(false);
-            return;
-        }
-
         if (fd.events & POLLIN) {
             // If we can't write, disable the poll event until we're notified it's ready again
             if (!canmoreServer_.stdioCanWrite()) {
@@ -215,7 +218,10 @@ void CanmoreTTYServer::handleEvent(const pollfd &fd) {
             std::vector<uint8_t> buf(CANMORE_FRAME_SIZE);
             int rc = read(ptyMasterFd_, buf.data(), buf.size());
             if (rc <= 0) {
+                // Since we just disconnected, no use in polling for more data
+                // Just disable pty descriptor and wait for the main function to destroy this instance
                 disconnectFromPtyErr();
+                ptyDescriptor_->setEnabled(false);
                 return;
             }
             buf.resize(rc);

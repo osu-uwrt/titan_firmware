@@ -50,8 +50,8 @@ void RegMappedClient::writeArray(uint8_t mode, uint8_t page, uint8_t offsetStart
 }
 
 void RegMappedClient::writeStringPage(uint8_t mode, uint8_t page, const std::string &data) {
-    // Convert the 8-bit string into a 32-bit array that can be written
-    std::vector<uint32_t> dataArray((data.length() + 3) / 4, 0);
+    // Convert the 8-bit string into a 32-bit array that can be written (need extra byte for zero term)
+    std::vector<uint32_t> dataArray((data.length() + 1 + 3) / 4, 0);
     size_t bytesSize = data.size();
     for (size_t word = 0; (word * 4) < bytesSize; word++) {
         uint32_t value = 0;

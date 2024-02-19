@@ -25,6 +25,8 @@ extern "C" {
  *       +----------------+
  * 0x03: |  TTY Terminal  |  RW  (Mem-mapped)
  *       +----------------+
+ * 0x04: |     Command    |  RW  (Mem-mapped)
+ *       +----------------+
  */
 
 // Page Number Definitions
@@ -32,6 +34,7 @@ extern "C" {
 #define CANMORE_LINUX_VERSION_STRING_PAGE_NUM 0x01
 #define CANMORE_LINUX_TTY_CONTROL_PAGE_NUM 0x02
 #define CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM 0x03
+#define CANMORE_LINUX_TTY_CMD_PAGE_NUM 0x04
 
 /* Linux Control Register Map
  * ==========================
@@ -97,6 +100,14 @@ extern "C" {
  * ============
  * Writing this page will set the TERM environment variable used when initializing the TTY. Note that this must be set
  * before writing Initialize to 1.
+ *
+ * This should be written as a normal NULL terminated string
+ */
+
+/* TTY Command
+ * ============
+ * This page controls the initial command to run. If this page contains an empty string, the default login shell is ran.
+ * Note that this must be set before writing Initialize to 1.
  *
  * This should be written as a normal NULL terminated string
  */
