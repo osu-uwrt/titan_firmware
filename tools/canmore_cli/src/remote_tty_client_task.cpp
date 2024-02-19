@@ -66,11 +66,13 @@ void RemoteTTYStdioManager::initTerm() {
     uint64_t garbageData;
     read(winchEventFd_, &garbageData, sizeof(garbageData));
 
-    // Set up the window size change handler
+    // Set up the window size change signal handler
     oldWinchReceiver_ = winchReceiver;
     winchReceiver = this;
-    oldWinchHandler_ = signal(SIGWINCH, &RemoteTTYStdioManager::winchHandlerStatic);
-    if (oldWinchHandler_ == SIG_ERR) {
+    struct sigaction newAction = {};
+    newAction.sa_handler = &RemoteTTYStdioManager::winchHandlerStatic;
+    newAction.sa_flags = 0;
+    if (sigaction(SIGWINCH, &newAction, &oldWinchAction_)) {
         winchReceiver = oldWinchReceiver_;
         throw std::system_error(errno, std::generic_category(), "signal");
     }
@@ -91,7 +93,7 @@ void RemoteTTYStdioManager::cleanupTerm() noexcept {
 
     // Restore the old terminal behavior
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt_);
-    signal(SIGWINCH, oldWinchHandler_);
+    sigaction(SIGWINCH, &oldWinchAction_, NULL);
     winchReceiver = oldWinchReceiver_;
 
     stdioConfigured_ = false;

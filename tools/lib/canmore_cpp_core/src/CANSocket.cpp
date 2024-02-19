@@ -60,6 +60,21 @@ void CANSocket::populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descri
     descriptors.push_back(socketPollDescriptor);
 }
 
+bool CANSocket::transmitFrameNoexcept(canid_t can_id, const uint8_t *data, size_t len) noexcept {
+    if (len > CAN_MAX_DLEN) {
+        return false;
+    }
+
+    struct can_frame frame = {};
+    frame.can_id = can_id;
+    frame.can_dlc = len;
+    for (size_t i = 0; i < len; i++) {
+        frame.data[i] = data[i];
+    }
+
+    return write(socketFd, &frame, sizeof(frame)) == sizeof(frame);
+}
+
 void CANSocket::transmitFrame(canid_t can_id, const std::span<const uint8_t> &data) {
     if (data.size() > CAN_MAX_DLEN) {
         throw std::logic_error("Attempting to transmit packet greater than maximum CAN data length");

@@ -21,6 +21,22 @@ public:
 
 protected:
     void transmitFrame(canid_t can_id, const std::span<const uint8_t> &data);
+
+    /**
+     * @brief Transmits a frame without throwing an exception. Useful when needing to call in a destructor or siganls
+     *
+     * @note This function is safe to call in signals or destructors (so long as CANSocket is still valid)
+     *
+     * @param can_id The can id to transmit to
+     * @param data The frame data to transmit
+     * @return true The frame was successfully transmitted
+     * @return false The frame failed to transmit
+     */
+    bool transmitFrameNoexcept(canid_t can_id, const uint8_t *data, size_t len) noexcept;
+
+    /**
+     * @brief Clears the socket of all pending packets
+     */
     void clearRxBuffer();
 
     /**

@@ -44,7 +44,7 @@ private:
     unsigned int maxInputSize_;
     struct termios oldt_;
     RemoteTTYStdioManager *oldWinchReceiver_;
-    sighandler_t oldWinchHandler_;
+    struct sigaction oldWinchAction_;
     std::shared_ptr<Canmore::PollFDDescriptor> stdinPollDescriptor_;
     std::shared_ptr<Canmore::PollFDDescriptor> winchEventPollDescriptor_;
 

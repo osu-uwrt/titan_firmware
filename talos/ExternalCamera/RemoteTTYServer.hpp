@@ -28,6 +28,8 @@ public:
     void stdoutWrite(const std::span<const uint8_t> &data);
     void stderrWrite(const std::span<const uint8_t> &data);
 
+    bool isDisconnected() { return disconnected_; }
+
     bool isDisconnected(bool &inError) {
         if (disconnected_)
             inError = disconnectedInError_;

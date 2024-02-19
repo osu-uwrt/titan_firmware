@@ -77,3 +77,12 @@ bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *dat
         return true;
     }
 }
+
+void CanmoreLinuxServer::forceTTYdisconnect() noexcept {
+    // Sends the tty disconnect (should be sent on startup) to kick any canmmore cli instances out of the remote sh mode
+    canid_t can_id = CAN_EFF_FLAG | CANMORE_REMOTE_TTY_CALC_ID_C2A(clientId, CANMORE_REMOTE_TTY_SUBCH_CONTROL,
+                                                                   CANMORE_REMOTE_TTY_CMD_DISCONNECT_ID);
+
+    canmore_remote_tty_cmd_disconnect_t pkt = { .pkt = { .is_err = true } };
+    transmitFrameNoexcept(can_id, pkt.data, sizeof(pkt));
+}

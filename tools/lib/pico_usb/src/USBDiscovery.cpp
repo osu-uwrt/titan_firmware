@@ -42,7 +42,7 @@ std::shared_ptr<BootromDevice> USBDiscovery::rediscoverBootromDevice(std::shared
                 auto existingDev = itr->lock();
                 if (!existingDev) {
                     // Weak pointer expired, remove it from our discovered list
-                    discoveredDevices.erase(itr);
+                    itr = discoveredDevices.erase(itr);
                     continue;
                 }
                 itr++;

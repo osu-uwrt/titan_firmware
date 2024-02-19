@@ -209,9 +209,11 @@ private:
      */
     void refreshFdConfig() {
         auto fdItr = fds_.begin();
-        for (auto itr = fdDescriptors_.begin(); itr != fdDescriptors_.end(); itr++) {
+        auto itr = fdDescriptors_.begin();
+        while (itr != fdDescriptors_.end()) {
             if (auto descr = itr->lock()) {
                 configureFd(*fdItr, descr->enabled_);
+                itr++;
                 fdItr++;
             }
             else {
