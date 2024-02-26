@@ -617,8 +617,8 @@ local canmore_msg_f = {
     reassembled_in = ProtoField.framenum("canmore.msg.reassembled_in", "Reassembled PDU in Frame")
 }
 local canmore_msg_e = {
-    reassembly_fail = ProtoExpert.new("canmore.reg_mapped.reassembly_fail", "Failed to Reassemble", expert.group.REASSEMBLE, expert.severity.ERROR),
-    standalone_warn = ProtoExpert.new("canmore.reg_mapped.reassembly_fail", "Could not find complete message sequence for this packet", expert.group.REASSEMBLE, expert.severity.WARN),
+    reassembly_fail = ProtoExpert.new("canmore.msg.reassembly_fail", "Failed to Reassemble", expert.group.REASSEMBLE, expert.severity.ERROR),
+    standalone_warn = ProtoExpert.new("canmore.msg.reassembly_fail", "Could not find complete message sequence for this packet", expert.group.REASSEMBLE, expert.severity.WARN),
 }
 canmore_msg_protocol.fields = canmore_msg_f
 canmore_msg_protocol.experts = canmore_msg_e
@@ -717,7 +717,7 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
                 else
                     exp_next_seq = exp_next_seq + 1
                     if exp_next_seq >= 16 then  -- Handle sequence number rollover
-                        exp_next_seq = 0  -- If rollover is disabled later, this should instead raise an error and clear the transfer state
+                        exp_next_seq = 1  -- If rollover is disabled later, this should instead raise an error and clear the transfer state
                     end
                     canmore_msg_active_next_seq[stream_id] = exp_next_seq
                 end
@@ -758,15 +758,20 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
         subtree_title = "Start Frame"
         msg_type = "Start"
     elseif is_last then
-        subtree_title = "Final Frame; Total Frames=" .. tostring(seq_num + 1)
+        subtree_title = "Final Frame"
+        if msg_idx ~= nil then
+            subtree_title = subtree_title .. "; Total Frames=" .. tostring(#canmore_msg_frame_array[msg_idx])
+        end
         msg_type = "End"
     else
         subtree_title = "Continuation Frame; Seq Num=" .. tostring(seq_num)
         msg_type = "Middle Fragment"
     end
 
-    if msg_idx == nil then
-        subtree_title = subtree_title .. " [STANDALONE FRAGMENT]"
+    if err_msg ~= nil then
+        subtree_title = subtree_title .. " [REASSEMBLY ERROR]"
+    elseif msg_idx == nil then
+        subtree_title = subtree_title .. " [ORPHAN FRAGMENT]"
     end
 
 
