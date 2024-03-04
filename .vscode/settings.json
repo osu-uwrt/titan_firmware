@@ -36,5 +36,6 @@
     "git.autofetch": true,
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.formatting": "clangFormat",
-    "C_Cpp.autoAddFileAssociations": false
+    "C_Cpp.autoAddFileAssociations": false,
+    "ros.distro": "humble"
 }

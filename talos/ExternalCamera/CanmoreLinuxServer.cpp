@@ -1,5 +1,6 @@
 #include "DFCDaemon.hpp"
 
+#include <fstream>
 #include <string.h>
 
 #define bind_reg_cb(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
@@ -39,6 +40,27 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
     // Define command string
     cmdBuf_.resize(REG_MAPPED_PAGE_SIZE);
     addByteMappedPage(CANMORE_LINUX_TTY_CMD_PAGE_NUM, REGISTER_PERM_READ_WRITE, cmdBuf_);
+
+    // Define File Buffer page
+    fileBuf_.resize(REG_MAPPED_PAGE_SIZE);
+    addByteMappedPage(CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, REGISTER_PERM_READ_WRITE, fileBuf_);
+
+    // Define File Upload Control page
+    auto upload_control = Canmore::RegMappedRegisterPage::create();
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                      &filenameLengthReg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                      &dataLengthReg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET, REGISTER_PERM_WRITE_ONLY, &crc32Reg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                      &clearFileReg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_FILE_INODE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                      &fileINodeReg_);
+    upload_control->addCallbackRegister(CANMORE_LINUX_UPLOAD_CONTROL_WRITE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                        bind_reg_cb(&CanmoreLinuxServer::triggerWriteBufToFile));
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET, REGISTER_PERM_READ_ONLY,
+                                      &writeStatusReg_);
+    addRegisterPage(CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM, std::move(upload_control));
 }
 
 bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
@@ -86,6 +108,34 @@ bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *dat
         *data_ptr = remoteTtyEnabled_;
         return true;
     }
+}
+
+bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uint32_t *data_ptr) {
+    bool wantWrite = *data_ptr != 0;
+    if (!lastWrittenWrite_ && wantWrite) {
+        // read filename out of buffer page
+        uint32_t filename_data[(const uint32_t) filenameLengthReg_];
+        for (int i = 0; i < filenameLengthReg_; i++) {
+            filename_data[i] = fileBuf_.at(i);
+        }
+
+        const char *filename = (const char *) filename_data;
+
+        // open file
+        std::ofstream file;
+        file.open(filename);
+
+        // do write
+        for (uint32_t i = 0; i < dataLengthReg_; i++) {
+            uint32_t chunk_int = fileBuf_.at(i + filenameLengthReg_);
+            file.write((const char *) &chunk_int, sizeof(chunk_int) / sizeof(char));
+        }
+
+        file.close();
+    }
+
+    lastWrittenWrite_ = wantWrite;
+    return true;  // TODO: add error handling
 }
 
 void CanmoreLinuxServer::forceTTYdisconnect() noexcept {

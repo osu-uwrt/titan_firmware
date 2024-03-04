@@ -27,6 +27,10 @@ extern "C" {
  *       +----------------+
  * 0x04: |     Command    |  RW  (Mem-mapped)
  *       +----------------+
+ * 0x05: |   File Buffer  |  RW  (Mem-mapped)
+ *       +----------------+
+ * 0x06: | Upload Control |  (Reg)
+ *       +----------------+
  */
 
 // Page Number Definitions
@@ -35,6 +39,8 @@ extern "C" {
 #define CANMORE_LINUX_TTY_CONTROL_PAGE_NUM 0x02
 #define CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM 0x03
 #define CANMORE_LINUX_TTY_CMD_PAGE_NUM 0x04
+#define CANMORE_LINUX_FILE_BUFFER_PAGE_NUM 0x05
+#define CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM 0x06
 
 /* Linux Control Register Map
  * ==========================
@@ -111,6 +117,104 @@ extern "C" {
  *
  * This should be written as a normal NULL terminated string
  */
+
+/**
+ * File Buffer
+ * ===========
+ * This page serves as a buffer in which to store file data before a file write or after a file read is performed on the
+ * remote device by using the registers in the Upload Control or Download Control pages.
+ *
+ * When using the buffer to perform a WRITE operation on a file, the contents of the registers must be as follows:
+ *
+ * register 0-n-1: Name of the file to write.
+ * register n-x:   Data to write to the file.
+ *
+ * Where: n is the minimal number of registers (4 bytes / register) required to express the filename, and x is the
+ * number of additional registers needed to store the data to write.
+ *
+ * When a write is triggered using the Upload Control page, the file data
+ * will, unless otherwise specified, be appended to the file specified by filename. After a write, the buffer will
+ * automatically be cleared.
+ */
+
+/**
+ * Upload Control
+ * ==============
+ * Contains registers to control the data stored in the Upload Buffer page.
+ *
+ *       +-----------------+
+ * 0x00: | Filename Length |  WO
+ *       +-----------------+
+ * 0x01  |   Data Length   | WO
+ *       +-----------------+
+ * 0x01: |      CRC32      | WO
+ *       +-----------------+
+ * 0x02: |   Clear File    | WO
+ *       +-----------------+
+ * 0x03: |   File INode    | WO
+ *       +-----------------+
+ * 0x04: |      Write      | WO
+ *       +-----------------+
+ * 0x05: |   Write Status  | RO
+ *       +-----------------+
+ *
+ * Filename Length: The length of the filename present in the file buffer, expressed as the number of registers that it
+ *                  occupies. Because a register can hold for bytes, this value can be easily computed as:
+ *
+ *                  ceiling((c + 1) / 4);
+ *
+ *                  where c is the length of the filename in characters. The 1 added to it represents the NULL
+ *                  character. See writeup on the File Buffer page for information about packing the buffer with the
+ *                  filename.
+ *
+ * Data Length:     The number of bytes (not regs) to write from the buffer into the file.
+ *
+ * CRC32:           The 32-bit CRC of the data currently present in the File Buffer page. If this does not match the
+ *                  CRC32 calculated on the remote device when the write action is triggered, the write will fail and
+ *                  the Write Status register will be set accordingly.
+ *
+ * Clear File:      If set to 0 (false), a write action will append the file data contents of the File Buffer page to
+ *                  the end of the file. Otherwise, a write action will delete the file data contents of the file on the
+ *                  remote device before writing the contents of the File Buffer page into it
+ *
+ * File INode:      The desired INode of the file.
+ *
+ * Write:           Writing 1 to this register will initiate a write action. Before triggering another write action, 0
+ *                  must be written to the register to clear any errors and set the write status to ready.
+ *
+ * Write Status:    Contains the current status of the remote device filewriter. Possible values are described below
+ *                  where the status macros are defined.
+ */
+
+#define CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET 0x00
+#define CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET 0x01
+#define CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET 0x02
+#define CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET 0x03
+#define CANMORE_LINUX_UPLOAD_CONTROL_FILE_INODE_OFFSET 0x04
+#define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_OFFSET 0x05
+#define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET 0x06
+
+/**
+ * - STATUS_READY:              Client ready to perform a write operation. This is the only state in which a write
+ *                              operation can be triggered. The client will report this state when all write operations
+ *                              are done and the Write register is set to 0.
+ *
+ * - STATUS_BUSY:               Client currently performing a write operation.
+ *
+ * - STATUS_SUCCESS:            The previous write operation succeeded.
+ *
+ * - STATUS_FAIL_DEVICE_ERROR:  The previous write failed because the device encountered an error. The buffer page will
+ *                              contain a string description of the error.
+ *
+ * - STATUS_FAIL_BAD_CRC:       The previous write failed because the provided CRC did not match the actual CRC of the
+ *                              data in the Buffer page.
+ */
+
+#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_READY 0
+#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_BUSY 1  // TODO: needed?
+#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_SUCCESS 2
+#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_DEVICE_ERROR 3
+#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_BAD_CRC 4
 
 #ifdef __cplusplus
 }
