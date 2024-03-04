@@ -19,6 +19,7 @@
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
+#include <std_msgs/msg/u_int16.h>
 
 #include <time.h>
 
@@ -40,6 +41,7 @@
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
+#define CAMERA_CAGE_TACHOMETER_PUBLISHER_NAME "state/tachomter/cameracage"
 
 bool ros_connected = false;
 
@@ -57,6 +59,7 @@ rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
+rcl_publisher_t cameracage_tachometer_publisher;
 
 // Electrical System
 rcl_subscription_t led_subscriber;
@@ -245,6 +248,15 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_publish_cameracage_tachometer_rpm() {
+    std_msgs__msg__UInt16 cameracage_tachometer_msg;
+    uint16_t fan_rpm = 25;  // get_fan_rpm()
+    cameracage_tachometer_msg.data = fan_rpm;
+    RCSOFTRETCHECK(rcl_publish(&cameracage_tachometer_publisher, &cameracage_tachometer_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
 static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
     ts->tv_sec = time_nanos / 1000000000;
     ts->tv_nsec = time_nanos % 1000000000;
@@ -320,6 +332,10 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&cameracage_tachometer_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt16),
+                                           CAMERA_CAGE_TACHOMETER_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(
         &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));

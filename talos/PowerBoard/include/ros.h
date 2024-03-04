@@ -97,4 +97,6 @@ rcl_ret_t ros_publish_electrical_readings();
 rcl_ret_t ros_publish_auxswitch();
 
 rcl_ret_t ros_update_temp_humidity_publisher();
+
+rcl_ret_t ros_publish_pwrbrd_tachometer_rpm();
 #endif

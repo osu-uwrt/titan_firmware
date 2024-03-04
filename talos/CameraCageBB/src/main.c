@@ -22,6 +22,7 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define TACHOMETER_INTERVAL 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -32,6 +33,7 @@ absolute_time_t next_water_temp_publish = { 0 };
 
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+absolute_time_t next_tachometer_publish = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -76,6 +78,7 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
+    next_tachometer_publish = make_timeout_time_ms(TACHOMETER_INTERVAL);
 }
 
 /**
@@ -87,6 +90,10 @@ static void tick_ros_tasks() {
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
         RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
+    }
+
+    if (timer_ready(&next_tachometer_publish, TACHOMETER_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_cameracage_tachometer_rpm());
     }
 
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {

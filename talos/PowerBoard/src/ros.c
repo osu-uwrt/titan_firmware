@@ -20,6 +20,7 @@
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
+#include <std_msgs/msg/u_int16.h>
 
 #include <math.h>
 
@@ -42,6 +43,7 @@
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/powerboard"
 
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
+#define PWRBRD_TACHOMETER_PUBLISHER_NAME "state/tachometer/powerboard"
 
 #define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
@@ -65,6 +67,7 @@ rcl_publisher_t aux_switch_publisher;
 rcl_publisher_t balancing_feedback_publisher;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
+rcl_publisher_t pwrbrd_tachometer_publisher;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -177,6 +180,15 @@ rcl_ret_t ros_publish_auxswitch() {
     std_msgs__msg__Bool auxswitch_msg;
     auxswitch_msg.data = gpio_get(AUX_SWITCH_PIN);
     RCSOFTRETCHECK(rcl_publish(&aux_switch_publisher, &auxswitch_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_pwrbrd_tachometer_rpm() {
+    std_msgs__msg__UInt16 pwrbrd_tachometer_msg;
+    uint16_t fan_rpm = 30;  // get_fan_rpm();
+    pwrbrd_tachometer_msg.data = fan_rpm;
+    RCSOFTRETCHECK(rcl_publish(&pwrbrd_tachometer_publisher, &pwrbrd_tachometer_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -301,6 +313,10 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_publisher_init_default(
         &aux_switch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), AUX_SWITCH_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&pwrbrd_tachometer_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt16),
+                                           PWRBRD_TACHOMETER_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),

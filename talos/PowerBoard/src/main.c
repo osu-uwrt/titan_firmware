@@ -24,6 +24,7 @@
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define ELECTRICAL_READINGS_INTERVAL 1000
 #define AUXSWITCH_INTERVAL 1000
+#define TACHOMETER_INTERVAL 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -35,6 +36,7 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_auxswitch_publish = { 0 };
+absolute_time_t next_tachometer_publish = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -81,6 +83,7 @@ static void start_ros_timers() {
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
     next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
     next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
+    next_tachometer_publish = make_timeout_time_ms(TACHOMETER_INTERVAL);
 }
 
 /**
@@ -121,6 +124,10 @@ static void tick_ros_tasks() {
 
     if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
+    }
+
+    if (timer_ready(&next_tachometer_publish, TACHOMETER_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_pwrbrd_tachometer_rpm());
     }
 
     if (sht41_temp_rh_set_on_read) {
