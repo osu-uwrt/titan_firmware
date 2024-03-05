@@ -41,7 +41,7 @@
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
-#define CAMERA_CAGE_TACHOMETER_PUBLISHER_NAME "state/tachomter/cameracage"
+#define CAMERA_CAGE_TACHOMETER_PUBLISHER_NAME "state/tachometer/cameracage"
 
 bool ros_connected = false;
 

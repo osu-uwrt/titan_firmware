@@ -21,8 +21,6 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
-#define LED_UPTIME_INTERVAL_MS 250
-#define TACHOMETER_INTERVAL 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -78,7 +76,7 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
-    next_tachometer_publish = make_timeout_time_ms(TACHOMETER_INTERVAL);
+    next_tachometer_publish = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
 }
 
 /**
@@ -92,7 +90,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
     }
 
-    if (timer_ready(&next_tachometer_publish, TACHOMETER_INTERVAL, true)) {
+    if (timer_ready(&next_tachometer_publish, FIRMWARE_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_cameracage_tachometer_rpm());
     }
 
@@ -119,7 +117,7 @@ static void tick_ros_tasks() {
 static void tick_background_tasks() {
     canbus_tick();
 
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    if (timer_ready(&next_led_update, FIRMWARE_STATUS_TIME_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
 }

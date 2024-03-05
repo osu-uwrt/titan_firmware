@@ -22,9 +22,7 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS 150
-#define ELECTRICAL_READINGS_INTERVAL 1000
-#define AUXSWITCH_INTERVAL 1000
-#define TACHOMETER_INTERVAL 100
+#define ELECTRICAL_READINGS_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -35,8 +33,6 @@ absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
-absolute_time_t next_auxswitch_publish = { 0 };
-absolute_time_t next_tachometer_publish = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -81,9 +77,7 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
-    next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
-    next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
-    next_tachometer_publish = make_timeout_time_ms(TACHOMETER_INTERVAL);
+    next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL_MS);
 }
 
 /**
@@ -118,16 +112,10 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_publish_killswitch());
     }
 
-    if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
+    if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_electrical_readings());
-    }
-
-    if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
-        RCSOFTRETVCHECK(ros_publish_auxswitch());
-    }
-
-    if (timer_ready(&next_tachometer_publish, TACHOMETER_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_pwrbrd_tachometer_rpm());
+        RCSOFTRETVCHECK(ros_publish_auxswitch());
     }
 
     if (sht41_temp_rh_set_on_read) {
