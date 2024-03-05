@@ -158,14 +158,7 @@ extern "C" {
  * 0x05: |   Write Status  | RO
  *       +-----------------+
  *
- * Filename Length: The length of the filename present in the file buffer, expressed as the number of registers that it
- *                  occupies. Because a register can hold for bytes, this value can be easily computed as:
- *
- *                  ceiling((c + 1) / 4);
- *
- *                  where c is the length of the filename in characters. The 1 added to it represents the NULL
- *                  character. See writeup on the File Buffer page for information about packing the buffer with the
- *                  filename.
+ * Filename Length: The length of the filenmae in bytes.
  *
  * Data Length:     The number of bytes (not regs) to write from the buffer into the file.
  *

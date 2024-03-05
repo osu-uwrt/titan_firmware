@@ -114,12 +114,10 @@ bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uin
     bool wantWrite = *data_ptr != 0;
     if (!lastWrittenWrite_ && wantWrite) {
         // read filename out of buffer page
-        uint32_t filename_data[(const uint32_t) filenameLengthReg_];
+        char filename[(const uint32_t) filenameLengthReg_ + 1] = { 0 };
         for (int i = 0; i < filenameLengthReg_; i++) {
-            filename_data[i] = fileBuf_.at(i);
+            filename[i] = (char) fileBuf_.at(i);
         }
-
-        const char *filename = (const char *) filename_data;
 
         // open file
         std::ofstream file;
@@ -127,8 +125,8 @@ bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uin
 
         // do write
         for (uint32_t i = 0; i < dataLengthReg_; i++) {
-            uint32_t chunk_int = fileBuf_.at(i + filenameLengthReg_);
-            file.write((const char *) &chunk_int, sizeof(chunk_int) / sizeof(char));
+            char chunk_int = (char) fileBuf_.at(i + filenameLengthReg_);
+            file.write(&chunk_int, sizeof(chunk_int));
         }
 
         file.close();

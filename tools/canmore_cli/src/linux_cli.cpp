@@ -109,36 +109,28 @@ public:
         // now begin file upload loop
         memset(file_buffer_contents, 0, sizeof(file_buffer_contents));
         int file_size = std::filesystem::file_size(src_file);
+        do {
+            int offset_after_filename = write_string_into_buffer_page(interface, dst_file, 0);
+            file.read(file_buffer_contents, sizeof(file_buffer_contents));
+            int bytes_just_read = file.gcount();
 
-        int offset_after_filename = write_string_into_buffer_page(interface, src_file, 0) + 1;
-        file.read(file_buffer_contents, sizeof(file_buffer_contents));
-        int bytes_just_read = file.gcount();
-
-        while (file && !file.eof()) {
-            // write contents into server
-            int regs_to_write = (bytes_just_read + 3) / 4;
-            for (size_t i = 0; i < (bytes_just_read + 3) / 4; i++) {
-                uint32_t reg_val = *(file_buffer_contents + i * 4);
-
-                interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                                        CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, i + offset_after_filename,
-                                                        reg_val);
-            }
+            write_string_into_buffer_page(interface, std::string(file_buffer_contents), offset_after_filename);
 
             // now issue server write. need to fill the proper information first
 
             // filename length
             interface.handle->client->writeRegister(
                 CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
-                CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) offset_after_filename);
+                CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, (uint32_t) dst_file.length());
 
             // data length
+            int data_len = (offset_after_filename * 4) + bytes_just_read;
             interface.handle->client->writeRegister(
                 CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
-                CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) regs_to_write);
+                CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) data_len);
 
             // checksum
-            uint32_t crc32 = crc32_compute((uint8_t *) file_buffer_contents, regs_to_write * 4);
+            uint32_t crc32 = crc32_compute((uint8_t *) file_buffer_contents, data_len * 4);
             interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                     CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
                                                     CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET, crc32);
@@ -206,7 +198,9 @@ public:
             }
 
             first_write = false;
-        }
+        } while (file && !file.eof());
+
+        interface.writeLine("Upload complete.");
     }
 
 private:
@@ -230,8 +224,15 @@ private:
             position_in_string++;
             position_in_buf++;
             if (position_in_buf >= sizeof(buf) || position_in_string >= str.size()) {
-                // buf populated, now write register
-                uint32_t reg_val = (uint32_t) (*buf);
+                // populate reg val
+                uint32_t reg_val = 0;
+                reg_val |= static_cast<uint32_t>(buf[0]);
+                reg_val |= static_cast<uint32_t>(buf[1]) << 8;
+                reg_val |= static_cast<uint32_t>(buf[2]) << 16;
+                reg_val |= static_cast<uint32_t>(buf[3]) << 24;
+
+                // reg val populated, now write register
+
                 interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                         CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, offset, reg_val);
 
