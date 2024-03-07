@@ -151,14 +151,14 @@ extern "C" {
  *       +-----------------+
  * 0x02: |   Clear File    | WO
  *       +-----------------+
- * 0x03: |   File INode    | WO
+ * 0x03: |    File Mode    | WO
  *       +-----------------+
  * 0x04: |      Write      | WO
  *       +-----------------+
  * 0x05: |   Write Status  | RO
  *       +-----------------+
  *
- * Filename Length: The length of the filenmae in bytes.
+ * Filename Length: The length of the filename in bytes. The data should start at the beginning of the next register.
  *
  * Data Length:     The number of bytes (not regs) to write from the buffer into the file.
  *
@@ -170,7 +170,7 @@ extern "C" {
  *                  the end of the file. Otherwise, a write action will delete the file data contents of the file on the
  *                  remote device before writing the contents of the File Buffer page into it
  *
- * File INode:      The desired INode of the file.
+ * File Mode:       The desired INode of the file.
  *
  * Write:           Writing 1 to this register will initiate a write action. Before triggering another write action, 0
  *                  must be written to the register to clear any errors and set the write status to ready.
@@ -183,7 +183,7 @@ extern "C" {
 #define CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET 0x01
 #define CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET 0x02
 #define CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET 0x03
-#define CANMORE_LINUX_UPLOAD_CONTROL_FILE_INODE_OFFSET 0x04
+#define CANMORE_LINUX_UPLOAD_CONTROL_FILE_MODE_OFFSET 0x04
 #define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_OFFSET 0x05
 #define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET 0x06
 

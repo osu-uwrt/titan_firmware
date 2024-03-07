@@ -110,11 +110,25 @@ public:
         memset(file_buffer_contents, 0, sizeof(file_buffer_contents));
         int file_size = std::filesystem::file_size(src_file);
         do {
-            int offset_after_filename = write_string_into_buffer_page(interface, dst_file, 0);
-            file.read(file_buffer_contents, sizeof(file_buffer_contents));
+            // int offset_after_filename = write_string_into_buffer_page(interface, dst_file, 0);
+
+            // int offset_after_filename = dst_file.length();
+            // char *buffer_after_filename = &file_buffer_contents[offset_after_filename];
+            // file.read(buffer_after_filename, sizeof(file_buffer_contents));
+            // int bytes_just_read = file.gcount();
+
+            strcpy(file_buffer_contents, dst_file.c_str());
+            int offset_after_filename =
+                    write_string_into_buffer_page(interface, dst_file.c_str(), dst_file.length(), 0),
+                offset_after_filename_bytes = offset_after_filename * 4;
+
+            file.read(&file_buffer_contents[offset_after_filename_bytes],
+                      sizeof(file_buffer_contents) - offset_after_filename_bytes);
+
             int bytes_just_read = file.gcount();
 
-            write_string_into_buffer_page(interface, std::string(file_buffer_contents), offset_after_filename);
+            write_string_into_buffer_page(interface, &file_buffer_contents[offset_after_filename_bytes],
+                                          bytes_just_read, offset_after_filename);
 
             // now issue server write. need to fill the proper information first
 
@@ -124,13 +138,13 @@ public:
                 CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, (uint32_t) dst_file.length());
 
             // data length
-            int data_len = (offset_after_filename * 4) + bytes_just_read;
+            int data_len = offset_after_filename_bytes + bytes_just_read;
             interface.handle->client->writeRegister(
                 CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
                 CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) data_len);
 
             // checksum
-            uint32_t crc32 = crc32_compute((uint8_t *) file_buffer_contents, data_len * 4);
+            uint32_t crc32 = crc32_compute((uint8_t *) file_buffer_contents, data_len);
             interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                     CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
                                                     CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET, crc32);
@@ -141,10 +155,10 @@ public:
                 CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET, (first_write ? 1 : 0));
 
             // file inode
-            uint32_t inode = 0;
+            mode_t mode = 0;  // integer type, so 4 bytes (32 bits)
             interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                     CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
-                                                    CANMORE_LINUX_UPLOAD_CONTROL_FILE_INODE_OFFSET, inode);
+                                                    CANMORE_LINUX_UPLOAD_CONTROL_FILE_MODE_OFFSET, mode);
 
             // get ready for file write. In order to do this, the "write" register must be set to 0 and the "write
             // status" register must have a value of 0 indicating "ready"
@@ -174,7 +188,7 @@ public:
             // wait for write to complete or fail
             write_status = -1;
             start_time = std::chrono::system_clock::now();
-            while (write_status != CANMORE_LINUX_UPLOAD_WRITE_STATUS_READY) {
+            while (write_status != CANMORE_LINUX_UPLOAD_WRITE_STATUS_SUCCESS) {
                 write_status = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                                       CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
                                                                       CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET);
@@ -185,14 +199,18 @@ public:
 
                     // assemble and send error message
                     std::string errMsg = COLOR_ERROR "File upload failed because of a server error: ";
+                    // TODO: assemble
                     errMsg += COLOR_RESET;
                     interface.writeLine(errMsg);
                     return;
                 }
 
-                if (std::chrono::system_clock::now() - start_time > 1s) {
-                    interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become READY" COLOR_RESET);
+                if (write_status == CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_BAD_CRC) {
+                    interface.writeLine(COLOR_ERROR "Bad CRC" COLOR_RESET);
+                }
 
+                if (std::chrono::system_clock::now() - start_time > 1s) {
+                    interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become SUCCESS" COLOR_RESET);
                     return;
                 }
             }
@@ -213,33 +231,35 @@ private:
      * long
      * @return The number of registers occupied by the previously written string.
      */
-    size_t write_string_into_buffer_page(CLIInterface<Canmore::LinuxClient> &interface, const std::string &str,
+    size_t write_string_into_buffer_page(CLIInterface<Canmore::LinuxClient> &interface, const char *str, size_t length,
                                          int offset) {
         char buf[4];
-        int position_in_string = 0, position_in_buf = 0;
+        int position_in_string = 0;
         memset(buf, 0, sizeof(buf));
-        while (position_in_string < str.size()) {
-            buf[position_in_buf] = str.at(position_in_string);
-
-            position_in_string++;
-            position_in_buf++;
-            if (position_in_buf >= sizeof(buf) || position_in_string >= str.size()) {
-                // populate reg val
-                uint32_t reg_val = 0;
-                reg_val |= static_cast<uint32_t>(buf[0]);
-                reg_val |= static_cast<uint32_t>(buf[1]) << 8;
-                reg_val |= static_cast<uint32_t>(buf[2]) << 16;
-                reg_val |= static_cast<uint32_t>(buf[3]) << 24;
-
-                // reg val populated, now write register
-
-                interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                                        CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, offset, reg_val);
-
-                memset(buf, 0, sizeof(buf));
-                offset++;
-                position_in_buf = 0;
+        while (position_in_string < length) {
+            size_t num_bytes_to_copy = length - position_in_string;
+            if (num_bytes_to_copy > 4) {
+                num_bytes_to_copy = 4;
             }
+
+            memcpy(buf, &str[position_in_string], num_bytes_to_copy);
+
+            // populate reg val
+            uint32_t reg_val = 0;
+            reg_val |= static_cast<uint32_t>(buf[0]);
+            reg_val |= static_cast<uint32_t>(buf[1]) << 8;
+            reg_val |= static_cast<uint32_t>(buf[2]) << 16;
+            reg_val |= static_cast<uint32_t>(buf[3]) << 24;
+
+            // reg val populated, now write register
+
+            interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+                                                    CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, offset, reg_val);
+
+            memset(buf, 0, sizeof(buf));
+
+            offset++;
+            position_in_string += 4;
         }
 
         return offset;
