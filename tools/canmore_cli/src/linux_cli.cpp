@@ -68,9 +68,11 @@ public:
 
 // file upload batch size is conveniently also the same size as the buffer for strerror
 // this batch size must be a multiple of 4
-#define FILE_UPLOAD_BATCH_SIZE 1024
+#define FILE_BUFFER_SIZE 32
+// previously 1024
+#define FILE_UPLOAD_MAX_ERRORS 5
 
-#if FILE_UPLOAD_BATCH_SIZE % 4 != 0
+#if FILE_BUFFER_SIZE % 4 != 0
 #error FILE_UPLOAD_BATCH_SIZE must be a multiple of 4!
 #endif
 
@@ -83,6 +85,7 @@ public:
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
         bool first_write = true;
+        error_counter = 0;
 
         // find file to upload on local system
         if (args.size() != 2) {
@@ -108,28 +111,10 @@ public:
 
         // now begin file upload loop
         memset(file_buffer_contents, 0, sizeof(file_buffer_contents));
-        int file_size = std::filesystem::file_size(src_file);
+        int file_size = std::filesystem::file_size(src_file);  // will use to make a cool progress bar
+
+        int data_len = readFileIntoPageAndBuffer(interface, dst_file, file);
         do {
-            // int offset_after_filename = write_string_into_buffer_page(interface, dst_file, 0);
-
-            // int offset_after_filename = dst_file.length();
-            // char *buffer_after_filename = &file_buffer_contents[offset_after_filename];
-            // file.read(buffer_after_filename, sizeof(file_buffer_contents));
-            // int bytes_just_read = file.gcount();
-
-            strcpy(file_buffer_contents, dst_file.c_str());
-            int offset_after_filename =
-                    write_string_into_buffer_page(interface, dst_file.c_str(), dst_file.length(), 0),
-                offset_after_filename_bytes = offset_after_filename * 4;
-
-            file.read(&file_buffer_contents[offset_after_filename_bytes],
-                      sizeof(file_buffer_contents) - offset_after_filename_bytes);
-
-            int bytes_just_read = file.gcount();
-
-            write_string_into_buffer_page(interface, &file_buffer_contents[offset_after_filename_bytes],
-                                          bytes_just_read, offset_after_filename);
-
             // now issue server write. need to fill the proper information first
 
             // filename length
@@ -138,7 +123,6 @@ public:
                 CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, (uint32_t) dst_file.length());
 
             // data length
-            int data_len = offset_after_filename_bytes + bytes_just_read;
             interface.handle->client->writeRegister(
                 CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
                 CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) data_len);
@@ -194,30 +178,59 @@ public:
                                                                       CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET);
 
                 if (write_status == CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_DEVICE_ERROR) {
+                    std::string err_msg = COLOR_ERROR "File upload failed! Remote device reported error: ";
+
+                    uint32_t error_len = interface.handle->client->readRegister(
+                        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
+                        CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET);
+
+                    if (error_len >= FILE_BUFFER_SIZE) {
+                        error_len = FILE_BUFFER_SIZE - 1;
+                    }
+
+                    size_t error_len_regs = error_len / 4 + 1;
+
                     // read the actual error message, which has been stored in the file buffer
-                    read_file_page(interface, file_buffer_contents, sizeof(file_buffer_contents) / 4);
+                    readFilePage(interface, file_buffer_contents, error_len_regs);
+                    file_buffer_contents[error_len] = '\0';  // just in case
 
                     // assemble and send error message
-                    std::string errMsg = COLOR_ERROR "File upload failed because of a server error: ";
-                    // TODO: assemble
-                    errMsg += COLOR_RESET;
-                    interface.writeLine(errMsg);
+                    err_msg += std::string(file_buffer_contents);
+
+                    err_msg += COLOR_RESET;
+                    interface.writeLine(err_msg);
                     return;
                 }
 
                 if (write_status == CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_BAD_CRC) {
                     interface.writeLine(COLOR_ERROR "Bad CRC" COLOR_RESET);
+
+                    // retry writing the page. dont read anything new
+                    writeDataIntoBufferPage(interface, file_buffer_contents, data_len, 0);
+                    error_counter++;
+                    if (error_counter > FILE_UPLOAD_MAX_ERRORS) {
+                        interface.writeLine(COLOR_ERROR "Maximum number of transmission errors reached while trying to "
+                                                        "upload the file. Please check the connections on the CAN and "
+                                                        "ensure that traffic is at a reasonable level." COLOR_RESET);
+                        return;
+                    }
+                    break;
                 }
 
                 if (std::chrono::system_clock::now() - start_time > 1s) {
                     interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become SUCCESS" COLOR_RESET);
                     return;
                 }
+
+                int data_len = readFileIntoPageAndBuffer(interface, dst_file, file);
+                error_counter = 0;  // good transmission, reset error counter
             }
 
             first_write = false;
-        } while (file && !file.eof());
+        } while ((file && !file.eof()) ||
+                 error_counter != 0);  // error_counter != 0 ensures that the last transmission was successful
 
+        file.close();
         interface.writeLine("Upload complete.");
     }
 
@@ -231,8 +244,8 @@ private:
      * long
      * @return The number of registers occupied by the previously written string.
      */
-    size_t write_string_into_buffer_page(CLIInterface<Canmore::LinuxClient> &interface, const char *str, size_t length,
-                                         int offset) {
+    size_t writeDataIntoBufferPage(CLIInterface<Canmore::LinuxClient> &interface, const void *data, size_t length,
+                                   int offset) {
         char buf[4];
         int position_in_string = 0;
         memset(buf, 0, sizeof(buf));
@@ -242,14 +255,14 @@ private:
                 num_bytes_to_copy = 4;
             }
 
-            memcpy(buf, &str[position_in_string], num_bytes_to_copy);
+            memcpy(buf, data + position_in_string, num_bytes_to_copy);
 
             // populate reg val
             uint32_t reg_val = 0;
-            reg_val |= static_cast<uint32_t>(buf[0]);
-            reg_val |= static_cast<uint32_t>(buf[1]) << 8;
-            reg_val |= static_cast<uint32_t>(buf[2]) << 16;
-            reg_val |= static_cast<uint32_t>(buf[3]) << 24;
+            reg_val |= static_cast<uint32_t>(buf[0]) & 0xFF;
+            reg_val |= (static_cast<uint32_t>(buf[1]) & 0xFF) << 8;
+            reg_val |= (static_cast<uint32_t>(buf[2]) & 0xFF) << 16;
+            reg_val |= (static_cast<uint32_t>(buf[3]) & 0xFF) << 24;
 
             // reg val populated, now write register
 
@@ -265,17 +278,38 @@ private:
         return offset;
     }
 
-    void read_file_page(CLIInterface<Canmore::LinuxClient> &interface, char *contents, size_t num_regs) {
+    void readFilePage(CLIInterface<Canmore::LinuxClient> &interface, char *contents, size_t num_regs) {
         uint32_t reg_value;
         for (size_t reg = 0; reg < num_regs; reg++) {
             reg_value = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                                CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, reg);
 
-            *(contents + (reg * 4)) = reg_value;
+            uint32_t mask = 0xFF;  // mask to filter out everything but the least significant byte in the reg val
+            contents[reg * 4] = reg_value & mask;
+            contents[reg * 4 + 1] = (reg_value >> 8) & mask;
+            contents[reg * 4 + 2] = (reg_value >> 16) & mask;
+            contents[reg * 4 + 3] = (reg_value >> 24) & mask;
         }
     }
 
-    char file_buffer_contents[FILE_UPLOAD_BATCH_SIZE];
+    int readFileIntoPageAndBuffer(CLIInterface<Canmore::LinuxClient> &interface, const std::string &dst_file,
+                                  std::ifstream &file) {
+        strcpy(file_buffer_contents, dst_file.c_str());
+        int offset_after_filename = writeDataIntoBufferPage(interface, dst_file.c_str(), dst_file.length(), 0),
+            offset_after_filename_bytes = offset_after_filename * 4;
+
+        file.read(&file_buffer_contents[offset_after_filename_bytes],
+                  sizeof(file_buffer_contents) - offset_after_filename_bytes);
+
+        int bytes_just_read = file.gcount();
+        writeDataIntoBufferPage(interface, &file_buffer_contents[offset_after_filename_bytes], bytes_just_read,
+                                offset_after_filename);
+
+        return bytes_just_read + offset_after_filename_bytes;
+    }
+
+    char file_buffer_contents[FILE_BUFFER_SIZE] = { 0 };
+    int error_counter = 0;
 };
 
 class LinuxRemoteTTYCommand : public CLICommandHandler<Canmore::LinuxClient> {

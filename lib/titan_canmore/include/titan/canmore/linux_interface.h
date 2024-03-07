@@ -145,7 +145,7 @@ extern "C" {
  *       +-----------------+
  * 0x00: | Filename Length |  WO
  *       +-----------------+
- * 0x01  |   Data Length   | WO
+ * 0x01  |   Data Length   | RW
  *       +-----------------+
  * 0x01: |      CRC32      | WO
  *       +-----------------+
@@ -170,7 +170,7 @@ extern "C" {
  *                  the end of the file. Otherwise, a write action will delete the file data contents of the file on the
  *                  remote device before writing the contents of the File Buffer page into it
  *
- * File Mode:       The desired INode of the file.
+ * File Mode:       The desired mode of the file.
  *
  * Write:           Writing 1 to this register will initiate a write action. Before triggering another write action, 0
  *                  must be written to the register to clear any errors and set the write status to ready.
@@ -197,7 +197,8 @@ extern "C" {
  * - STATUS_SUCCESS:            The previous write operation succeeded.
  *
  * - STATUS_FAIL_DEVICE_ERROR:  The previous write failed because the device encountered an error. The buffer page will
- *                              contain a string description of the error.
+ *                              contain a string description of the error, and the DATA_LENGTH register will be updated
+ *                              to contain the length of that error message in bytes.
  *
  * - STATUS_FAIL_BAD_CRC:       The previous write failed because the provided CRC did not match the actual CRC of the
  *                              data in the Buffer page.

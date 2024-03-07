@@ -44,14 +44,15 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
     addByteMappedPage(CANMORE_LINUX_TTY_CMD_PAGE_NUM, REGISTER_PERM_READ_WRITE, cmdBuf_);
 
     // Define File Buffer page
-    fileBuf_.resize(REG_MAPPED_PAGE_SIZE);
+    // fileBuf_.resize(REG_MAPPED_PAGE_SIZE);
+    fileBuf_.resize(32);
     addByteMappedPage(CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, REGISTER_PERM_READ_WRITE, fileBuf_);
 
     // Define File Upload Control page
     auto upload_control = Canmore::RegMappedRegisterPage::create();
     upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &filenameLengthReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_READ_WRITE,
                                       &dataLengthReg_);
     upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET, REGISTER_PERM_WRITE_ONLY, &crc32Reg_);
     upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET, REGISTER_PERM_WRITE_ONLY,
@@ -138,15 +139,15 @@ bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uin
             file.open(filename);
 
             // do write
-            for (uint32_t i = 0; i < dataLengthReg_; i++) {
-                char chunk_int = (char) fileBuf_.at(i + filenameLengthReg_);
+            for (uint32_t i = filenameLengthReg_; i < dataLengthReg_; i++) {
+                char chunk_int = (char) fileBuf_.at(i);
                 file.write(&chunk_int, sizeof(chunk_int));
             }
 
             file.close();
         } catch (std::ofstream::failure ex) {
             // write failure into filebuf and set error write status
-            reportWriteError(ex.what());
+            reportWriteError(strerror(errno));
             return true;
         }
 
@@ -162,7 +163,15 @@ bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uin
 }
 
 void CanmoreLinuxServer::reportWriteError(const char *error) {
-    fileBuf_.assign((uint8_t *) error, (uint8_t *) error + strlen(error));
+    size_t error_len = strlen(error);
+    if (error_len > REG_MAPPED_PAGE_SIZE) {
+        error_len = REG_MAPPED_PAGE_SIZE;
+    }
+
+    for (int i = 0; i < error_len; i++) {
+        fileBuf_[i] = error[i];
+    }
+    dataLengthReg_ = error_len;
     writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_DEVICE_ERROR;
 }
 
