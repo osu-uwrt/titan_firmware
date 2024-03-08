@@ -44,8 +44,7 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
     addByteMappedPage(CANMORE_LINUX_TTY_CMD_PAGE_NUM, REGISTER_PERM_READ_WRITE, cmdBuf_);
 
     // Define File Buffer page
-    // fileBuf_.resize(REG_MAPPED_PAGE_SIZE);
-    fileBuf_.resize(32);
+    fileBuf_.resize(REG_MAPPED_PAGE_SIZE);
     addByteMappedPage(CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, REGISTER_PERM_READ_WRITE, fileBuf_);
 
     // Define File Upload Control page
@@ -136,10 +135,11 @@ bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uin
             // open file
             std::ofstream file;
             file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
-            file.open(filename);
+            file.open(filename, (clearFileReg_ ? std::ofstream::trunc : std::ofstream::app));
 
             // do write
-            for (uint32_t i = filenameLengthReg_; i < dataLengthReg_; i++) {
+            size_t data_start = ((filenameLengthReg_ + 3) / 4) * 4;  // round up to next group of 4 bytes
+            for (uint32_t i = data_start; i < dataLengthReg_; i++) {
                 char chunk_int = (char) fileBuf_.at(i);
                 file.write(&chunk_int, sizeof(chunk_int));
             }

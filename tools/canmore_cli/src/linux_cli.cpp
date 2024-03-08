@@ -68,7 +68,7 @@ public:
 
 // file upload batch size is conveniently also the same size as the buffer for strerror
 // this batch size must be a multiple of 4
-#define FILE_BUFFER_SIZE 32
+#define FILE_BUFFER_SIZE 1024
 // previously 1024
 #define FILE_UPLOAD_MAX_ERRORS 5
 
@@ -111,12 +111,39 @@ public:
 
         // now begin file upload loop
         memset(file_buffer_contents, 0, sizeof(file_buffer_contents));
-        int file_size = std::filesystem::file_size(src_file);  // will use to make a cool progress bar
+        int file_size = std::filesystem::file_size(src_file),  // will use to make a cool progress bar
+            data_read = 0, data_len = 0;
 
-        int data_len = readFileIntoPageAndBuffer(interface, dst_file, file);
-        do {
-            // now issue server write. need to fill the proper information first
+        while ((file && !file.eof()) || error_counter != 0) {
+            interface.writeLine("Read " + std::to_string(data_read) + " bytes");
 
+            // check for interrupt
+            struct pollfd fd;
+            fd.fd = STDIN_FILENO;
+            fd.events = POLLIN;
+
+            if (poll(&fd, 1, 0) < 0) {
+                throw std::system_error(errno, std::generic_category(), "poll");
+            }
+
+            // Check for keypress
+            if (fd.revents & POLLIN) {
+                char c = getchar();
+                // If ctrl+c, then break
+                if (c == '\x03') {
+                    interface.writeLine("Interrupted");
+                    return;
+                }
+            }
+
+            // read file data
+            if (error_counter == 0) {
+                int bytes_read;
+                data_len = readFileIntoPageAndBuffer(interface, dst_file, file, bytes_read);
+                data_read += bytes_read;
+            }
+
+            // pack registers
             // filename length
             interface.handle->client->writeRegister(
                 CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM,
@@ -159,7 +186,6 @@ public:
 
                 if (std::chrono::system_clock::now() - start_time > 1s) {
                     interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become READY" COLOR_RESET);
-
                     break;
                 }
             }
@@ -214,7 +240,7 @@ public:
                                                         "ensure that traffic is at a reasonable level." COLOR_RESET);
                         return;
                     }
-                    break;
+                    break;  // dont go further or else error_counter will be wrongly reset
                 }
 
                 if (std::chrono::system_clock::now() - start_time > 1s) {
@@ -222,13 +248,11 @@ public:
                     return;
                 }
 
-                int data_len = readFileIntoPageAndBuffer(interface, dst_file, file);
                 error_counter = 0;  // good transmission, reset error counter
             }
 
             first_write = false;
-        } while ((file && !file.eof()) ||
-                 error_counter != 0);  // error_counter != 0 ensures that the last transmission was successful
+        }
 
         file.close();
         interface.writeLine("Upload complete.");
@@ -293,7 +317,7 @@ private:
     }
 
     int readFileIntoPageAndBuffer(CLIInterface<Canmore::LinuxClient> &interface, const std::string &dst_file,
-                                  std::ifstream &file) {
+                                  std::ifstream &file, int &bytes_just_read) {
         strcpy(file_buffer_contents, dst_file.c_str());
         int offset_after_filename = writeDataIntoBufferPage(interface, dst_file.c_str(), dst_file.length(), 0),
             offset_after_filename_bytes = offset_after_filename * 4;
@@ -301,7 +325,7 @@ private:
         file.read(&file_buffer_contents[offset_after_filename_bytes],
                   sizeof(file_buffer_contents) - offset_after_filename_bytes);
 
-        int bytes_just_read = file.gcount();
+        bytes_just_read = file.gcount();
         writeDataIntoBufferPage(interface, &file_buffer_contents[offset_after_filename_bytes], bytes_just_read,
                                 offset_after_filename);
 
