@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <string.h>
+#include <sys/stat.h>
 
 #define bind_reg_cb(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
 
@@ -49,20 +50,20 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
 
     // Define File Upload Control page
     auto upload_control = Canmore::RegMappedRegisterPage::create();
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &filenameLengthReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_READ_WRITE,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_READ_WRITE,
                                       &dataLengthReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET, REGISTER_PERM_WRITE_ONLY, &crc32Reg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET, REGISTER_PERM_WRITE_ONLY, &crc32Reg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CLEAR_FILE_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &clearFileReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_FILE_MODE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &fileModeReg_);
-    upload_control->addCallbackRegister(CANMORE_LINUX_UPLOAD_CONTROL_WRITE_OFFSET, REGISTER_PERM_WRITE_ONLY,
-                                        bind_reg_cb(&CanmoreLinuxServer::triggerWriteBufToFile));
-    upload_control->addMemoryRegister(CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET, REGISTER_PERM_READ_ONLY,
+    upload_control->addCallbackRegister(CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                        bind_reg_cb(&CanmoreLinuxServer::triggerFileOperation));
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET, REGISTER_PERM_READ_ONLY,
                                       &writeStatusReg_);
-    addRegisterPage(CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM, std::move(upload_control));
+    addRegisterPage(CANMORE_LINUX_FILE_CONTROL_PAGE_NUM, std::move(upload_control));
 }
 
 bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
@@ -112,57 +113,85 @@ bool CanmoreLinuxServer::enableTtyCb(uint16_t addr, bool is_write, uint32_t *dat
     }
 }
 
-bool CanmoreLinuxServer::triggerWriteBufToFile(uint16_t addr, bool is_write, uint32_t *data_ptr) {
-    bool wantWrite = *data_ptr != 0;
-    if (!lastWrittenWrite_ && wantWrite) {
-        writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_BUSY;
+void CanmoreLinuxServer::doFileWrite() {
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_BUSY;
 
-        // check crc32
-        uint32_t bufCrc = crc32_compute(fileBuf_.data(), dataLengthReg_);
+    // check crc32
+    uint32_t buf_crc = crc32_compute(fileBuf_.data(), dataLengthReg_);
 
-        if (bufCrc != crc32Reg_) {
-            writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_BAD_CRC;
-            return true;
-        }
-
-        // read filename out of buffer page
-        char filename[(const uint32_t) filenameLengthReg_ + 1] = { 0 };
-        for (int i = 0; i < filenameLengthReg_; i++) {
-            filename[i] = (char) fileBuf_.at(i);
-        }
-
-        try {
-            // open file
-            std::ofstream file;
-            file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
-            file.open(filename, (clearFileReg_ ? std::ofstream::trunc : std::ofstream::app));
-
-            // do write
-            size_t data_start = ((filenameLengthReg_ + 3) / 4) * 4;  // round up to next group of 4 bytes
-            for (uint32_t i = data_start; i < dataLengthReg_; i++) {
-                char chunk_int = (char) fileBuf_.at(i);
-                file.write(&chunk_int, sizeof(chunk_int));
-            }
-
-            file.close();
-        } catch (std::ofstream::failure ex) {
-            // write failure into filebuf and set error write status
-            reportWriteError(strerror(errno));
-            return true;
-        }
-
-        writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_SUCCESS;
+    if (buf_crc != crc32Reg_) {
+        writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC;
+        return;
     }
 
-    if (!wantWrite) {
-        writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_READY;
+    // read filename out of buffer page
+    std::string filename = readFileNameFromBuf();
+
+    try {
+        // open file
+        std::ofstream file;
+        file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+        file.open(filename, (clearFileReg_ ? std::ofstream::trunc : std::ofstream::app));
+
+        // do write
+        size_t data_start = ((filenameLengthReg_ + 3) / 4) * 4;  // round up to next group of 4 bytes
+        for (uint32_t i = data_start; i < dataLengthReg_; i++) {
+            char chunk_int = (char) fileBuf_.at(i);
+            file.write(&chunk_int, sizeof(chunk_int));
+        }
+
+        file.close();
+    } catch (std::ofstream::failure ex) {
+        // write failure into filebuf and set error write status
+        reportDeviceError(strerror(errno));
+        return;  // if we dont return the file status will become success
     }
 
-    lastWrittenWrite_ = wantWrite;
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
+void CanmoreLinuxServer::doCheckCrc() {
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
+void CanmoreLinuxServer::doSetFileMode() {
+    mode_t new_mode = (mode_t) fileModeReg_;
+    std::string filename = readFileNameFromBuf();
+    if (chmod(filename.c_str(), new_mode) < 0) {
+        reportDeviceError(strerror(errno));
+        return;  // return or else file status becomes success
+    }
+
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
+bool CanmoreLinuxServer::triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr) {
+    bool want_operation = *data_ptr != CANMORE_LINUX_FILE_OPERATION_NOP;
+    if (current_operation_ == CANMORE_LINUX_FILE_OPERATION_NOP && want_operation) {
+        switch (*data_ptr) {
+        case CANMORE_LINUX_FILE_OPERATION_WRITE:
+            doFileWrite();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_CHECK_CRC:
+            doCheckCrc();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_SET_MODE:
+            doSetFileMode();
+            break;
+        default:
+            reportDeviceError("Unknown operation");
+        }
+    }
+
+    if (!want_operation) {
+        writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_READY;
+    }
+
+    current_operation_ = want_operation;
     return true;
 }
 
-void CanmoreLinuxServer::reportWriteError(const char *error) {
+void CanmoreLinuxServer::reportDeviceError(const char *error) {
     size_t error_len = strlen(error);
     if (error_len > REG_MAPPED_PAGE_SIZE) {
         error_len = REG_MAPPED_PAGE_SIZE;
@@ -172,7 +201,16 @@ void CanmoreLinuxServer::reportWriteError(const char *error) {
         fileBuf_[i] = error[i];
     }
     dataLengthReg_ = error_len;
-    writeStatusReg_ = CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_DEVICE_ERROR;
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_FAIL_DEVICE_ERROR;
+}
+
+std::string CanmoreLinuxServer::readFileNameFromBuf() {
+    char filename[(const uint32_t) filenameLengthReg_ + 1] = { 0 };
+    for (int i = 0; i < filenameLengthReg_; i++) {
+        filename[i] = (char) fileBuf_.at(i);
+    }
+
+    return std::string(filename);
 }
 
 void CanmoreLinuxServer::forceTTYdisconnect() noexcept {

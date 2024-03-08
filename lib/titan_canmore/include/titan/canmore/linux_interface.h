@@ -40,7 +40,7 @@ extern "C" {
 #define CANMORE_LINUX_TTY_TERMINAL_PAGE_NUM 0x03
 #define CANMORE_LINUX_TTY_CMD_PAGE_NUM 0x04
 #define CANMORE_LINUX_FILE_BUFFER_PAGE_NUM 0x05
-#define CANMORE_LINUX_UPLOAD_CONTROL_PAGE_NUM 0x06
+#define CANMORE_LINUX_FILE_CONTROL_PAGE_NUM 0x06
 
 /* Linux Control Register Map
  * ==========================
@@ -138,7 +138,7 @@ extern "C" {
  */
 
 /**
- * Upload Control
+ * File Control
  * ==============
  * Contains registers to control the data stored in the Upload Buffer page.
  *
@@ -153,7 +153,7 @@ extern "C" {
  *       +-----------------+
  * 0x03: |    File Mode    | WO
  *       +-----------------+
- * 0x04: |      Write      | WO
+ * 0x04: |    Operation    | WO
  *       +-----------------+
  * 0x05: |   Write Status  | RO
  *       +-----------------+
@@ -162,9 +162,9 @@ extern "C" {
  *
  * Data Length:     The number of bytes (not regs) to write from the buffer into the file.
  *
- * CRC32:           The 32-bit CRC of the data currently present in the File Buffer page. If this does not match the
- *                  CRC32 calculated on the remote device when the write action is triggered, the write will fail and
- *                  the Write Status register will be set accordingly.
+ * CRC32:           A 32-bit CRC value for a target which is dependent on the operation. If the operation is WRITE, then
+ *                  this should be the 32-bit CRC of the data in the file buffer page. If the operation is CHECK_CRC,
+ *                  then this value should be the 32-bit CRC of the file being checked.
  *
  * Clear File:      If set to 0 (false), a write action will append the file data contents of the File Buffer page to
  *                  the end of the file. Otherwise, a write action will delete the file data contents of the file on the
@@ -172,22 +172,63 @@ extern "C" {
  *
  * File Mode:       The desired mode of the file.
  *
- * Write:           Writing 1 to this register will initiate a write action. Before triggering another write action, 0
- *                  must be written to the register to clear any errors and set the write status to ready.
+ * Operation:       Writing a value to this register will trigger an operation corresponding to the value written. Valid
+ *                  values are listed below under FILE OPERATIONS.
  *
  * Write Status:    Contains the current status of the remote device filewriter. Possible values are described below
  *                  where the status macros are defined.
  */
 
-#define CANMORE_LINUX_UPLOAD_CONTROL_FILENAME_LENGTH_OFFSET 0x00
-#define CANMORE_LINUX_UPLOAD_CONTROL_DATA_LENGTH_OFFSET 0x01
-#define CANMORE_LINUX_UPLOAD_CONTROL_CRC_OFFSET 0x02
-#define CANMORE_LINUX_UPLOAD_CONTROL_CLEAR_FILE_OFFSET 0x03
-#define CANMORE_LINUX_UPLOAD_CONTROL_FILE_MODE_OFFSET 0x04
-#define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_OFFSET 0x05
-#define CANMORE_LINUX_UPLOAD_CONTROL_WRITE_STATUS_OFFSET 0x06
+#define CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET 0x00
+#define CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET 0x01
+#define CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET 0x02
+#define CANMORE_LINUX_FILE_CONTROL_CLEAR_FILE_OFFSET 0x03
+#define CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET 0x04
+#define CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET 0x05
+#define CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET 0x06
 
 /**
+ * FILE OPERATIONS
+ * - OPERATION_NOP:             No operation. Set the operation register to this value to put the file controller into a
+ *                              READY state.
+ *                                  Required registers: None
+ *
+ * - OPERATION_WRITE:           Write the contents of the file buffer into a file.
+ *                                  Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *                                  - DATA_LENGTH
+ *                                  - CRC: Contains the CRC32 value of all data in the file buffer.
+ *                                  - CLEAR_FILE
+ *
+ * - OPERATION_SET_MODE:        Set the file mode to using the value in the FILE_MODE register.
+ *                                  Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *                                  - FILE_MODE
+ *
+ * - OPERATION_CHECK_CRC:       Check the CRC32 value of the remote file against the one provided in the CRC register.
+ *                              If the CRC is good, then the status will be set to SUCCESS. Otherwise the status will be
+ *                              set to BAD_CRC.
+ *                                  Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *                                  - CRC: Contains the CRC32 of the file being checked.
+ *
+ * - OPERATION_READ:            Read a portion of a file into the file buffer. Not implemented yet.
+ */
+
+#define CANMORE_LINUX_FILE_OPERATION_NOP 0
+#define CANMORE_LINUX_FILE_OPERATION_WRITE 1
+#define CANMORE_LINUX_FILE_OPERATION_SET_MODE 2
+#define CANMORE_LINUX_FILE_OPERATION_CHECK_CRC 3
+#define CANMORE_LINUX_FILE_OPERATION_READ 4
+
+/**
+ * FILE STATUSES
  * - STATUS_READY:              Client ready to perform a write operation. This is the only state in which a write
  *                              operation can be triggered. The client will report this state when all write operations
  *                              are done and the Write register is set to 0.
@@ -204,11 +245,11 @@ extern "C" {
  *                              data in the Buffer page.
  */
 
-#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_READY 0
-#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_BUSY 1  // TODO: needed?
-#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_SUCCESS 2
-#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_DEVICE_ERROR 3
-#define CANMORE_LINUX_UPLOAD_WRITE_STATUS_FAIL_BAD_CRC 4
+#define CANMORE_LINUX_FILE_STATUS_READY 0
+#define CANMORE_LINUX_FILE_STATUS_BUSY 1
+#define CANMORE_LINUX_FILE_STATUS_SUCCESS 2
+#define CANMORE_LINUX_FILE_STATUS_FAIL_DEVICE_ERROR 3
+#define CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC 4
 
 #ifdef __cplusplus
 }

@@ -43,7 +43,7 @@ public:
 private:
     bool shouldStop_ = false;
     bool remoteTtyEnabled_ = false;
-    bool lastWrittenWrite_ = false;
+    bool current_operation_ = false;
     uint32_t windowSzReg_ = 0;
     uint32_t filenameLengthReg_ = 0;
     uint32_t dataLengthReg_ = 0;
@@ -57,8 +57,12 @@ private:
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
     bool enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
-    bool triggerWriteBufToFile(uint16_t addr, bool is_write, uint32_t *data_ptr);
-    void reportWriteError(const char *error);
+    void doFileWrite();
+    void doCheckCrc();
+    void doSetFileMode();
+    bool triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr);
+    void reportDeviceError(const char *error);
+    std::string readFileNameFromBuf();
 };
 
 class CanmoreTTYServer : public Canmore::RemoteTTYServerEventHandler, public Canmore::PollFDHandler {
