@@ -72,6 +72,11 @@ public:
 // previously 1024
 #define FILE_UPLOAD_MAX_ERRORS 5
 
+#define CURSOR_UP "\033[1A"
+#define CURSOR_BEGIN "\r"
+#define ERASE_LINE "\033[K"
+#define PROGRESS_BAR_LENGTH 32
+
 #if FILE_BUFFER_SIZE % 4 != 0
 #error FILE_UPLOAD_BATCH_SIZE must be a multiple of 4!
 #endif
@@ -109,10 +114,11 @@ public:
         memset(file_buffer_contents, 0, sizeof(file_buffer_contents));
         int file_size = std::filesystem::file_size(src_file),  // will use to make a cool progress bar
             data_read = 0, data_len = 0, status = 0;
+        uint32_t file_crc = 0xFFFFFFFF;
 
+        interface.writeLine("Uploading file");
+        interface.writeLine("");  // makes progress bar play better
         while ((file && !file.eof()) || error_counter != 0) {
-            interface.writeLine("Read " + std::to_string(data_read) + " bytes");
-
             // check for interrupt
             struct pollfd fd;
             fd.fd = STDIN_FILENO;
@@ -135,7 +141,7 @@ public:
             // read file data
             if (error_counter == 0) {
                 int bytes_read;
-                data_len = readFileIntoPageAndBuffer(interface, dst_file, file, bytes_read);
+                data_len = readFileIntoPageAndBuffer(interface, dst_file, file, bytes_read, file_crc);
                 data_read += bytes_read;
             }
 
@@ -194,16 +200,27 @@ public:
 
             error_counter = 0;  // good transmission, reset error counter
             first_write = false;
+
+            // write progress bar to terminal
+            double percent_progress = data_read / (double) file_size;
+            int progress_amount = percent_progress * PROGRESS_BAR_LENGTH;
+            std::string progress_bar = CURSOR_UP CURSOR_BEGIN ERASE_LINE "[";
+            int i;
+            for (int i = 0; i < progress_amount; i++) {
+                progress_bar += (i == progress_amount - 1 ? ">" : "=");
+            }
+
+            for (int i = 0; i < PROGRESS_BAR_LENGTH - progress_amount; i++) {
+                progress_bar += " ";
+            }
+
+            progress_bar += "] " + std::to_string((int) (percent_progress * 100)) + "%";
+            interface.writeLine(progress_bar);
         }
 
         // check the file crc
         // first compute the file crc
         interface.writeLine("Checking file CRC");
-        uint32_t file_crc;
-        if (file_crc32_compute(src_file.c_str(), &file_crc) < 0) {
-            reportErrnoError(interface, "Failed to compute checksum of " + src_file);
-            return;
-        }
 
         // write filename to remote (name length is already in the register so we wont update that)
         writeDataIntoBufferPage(interface, dst_file.c_str(), dst_file.size(), 0);
@@ -312,7 +329,7 @@ private:
     }
 
     int readFileIntoPageAndBuffer(CLIInterface<Canmore::LinuxClient> &interface, const std::string &dst_file,
-                                  std::ifstream &file, int &bytes_just_read) {
+                                  std::ifstream &file, int &num_bytes_just_read, uint32_t &crc_value) {
         strcpy(file_buffer_contents, dst_file.c_str());
         int offset_after_filename = writeDataIntoBufferPage(interface, dst_file.c_str(), dst_file.length(), 0),
             offset_after_filename_bytes = offset_after_filename * 4;
@@ -320,11 +337,16 @@ private:
         file.read(&file_buffer_contents[offset_after_filename_bytes],
                   sizeof(file_buffer_contents) - offset_after_filename_bytes);
 
-        bytes_just_read = file.gcount();
-        writeDataIntoBufferPage(interface, &file_buffer_contents[offset_after_filename_bytes], bytes_just_read,
+        num_bytes_just_read = file.gcount();
+
+        // update the crc32 value
+        crc_value = crc32_update((uint8_t *) &file_buffer_contents[offset_after_filename_bytes], num_bytes_just_read,
+                                 crc_value);
+
+        writeDataIntoBufferPage(interface, &file_buffer_contents[offset_after_filename_bytes], num_bytes_just_read,
                                 offset_after_filename);
 
-        return bytes_just_read + offset_after_filename_bytes;
+        return num_bytes_just_read + offset_after_filename_bytes;
     }
 
     int doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &interface, int operation) {

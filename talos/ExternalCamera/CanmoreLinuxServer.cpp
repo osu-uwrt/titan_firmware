@@ -124,6 +124,11 @@ void CanmoreLinuxServer::doFileWrite() {
         return;
     }
 
+    // clear file crc32 if necessary
+    if (clearFileReg_) {
+        currentFileCrc_ = 0xFFFFFFFF;
+    }
+
     // read filename out of buffer page
     std::string filename = readFileNameFromBuf();
 
@@ -138,6 +143,7 @@ void CanmoreLinuxServer::doFileWrite() {
         for (uint32_t i = data_start; i < dataLengthReg_; i++) {
             char chunk_int = (char) fileBuf_.at(i);
             file.write(&chunk_int, sizeof(chunk_int));
+            currentFileCrc_ = crc32_update((uint8_t *) &chunk_int, 1, currentFileCrc_);
         }
 
         file.close();
@@ -151,7 +157,8 @@ void CanmoreLinuxServer::doFileWrite() {
 }
 
 void CanmoreLinuxServer::doCheckCrc() {
-    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+    writeStatusReg_ =
+        (crc32Reg_ == currentFileCrc_ ? CANMORE_LINUX_FILE_STATUS_SUCCESS : CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC);
 }
 
 void CanmoreLinuxServer::doSetFileMode() {

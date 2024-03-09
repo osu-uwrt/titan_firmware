@@ -51,6 +51,7 @@ private:
     uint32_t clearFileReg_ = 0;
     uint32_t fileModeReg_ = 0;
     uint32_t writeStatusReg_ = 0;
+    uint32_t currentFileCrc_ = 0xFFFFFFFF;
     std::vector<uint8_t> termStrBuf_;
     std::vector<uint8_t> cmdBuf_;
     std::vector<uint8_t> fileBuf_;
