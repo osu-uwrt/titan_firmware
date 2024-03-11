@@ -49,18 +49,23 @@ private:
     uint32_t dataLengthReg_ = 0;
     uint32_t crc32Reg_ = 0;
     uint32_t clearFileReg_ = 0;
+    uint32_t readOffsetReg_ = 0;
     uint32_t fileModeReg_ = 0;
     uint32_t writeStatusReg_ = 0;
     uint32_t currentFileCrc_ = 0xFFFFFFFF;
     std::vector<uint8_t> termStrBuf_;
     std::vector<uint8_t> cmdBuf_;
     std::vector<uint8_t> fileBuf_;
+    uint8_t readBuf_[REG_MAPPED_PAGE_SIZE];
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
     bool enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
     void doFileWrite();
-    void doCheckCrc();
+    void doFileRead();
     void doSetFileMode();
+    void doGetFileMode();
+    void doGetFileLen();
+    void doCheckCrc();
     bool triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr);
     void reportDeviceError(const char *error);
     std::string readFileNameFromBuf();

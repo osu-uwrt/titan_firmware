@@ -2,7 +2,9 @@
 
 #include "canmore/crc32.h"
 
+#include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -54,9 +56,11 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
                                       &filenameLengthReg_);
     upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET, REGISTER_PERM_READ_WRITE,
                                       &dataLengthReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET, REGISTER_PERM_WRITE_ONLY, &crc32Reg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CLEAR_FILE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET, REGISTER_PERM_READ_WRITE, &crc32Reg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_CLEAR_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &clearFileReg_);
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_READ_OFFSET_OFFSET, REGISTER_PERM_WRITE_ONLY,
+                                      &readOffsetReg_);
     upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &fileModeReg_);
     upload_control->addCallbackRegister(CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET, REGISTER_PERM_WRITE_ONLY,
@@ -156,9 +160,45 @@ void CanmoreLinuxServer::doFileWrite() {
     writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
 }
 
-void CanmoreLinuxServer::doCheckCrc() {
-    writeStatusReg_ =
-        (crc32Reg_ == currentFileCrc_ ? CANMORE_LINUX_FILE_STATUS_SUCCESS : CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC);
+void CanmoreLinuxServer::doFileRead() {
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_BUSY;
+
+    // update crc32
+    if (clearFileReg_) {
+        currentFileCrc_ = 0xFFFFFFFF;
+    }
+
+    // read file name out of buffer page
+    std::string filename = readFileNameFromBuf();
+
+    std::ifstream file;
+    file.open(filename);
+
+    if (!file.good()) {
+        reportDeviceError(strerror(errno));
+        return;  // or else status becomes SUCCESS
+    }
+
+    // go to desired offset and read there
+    file.seekg(readOffsetReg_);
+
+    // do read
+    file.read((char *) readBuf_, sizeof(readBuf_));
+    size_t num_read = file.gcount();
+
+    file.close();
+    fileBuf_.assign(readBuf_, readBuf_ + sizeof(readBuf_));
+
+    // set data length register
+    dataLengthReg_ = num_read;
+
+    // set crc32 register
+    crc32Reg_ = crc32_compute(fileBuf_.data(), num_read);
+
+    // update file crc32
+    currentFileCrc_ = crc32_update(fileBuf_.data(), num_read, currentFileCrc_);
+
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
 }
 
 void CanmoreLinuxServer::doSetFileMode() {
@@ -172,6 +212,33 @@ void CanmoreLinuxServer::doSetFileMode() {
     writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
 }
 
+void CanmoreLinuxServer::doGetFileMode() {
+    struct stat fileStat;
+    std::string filename = readFileNameFromBuf();
+    if (stat(filename.c_str(), &fileStat) < 0) {
+        reportDeviceError(strerror(errno));
+        return;  // return or else file status becomes SUCCESS
+    }
+
+    fileModeReg_ = (uint32_t) fileStat.st_mode;
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
+void CanmoreLinuxServer::doGetFileLen() {
+    std::string filename = readFileNameFromBuf();
+    try {
+        dataLengthReg_ = (uint32_t) std::filesystem::file_size(filename);
+        writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+    } catch (std::filesystem::filesystem_error &ex) {
+        reportDeviceError(strerror(ex.code().value()));
+    }
+}
+
+void CanmoreLinuxServer::doCheckCrc() {
+    writeStatusReg_ =
+        (crc32Reg_ == currentFileCrc_ ? CANMORE_LINUX_FILE_STATUS_SUCCESS : CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC);
+}
+
 bool CanmoreLinuxServer::triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr) {
     bool want_operation = *data_ptr != CANMORE_LINUX_FILE_OPERATION_NOP;
     if (current_operation_ == CANMORE_LINUX_FILE_OPERATION_NOP && want_operation) {
@@ -179,11 +246,20 @@ bool CanmoreLinuxServer::triggerFileOperation(uint16_t addr, bool is_write, uint
         case CANMORE_LINUX_FILE_OPERATION_WRITE:
             doFileWrite();
             break;
-        case CANMORE_LINUX_FILE_OPERATION_CHECK_CRC:
-            doCheckCrc();
+        case CANMORE_LINUX_FILE_OPERATION_READ:
+            doFileRead();
             break;
         case CANMORE_LINUX_FILE_OPERATION_SET_MODE:
             doSetFileMode();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_GET_MODE:
+            doGetFileMode();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_GET_FILE_LEN:
+            doGetFileLen();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_CHECK_CRC:
+            doCheckCrc();
             break;
         default:
             reportDeviceError("Unknown operation");

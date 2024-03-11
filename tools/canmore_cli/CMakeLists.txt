@@ -25,6 +25,7 @@ add_executable(canmore_cli
     src/linux_cli.cpp
     src/gdbserver.cpp
     src/remote_tty_client_task.cpp
+    src/file_transfer_task.cpp
 )
 
 target_include_directories(canmore_cli PUBLIC include/)

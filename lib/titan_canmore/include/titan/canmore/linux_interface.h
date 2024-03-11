@@ -149,13 +149,15 @@ extern "C" {
  *       +-----------------+
  * 0x01: |      CRC32      | WO
  *       +-----------------+
- * 0x02: |   Clear File    | WO
+ * 0x02: |      Clear      | WO
  *       +-----------------+
- * 0x03: |    File Mode    | WO
+ * 0x03: |    File Mode    | RW
  *       +-----------------+
- * 0x04: |    Operation    | WO
+ * 0x04: |   Read Offset   | WO
  *       +-----------------+
- * 0x05: |   Write Status  | RO
+ * 0x05: |    Operation    | WO
+ *       +-----------------+
+ * 0x06: |   Write Status  | RO
  *       +-----------------+
  *
  * Filename Length: The length of the filename in bytes. The data should start at the beginning of the next register.
@@ -166,11 +168,14 @@ extern "C" {
  *                  this should be the 32-bit CRC of the data in the file buffer page. If the operation is CHECK_CRC,
  *                  then this value should be the 32-bit CRC of the file being checked.
  *
- * Clear File:      If set to 0 (false), a write action will append the file data contents of the File Buffer page to
+ * Clear:           If set to 0 (false), a write action will append the file data contents of the File Buffer page to
  *                  the end of the file. Otherwise, a write action will delete the file data contents of the file on the
  *                  remote device before writing the contents of the File Buffer page into it
  *
  * File Mode:       The desired mode of the file.
+ *
+ * Read Offset:     When a read action is triggered, this register describes the offset in bytes of the data in the file
+ *                  to read.
  *
  * Operation:       Writing a value to this register will trigger an operation corresponding to the value written. Valid
  *                  values are listed below under FILE OPERATIONS.
@@ -182,10 +187,11 @@ extern "C" {
 #define CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET 0x00
 #define CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET 0x01
 #define CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET 0x02
-#define CANMORE_LINUX_FILE_CONTROL_CLEAR_FILE_OFFSET 0x03
-#define CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET 0x04
-#define CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET 0x05
-#define CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET 0x06
+#define CANMORE_LINUX_FILE_CONTROL_CLEAR_OFFSET 0x03
+#define CANMORE_LINUX_FILE_CONTROL_READ_OFFSET_OFFSET 0x04
+#define CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET 0x05
+#define CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET 0x06
+#define CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET 0x07
 
 /**
  * FILE OPERATIONS
@@ -200,7 +206,17 @@ extern "C" {
  *                                        describing the name of the file to write.
  *                                  - DATA_LENGTH
  *                                  - CRC: Contains the CRC32 value of all data in the file buffer.
- *                                  - CLEAR_FILE
+ *                                  - CLEAR
+ *
+ * - OPERATION_READ:            Read a portion of a file into the file buffer. Populates the file buffer, DATA_LENGTH,
+ *                              and CRC with the expected CRC value of the data in the file buffer. Populates STATUS
+ *                              with SUCCESS unless a device error happens in which case STATUS will be populated with
+ *                              DEVICE_ERROR.
+ *                              Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *                                  - CLEAR: should be true if the CRC should be cleared
  *
  * - OPERATION_SET_MODE:        Set the file mode to using the value in the FILE_MODE register.
  *                                  Required registers:
@@ -208,6 +224,18 @@ extern "C" {
  *                                      - File buffer must be populated at the beginning with this many bytes of data
  *                                        describing the name of the file to write.
  *                                  - FILE_MODE
+ *
+ * - OPERATION_GET_MODE         Get a remote file mode to the FILE_MODE register.
+ *                                  Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *
+ * - OPERATION_GET_FILE_LEN     Get the length of a file to the DATA_LENGTH register.
+ *                                  Required registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
  *
  * - OPERATION_CHECK_CRC:       Check the CRC32 value of the remote file against the one provided in the CRC register.
  *                              If the CRC is good, then the status will be set to SUCCESS. Otherwise the status will be
@@ -217,15 +245,15 @@ extern "C" {
  *                                      - File buffer must be populated at the beginning with this many bytes of data
  *                                        describing the name of the file to write.
  *                                  - CRC: Contains the CRC32 of the file being checked.
- *
- * - OPERATION_READ:            Read a portion of a file into the file buffer. Not implemented yet.
  */
 
 #define CANMORE_LINUX_FILE_OPERATION_NOP 0
 #define CANMORE_LINUX_FILE_OPERATION_WRITE 1
-#define CANMORE_LINUX_FILE_OPERATION_SET_MODE 2
-#define CANMORE_LINUX_FILE_OPERATION_CHECK_CRC 3
-#define CANMORE_LINUX_FILE_OPERATION_READ 4
+#define CANMORE_LINUX_FILE_OPERATION_READ 2
+#define CANMORE_LINUX_FILE_OPERATION_SET_MODE 3
+#define CANMORE_LINUX_FILE_OPERATION_GET_MODE 4
+#define CANMORE_LINUX_FILE_OPERATION_GET_FILE_LEN 5
+#define CANMORE_LINUX_FILE_OPERATION_CHECK_CRC 6
 
 /**
  * FILE STATUSES
