@@ -64,14 +64,15 @@ FaultData DebugClient::lookupFaultData(uint32_t faultId) {
 
     // Read the data
     bool sticky = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_STICKY_OFFSET) ? true : false;
+    bool multipleFires = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_MULTIPLE_FIRES_OFFSET) ? true : false;
     uint32_t timestampLower = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_TIME_LOWER_OFFSET);
     uint32_t timestampUpper = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_TIME_UPPER_OFFSET);
     uint32_t extraData = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_EXTRA_DATA_OFFSET);
     uint16_t line = faultDataPage.readRegister(CANMORE_DBG_FAULT_DATA_LINE_NUMBER_OFFSET);
     std::string filename = client->readStringPage(debug_itf_mode, CANMORE_DBG_FAULT_FILENAME_PAGE_NUM);
 
-    return FaultData(faultId, lookupFaultName(faultId), sticky, timestampLower, timestampUpper, extraData, filename,
-                     line);
+    return FaultData(faultId, lookupFaultName(faultId), sticky, multipleFires, timestampLower, timestampUpper,
+                     extraData, filename, line);
 }
 
 void DebugClient::raiseFault(uint32_t faultId) {

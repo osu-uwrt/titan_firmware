@@ -119,6 +119,16 @@ void safety_interface_deinit(void);
 void safety_interface_tick(void);
 
 // ========================================
+// Fault Definitions
+// ========================================
+
+// Note this should be defined in safety_interface.h, but we need to define it here
+// so safety internal functions can refer to fault names
+
+#define DEFINE_ENUMERATION(name, id) name = id,
+enum safety_fault_internal { XLIST_OF_LIBSAFETY_FAULTS(DEFINE_ENUMERATION) };
+
+// ========================================
 // Internal Functions
 // ========================================
 

@@ -27,10 +27,10 @@ static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
 /**
  * @brief Positions for various fire targets
  */
-#define POSITION_DROPPER1_FIRE 1024
-#define POSITION_DROPPER2_FIRE 20
-#define POSITION_TORPEDO1_FIRE 3072
-#define POSITION_TORPEDO2_FIRE 4076
+#define POSITION_DROPPER1_FIRE 3072
+#define POSITION_DROPPER2_FIRE 4076
+#define POSITION_TORPEDO1_FIRE 1024
+#define POSITION_TORPEDO2_FIRE 20
 
 #define MAX_MOVEMENT_TIME_MS 5000
 
@@ -273,6 +273,11 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
         return false;
     }
 
+    if (torpedo_marker_hardware_err) {
+        *errMsgOut = "Hardware Error";
+        return false;
+    }
+
     if (!torpedo_marker_enabled || !actuators_armed) {
         *errMsgOut = "Not Armed";
         return false;
@@ -280,11 +285,6 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
 
     if (torpedo_marker_moving) {
         *errMsgOut = "Busy";
-        return false;
-    }
-
-    if (torpedo_marker_hardware_err) {
-        *errMsgOut = "Hardware Error";
         return false;
     }
 

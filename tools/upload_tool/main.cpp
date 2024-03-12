@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <net/if.h>
+#include <string.h>
 #include <thread>
 #include <vector>
 
@@ -25,6 +26,7 @@ public:
     bool forceOpenocd;
     bool showHelpAndQuit;
     const char *filename;
+    std::string deviceName;
     const char *progname;
 
     bool parseSuccessful;
@@ -32,7 +34,7 @@ public:
     CANBlToolArgs(int argc, char **argv):
         // Define default args
         waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), alwaysPromptForDev(false),
-        forceOpenocd(false), showHelpAndQuit(false), filename(""),
+        forceOpenocd(false), showHelpAndQuit(false), filename(""), deviceName(""),
 
         // Attributes
         progname("[???]"), parseSuccessful(false), argc(argc), argv(argv), positionalIndex(0) {
@@ -41,7 +43,7 @@ public:
     }
 
     void printHelp() {
-        std::cout << "Usage: " << progname << " [-fiopw] [uf2]" << std::endl;
+        std::cout << "Usage: " << progname << " [-fiopw] [uf2] [board_name (optional)]" << std::endl;
         std::cout << "\t-h: Show this help message" << std::endl;
         std::cout << "\t-f: Full Image Flash (if omitted, uf2 is assumed ota file)" << std::endl;
         std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA"
@@ -91,6 +93,9 @@ private:
         switch (positionalIndex) {
         case 0:
             filename = arg;
+            break;
+        case 1:
+            deviceName = arg;
             break;
         default:
             std::cout << "Unexpected positional argument '" << arg << "'" << std::endl;
@@ -237,11 +242,20 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
-            if (!dev) {
-                return 1;
+            if (blArgs.deviceName[0] == '\0') {
+                auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
+                if (!dev) {
+                    return 1;
+                }
+                interface = dev->getFlashInterface();
             }
-            interface = dev->getFlashInterface();
+            else {
+                auto dev = UploadTool::selectDeviceByName(discovered, devMap, blArgs.deviceName);
+                if (!dev) {
+                    return 1;
+                }
+                interface = dev->getFlashInterface();
+            }
         }
 
         if (UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite)) {

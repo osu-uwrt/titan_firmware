@@ -3,16 +3,19 @@
 
 #include "titan/safety.h"
 
-// NOTE: If adding fault IDs make sure to update the fault_string_list as well
+// ===== Fault Definitions =====
+// X macro to allow faults to be defined in one place
+// Then all code which needs this fault array can use the XLIST_OF_FAULTS macro
+// See https://en.wikipedia.org/wiki/X_macro for more info
+// To add a new fault, add a new DEF(name, id) and add a backslash to the previous line
 
-//      FAULT_WATCHDOG_RESET   0
-//      FAULT_WATCHDOG_WARNING 1
-#define FAULT_INVALID_SETUP 2
-#define FAULT_HARDWARE_ERROR 3  // TODO: Replace these with implementation fault IDs
+#define XLIST_OF_FAULTS(DEF)                                                                                           \
+    XLIST_OF_LIBSAFETY_FAULTS(DEF) /* 0-1 reserved by safety */                                                        \
+    DEF(FAULT_INVALID_SETUP, 2)    /* TODO Replace me - for example only */                                            \
+    DEF(FAULT_HARDWARE_ERROR, 3)   /* TODO Replace me - for example only */
+// TODO: Replace faults below with the implementation's fault IDs
 
-static const char *const fault_string_list[] = { "FAULT_WATCHDOG_RESET", "FAULT_WATCHDOG_WARNING",
-                                                 "FAULT_INVALID_SETUP", "FAULT_HARDWARE_ERROR" };
-
+// ===== Kill Switch Definitions =====
 // TODO: Replace these with the kill switches for the implementation
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {
@@ -23,5 +26,10 @@ enum kill_switch {
     // This must be the last enum
     NUM_KILL_SWITCHES
 };
+
+// ==== Do not modify this code below this line ===
+// This defines the enum of all faults using the XMACRO above
+#define DEFINE_ENUMERATION(name, id) name = id,
+enum safety_fault { XLIST_OF_FAULTS(DEFINE_ENUMERATION) };
 
 #endif

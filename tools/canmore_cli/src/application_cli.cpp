@@ -266,6 +266,7 @@ public:
             if (showSticky) {
                 out << " | " << std::setw(stickyWidth) << "Sticky";
             }
+            out << " | " << std::setw(multipleWidth) << "Multiple";
             out << " | " << std::setw(timestampWidth) << "Timestamp";
             out << " | " << std::setw(filenameWidth) << "File";
             out << " | " << std::setw(lineWidth) << "Line";
@@ -282,6 +283,7 @@ public:
             if (showSticky) {
                 out << " | " << std::setw(stickyWidth) << (data.sticky ? "Yes" : "No");
             }
+            out << " | " << std::setw(multipleWidth) << (data.multipleFires ? "Yes" : "No");
             out << " | " << std::setw(timestampWidth) << (data.sticky ? data.formatTimestamp() : "-");
             out << " | " << std::setw(filenameWidth) << (data.sticky ? data.filename : "-");
             out << " | " << std::setw(lineWidth);
@@ -337,6 +339,7 @@ public:
         // Constant width fields (either header max or the fixed value length)
         const size_t faultIdWidth = 2;
         const size_t stickyWidth = 6;
+        const size_t multipleWidth = 8;
         const size_t lineWidth = 6;
         const size_t extraDataWidth = 10;
     };
