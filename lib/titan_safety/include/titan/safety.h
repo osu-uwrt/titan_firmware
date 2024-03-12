@@ -55,8 +55,13 @@
 
 // MAX_FAULT_ID is determined by the fault_list_reg size (32-bit)
 #define MAX_FAULT_ID 31
-#define FAULT_WATCHDOG_RESET 0
-#define FAULT_WATCHDOG_WARNING 1
+
+// XMACRO to define the libsafety specific faults (watchdog reset and watchdog warning)
+// The XMACRO follows the form DO(name, val) where name is the fault name (should begin with FAULT_)
+// and val is the ID for that fault. The fault id must be less than MAX_FAULT_ID
+#define XLIST_OF_LIBSAFETY_FAULTS(DEF)                                                                                 \
+    DEF(FAULT_WATCHDOG_RESET, 0)                                                                                       \
+    DEF(FAULT_WATCHDOG_WARNING, 1)
 // All other fault ids are implentation specific
 
 struct fault_data {

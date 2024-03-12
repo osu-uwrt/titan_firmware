@@ -3,22 +3,22 @@
 
 #include "titan/safety.h"
 
-// NOTE: If adding fault IDs make sure to update the fault_string_list as well
+// ===== Fault Definitions =====
+// X macro to allow faults to be defined in one place
+// Then all code which needs this fault array can use the XLIST_OF_FAULTS macro
+// See https://en.wikipedia.org/wiki/X_macro for more info
+// To add a new fault, add a new DEF(name, id) and add a backslash to the previous line
 
-//      FAULT_WATCHDOG_RESET      0
-//      FAULT_WATCHDOG_WARNING    1
-#define FAULT_CAN_INTERNAL_ERROR 2
-#define FAULT_ROS_ERROR 3
-#define FAULT_TIMER_MISSED 4
-#define FAULT_ROS_BAD_COMMAND 5
-#define FAULT_RPM_CMD_TIMEOUT 6
-#define FAULT_RAW_MODE 7
+#define XLIST_OF_FAULTS(DEF)                                                                                           \
+    XLIST_OF_LIBSAFETY_FAULTS(DEF) /* 0-1 reserved by safety */                                                        \
+    DEF(FAULT_CAN_INTERNAL_ERROR, 2)                                                                                   \
+    DEF(FAULT_ROS_ERROR, 3)                                                                                            \
+    DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
+    DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
+    DEF(FAULT_RPM_CMD_TIMEOUT, 6)                                                                                      \
+    DEF(FAULT_RAW_MODE, 7)
 
-static const char *const fault_string_list[] = { "FAULT_WATCHDOG_RESET",     "FAULT_WATCHDOG_WARNING",
-                                                 "FAULT_CAN_INTERNAL_ERROR", "FAULT_ROS_ERROR",
-                                                 "FAULT_TIMER_MISSED",       "FAULT_ROS_BAD_COMMAND",
-                                                 "FAULT_RPM_CMD_TIMEOUT",    "FAULT_RAW_MODE" };
-
+// ===== Kill Switch Definitions =====
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0
 enum kill_switch {
     ROS_KILL_SWITCH = 0,
@@ -26,5 +26,10 @@ enum kill_switch {
     // This must be the last enum
     NUM_KILL_SWITCHES
 };
+
+// ==== Do not modify this code below this line ===
+// This defines the enum of all faults using the XMACRO above
+#define DEFINE_ENUMERATION(name, id) name = id,
+enum safety_fault { XLIST_OF_FAULTS(DEFINE_ENUMERATION) };
 
 #endif
