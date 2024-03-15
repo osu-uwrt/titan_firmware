@@ -207,17 +207,17 @@ extern "C" {
 #define CANMORE_REMOTE_TTY_SUBCH_STDERR 3
 
 // Verify our math
-static_assert(CANMORE_CRC_NOC_OFFSET == CANMORE_CRC_LENGTH, "Canmore API changed from what I expected");
-static_assert(CANMORE_REMOTE_TTY_ID_SEQ_CMD_LENGTH + CANMORE_REMOTE_TTY_ID_SUBCH_LENGTH == CANMORE_CRC_LENGTH,
+static_assert(CANMORE_EXT_NOC_OFFSET == CANMORE_EXTRA_LENGTH, "Canmore API changed from what I expected");
+static_assert(CANMORE_REMOTE_TTY_ID_SEQ_CMD_LENGTH + CANMORE_REMOTE_TTY_ID_SUBCH_LENGTH == CANMORE_EXTRA_LENGTH,
               "Failed expected packing, the CRC macros below will be wrong");
-#define CANMORE_REMOTE_TTY_CALC_CRC_FIELD_FOR_ID(subch, seq_cmd)                                                       \
+#define CANMORE_REMOTE_TTY_CALC_EXTRA_FIELD_FOR_ID(subch, seq_cmd)                                                     \
     (((subch) & ((1u << CANMORE_REMOTE_TTY_ID_SUBCH_LENGTH) - 1u)) << CANMORE_REMOTE_TTY_ID_SUBCH_OFFSET) |            \
         (((seq_cmd) & ((1u << CANMORE_REMOTE_TTY_ID_SEQ_CMD_LENGTH) - 1u)) << CANMORE_REMOTE_TTY_ID_SEQ_CMD_OFFSET)
 
 // Macros for computing IDs
 #define CANMORE_REMOTE_TTY_CALC_ID(client_id, direction, subch, seq_cmd)                                               \
     CANMORE_CALC_EXT_ID(client_id, CANMORE_TYPE_UTIL, direction, CANMORE_TITAN_CHAN_REMOTE_TTY,                        \
-                        CANMORE_REMOTE_TTY_CALC_CRC_FIELD_FOR_ID(subch, seq_cmd))
+                        CANMORE_REMOTE_TTY_CALC_EXTRA_FIELD_FOR_ID(subch, seq_cmd))
 #define CANMORE_REMOTE_TTY_CALC_ID_A2C(client_id, subch, seq_cmd)                                                      \
     CANMORE_REMOTE_TTY_CALC_ID(client_id, CANMORE_DIRECTION_AGENT_TO_CLIENT, subch, seq_cmd)
 #define CANMORE_REMOTE_TTY_CALC_ID_C2A(client_id, subch, seq_cmd)                                                      \

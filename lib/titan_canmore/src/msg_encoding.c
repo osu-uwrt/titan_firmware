@@ -39,7 +39,7 @@ static const uint32_t crc18_lookup[] = {
  * @param data Buffer to calculate CRC-18 for
  * @param data_len Number of bytes to calculate the crc for
  */
-static void crc18_update(uint32_t *crc_ptr, uint8_t *data, size_t data_len) {
+static void crc18_update(uint32_t *crc_ptr, const uint8_t *data, size_t data_len) {
     uint32_t crc = *crc_ptr;
     while (data_len--) {
         crc = (crc << 8) ^ crc18_lookup[((crc >> 10) ^ (*data++)) & 0xff];
@@ -51,9 +51,10 @@ static void crc18_update(uint32_t *crc_ptr, uint8_t *data, size_t data_len) {
 // Encoder Functions
 // ========================================
 
-void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, uint32_t direction) {
+void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, uint32_t direction, bool use_canfd) {
     state->client_id = client_id;
     state->direction = direction;
+    state->use_canfd = use_canfd;
     state->length = 0;
     state->position = 0;
 }
@@ -62,32 +63,55 @@ bool canmore_msg_encode_done(canmore_msg_encoder_t *state) {
     return state->length == state->position;
 }
 
-void canmore_msg_encode_load(canmore_msg_encoder_t *state, const uint8_t *buffer, size_t len) {
+void canmore_msg_encode_load(canmore_msg_encoder_t *state, uint8_t subtype, const uint8_t *buffer, size_t len) {
     if (len > CANMORE_MAX_MSG_LENGTH) {
         len = CANMORE_MAX_MSG_LENGTH;
     }
 
+    state->subtype = subtype;
     memcpy(state->buffer, buffer, len);
     state->length = len;
     state->position = 0;
     state->seq_num = 0;
 }
 
-bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, uint8_t *dlc_out, uint32_t *id_out,
+bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, uint8_t *len_out, uint32_t *id_out,
                              bool *is_extended) {
     if (state->length == state->position) {
         return false;
     }
 
+    size_t max_frame_len = (state->use_canfd ? CANMORE_MAX_FD_FRAME_SIZE : CANMORE_MAX_FRAME_SIZE);
+
     // Copy buffer
     size_t remaining_size = state->length - state->position;
-    size_t copy_size = (CANMORE_FRAME_SIZE > remaining_size ? remaining_size : CANMORE_FRAME_SIZE);
+    size_t copy_size = (max_frame_len > remaining_size ? remaining_size : max_frame_len);
     memcpy(buffer_out, &state->buffer[state->position], copy_size);
-    *dlc_out = copy_size;
     state->position += copy_size;
 
+    // Handle 0 padding for can fd
+    if (state->use_canfd) {
+        size_t frame_size = canmore_fd_dlc2len(canmore_fd_len2dlc(copy_size));
+        if (frame_size != copy_size) {
+            memset(&buffer_out[copy_size], 0, frame_size - copy_size);
+        }
+        *len_out = frame_size;
+    }
+    else {
+        // Normal CAN is simple, all lengths within up to max frame size are valid DLC values
+        *len_out = copy_size;
+    }
+
     // Calculate ID
-    if (state->length == state->position) {
+    if (state->seq_num == 0) {
+        // First ID, send the first ID format in extended mode
+        *is_extended = true;
+
+        bool single = (state->length == state->position);
+        *id_out = CANMORE_CALC_MSG_FIRST_ID(state->client_id, state->direction, state->seq_num, single, state->length,
+                                            state->subtype);
+    }
+    else if (state->length == state->position) {
         *is_extended = true;
 
         uint32_t crc = CRC18_INITIAL_VALUE;
@@ -100,11 +124,13 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
         *is_extended = false;
         *id_out = CANMORE_CALC_MSG_ID(state->client_id, state->direction, state->seq_num);
     }
-    state->seq_num++;
 
-    // Handle sequence number rollover
-    if (state->seq_num > CANMORE_MAX_MSG_SEQ_NUM) {
+    // Increment the sequence number
+    if (state->seq_num >= CANMORE_MAX_MSG_SEQ_NUM) {
         state->seq_num = 1;
+    }
+    else {
+        state->seq_num++;
     }
 
     return true;
@@ -118,6 +144,9 @@ void canmore_msg_decode_reset_state(canmore_msg_decoder_t *state) {
     state->crc18 = CRC18_INITIAL_VALUE;
     state->decode_len = 0;
     state->next_seq_num = 0;
+    // Don't reset subtype or data, as these need to be read after this is called
+    // No need to reset subtype or expected length, as the decode will always fail until a 0 sequence number is received
+    // That code will always write these values from the extended id
 }
 
 /**
@@ -134,71 +163,155 @@ static void decoder_error_and_reset_state(canmore_msg_decoder_t *state, unsigned
 }
 
 void canmore_msg_decode_init(canmore_msg_decoder_t *state, canmore_msg_decoder_error_handler_t decode_error_handler,
-                             void *decode_error_arg) {
+                             void *decode_error_arg, bool use_canfd) {
     state->decode_error_arg = decode_error_arg;
     state->decode_error_handler = decode_error_handler;
+    state->use_canfd = use_canfd;
 
     canmore_msg_decode_reset_state(state);
 }
 
-bool canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len) {
-    // Ensure next frame sequence matches expected order
-    if (seq_num != state->next_seq_num) {
-        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BAD_SEQ_NUM);
+size_t canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint32_t can_id, bool is_extended, const uint8_t *frame,
+                                size_t frame_len) {
+    canmore_id_t id;
+    id.identifier = can_id;
 
-        if (seq_num != 0) {
-            return false;
+    uint8_t seq_num = (is_extended ? id.pkt_ext.noc : id.pkt_std.noc);
+    bool is_last;
+    bool is_single;
+    uint32_t crc_expected = UINT32_MAX;
+
+    if (seq_num == 0) {
+        // Special handling for first packet, need to store the information in the extended header
+
+        if (state->next_seq_num != 0) {
+            // We aren't expecting a new packet, report that we got a bad sequence number
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BAD_SEQ_NUM);
+            // Don't fail though, since we got a new packet we can just start fresh
         }
-        // If seq_num is 0, then it would be reset when calling this anyways, so it can continue processing the frame
+
+        if (!is_extended) {
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_SEQ_ZERO_NOT_EXTENDED);
+            return 0;
+        }
+
+        if (id.pkt_ext_start.msg_len > CANMORE_MAX_MSG_LENGTH || id.pkt_ext_start.msg_len == 0) {
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_MSG_TOO_LARGE);
+            return 0;
+        }
+
+        state->subtype = id.pkt_ext_start.msg_subtype;
+        state->expected_len = id.pkt_ext_start.msg_len;
+        is_last = !!id.pkt_ext_start.msg_single;
+        is_single = is_last;
+    }
+    else {
+        // Not the first packet, do the standard ID decoding
+        is_last = is_extended;
+        is_single = false;
+        if (is_extended) {
+            crc_expected = id.pkt_ext.extra;
+        }
+
+        // If not the sequence number we expect, fail now
+        if (seq_num != state->next_seq_num) {
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BAD_SEQ_NUM);
+            return 0;
+        }
     }
 
     // Cannot decode zero length packet
-    if (data_len == 0) {
+    if (frame_len == 0) {
         decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_ZERO_LENGTH_PACKET);
-        return false;
+        return 0;
     }
 
-    // Ensure that buffer overflow will not occur
-    if (data_len + state->decode_len > CANMORE_MAX_MSG_LENGTH) {
-        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_BUFFER_OVERFLOW);
-        return false;
+    // Remove any extra data at the end of the last frame (due to CAN FD)
+    size_t copy_len = frame_len;
+    if (frame_len + state->decode_len > state->expected_len) {
+        if (!is_last || !state->use_canfd) {
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_UNEXPECTED_DATA);
+            return 0;
+        }
+
+        // If we're the last CAN FD frame, trim to the expected length
+        copy_len = state->expected_len - state->decode_len;
+    }
+
+    // Compute the checksum (only needed if not single frame packet, since those can't be fragmented)
+    if (!is_single) {
+        crc18_update(&state->crc18, frame, copy_len);
     }
 
     // Append packet to end of decode buffer
-    crc18_update(&state->crc18, data, data_len);
-    memcpy(&state->decode_buffer[state->decode_len], data, data_len);
-    state->decode_len += data_len;
-    state->next_seq_num++;
+    memcpy(&state->decode_buffer[state->decode_len], frame, copy_len);
+    state->decode_len += copy_len;
 
-    // Handle sequence number rollover
-    if (state->next_seq_num > CANMORE_MAX_MSG_SEQ_NUM) {
-        state->next_seq_num = 1;
+    // Finish Processing
+    if (is_last) {
+        // If we're the last packet (and not a single packet transmission), verify the complete message checksum
+        if (!is_single) {
+            uint32_t crc_calc = state->crc18 & CRC18_MASK;
+            if (crc_calc != crc_expected) {
+                // Invalid CRC
+                decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_CRC_FAIL);
+                return 0;
+            }
+        }
+
+        size_t decoded_len = state->decode_len;
+
+        // Reset state for new message
+        canmore_msg_decode_reset_state(state);
+        return decoded_len;
     }
+    else {
+        // If we're not the last packet, increment handling sequence number rollover
+        if (state->next_seq_num >= CANMORE_MAX_MSG_SEQ_NUM) {
+            if (!state->use_canfd) {
+                state->next_seq_num = 1;
+            }
+            else {
+                // Rollover is not permitted in CAN FD mode, since it should fit the full packet in it
+                decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_ROLLOVER_WITH_CANFD);
+                return 0;
+            }
+        }
+        else {
+            state->next_seq_num++;
+        }
 
-    return true;
+        // We successfully processed, but we don't have a message to give
+        return 0;
+    }
 }
 
-size_t canmore_msg_decode_last_frame(canmore_msg_decoder_t *state, uint8_t seq_num, uint8_t *data, size_t data_len,
-                                     uint32_t crc, uint8_t *data_out) {
-    // Process packet data
-    if (!canmore_msg_decode_frame(state, seq_num, data, data_len)) {
-        return 0;
-    }
+// ========================================
+// CAN FD DLC conversion
+// ========================================
 
-    // Check CRC
-    uint32_t crc_calc = state->crc18 & CRC18_MASK;
-    if (crc_calc != crc) {
-        // Invalid CRC
-        decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_CRC_FAIL);
-        return 0;
-    }
+static const uint8_t dlc2len[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64 };
 
-    // Copy out message
-    size_t decode_len = state->decode_len;
-    memcpy(data_out, state->decode_buffer, state->decode_len);
+/* get data length from raw data length code (DLC) */
+uint8_t canmore_fd_dlc2len(uint8_t dlc) {
+    return dlc2len[dlc & 0x0F];
+}
 
-    // Reset state for new message
-    canmore_msg_decode_reset_state(state);
+static const uint8_t len2dlc[] = { 0,  1,  2,  3,  4,  5,  6,  7,  8, /* 0 - 8 */
+                                   9,  9,  9,  9,                     /* 9 - 12 */
+                                   10, 10, 10, 10,                    /* 13 - 16 */
+                                   11, 11, 11, 11,                    /* 17 - 20 */
+                                   12, 12, 12, 12,                    /* 21 - 24 */
+                                   13, 13, 13, 13, 13, 13, 13, 13,    /* 25 - 32 */
+                                   14, 14, 14, 14, 14, 14, 14, 14,    /* 33 - 40 */
+                                   14, 14, 14, 14, 14, 14, 14, 14,    /* 41 - 48 */
+                                   15, 15, 15, 15, 15, 15, 15, 15,    /* 49 - 56 */
+                                   15, 15, 15, 15, 15, 15, 15, 15 };  /* 57 - 64 */
 
-    return decode_len;
+/* map the sanitized data length to an appropriate data length code */
+uint8_t canmore_fd_len2dlc(uint8_t len) {
+    if (len > 64)
+        return 0xF;
+
+    return len2dlc[len];
 }

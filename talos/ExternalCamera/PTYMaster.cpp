@@ -215,7 +215,8 @@ void CanmoreTTYServer::handleEvent(const pollfd &fd) {
             }
 
             // Get the data from the fd
-            std::vector<uint8_t> buf(CANMORE_FRAME_SIZE);
+            // TODO: Add CAN FD support
+            std::vector<uint8_t> buf(CANMORE_MAX_FRAME_SIZE);
             int rc = read(ptyMasterFd_, buf.data(), buf.size());
             if (rc <= 0) {
                 // Since we just disconnected, no use in polling for more data

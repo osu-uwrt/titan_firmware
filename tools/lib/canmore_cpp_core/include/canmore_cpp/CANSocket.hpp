@@ -7,10 +7,21 @@
 
 namespace Canmore {
 
+/**
+ * @brief A socket wrapper for binding to CAN bus interfaces on Linux.
+ * This class automatically detects if the given interface supports CAN FD and switches to FD mode (unless overidden).
+ *
+ * This handles all the heavy lifting of creating an interface, and exposes this socket as a PollFDHandler (see
+ * PollFD.hpp for more information on what is required to process incoming packet events)
+ *
+ * This function can be inherited by classes which need a CAN socket. That class just needs to override the handleFrame
+ * function, which is called anytime a frame is received matching the filters specified by setRxFilters. The
+ * transmitFrame method can be used to transmit frames.
+ *
+ */
 class CANSocket : public PollFDHandler {
 public:
-    CANSocket(int ifIndex);
-    CANSocket(int ifIndex, const std::span<can_filter> &&rxFilters);
+    CANSocket(int ifIndex, bool forceNoCanFd = false);
     ~CANSocket();
 
     // Disabling copying of CANSocket (since we have a file discriptor)
@@ -20,6 +31,12 @@ public:
     const int ifIndex;
 
 protected:
+    /**
+     * @brief Transmits the requested frame to the CAN ID
+     *
+     * @param can_id The ID for this CAN frame
+     * @param data The data to transmit for this frame
+     */
     void transmitFrame(canid_t can_id, const std::span<const uint8_t> &data);
 
     /**
@@ -62,10 +79,26 @@ protected:
     void populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) override;
     void handleEvent(const pollfd &fd) override;
 
+    /**
+     * @brief Get the maximum frame size that can be transmitted by the socket
+     *
+     * @return size_t The max data length that can be transmitted by the CANSocket
+     */
+    size_t getMaxFrameSize() { return (useCanFd ? CANFD_MAX_DLEN : CAN_MAX_DLEN); }
+
+    /**
+     * @brief Reports if the socket is transmitting in CAN FD mode (detected during initialization).
+     *
+     * @return true The socket is in CAN FD mode (all frames transmitted as CAN FD frames)
+     * @return false The socket is in standard CAN mode (all frames transmitted as standard CAN frames)
+     */
+    bool usingCanFd() { return useCanFd; }
+
 private:
     // Separate internal function so the constructor can request that the socket be closed when an exception is thrown
     void setRxFiltersInternal(const std::span<can_filter> &rxFilters, bool closeOnFail);
     int socketFd;
+    bool useCanFd;
     std::shared_ptr<PollFDDescriptor> socketPollDescriptor;
 };
 

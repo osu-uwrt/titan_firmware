@@ -148,7 +148,8 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len) {
         return 0;
     }
 
-    canmore_msg_encode_load(&encoding_buffer, buf, len);
+    // TODO: Enable message subtype support
+    canmore_msg_encode_load(&encoding_buffer, 0, buf, len);
     can_mcp251xfd_report_msg_tx_fifo_ready();
 
     restore_mcp251Xfd_irq(prev_interrupt);
@@ -169,22 +170,15 @@ void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t dat
         return;
     }
 
-    canmore_id_t client_id = { .identifier = identifier };
+    size_t msg_size = canmore_msg_decode_frame(&msg_decoder, identifier, is_extended, data, data_len);
 
-    if (!is_extended) {
-        canmore_msg_decode_frame(&msg_decoder, client_id.pkt_std.noc, data, data_len);
-    }
-    else {
-        size_t msg_size = canmore_msg_decode_last_frame(&msg_decoder, client_id.pkt_ext.noc, data, data_len,
-                                                        client_id.pkt_ext.crc, canmore_received_msg.data);
-
-        // Only queue the data if the decode was successful and we care to receive messages
-        // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
-        // when in reality we just didn't set opened until halfway through receive
-        if (msg_size > 0 && canbus_msg_opened) {
-            canmore_received_msg.length = msg_size;
-            canmore_received_msg.waiting = true;
-        }
+    // Only queue the data if the decode was successful and we care to receive messages
+    // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
+    // when in reality we just didn't set opened until halfway through receive
+    if (msg_size > 0 && canbus_msg_opened) {
+        memcpy(canmore_received_msg.data, canmore_msg_decode_get_buf(&msg_decoder), msg_size);
+        canmore_received_msg.length = msg_size;
+        canmore_received_msg.waiting = true;
     }
 }
 
@@ -241,8 +235,8 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     }
 
     // Length bounds checking
-    if (len > CANMORE_FRAME_SIZE) {
-        len = CANMORE_FRAME_SIZE;
+    if (len > CANMORE_MAX_FRAME_SIZE) {
+        len = CANMORE_MAX_FRAME_SIZE;
     }
     if (len == 0) {
         return 0;
@@ -339,8 +333,9 @@ absolute_time_t heartbeat_transmit_timeout = { 0 };
 bool canbus_init(unsigned int client_id) {
     assert(!canbus_initialized);
 
-    canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL);
-    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
+    // TODO: Enable CAN FD
+    canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL, false);
+    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, false);
 
     if (!can_mcp251xfd_configure(client_id)) {
         return false;
@@ -372,7 +367,7 @@ bool canbus_check_online(void) {
 }
 
 absolute_time_t canbus_next_heartbeat = { 0 };
-static uint8_t msg_buffer[CANMORE_FRAME_SIZE];
+static uint8_t msg_buffer[CANMORE_MAX_FRAME_SIZE];
 
 void canbus_tick(void) {
     assert(canbus_initialized);

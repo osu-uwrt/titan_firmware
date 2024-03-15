@@ -9,8 +9,12 @@
 -- You must enable the dissector by going to Decode As -> CAN Next Level Dissector -> Set Current to CANMORE. If not,
 -- all traffic will appear as raw CAN frames.
 
+-- Changelog
+-- 1.1.0: Switch CANmore message protocol to new format with submsg type and CAN FD support
+-- 1.0.0: Initial support for CANmore Protocol
+
 local plguin_info = {
-    version = "1.0.0",
+    version = "1.1.0",
     author = "Robert Pafford",
     repository = "https://github.com/osu-uwrt/titan_firmware",
     description = "Decodes CANmore frames used by Titan Firmware"
@@ -38,15 +42,15 @@ local canmore_f = {
     type = ProtoField.uint16("canmore.type", "Type", base.DEC, { [1] = "Utility", [0] = "Message" }, 0x020, "The CANmore frame type, either message or utility"),
     dir = ProtoField.uint16("canmore.direction", "Direction", base.DEC, { [1] = "agent->client", [0] = "client->agent" }, 0x010),
     chan = ProtoField.uint16("canmore.channel", "Channel", base.DEC, nil, 0x00F, "The utility channel for this frame"),
-    seqnum = ProtoField.uint16("canmore.seq_num", "Msg Seq Num", base.DEC, nil, 0x00F, "The message sequence number for this frame"),
+    seqnum = ProtoField.uint16("canmore.seq_num", "Msg Seq Num", base.DEC, nil, 0x00F, "The sequence number for this frame in the reassembled message"),
 
     raw_id_ext = ProtoField.uint16("canmore.raw_id", "Extended ID", base.HEX, nil, nil, "Raw CAN ID for this frame"),
     clientid_ext = ProtoField.uint32("canmore.clientid", "Client ID", base.DEC, nil, 0x1F000000, "The source/destination client for this frame"),
     type_ext = ProtoField.uint32("canmore.type", "Type", base.DEC, { [1] = "Utility", [0] = "Message" }, 0x00800000, "The CANmore frame type, either message or utility"),
     dir_ext = ProtoField.uint32("canmore.direction", "Direction", base.DEC, { [1] = "agent->client", [0] = "client->agent"}, 0x00400000),
     chan_ext = ProtoField.uint32("canmore.channel", "Channel", base.DEC, nil, 0x003C0000, "The utility channel for this frame"),
-    seqnum_ext = ProtoField.uint32("canmore.seq_num", "Msg Seq Num", base.DEC, nil, 0x003C0000, "The message sequence number for this frame"),
-    extra = ProtoField.uint32("canmore.extra", "Extra Data", base.HEX, nil, 0x0003FFFF)
+    seqnum_ext = ProtoField.uint32("canmore.seq_num", "Msg Seq Num", base.DEC, nil, 0x003C0000, "he sequence number for this frame in the reassembled message"),
+    extra = ProtoField.uint32("canmore.extra", "Extra Data", base.HEX, nil, 0x0003FFFF, "Extra data encoded in the remaining 18-bits of the ID for use by sub protocols")
 }
 canmore_protocol.fields = canmore_f
 
@@ -185,8 +189,8 @@ local heartbeat_mode_table = {
 }
 local heartbeat_f = {
     raw = ProtoField.uint8("canmore.heartbeat.raw", "Heartbeat Status", base.HEX, nil, nil, "Raw status field of the heartbeat frame"),
-    cnt = ProtoField.uint8("canmore.heartbeat.cnt", "Heartbeat Count", base.DEC, nil, 0x03, "Incrementing 2-bit counter"),
-    err = ProtoField.uint8("canmore.heartbeat.err", "Error State", base.DEC, { [0] = "Okay", [1] = "Fault" }, 0x04, "Error Present Flag"),
+    cnt = ProtoField.uint8("canmore.heartbeat.cnt", "Heartbeat Count", base.DEC, nil, 0x03, "A 2-bit counter incremented for every heartbeat frame"),
+    err = ProtoField.uint8("canmore.heartbeat.err", "Error State", base.DEC, { [0] = "Okay", [1] = "Fault" }, 0x04, "Error present flag reporting the client's error state"),
     mode = ProtoField.uint8("canmore.heartbeat.mode", "Client Mode", base.DEC, heartbeat_mode_table, 0x38, "The reg mapped client mode implemented by the client"),
     term_valid = ProtoField.uint8("canmore.heartbeat.term_valid", "Term State Valid", base.DEC, { [0] = "Not Valid", [1] = "Valid"}, 0x40, "CAN Bus termination resistor state is valid flag"),
     term_enabled = ProtoField.uint8("canmore.heartbeat.term_enabled", "Term Resistor Enabled", base.DEC, { [0] = "Enabled", [1] = "Disabled"}, 0x80, "CAN Bus termination resistor state flag")
@@ -304,19 +308,19 @@ local reg_mapped_result_table = {
     [6] = "Invalid Mode"
 }
 local reg_mapped_f = {
-    flags = ProtoField.uint8("canmore.reg_mapped.flags", "Flags", base.HEX),
-    access = ProtoField.uint8("canmore.reg_mapped.flags.is_write", "Access Type", base.DEC, { [0] = "Read", [1] = "Write"}, 0x01),
-    bulk_req = ProtoField.uint8("canmore.reg_mapped.flags.bulk_req", "Bulk Request", base.DEC, bool_table, 0x02),
-    bulk_end = ProtoField.uint8("canmore.reg_mapped.flags.bulk_end", "Bulk End", base.DEC, bool_table, 0x04),
-    multiword = ProtoField.uint8("canmore.reg_mapped.flags.multiword", "Multiword", base.DEC, bool_table, 0x08),
-    mode = ProtoField.uint8("canmore.reg_mapped.flags.mode", "Client Mode", base.DEC, heartbeat_mode_table, 0xE0),
-    count = ProtoField.uint8("canmore.reg_mapped.count", "Sequence Count", base.DEC),
-    addr_page = ProtoField.uint8("canmore.reg_mapped.addr_page", "Reg Page", base.DEC),
-    addr_offset = ProtoField.uint8("canmore.reg_mapped.addr_offset", "Reg Offset", base.DEC),
-    write_data = ProtoField.uint32("canmore.reg_mapped.wdata", "Write Data", base.HEX),
-    result = ProtoField.uint32("canmore.reg_mapped.result", "Result", base.DEC, reg_mapped_result_table),
-    read_data = ProtoField.uint32("canmore.reg_mapped.rdata", "Read Data", base.HEX),
-    last_seq_num = ProtoField.uint32("canmore.reg_mapped.last_seq_num", "Read Data", base.DEC),
+    flags = ProtoField.uint8("canmore.reg_mapped.flags", "Flags", base.HEX, nil, nil, "The raw flags field for the reg mapped request"),
+    access = ProtoField.uint8("canmore.reg_mapped.flags.is_write", "Access Type", base.DEC, { [0] = "Read", [1] = "Write"}, 0x01, "Sets if this frame is a read or write access"),
+    bulk_req = ProtoField.uint8("canmore.reg_mapped.flags.bulk_req", "Bulk Request", base.DEC, bool_table, 0x02, "Sets if this frame is part of a multi-frame bulk request"),
+    bulk_end = ProtoField.uint8("canmore.reg_mapped.flags.bulk_end", "Bulk End", base.DEC, bool_table, 0x04, "Marks that this frame is the lsat in a multi-frame bulk request"),
+    multiword = ProtoField.uint8("canmore.reg_mapped.flags.multiword", "Multiword", base.DEC, bool_table, 0x08, "Marks that this frame contains multiple words in the request"),
+    mode = ProtoField.uint8("canmore.reg_mapped.flags.mode", "Client Mode", base.DEC, heartbeat_mode_table, 0xE0, "Holds the mode that the client is expected to be in for this request"),
+    count = ProtoField.uint8("canmore.reg_mapped.count", "Sequence Count", base.DEC, nil, nil, "An incrementing counter for each frame in a bulk request"),
+    addr_page = ProtoField.uint8("canmore.reg_mapped.addr_page", "Reg Page", base.DEC, nil, nil, "The page address this request is reading/writing to"),
+    addr_offset = ProtoField.uint8("canmore.reg_mapped.addr_offset", "Reg Offset", base.DEC, nil, nil, "The offset into the page this request is reading/writing to"),
+    write_data = ProtoField.uint32("canmore.reg_mapped.wdata", "Write Data", base.HEX, nil, nil, "The data being written in this register mapped write request"),
+    result = ProtoField.uint32("canmore.reg_mapped.result", "Result", base.DEC, reg_mapped_result_table, nil, nil, "The result from the previous register mapped request"),
+    read_data = ProtoField.uint32("canmore.reg_mapped.rdata", "Read Data", base.HEX, nil, nil, "The data contained in the requested register"),
+    last_seq_num = ProtoField.uint8("canmore.reg_mapped.last_seq_num", "Read Data", base.DEC, nil, nil, "The number of bulk frames if successful, or sequence number that the error occurred on"),
     req_frame = ProtoField.framenum("canmore.reg_mapped.req_framenum", "Request Frame", base.NONE, frametype.REQUEST, 0, 0, "The request this response relates to"),
     resp_frame = ProtoField.framenum("canmore.reg_mapped.resp_framenum", "Response Frame", base.NONE, frametype.RESPONSE, 0, 0, "The response this request relates to")
 }
@@ -603,18 +607,61 @@ function canmore_crc18(bytes)
 end
 
 -- ========================================
+-- CANmore Message Decoding
+-- ========================================
+
+local canmore_protobuf_type_lookup = {
+    -- Note message type 0 is reserved for legacy xrce dds messages, and will be decoded differently
+    [0] = "XRCE-DDS",
+
+    -- Assign all protobuf message types here
+    -- TODO: Actually assign these
+    [1] = "rjp5th.SearchRequest"
+}
+
+function canmore_msg_decode(buffer, pinfo, tree, msg_subtype)
+    -- Calls the appropriate dissector for the canmore message
+
+    -- If it's a legacy xrce message, decode it with xrce dds
+    if msg_subtype == 0 then
+        local xrce_dis = Dissector.get("xrce-dds")
+        if xrce_dis ~= nil then
+            xrce_dis:call(buffer, pinfo, tree)
+        end
+    else
+        -- If not, then it's a protobuf. Try to look up the type
+        local protobuf_msg_type = canmore_protobuf_type_lookup[msg_subtype]
+        if protobuf_msg_type ~= nil then
+            -- We found the type, call the protobuf decoder
+            pinfo.private["pb_msg_type"] = "message," .. protobuf_msg_type
+            Dissector.get("protobuf"):call(buffer, pinfo, tree)
+        else
+            -- If we don't know what it is, just decode as plain data
+            Dissector.get("data"):call(buffer, pinfo, tree)
+            -- TODO: Add option to decode unknown subtypes as protobuf
+        end
+    end
+
+end
+
+-- ========================================
 -- CANmore Message Re-assembler
 -- ========================================
 
 local canmore_msg_protocol = Proto("canmore.msg",  "CANmore Message Frame")
 local canmore_msg_f = {
-    msg_type = ProtoField.string("canmore.msg.type", "Type"),
-    crc = ProtoField.uint32("canmore.msg.crc", "Checksum", base.HEX),
-    crc_computed = ProtoField.uint32("canmore.msg.crc_computed", "Computed Checksum", base.HEX),
-    fragment = ProtoField.bytes("canmore.msg.fragment", "Fragment Data", base.NONE),
-    fragment_len = ProtoField.uint32("canmore.msg.fragment_len", "Fragment Length", base.DEC),
-    msg_idx = ProtoField.uint32("canmore.msg.index", "Conversation Index", base.DEC),
-    reassembled_in = ProtoField.framenum("canmore.msg.reassembled_in", "Reassembled PDU in Frame")
+    msg_type = ProtoField.string("canmore.msg.type", "Type", base.ASCII, "The part of the message that this frame is: (Start, Middle, End, or Single)"),
+    msg_info_hdr = ProtoField.uint32("canmore.msg.info_hdr", "Message Info Header", base.HEX, nil, nil, "The message header data contained in the extra portion of the ID"),
+    msg_len = ProtoField.uint32("canmore.msg.len", "Message Length", base.DEC, nil, 0x7FF, "The total length of the reassembled mesage"),
+    subtype = ProtoField.uint32("canmore.msg.subtype", "Message Subtype", base.DEC, canmore_protobuf_type_lookup, 0x1F800, "The subtype for this message"),
+    subtype_gen = ProtoField.uint32("canmore.msg.subtype", "Message Subtype", base.DEC, canmore_protobuf_type_lookup, nil, "The subtype for this message (Extracted from start frame)"),
+    single = ProtoField.uint32("canmore.msg.single", "Single Frame", base.DEC, bool_table, 0x20000, "Boolean if this message only consists of a single frame"),
+    crc = ProtoField.uint32("canmore.msg.crc", "Checksum", base.HEX, nil, nil, "The checksum contained in the extra portion of the ID"),
+    crc_computed = ProtoField.uint32("canmore.msg.crc_computed", "Computed Checksum", base.HEX, nil, nil, "The computed checksum of the reassembled message"),
+    fragment = ProtoField.bytes("canmore.msg.fragment", "Fragment Data", base.NONE, nil, nil, "The data contained in this frame's message fragment"),
+    fragment_len = ProtoField.uint32("canmore.msg.fragment_len", "Fragment Length", base.DEC, nil, nil, "The length of this frame's message fragment"),
+    msg_idx = ProtoField.uint32("canmore.msg.index", "Conversation Index", base.DEC, nil, nil, "The unique index for this specific message conversation in the capture"),
+    reassembled_in = ProtoField.framenum("canmore.msg.reassembled_in", "Reassembled PDU in Frame", base.NONE, frametype.NONE, 0, "The frame that this fragment is reassembled in")
 }
 local canmore_msg_e = {
     reassembly_fail = ProtoExpert.new("canmore.msg.reassembly_fail", "Failed to Reassemble", expert.group.REASSEMBLE, expert.severity.ERROR),
@@ -635,10 +682,13 @@ canmore_msg_protocol.experts = canmore_msg_e
 -- sequence number), the temporary table will be invalidated to ensure that another start packet must occur before
 -- reassmebly will restart.
 local canmore_msg_reassembled_pdus = {}  -- Holds bytearrays of the reassembled PDUs [key is message index]
+local canmore_msg_reported_len = {}      -- Holds reported lengths of reassembled PDUs [key is message index]
+local canmore_msg_subtype = {}           -- Holds the reported subtype of the message [key is message index]
 local canmore_msg_frame_array = {}       -- Holds all frames that are part of a given message index [key is message index]
 local canmore_msg_last_frame_lookup = {} -- Holds the last frame for every message. Can also be used to see if the message is complete
 local canmore_msg_crc18_calc = {}        -- Holds the computed CRC18 for each message
 local canmore_msg_msg_idx_lookup = {}    -- Holds a lookup for each processed frame to its corresponding universal message index [key is framenum]
+local canmore_msg_frame_len = {}         -- Holds the adjusted frame fragment length for last packets [key is framenum]
 local canmore_msg_error_lookup = {}      -- Holds error message found during the first pass for a given frame [key is framenum]
 local canmore_msg_active_msgs = {}       -- Holds the message index for each client/direction transfer in flight (only used on first pass)
 local canmore_msg_active_next_seq = {}   -- Holds the next expected sequence number for each transfer in flight (only used on first pass)
@@ -647,10 +697,13 @@ local canmore_msg_next_msg_idx = 1       -- The next available message index to 
 function canmore_msg_protocol.init()
     -- Reset state when file is reloaded
     canmore_msg_reassembled_pdus = {}
+    canmore_msg_reported_len = {}
+    canmore_msg_subtype = {}
     canmore_msg_frame_array = {}
     canmore_msg_last_frame_lookup = {}
     canmore_msg_crc18_calc = {}
     canmore_msg_msg_idx_lookup = {}
+    canmore_msg_frame_len = {}
     canmore_msg_error_lookup = {}
     canmore_msg_active_msgs = {}
     canmore_msg_active_next_seq = {}
@@ -666,7 +719,15 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
     pinfo.cols.protocol:set("Message Frame")
 
     local is_first = (seq_num == 0)
-    local is_last = (id_extra_val ~= nil)
+    local is_last
+    if is_first then
+        -- Single frame if start packet, and the single bit is set in the extra
+        -- Note that every start frame SHOULD be extended, however corrupted packets might not be, so we check
+        is_last = (id_extra_val ~= nil) and (bitfield(id_extra_val, 17, 1) == 1)
+    else
+        -- If we're not the first packet, if the packet is extended, then it's a complete sequence
+        is_last = (id_extra_val ~= nil)
+    end
 
     -- Do first time processing if we haven't reached this packet yet
     local msg_idx
@@ -675,13 +736,19 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
         -- Need a unique stream identifier to refer to active transfers
         local stream_id = (client_id * 2)  + dir_val
         if is_first then
-            -- We're the first frame, grab create a new message index for this message sequence
-            msg_idx = canmore_msg_next_msg_idx
-            canmore_msg_reassembled_pdus[msg_idx] = ByteArray.new()
-            canmore_msg_frame_array[msg_idx] = {}
-            canmore_msg_active_msgs[stream_id] = msg_idx
-            canmore_msg_active_next_seq[stream_id] = 0
-            canmore_msg_next_msg_idx = canmore_msg_next_msg_idx + 1
+            if id_extra_val ~= nil then
+                -- We're the first frame, grab create a new message index for this message sequence
+                msg_idx = canmore_msg_next_msg_idx
+                canmore_msg_reassembled_pdus[msg_idx] = ByteArray.new()
+                canmore_msg_reported_len[msg_idx] = bitfield(id_extra_val, 0, 11)
+                canmore_msg_subtype[msg_idx] = bitfield(id_extra_val, 11, 6)
+                canmore_msg_frame_array[msg_idx] = {}
+                canmore_msg_active_msgs[stream_id] = msg_idx
+                canmore_msg_active_next_seq[stream_id] = 0
+                canmore_msg_next_msg_idx = canmore_msg_next_msg_idx + 1
+            else
+                canmore_msg_error_lookup[framenum] = "First message frame is not an extended ID"
+            end
         else
             -- Not the first frame, we need to grab whatever the current active message index for this stream id
             msg_idx = canmore_msg_active_msgs[stream_id]
@@ -694,21 +761,54 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
             local exp_next_seq = canmore_msg_active_next_seq[stream_id]
             if exp_next_seq == seq_num then
                 -- This is the next packet in the sequence, append the contents to the reassembled array
+                -- First save the previous length if we're the last frame (for size calculations)
+                local prev_reassembled_len
+                if is_last then
+                    prev_reassembled_len = canmore_msg_reassembled_pdus[msg_idx]:len()
+                end
+
+                -- Append the current buffer to the reassembled array
                 canmore_msg_reassembled_pdus[msg_idx]:append(buffer:bytes())
 
-                -- Do final processing if last item in array
+                -- Do final processing if last frame in message
                 if is_last then
-                    -- Verify the CRC
-                    computed_crc = canmore_crc18(canmore_msg_reassembled_pdus[msg_idx])
-                    canmore_msg_crc18_calc[msg_idx] = computed_crc
-                    if computed_crc == id_extra_val then
-                        -- Record this as the last frame, marking the message as complete
-                        canmore_msg_last_frame_lookup[msg_idx] = framenum
+                    local reported_len = canmore_msg_reported_len[msg_idx]
 
+                    -- Make sure that the packet actually has the amount of data reported
+                    if canmore_msg_reassembled_pdus[msg_idx]:len() < reported_len then
+                        -- We were told the packet is longer than what it actually is
+                        -- Report an error
+                        canmore_msg_error_lookup[framenum] = "Final packet shorter than reported length"
+                        msg_idx = nil
+                    elseif prev_reassembled_len >= reported_len then
+                        -- The last packet isn't necessary? Length is bogus
+                        -- Report an error
+                        canmore_msg_error_lookup[framenum] = "The reported message length does not use all the packets!"
+                        msg_idx = nil
                     else
-                        -- We hit an error, report it
-                        canmore_msg_error_lookup[framenum] = "CRC-18 checksum did not match computed value"
-                        -- Don't set msg_idx to nil, though, since we did reassemble everything
+                        -- Trim the reassembled packet to the reported length
+                        canmore_msg_reassembled_pdus[msg_idx] = canmore_msg_reassembled_pdus[msg_idx]:subset(0, reported_len)
+                        canmore_msg_frame_len[framenum] = canmore_msg_reassembled_pdus[msg_idx]:len() - prev_reassembled_len
+
+                        if not is_first then
+                            -- Verify the CRC if we are doing reassembly
+                            computed_crc = canmore_crc18(canmore_msg_reassembled_pdus[msg_idx])
+                            canmore_msg_crc18_calc[msg_idx] = computed_crc
+                            if computed_crc == id_extra_val then
+                                -- Record this as the last frame, marking the message as complete
+                                canmore_msg_last_frame_lookup[msg_idx] = framenum
+
+                            else
+                                -- We hit an error, report it
+                                canmore_msg_error_lookup[framenum] = "CRC-18 checksum did not match computed value"
+                                -- Don't set msg_idx to nil, though, since we did reassemble everything
+                                -- Might as well try to show what happened to the high level decoder
+                            end
+                        else
+                            -- Single frame, no need to check the CRC
+                            -- Record this as the last frame in the sequence, marking the message complete
+                            canmore_msg_last_frame_lookup[msg_idx] = framenum
+                        end
                     end
 
                     -- Clear the active transfer, as we either just finished it or failed with an error
@@ -716,8 +816,9 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
                     canmore_msg_active_next_seq[stream_id] = nil
                 else
                     exp_next_seq = exp_next_seq + 1
-                    if exp_next_seq >= 16 then  -- Handle sequence number rollover
-                        exp_next_seq = 1  -- If rollover is disabled later, this should instead raise an error and clear the transfer state
+                    if exp_next_seq >= 16 then  -- Handle sequence number rollover if we're a standard CAN packet
+                        -- TODO: Error if we're a CAN FD packet
+                        exp_next_seq = 1
                     end
                     canmore_msg_active_next_seq[stream_id] = exp_next_seq
                 end
@@ -748,11 +849,19 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
     -- Fetch error message if its present
     local err_msg = canmore_msg_error_lookup[framenum]
 
+    -- Fetch the message subtype if we're a message
+    local msg_subtype
+    if msg_idx ~= nil then
+        msg_subtype = canmore_msg_subtype[msg_idx]
+        -- Save the subtype in private info for other packets to decode
+        pinfo.private["canmore_msg_subtype"] = msg_subtype
+    end
+
     -- Compute the string titles
     local subtree_title
     local msg_type
     if is_first and is_last then
-        subtree_title = "Single Frame Packet"
+        subtree_title = "Single Frame Message"
         msg_type = "Single"
     elseif is_first then
         subtree_title = "Start Frame"
@@ -794,20 +903,42 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
         subtree:add_proto_expert_info(canmore_msg_e.standalone_warn)
     end
 
-    if is_last then
+    -- Message Subtype Generated
+    if not is_first and msg_idx ~= nil then
+        -- If we're not the first, add a generated subtype field to at least keep the subtype with the message
+        entry = subtree:add(canmore_msg_f.subtype_gen, canmore_msg_subtype[msg_idx])
+        entry:set_generated(true)
+    end
+
+    -- Canmore Extra Info/CRC
+    if is_first and id_extra_val ~= nil then
+        -- Add header if we're the first message
+        local header_tree = subtree:add(canmore_msg_f.msg_info_hdr, can_id_tvb, id_extra_val)
+        header_tree:add(canmore_msg_f.msg_len, can_id_tvb, id_extra_val)
+        header_tree:add(canmore_msg_f.subtype, can_id_tvb, id_extra_val)
+        header_tree:add(canmore_msg_f.single, can_id_tvb, id_extra_val)
+    elseif is_last then
         -- Add CRC if we're the last message
         subtree:add(canmore_msg_f.crc, can_id_tvb, id_extra_val)
     end
-    if is_last and msg_idx ~= nil then
-        -- Add computed CRC if we're part of a full message
+    if is_last and not is_first and msg_idx ~= nil then
+        -- Add computed CRC if we're part of a reassembled message
         entry = subtree:add(canmore_msg_f.crc_computed, canmore_msg_crc18_calc[msg_idx])
         entry:set_generated(true)
     end
     entry = subtree:add(canmore_msg_f.msg_type, msg_type)
     entry:set_generated(true)
-    entry = subtree:add(canmore_msg_f.fragment_len, buffer:len())
+
+    -- Fragment Data Info
+    local fragment_len = canmore_msg_frame_len[framenum]
+    if fragment_len == nil then
+        fragment_len = buffer:len()
+    end
+    entry = subtree:add(canmore_msg_f.fragment_len, fragment_len)
     entry:set_generated(true)
-    subtree:add(canmore_msg_f.fragment, buffer())
+    subtree:add(canmore_msg_f.fragment, buffer(0, fragment_len))
+
+    -- Reassembled in items
     if not is_last and msg_idx ~= nil then
         -- We don't reassemble it here, mark which frame it is assembled in
         local reassembled_in = canmore_msg_last_frame_lookup[msg_idx]
@@ -818,13 +949,20 @@ function canmore_msg_protocol.dissector(buffer, pinfo, tree)
         end
     end
 
-    -- Call the reassembled decoder if we are a complete packet
-    if is_last and msg_idx ~= nil then
-        local reassembled_tvb = ByteArray.tvb(canmore_msg_reassembled_pdus[msg_idx], "Reassembled Msg")
-        Dissector.get("canmore.msg.reassembled"):call(reassembled_tvb, pinfo, tree)
-    end
-
     pinfo.cols.info:set(subtree_title)
+
+    -- If it's a full message, process it
+    if is_last and msg_idx ~= nil then
+        if is_first then
+            -- Don't create a reassembled TVB if all the data is in this frame
+            -- Just call the message dissector on the trimmed frame
+            canmore_msg_decode(buffer(0, fragment_len):tvb(), pinfo, tree, msg_subtype)
+        else
+            -- Call the reassembled decoder if we are a complete packet
+            local reassembled_tvb = ByteArray.tvb(canmore_msg_reassembled_pdus[msg_idx], "Reassembled Msg")
+            Dissector.get("canmore.msg.reassembled"):call(reassembled_tvb, pinfo, tree)
+        end
+    end
 
     return buffer:len()
 
@@ -832,7 +970,7 @@ end
 
 
 -- ========================================
--- CANmore Message Decoder
+-- CANmore Message PDU Reassembly
 -- ========================================
 local canmore_msg_decoder_protocol = Proto("canmore.msg.reassembled",  "CANmore Message Reassmbled")
 local canmore_msg_decoder_f = {
@@ -875,10 +1013,6 @@ function canmore_msg_decoder_protocol.dissector(buffer, pinfo, tree)
     entry = subtree:add(canmore_msg_decoder_f.data, buffer())
     entry:set_generated(true)
 
-    -- TODO: Switch to protobuf when ready
-    local xrce_dis = Dissector.get("xrce-dds")
-    if xrce_dis ~= nil then
-        xrce_dis:call(buffer, pinfo, tree)
-    end
-
+    -- Call the decode function to call the correct dissector
+    canmore_msg_decode(buffer, pinfo, tree, pinfo.private["canmore_msg_subtype"])
 end

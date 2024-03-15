@@ -204,8 +204,8 @@ bool canbus_utility_frame_write_available(void);
  *
  * @param channel The channel this utility frame is to be transmitted on
  * @param buf The buffer containing data to transmit
- * @param len The length of data to transmit. If greater than `CANMORE_FRAME_SIZE` this will be truncated
- * @return The number of bytes transmitted (either `len` or `CANMORE_FRAME_SIZE` if truncated)
+ * @param len The length of data to transmit. If greater than `CANMORE_MAX_FRAME_SIZE` this will be truncated
+ * @return The number of bytes transmitted (either `len` or `CANMORE_MAX_FRAME_SIZE` if truncated)
  */
 size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len);
 

@@ -187,7 +187,7 @@ RemoteTTYClientTask::RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> l
                                          std::shared_ptr<Canmore::RegMappedCANClient> canClient,
                                          const std::string &cmd):
     linuxRegClient_(linuxRegClient),
-    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, CANMORE_FRAME_SIZE), cmd_(cmd) {}
+    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, CANMORE_MAX_FRAME_SIZE), cmd_(cmd) {}
 
 void RemoteTTYClientTask::run() {
     if (linuxRegClient_->remoteTtyEnabled()) {

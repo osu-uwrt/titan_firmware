@@ -64,7 +64,8 @@
 #define MCP2517FD_SPI_INST __CONCAT(spi, MCP2517FD_SPI)
 
 #define UTILITY_MSG_PAYLOAD_SIZE_ENUM MCP251XFD_PAYLOAD_8BYTE
-static_assert(CANMORE_FRAME_SIZE == 8, "Utility payload size enum does not match configured Utility Frame Size");
+static_assert(CANMORE_MAX_FRAME_SIZE == 8,
+              "Utility max payload size enum does not match configured Utility Max Frame Size");
 // Note if the static assert above fails, this requires a few things to be changed
 //  1. The UTILITY_MSG_PAYLOAD_SIZE_ENUM so it is the right size
 //  2. The DLC calculations when constructing a utility frame, as they assume 8 byte max (since DLC gets more
@@ -508,7 +509,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 // This is because CAN FD compresses the DLC by only allowing specific sizes above 8 bytes
                 // The canmore encoding must be modified to account for this, as canmore messages support arbitrary
                 // lengths
-                static_assert(CANMORE_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
+                static_assert(CANMORE_MAX_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
                 canmore_msg_encode_next(&encoding_buffer, buffer, &msg.DLC, &msg.MessageID, &is_extended);
 
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;

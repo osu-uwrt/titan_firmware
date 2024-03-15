@@ -70,7 +70,7 @@ struct utility_message_buffer {
     uint32_t seq;
     uint8_t channel;
     bool waiting;
-    uint8_t data[CANMORE_FRAME_SIZE];
+    uint8_t data[CANMORE_MAX_FRAME_SIZE];
 };
 
 extern struct utility_message_buffer utility_tx_buf;

@@ -89,6 +89,7 @@ private:
 class RegMappedClient {
 public:
     virtual ~RegMappedClient() = 0;
+    // TODO: Switch over to std::span and move mode to the constructor
 
     uint32_t readRegister(uint8_t mode, uint8_t page, uint8_t offset);
     void writeRegister(uint8_t mode, uint8_t page, uint8_t offset, uint32_t data);
