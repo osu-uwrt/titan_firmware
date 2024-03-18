@@ -15,6 +15,5 @@ target_sources(titan_msgs INTERFACE
 )
 
 target_link_libraries(titan_msgs INTERFACE
-    driver_canbus
     titan_list
 )

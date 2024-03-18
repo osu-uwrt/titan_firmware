@@ -11,21 +11,32 @@ enum titan_msgs_error {
 
 typedef void (*titan_msgs_on_error_cb)(enum titan_msgs_error error);
 
-typedef void (*titan_msgs_on_recv_cb)(titan_fw_comm_msg *msg);
+typedef void (*titan_msgs_on_recv_cb)(titan_msg msg);
 
-typedef void (*titan_msgs_on_ack)(titan_fw_comm_msg_topic_types topic, bool ack_recv);
+// return if the response should be sent
+typedef bool (*titan_msgs_on_req_cb)(titan_request_payload request, titan_response_payload *response);
 
-typedef bool (*titan_msgs_transport_send)(uint8_t *buf, size_t len);
+typedef bool (*titan_msgs_transport_send)(uint8_t msg_type, uint8_t *buf, size_t len);
 
-typedef size_t (*titan_msgs_transport_recv)(uint8_t *buf, size_t max_len);
+typedef size_t (*titan_msgs_transport_recv)(uint8_t *msg_type, uint8_t *buf, size_t max_len);
 
-void titan_msgs_init(titan_msgs_on_recv_cb on_recv, titan_msgs_on_error_cb on_error, titan_msgs_on_ack on_ack,
-                     titan_msgs_transport_send trans_send, titan_msgs_transport_recv trans_recv);
+struct titan_msgs_config {
+    titan_msgs_on_recv_cb on_recv;
+    titan_msgs_on_req_cb on_req;
+    titan_msgs_on_error_cb on_error;
+    titan_msgs_transport_send trans_send;
+    titan_msgs_transport_recv trans_recv;
+    uint32_t board_id;  // TODO - do we need this...? if we do what size?
+    uint32_t subscribed_topics;
+    uint32_t hosted_services;
+};
+
+void titan_msgs_init(struct titan_msgs_config cfg);
 
 void titan_msgs_tick();
 
-void titan_msgs_send(titan_fw_comm_msg *msg);
+void titan_msg_send_unreliable(titan_msg msg);
 
-void titan_msgs_send_with_ack(titan_fw_comm_msg *msg, uint64_t timeout_ms);
+void titan_msg_send_reliable(titan_msg msg);
 
 #endif
