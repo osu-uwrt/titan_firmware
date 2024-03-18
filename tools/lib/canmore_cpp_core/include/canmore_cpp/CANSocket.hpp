@@ -61,7 +61,7 @@ protected:
      *
      * @param rxFilters The rx filters for the socket to receive
      */
-    void setRxFilters(const std::span<can_filter> &rxFilters) { setRxFiltersInternal(rxFilters, false); }
+    void setRxFilters(const std::span<can_filter> &rxFilters);
 
     /**
      * @brief Handle Frame method to be implemented by children.
@@ -95,8 +95,6 @@ protected:
     bool usingCanFd() { return useCanFd; }
 
 private:
-    // Separate internal function so the constructor can request that the socket be closed when an exception is thrown
-    void setRxFiltersInternal(const std::span<can_filter> &rxFilters, bool closeOnFail);
     int socketFd;
     bool useCanFd;
     std::shared_ptr<PollFDDescriptor> socketPollDescriptor;

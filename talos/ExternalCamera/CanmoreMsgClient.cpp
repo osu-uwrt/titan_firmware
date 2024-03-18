@@ -2,7 +2,7 @@
 
 using namespace Canmore;
 
-MsgClient::MsgClient(int ifIndex, uint8_t clientId, MsgHandler &handler):
+MsgClient::MsgClient(int ifIndex, uint8_t clientId, ClientMsgHandler &handler):
     CANSocket(ifIndex), clientId(clientId), handler(handler) {
     // Check if the socket initialized in CAN FD mode - configure the encoder/decoder with this
     bool useFd = usingCanFd();
@@ -50,7 +50,7 @@ void MsgClient::transmitMessage(uint8_t subtype, std::span<uint8_t> data) {
 }
 
 void MsgClient::handleFrame(canid_t canId, const std::span<const uint8_t> &data) {
-    bool isExtended = (canId & CAN_EFF_FLAG ? true : false);
+    bool isExtended = !!(canId & CAN_EFF_FLAG);
     uint32_t canIdMasked = canId & (isExtended ? CAN_EFF_MASK : CAN_SFF_MASK);
 
     // Decode the frame

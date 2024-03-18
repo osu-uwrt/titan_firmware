@@ -44,8 +44,8 @@ typedef struct canmore_msg_encoder_state {
     uint8_t subtype;
     // Setting this bool enables CAN FD, increasing the max transmit size for each frame
     bool use_canfd;
-    // The buffer containing the data to be fragmented into frames
-    uint8_t buffer[CANMORE_MAX_MSG_LENGTH];
+    // The pointer to the buffer containing the data. This must be vaild from when load is called to when returns true
+    const uint8_t *buf_ptr;
     // The next sequence number to be used when encoding frame IDs
     uint32_t seq_num;
     // The length of data in `buffer`
@@ -69,6 +69,11 @@ void canmore_msg_encode_init(canmore_msg_encoder_t *state, uint32_t client_id, u
  * @brief Loads a new message into the CANmore encoder
  * If a previous message has not been fully flushed, it will be discarded and overwritten
  *
+ * @attention The buffer pointer is copied to the encoder, rather than the contents of buffer. This means that buffer
+ * must remain valid from when this function is called until canmore_msg_encode_done returns true. If this function is
+ * serviced asynchronously, such as by interrupts or timers, the caller must copy the data to a separate buffer which
+ * remains valid for the lifetime of this encoder object.
+ *
  * @param state Pointer to encoder state data struct
  * @param subtype The subtype for this message to encode (6-bit value which is forwarded with the message)
  * @param buffer Buffer containing message data to encode
@@ -78,6 +83,8 @@ void canmore_msg_encode_load(canmore_msg_encoder_t *state, uint8_t subtype, cons
 
 /**
  * @brief Checks if any remaining frames exist in the encoder to be sent
+ *
+ * @note After this function returns true, it is safe to release the buffer pointer passed to canmore_msg_encode_load.
  *
  * @param state Pointer to encoder state data struct
  * @return True if data still needs to be sent, false if no data remaining to be transmitted
@@ -117,7 +124,9 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
 #define CANMORE_MSG_DECODER_ERROR_CRC_FAIL 3
 #define CANMORE_MSG_DECODER_ERROR_SEQ_ZERO_NOT_EXTENDED 4
 #define CANMORE_MSG_DECODER_ERROR_MSG_TOO_LARGE 5
-#define CANMORE_MSG_DECODER_ERROR_ROLLOVER_WITH_CANFD 6
+#define CANMORE_MSG_DECODER_ERROR_MSG_TOO_SMALL 6
+#define CANMORE_MSG_DECODER_ERROR_ROLLOVER_WITH_CANFD 7
+#define CANMORE_MSG_DECODER_ERROR_INVALID_CLIENT_ID 8
 
 /**
  * @brief Callback for reporting a decoder error

@@ -97,13 +97,9 @@ CANSocket::~CANSocket() {
     }
 }
 
-void CANSocket::setRxFiltersInternal(const std::span<can_filter> &rxFilters, bool closeOnFail) {
+void CANSocket::setRxFilters(const std::span<can_filter> &rxFilters) {
     // After performing standard initialization, add the filters
     if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, rxFilters.data(), rxFilters.size_bytes()) < 0) {
-        if (closeOnFail) {
-            close(socketFd);
-            socketFd = -1;
-        }
         throw std::system_error(errno, std::generic_category(), "CAN setsockopt");
     }
 }
@@ -211,21 +207,27 @@ void CANSocket::clearRxBuffer() {
 
 void CANSocket::handleEvent(const pollfd &fd) {
     if (fd.revents & POLLIN) {
-        if (!useCanFd) {
+        union {
             struct can_frame frame;
-            if (read(socketFd, &frame, sizeof(frame)) != sizeof(frame)) {
-                throw std::system_error(errno, std::generic_category(), "CAN read");
-            }
+            struct canfd_frame fdframe;
+        } canu;
 
-            handleFrame(frame.can_id, std::span<const uint8_t>(frame.data, frame.can_dlc));
+        int readSize = read(socketFd, &canu, sizeof(canu));
+
+        if (readSize < 0) {
+            throw std::system_error(errno, std::generic_category(), "CAN read");
+        }
+        else if (useCanFd && readSize == sizeof(canu.fdframe)) {
+            handleFrame(canu.fdframe.can_id, std::span<const uint8_t>(canu.fdframe.data, canu.fdframe.len));
+        }
+        else if (readSize == sizeof(canu.frame)) {
+            handleFrame(canu.frame.can_id, std::span<const uint8_t>(canu.frame.data, canu.frame.len));
+        }
+        else if (readSize == 0) {
+            throw std::runtime_error("CAN socket reporting end of file");
         }
         else {
-            struct canfd_frame frame;
-            if (read(socketFd, &frame, sizeof(frame)) != sizeof(frame)) {
-                throw std::system_error(errno, std::generic_category(), "CANFD read");
-            }
-
-            handleFrame(frame.can_id, std::span<const uint8_t>(frame.data, frame.len));
+            throw std::runtime_error("Unexpected CAN read size: " + std::to_string(readSize));
         }
     }
     if (fd.revents & (POLLERR | POLLHUP)) {

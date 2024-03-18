@@ -8,7 +8,7 @@
 
 namespace Canmore {
 
-class MsgHandler {
+class ClientMsgHandler {
 public:
     virtual void handleMessage(uint8_t subtype, std::span<uint8_t> data) = 0;
     virtual void handleDecodeError(unsigned int errorCode) = 0;
@@ -30,13 +30,13 @@ public:
      * @param clientId The client ID for this client on the CAN bus
      * @param handler Class to handle incoming messages or report errors
      */
-    MsgClient(int ifIndex, uint8_t clientId, MsgHandler &handler);
+    MsgClient(int ifIndex, uint8_t clientId, ClientMsgHandler &handler);
 
     /**
-     * @brief Transmits a new message frame
+     * @brief Transmits a new canmore message
      *
-     * @param subtype The subtype for the message frame (see CANmore Specification)
-     * @param data The data for the message to transmit
+     * @param subtype The subtype for the message (see CANmore Specification)
+     * @param data The message data to transmit
      */
     void transmitMessage(uint8_t subtype, std::span<uint8_t> data);
 
@@ -54,8 +54,7 @@ private:
         client->handler.handleDecodeError(errorCode);
     }
 
-    std::vector<uint8_t> handlerBuffer;
-    MsgHandler &handler;
+    ClientMsgHandler &handler;
     canmore_msg_encoder_t encoder;
     canmore_msg_decoder_t decoder;
 };

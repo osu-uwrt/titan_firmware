@@ -500,7 +500,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
     // Handle FIFO Events
     if (active_interrupts & MCP251XFD_INT_TX_EVENT) {
         if (check_fifo_event(&mcp251xfd_device, mcp251xfd_tx_fifo, MCP251XFD_TX_FIFO_NOT_FULL)) {
-            if (!canmore_msg_encode_done(&encoding_buffer)) {
+            if (!canmore_msg_encode_done(&msg_encoder)) {
                 uint8_t buffer[MCP251XFD_PAYLOAD_MAX];
                 bool is_extended;
                 MCP251XFD_CANMessage msg;
@@ -510,7 +510,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 // The canmore encoding must be modified to account for this, as canmore messages support arbitrary
                 // lengths
                 static_assert(CANMORE_MAX_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
-                canmore_msg_encode_next(&encoding_buffer, buffer, &msg.DLC, &msg.MessageID, &is_extended);
+                canmore_msg_encode_next(&msg_encoder, buffer, &msg.DLC, &msg.MessageID, &is_extended);
 
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;
 

@@ -69,7 +69,7 @@ void canmore_msg_encode_load(canmore_msg_encoder_t *state, uint8_t subtype, cons
     }
 
     state->subtype = subtype;
-    memcpy(state->buffer, buffer, len);
+    state->buf_ptr = buffer;
     state->length = len;
     state->position = 0;
     state->seq_num = 0;
@@ -86,7 +86,7 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
     // Copy buffer
     size_t remaining_size = state->length - state->position;
     size_t copy_size = (max_frame_len > remaining_size ? remaining_size : max_frame_len);
-    memcpy(buffer_out, &state->buffer[state->position], copy_size);
+    memcpy(buffer_out, &state->buf_ptr[state->position], copy_size);
     state->position += copy_size;
 
     // Handle 0 padding for can fd
@@ -115,7 +115,7 @@ bool canmore_msg_encode_next(canmore_msg_encoder_t *state, uint8_t *buffer_out, 
         *is_extended = true;
 
         uint32_t crc = CRC18_INITIAL_VALUE;
-        crc18_update(&crc, state->buffer, state->length);
+        crc18_update(&crc, state->buf_ptr, state->length);
         crc &= CRC18_MASK;
 
         *id_out = CANMORE_CALC_MSG_EXT_ID(state->client_id, state->direction, state->seq_num, crc);
@@ -249,6 +249,12 @@ size_t canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint32_t can_id, b
 
     // Finish Processing
     if (is_last) {
+        if (state->decode_len < state->expected_len) {
+            // If we reached the end of the packet, but we haven't decoded the full expected length, raise an error
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_MSG_TOO_SMALL);
+            return 0;
+        }
+
         // If we're the last packet (and not a single packet transmission), verify the complete message checksum
         if (!is_single) {
             uint32_t crc_calc = state->crc18 & CRC18_MASK;
@@ -259,13 +265,18 @@ size_t canmore_msg_decode_frame(canmore_msg_decoder_t *state, uint32_t can_id, b
             }
         }
 
-        size_t decoded_len = state->decode_len;
-
         // Reset state for new message
+        size_t decoded_len = state->decode_len;
         canmore_msg_decode_reset_state(state);
         return decoded_len;
     }
     else {
+        // Make sure if we aren't the last packet that we haven't exceeded the max expected length
+        if (state->decode_len >= state->expected_len) {
+            decoder_error_and_reset_state(state, CANMORE_MSG_DECODER_ERROR_MSG_TOO_LARGE);
+            return 0;
+        }
+
         // If we're not the last packet, increment handling sequence number rollover
         if (state->next_seq_num >= CANMORE_MAX_MSG_SEQ_NUM) {
             if (!state->use_canfd) {

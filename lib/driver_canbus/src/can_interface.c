@@ -63,7 +63,9 @@ void canbus_set_device_in_error(bool device_in_error_state) {
 // ========================================
 
 canmore_msg_decoder_t msg_decoder = { 0 };
-canmore_msg_encoder_t encoding_buffer = { 0 };
+canmore_msg_encoder_t msg_encoder = { 0 };
+static uint8_t msg_encoder_buf[CANMORE_MAX_MSG_LENGTH];
+
 struct canmore_received_msg {
     // Message data buffer
     uint8_t data[CANMORE_MAX_MSG_LENGTH];
@@ -128,7 +130,7 @@ size_t canbus_msg_read(uint8_t *buf, size_t len) {
 bool canbus_msg_write_available(void) {
     assert(canbus_initialized);
 
-    return canbus_msg_opened && canmore_msg_encode_done(&encoding_buffer);
+    return canbus_msg_opened && canmore_msg_encode_done(&msg_encoder);
 }
 
 size_t canbus_msg_write(const uint8_t *buf, size_t len) {
@@ -143,13 +145,20 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len) {
     // the position of two pointers in the object
     uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
 
-    if (!canmore_msg_encode_done(&encoding_buffer)) {
+    if (!canmore_msg_encode_done(&msg_encoder)) {
         restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
+    // First copy the message into the backing buffer
+    // Since we service in interrupts, we need this to be copied out from the caller
+    if (len > CANMORE_MAX_MSG_LENGTH) {
+        len = CANMORE_MAX_MSG_LENGTH;
+    }
+    memcpy(msg_encoder_buf, buf, len);
+
     // TODO: Enable message subtype support
-    canmore_msg_encode_load(&encoding_buffer, 0, buf, len);
+    canmore_msg_encode_load(&msg_encoder, 0, msg_encoder_buf, len);
     can_mcp251xfd_report_msg_tx_fifo_ready();
 
     restore_mcp251Xfd_irq(prev_interrupt);
@@ -335,7 +344,7 @@ bool canbus_init(unsigned int client_id) {
 
     // TODO: Enable CAN FD
     canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL, false);
-    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, false);
+    canmore_msg_encode_init(&msg_encoder, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, false);
 
     if (!can_mcp251xfd_configure(client_id)) {
         return false;

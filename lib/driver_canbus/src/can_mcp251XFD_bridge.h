@@ -79,7 +79,7 @@ extern struct utility_message_buffer utility_rx_buf;
 /**
  * @brief Holds data waiting to be transmitted
  */
-extern canmore_msg_encoder_t encoding_buffer;
+extern canmore_msg_encoder_t msg_encoder;
 
 /**
  * @brief Time after which the last heartbeat transmit has timed out, and the CAN bus is considered offline.
