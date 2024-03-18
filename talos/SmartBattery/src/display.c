@@ -14,10 +14,13 @@
 absolute_time_t next_display_update = { 0 };
 absolute_time_t display_poweroff_time;
 absolute_time_t lcd_poweron_delay = { 0 };
-absolute_time_t hold_time = { 0 };
 absolute_time_t soc_wake_time = { 0 };
 
 static uint8_t menu_option = 0;
+
+static uint16_t sweep = 90;
+
+static uint8_t hold_count = 0;
 
 static bool next_menu_option = false;
 
@@ -56,13 +59,23 @@ void display_show_stats(unsigned int serial, unsigned int soc, float voltage) {
 
 static void display_show_menu(uint8_t op_hl) {
     display_on = true;
-    display_poweroff_time = make_timeout_time_ms(10000);
+    display_poweroff_time = (battery_input_hold) ? make_timeout_time_ms(5000) : display_poweroff_time;
     ssd1306_SetDisplayOn(1);
     ssd1306_Fill(Black);
 
     char buf[16];
 
     ssd1306_FillRectangle(0, op_hl * 8, SSD1306_WIDTH - 1, (op_hl + 1) * 8 - 1, White);
+
+    // Progress circle
+    if (battery_input_hold) {
+        if (op_hl == 0) {
+            ssd1306_DrawArc(122, 4, 5, 0, sweep, Black);
+        }
+        else {
+            ssd1306_DrawArc(122, 4, 5, 0, sweep, White);
+        }
+    }
 
     ssd1306_SetCursor(0, 0);
     snprintf(buf, sizeof(buf), "1, Relative SOC");
@@ -89,7 +102,7 @@ static void display_show_menu(uint8_t op_hl) {
 
 static void display_show_option(unsigned int serial, uint8_t op_hl, bool dsg_mode) {
     display_on = true;
-    display_poweroff_time = make_timeout_time_ms(8000);
+    display_poweroff_time = make_timeout_time_ms(7000);
 
     char buf[16];
     ssd1306_SetDisplayOn(1);
@@ -150,17 +163,21 @@ void display_tick(uint16_t serial) {
     if (time_reached(next_display_update)) {
         if (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay)) {
             if (!display_on) {
-                soc_wake_time = make_timeout_time_ms(5000);
+                soc_wake_time = make_timeout_time_ms(4000);
                 display_show_option(serial, 0, core1_dsg_mode());  // display SOC upon wake first
             }
             else if (time_reached(soc_wake_time)) {
                 if (next_menu_option) {
+                    sweep = 90;
                     next_menu_option = false;
                     menu_option = (menu_option >= 3) ? 0 : menu_option + 1;
+                    hold_count = 0;
+                }
+                else {
+                    sweep = (sweep == 360) ? 360 : (sweep + 90) % 450;
+                    hold_count = (hold_count == 3) ? 3 : hold_count + 1;
                 }
                 if (!battery_input_hold) {
-                    // Hold 3 seconds to choose menu option
-                    hold_time = make_timeout_time_ms(3000);
                     battery_input_hold = true;
                 }
                 display_show_menu(menu_option);
@@ -168,11 +185,15 @@ void display_tick(uint16_t serial) {
             next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
         }
         else if (!time_reached(display_poweroff_time)) {
-            if (time_reached(hold_time) && battery_input_hold) {
+            if (hold_count == 3 && battery_input_hold) {
                 display_show_option(serial, menu_option, core1_dsg_mode());
+                next_display_update = make_timeout_time_ms(4000);
+                sweep = 0;
+                hold_count = 0;
             }
-            else {
+            else if (time_reached(soc_wake_time)) {
                 next_menu_option = true;
+                display_show_menu(menu_option);
             }
             battery_input_hold = false;
         }
