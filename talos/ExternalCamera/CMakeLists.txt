@@ -16,6 +16,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_subdirectory(${REPO_DIR}/tools/lib/canmore_cpp_core canmore_cpp_core)
 add_subdirectory(${REPO_DIR}/tools/lib/span_compat span_cpp)
 
+# Add titan messages
+
 # Find threading support
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)

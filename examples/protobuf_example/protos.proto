@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+message comm_msg {
+  enum topic_types {
+    STATE_FIRMWARE = 0;
+    STATE_DSHOT = 1;
+    STATE_KILL = 2;
+  }
+  oneof data {
+    riptide_msgs2.FirmwareStatus firmware_status = 2;
+    riptide_msgs2.DshotPartialTelemetry dshot_partial_telemetry = 3;
+    std_msgs.Bool std_bool = 4;
+  }
+
+  topic_types topic = 1;
+}
+
+message riptide_msgs2 {
+  message FirmwareStatus {
+    string board_name = 1;
+    uint32 bus_id = 2;
+    uint32 client_id = 3;
+    uint32 version_major = 4;
+    uint32 version_minor = 5;
+    uint32 version_release_type = 6;
+    uint32 uptime_ms = 7;
+    uint32 faults = 8;
+    uint32 kill_switches_enabled = 9;
+    uint32 kill_switches_asserting_kill = 10;
+    uint32 kill_switches_needs_update = 11;
+    uint32 kill_switches_timed_out = 12;
+  }
+  message DshotPartialTelemetry {
+    bool escs_powered = 1;
+    float vcc_voltage = 2;
+    uint32 start_thruster_num = 3;
+    repeated riptide_msgs2.DshotSingleTelemetry esc_telemetry = 4;
+  }
+  message DshotSingleTelemetry {
+    bool present = 1;
+    uint32 temperature_c = 2;
+    sint32 rpm = 3;
+    float voltage = 4;
+    float current = 5;
+    float consumption_ah = 6;
+  }
+}
+
+message std_msgs {
+  message Bool {
+    bool data = 1;
+  }
+}

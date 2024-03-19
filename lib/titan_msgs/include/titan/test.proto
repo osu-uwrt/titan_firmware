@@ -1,0 +1,237 @@
+syntax = "proto3";
+// package titan_pb;
+
+enum message_type {
+    // First message sent by a board to the Orin to start a new connection.
+    // Payload Type: titan_connect_req
+    TITAN_CONNECT_REQ = 0;
+    // Reply sent by the Orin to indicate that a connection request was accepted.
+    // Payload Type: titan_ack
+    TITAN_CONNECT_ACK = 1;
+    // Message sent that does not require an ack. This can be sent from the Orin or a board.
+    // Payload Type: titan_unreliable
+    TITAN_UNRELIABLE = 2;
+    // Message sent that requires an ack. This can be sent from the Orin or a board.
+    // Payload Type: titan_reliable
+    TITAN_RELIABLE = 3;
+    // Message sent to acknowledge a reliable message. This can be sent from the Orin or a board
+    // Payload Type: titan_ack
+    TITAN_ACK = 4;
+    // Message sent to start a service request. This can be sent from
+    // Payload Type: titan_request
+    TITAN_REQUEST = 5;
+    // Message sent to respond to a service request
+    // Payload Type:
+    TITAN_RESPONSE = 6;
+    // Message sent to respond to a service response
+    // Payload Type: titan_ack
+    TITAN_RESPONSE_ACK = 7;
+}
+
+message titan_ack {
+    uint32 ack = 1;
+}
+
+// These IDs are sent by a board to the Orin to determine what topics a board is subscribed to
+enum topic_ids {
+    ELECTRICAL_CMD = 0;
+    // TODO: Define more here
+};
+
+// These IDs are sent by a board to the Orin to determine what services a board provides
+enum service_ids {
+    ACTUATOR_ARM = 0;
+    // TODO: add more
+};
+
+message titan_connect_req {
+    // A unique number for the board
+    uint32 board_id = 1;
+    // A bitfield of subscribed topics
+    uint32 subscribed_topics = 2;
+    // A bitfield of hosted services
+    uint32 hosted_services = 3;
+    // A version
+    uint32 version = 4;
+    // A number for the ack response
+    uint32 ack = 5;
+}
+
+message titan_unreliable {
+    titan_msg payload = 1;
+}
+
+message titan_reliable {
+    uint32 ack = 1;
+    titan_msg payload = 2;
+}
+
+message titan_msg {
+    // This is the payload for titan_unreliable and titan_reliable messages
+    oneof payload {
+        riptide_msgs2.ElectricalCommand electrical_cmd = 1;
+    };
+}
+
+message titan_request {
+    uint32 request_id = 1;
+    titan_response_payload payload = 2;
+}
+
+message titan_request_payload {
+    oneof payload {
+        std_srvs.set_bool.req arm_torpedo = 1;
+    }
+}
+
+message titan_response {
+    uint32 request_id = 1;
+    uint32 ack = 2;
+    titan_response_payload payload = 3;
+}
+
+message titan_response_payload {
+    oneof payload {
+        std_srvs.set_bool.response arm_torpedo = 3;
+    }
+}
+
+//
+// ===========================
+//      ROS MESSAGE TYPES
+// ===========================
+//
+
+message riptide_msgs2 {
+    message FirmwareStatus {
+      string board_name = 1;
+      uint32 bus_id = 2;
+      uint32 client_id = 3;
+      uint32 version_major = 4;
+      uint32 version_minor = 5;
+      uint32 version_release_type = 6;
+      uint32 uptime_ms = 7;
+      uint32 faults = 8;
+      uint32 kill_switches_enabled = 9;
+      uint32 kill_switches_asserting_kill = 10;
+      uint32 kill_switches_needs_update = 11;
+      uint32 kill_switches_timed_out = 12;
+    }
+    message DshotPartialTelemetry {
+      bool escs_powered = 1;
+      bool thrusters_moving = 2;
+      uint32 start_thruster_num = 3;
+      uint32 disabled_flags = 4;
+      float vcc_voltage = 5;
+      uint32 packet_delta_us = 6;
+      uint32 tick_cnt = 7;
+      repeated riptide_msgs2.DshotSingleTelemetry esc_telemetry = 8;
+    }
+    message DshotSingleTelemetry {
+      bool esc_online = 1;
+      bool thruster_ready = 2;
+      uint32 temperature_c = 3;
+      sint32 rpm = 4;
+      float voltage = 5;
+      float current = 6;
+      float consumption_ah = 7;
+      uint32 dshot_missed_cnt = 8;
+      uint32 dshot_offline_cnt = 9;
+      uint32 uart_success_cnt = 10;
+      uint32 uart_missed_cnt = 11;
+      uint32 uart_disabled_cnt = 12;
+    }
+    message ElectricalCommand {
+      enum command_enum {
+        CYCLE_COMPUTER = 0;
+        CYCLE_ACCOUSTICS = 1;
+        KILL_ACCOUSTICS = 2;
+        CYCLE_ROBOT = 3;
+        KILL_ROBOT_POWER = 4;
+        ENABLE_FANS = 5;
+        DISABLE_FANS = 6;
+        CLEAR_DEPTH = 7;
+        DISABLE_LEDS = 8;
+        ENABLE_LEDS = 9;
+        CYCLE_IMU = 10;
+      }
+
+      command_enum command = 1;
+    }
+  }
+
+message std_msgs {
+    message Bool {
+      bool data = 1;
+    }
+    message Header {
+      builtin_interfaces.Time stamp = 1;
+      string frame_id = 2;
+    }
+    message Empty {
+    }
+  }
+
+  message nav_msgs {
+    message Odometry {
+      std_msgs.Header header = 1;
+      string child_frame_id = 2;
+      geometry_msgs.PoseWithCovariance pose = 3;
+      geometry_msgs.TwistWithCovariance twist = 4;
+    }
+  }
+
+  message builtin_interfaces {
+    message Time {
+      sint32 sec = 1;
+      uint32 nanosec = 2;
+    }
+  }
+
+message std_srvs {
+    message set_bool {
+        message req {
+            bool data = 1;
+        }
+
+        message response {
+            bool success = 1;
+            string message = 2;
+        }
+    }
+  }
+
+  message geometry_msgs {
+    message PoseWithCovariance {
+      geometry_msgs.Pose pose = 1;
+      repeated double covariance = 2;
+    }
+    message Pose {
+      geometry_msgs.Point position = 1;
+      geometry_msgs.Quaternion orientation = 2;
+    }
+    message Point {
+      double x = 1;
+      double y = 2;
+      double z = 3;
+    }
+    message Quaternion {
+      double x = 1;
+      double y = 2;
+      double z = 3;
+      double w = 4;
+    }
+    message TwistWithCovariance {
+      geometry_msgs.Twist twist = 1;
+      repeated double covariance = 2;
+    }
+    message Twist {
+      geometry_msgs.Vector3 linear = 1;
+      geometry_msgs.Vector3 angular = 2;
+    }
+    message Vector3 {
+      double x = 1;
+      double y = 2;
+      double z = 3;
+    }
+  }

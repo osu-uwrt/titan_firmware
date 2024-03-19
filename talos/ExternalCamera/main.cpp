@@ -1,3 +1,4 @@
+#include "CanmoreMsgClient.hpp"
 #include "DFCDaemon.hpp"
 
 #include <iostream>
@@ -43,10 +44,15 @@ static void cleanupShutdownHandler() {
     signalServerPtr = nullptr;
 }
 
+class TestHandler : public Canmore::ClientMsgHandler {
+    virtual void handleMessage(uint8_t subtype, std::span<uint8_t> data) {}
+
+    virtual void handleDecodeError(unsigned int errorCode) {}
+};
+
 // ========================================
 // Main Function
 // ========================================
-
 int main(int argc, char **argv) {
     if (argc < 2) {
         std::cerr << "Expected interface name argument" << std::endl;
@@ -60,6 +66,9 @@ int main(int argc, char **argv) {
 
     HeartbeatTransmitter heartbeatTx(ifIdx, clientId);
     CanmoreLinuxServer regMappedServer(ifIdx, clientId);
+    TestHandler handler;
+    Canmore::MsgClient msgClient(ifIdx, clientId, handler);
+
     std::shared_ptr<CanmoreTTYServer> ttyServer;
 
     Canmore::PollGroup group;

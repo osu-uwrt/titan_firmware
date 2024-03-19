@@ -15,6 +15,9 @@ fi
 
 echo "Creating Interface"
 sudo modprobe vcan
+sudo modprobe can
+sudo modprobe can-raw
+sudo modprobe can-bcm
 sudo ip link add dev vcan0 type vcan
 # sudo ip link set vcan0 mtu 16  # For normal CAN
 sudo ip link set vcan0 mtu 72  # For CAN FD
