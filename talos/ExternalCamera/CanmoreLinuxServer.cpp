@@ -61,7 +61,7 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
                                       &clearFileReg_);
     upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_READ_OFFSET_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                       &readOffsetReg_);
-    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET, REGISTER_PERM_WRITE_ONLY,
+    upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET, REGISTER_PERM_READ_WRITE,
                                       &fileModeReg_);
     upload_control->addCallbackRegister(CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET, REGISTER_PERM_WRITE_ONLY,
                                         bind_reg_cb(&CanmoreLinuxServer::triggerFileOperation));

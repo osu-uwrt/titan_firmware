@@ -44,6 +44,9 @@ private:
     int readFileIntoPageAndBuffer(CLIInterface<Canmore::LinuxClient> &interface, const std::string &dst_file,
                                   std::ifstream &file, int &num_bytes_just_read, uint32_t &crc_value);
 
+    bool checkFileCrc(CLIInterface<Canmore::LinuxClient> &interface, const std::string &filename,
+                      uint32_t expected_crc);
+
     int doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &interface, int operation);
 
     void reportErrnoError(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message);

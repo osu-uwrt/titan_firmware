@@ -147,17 +147,17 @@ extern "C" {
  *       +-----------------+
  * 0x01  |   Data Length   | RW
  *       +-----------------+
- * 0x01: |      CRC32      | WO
+ * 0x02: |      CRC32      | WO
  *       +-----------------+
- * 0x02: |      Clear      | WO
- *       +-----------------+
- * 0x03: |    File Mode    | RW
+ * 0x03: |      Clear      | WO
  *       +-----------------+
  * 0x04: |   Read Offset   | WO
  *       +-----------------+
- * 0x05: |    Operation    | WO
+ * 0x05: |    File Mode    | RW
  *       +-----------------+
- * 0x06: |   Write Status  | RO
+ * 0x06: |    Operation    | WO
+ *       +-----------------+
+ * 0x07: |   Write Status  | RO
  *       +-----------------+
  *
  * Filename Length: The length of the filename in bytes. The data should start at the beginning of the next register.
