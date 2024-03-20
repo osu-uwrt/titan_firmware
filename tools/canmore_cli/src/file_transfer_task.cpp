@@ -112,8 +112,13 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
         first_write = false;
 
         // write progress bar to terminal
-        double percent_progress = data_read / (double) file_size;
-        drawProgressBar(interface, percent_progress);
+        if (file_size > 0) {
+            double percent_progress = data_read / (double) file_size;
+            drawProgressBar(interface, percent_progress);
+        }
+        else {
+            drawProgressBar(interface, 1);
+        }
     }
 
     file.close();
@@ -241,7 +246,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
                                                                            CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET);
 
         // load data in
-        int batch_size_regs = ((int) batch_size_bytes + 3) / 4;
+        unsigned int batch_size_regs = (batch_size_bytes + 3) / 4;
         readFilePage(interface, file_buffer_contents, batch_size_regs);
 
         // check crc
@@ -270,8 +275,13 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         file_crc32 = crc32_update((uint8_t *) file_buffer_contents, batch_size_bytes, file_crc32);
 
         // update progress bar
-        double percent_progress = read_offset / (double) file_size;
-        drawProgressBar(interface, percent_progress);
+        if (file_size == 0) {
+            double percent_progress = read_offset / (double) file_size;
+            drawProgressBar(interface, percent_progress);
+        }
+        else {
+            drawProgressBar(interface, 1);
+        }
 
         error_counter = 0;  // successful transfer
         first_read = false;
@@ -347,17 +357,19 @@ size_t FileTransferTask::writeDataIntoBufferPage(CLIInterface<Canmore::LinuxClie
     return offset + regs.size();
 }
 
-void FileTransferTask::readFilePage(CLIInterface<Canmore::LinuxClient> &interface, char *contents, size_t num_regs) {
-    uint32_t reg_value;
-    for (size_t reg = 0; reg < num_regs; reg++) {
-        reg_value = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                                           CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, reg);
+void FileTransferTask::readFilePage(CLIInterface<Canmore::LinuxClient> &interface, char *contents,
+                                    unsigned int num_regs) {
+    std::vector<uint32_t> regs;
+    regs.resize(num_regs);
+    interface.handle->client->readArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_BUFFER_PAGE_NUM,
+                                        0, regs, num_regs);
 
-        uint32_t mask = 0xFF;  // mask to filter out everything but the least significant byte in the reg val
-        contents[reg * 4] = reg_value & mask;
-        contents[reg * 4 + 1] = (reg_value >> 8) & mask;
-        contents[reg * 4 + 2] = (reg_value >> 16) & mask;
-        contents[reg * 4 + 3] = (reg_value >> 24) & mask;
+    for (size_t reg = 0; reg < regs.size(); reg++) {
+        uint32_t reg_value = regs.at(reg);
+        contents[reg * 4] = reg_value & 0xFF;
+        contents[reg * 4 + 1] = (reg_value >> 8) & 0xFF;
+        contents[reg * 4 + 2] = (reg_value >> 16) & 0xFF;
+        contents[reg * 4 + 3] = (reg_value >> 24) & 0xFF;
     }
 }
 
@@ -476,7 +488,7 @@ void FileTransferTask::reportRemoteDeviceError(CLIInterface<Canmore::LinuxClient
         error_len = FILE_BUFFER_SIZE - 1;
     }
 
-    size_t error_len_regs = error_len / 4 + 1;
+    unsigned int error_len_regs = error_len / 4 + 1;
 
     // read the actual error message, which has been stored in the file buffer
     readFilePage(interface, file_buffer_contents, error_len_regs);

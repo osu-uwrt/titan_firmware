@@ -39,7 +39,7 @@ private:
     size_t writeDataIntoBufferPage(CLIInterface<Canmore::LinuxClient> &interface, const char *data, size_t length,
                                    int offset);
 
-    void readFilePage(CLIInterface<Canmore::LinuxClient> &interface, char *contents, size_t num_regs);
+    void readFilePage(CLIInterface<Canmore::LinuxClient> &interface, char *contents, unsigned int num_regs);
 
     int readFileIntoPageAndBuffer(CLIInterface<Canmore::LinuxClient> &interface, const std::string &dst_file,
                                   std::ifstream &file, int &num_bytes_just_read, uint32_t &crc_value);

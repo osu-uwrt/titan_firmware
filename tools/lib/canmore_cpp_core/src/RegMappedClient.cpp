@@ -27,7 +27,11 @@ void RegMappedClient::writeRegister(uint8_t mode, uint8_t page, uint8_t offset, 
 }
 
 void RegMappedClient::readArray(uint8_t mode, uint8_t page, uint8_t offsetStart, std::vector<uint32_t> &dst,
-                                uint8_t numWords) {
+                                unsigned int numWords) {
+    if (numWords > 256) {
+        numWords = 256;
+    }
+
     clientCfg.control_interface_mode = mode;
 
     auto buf = new uint32_t[numWords];

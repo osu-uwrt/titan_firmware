@@ -151,7 +151,7 @@ void CanmoreLinuxServer::doFileWrite() {
         }
 
         file.close();
-    } catch (std::ofstream::failure ex) {
+    } catch (std::ofstream::failure &ex) {
         // write failure into filebuf and set error write status
         reportDeviceError(strerror(errno));
         return;  // if we dont return the file status will become success
@@ -280,7 +280,7 @@ void CanmoreLinuxServer::reportDeviceError(const char *error) {
         error_len = REG_MAPPED_PAGE_SIZE;
     }
 
-    for (int i = 0; i < error_len; i++) {
+    for (size_t i = 0; i < error_len; i++) {
         fileBuf_[i] = error[i];
     }
     dataLengthReg_ = error_len;
@@ -288,8 +288,8 @@ void CanmoreLinuxServer::reportDeviceError(const char *error) {
 }
 
 std::string CanmoreLinuxServer::readFileNameFromBuf() {
-    char filename[(const uint32_t) filenameLengthReg_ + 1] = { 0 };
-    for (int i = 0; i < filenameLengthReg_; i++) {
+    char filename[filenameLengthReg_ + 1] = { 0 };
+    for (uint32_t i = 0; i < filenameLengthReg_; i++) {
         filename[i] = (char) fileBuf_.at(i);
     }
 

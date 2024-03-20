@@ -149,7 +149,7 @@ int reg_mapped_client_write_register(const reg_mapped_client_cfg_t *cfg, uint8_t
  * @return REG_MAPPED_RESULT_SUCCESSFUL on success, other error code on failure
  */
 int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset_start,
-                                 uint32_t *data_array, uint8_t num_words);
+                                 uint32_t *data_array, unsigned int num_words);
 
 /**
  * @brief Write array of words to a page
