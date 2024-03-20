@@ -6,6 +6,7 @@
 #include "canmore_cpp/LinuxClient.hpp"
 
 #include <iostream>
+#include <stdlib.h>
 #include <thread>
 
 using namespace std::chrono_literals;
@@ -151,6 +152,56 @@ public:
     }
 };
 
+class LinuxSystemCmdPrefix : public CLICommandPrefixHandler<Canmore::LinuxClient> {
+public:
+    LinuxSystemCmdPrefix(): CLICommandPrefixHandler('!') {}
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        if (args.size() == 0) {
+            interface.writeLine("Cannot execute empty command");
+            return;
+        }
+
+        // Create command to execute
+        std::stringstream oss;
+        bool first = false;
+        for (auto &arg : args) {
+            if (!first) {
+                oss << ' ';
+            }
+            first = false;
+            oss << arg;
+        }
+
+        // Execute Command
+        std::string cmd = oss.str();
+        int returncode = system(cmd.c_str());
+
+        // Report if error occurred
+        if (returncode != 0) {
+            interface.writeLine(COLOR_NOTICE "Command exited with non-zero status code: " + std::to_string(returncode));
+        }
+    }
+
+    void showHelp(CLIInterface<Canmore::LinuxClient> &interface, bool showUsage) override {
+        if (showUsage) {
+            std::stringstream oss;
+            oss << "Usage: " << prefixChar << "[Command to Execute]";
+            interface.writeLine(oss.str());
+            return;
+        }
+
+        interface.writeLine("");
+        interface.writeLine(COLOR_NAME "! Prefix" COLOR_RESET);
+        interface.writeLine("\tExecutes command with the system shell");
+        interface.writeLine("\tExample: !ls");
+    }
+
+private:
+    bool remoteHelpFetched = false;
+    std::string remoteHelpMsg;
+};
+
 LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(handle) {
     registerCommand(std::make_shared<LinuxVersionCommand>());
     registerCommand(std::make_shared<LinuxRebootCommand>());
@@ -158,6 +209,7 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommand(std::make_shared<LinuxFileUploadCommand>());
     registerCommand(std::make_shared<LinuxFileDownloadCommand>());
     registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
+    registerCommandPrefix(std::make_shared<LinuxSystemCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());
 
     auto devMap = DeviceMap::create();
