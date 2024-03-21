@@ -144,10 +144,6 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
         reportErrnoError(interface, "Failed to get file status");
     }
 
-    // TODO: REMOVE
-    //  write filename into remote. filename length already there
-    //  writeDataIntoBufferPage(interface, dst_file.c_str(), dst_file.size(), 0);
-
     // write permissions to remote register
     uint32_t mode_reg_val = (uint32_t) fileStat.st_mode;
     interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
