@@ -290,7 +290,11 @@ finish_request:
             response_size = sizeof(response.write_bulk_pkt);
 
             // Send response and exit bulk request mode
+#ifdef CANMORE_CONFIG_DISABLE_REG_MAPPED_ARG
+            inst->tx_func(response.data, response_size);
+#else
             inst->tx_func(response.data, response_size, inst->arg);
+#endif
             inst->in_bulk_request = false;
         }
         // If it's not the last transfer, store error if occurs in request (but only if it hasn't already errored)
@@ -309,6 +313,10 @@ finish_request:
             response_size = sizeof(response.read_pkt);
         }
 
+#ifdef CANMORE_CONFIG_DISABLE_REG_MAPPED_ARG
+        inst->tx_func(response.data, response_size);
+#else
         inst->tx_func(response.data, response_size, inst->arg);
+#endif
     }
 }

@@ -326,12 +326,8 @@ static reg_mapped_server_page_def_t bl_server_pages[] = {
     DEFINE_PAGE_MEMMAPPED_BYTE_ARRAY(CANMORE_BL_FLASH_BUFFER_PAGE_NUM, flash_buffer, REGISTER_PERM_READ_WRITE),
 };
 
-static void bl_server_tx_cb(uint8_t *msg, size_t len, __unused void *arg) {
-    bl_interface_transmit(msg, len);
-}
-
 reg_mapped_server_inst_t bl_server_inst = {
-    .tx_func = &bl_server_tx_cb,
+    .tx_func = &bl_interface_transmit,
     .page_array = bl_server_pages,
     .num_pages = sizeof(bl_server_pages) / sizeof(*bl_server_pages),
     .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
