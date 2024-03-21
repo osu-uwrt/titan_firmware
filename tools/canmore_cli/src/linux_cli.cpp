@@ -180,6 +180,7 @@ public:
     std::string getHelp() const override { return "Reports the current working directory of the remote device"; }
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        (void) args;
         task.pwd(interface);
     }
 
