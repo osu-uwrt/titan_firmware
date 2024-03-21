@@ -1,6 +1,7 @@
 #include "canmore_cpp/BootloaderClient.hpp"
 
 #include "titan/canmore.h"
+#include "titan/canmore/crc32.h"
 
 #include <cstdio>
 #include <iostream>
@@ -19,24 +20,6 @@ using namespace Canmore;
 #define VERSION_DEV 1
 #define VERSION_CLEAN 2
 #define VERSION_TAGGED 3
-
-#define CRC32_POLYNOMIAL 0x04C11DB7
-
-uint32_t crc32_compute(const uint8_t *data, size_t len) {
-    uint32_t crc32 = 0xFFFFFFFF;
-
-    while (len--) {
-        crc32 = crc32 ^ ((*data++) << 24);
-        for (int i = 0; i < 8; i++) {
-            if (crc32 & (1L << 31))
-                crc32 = (crc32 << 1) ^ CRC32_POLYNOMIAL;
-            else
-                crc32 = (crc32 << 1);
-        }
-    }
-
-    return crc32;
-}
 
 BootloaderClient::BootloaderClient(std::shared_ptr<RegMappedClient> client): client(client) {
     RegisterPage mcuCtrlPage(client, bootloader_itf_mode, CANMORE_BL_MCU_CONTROL_PAGE_NUM);

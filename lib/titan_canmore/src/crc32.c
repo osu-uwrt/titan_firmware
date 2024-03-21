@@ -1,4 +1,6 @@
-#include "canmore/crc32.h"
+#include "titan/canmore/crc32.h"
+
+#define CRC32_POLYNOMIAL 0x04C11DB7
 
 uint32_t crc32_update(const uint8_t *data, size_t len, uint32_t original_crc32) {
     uint32_t crc32 = original_crc32;

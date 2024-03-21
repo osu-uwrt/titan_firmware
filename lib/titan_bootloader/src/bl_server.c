@@ -1,12 +1,12 @@
 #include "bl_server.h"
 
 #include "bl_interface.h"
-#include "crc32.h"
 
 #include "hardware/flash.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/sync.h"
 #include "titan/canmore.h"
+#include "titan/canmore/crc32.h"
 #include "titan/version.h"
 
 #include <assert.h>
