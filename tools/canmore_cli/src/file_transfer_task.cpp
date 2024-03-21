@@ -7,6 +7,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#define FILE_TRANSFER_SERVER_TMP_FILE "/tmp/canmore_ft_server_buffer"
+#define FILE_TRANSFER_CLIENT_TMP_FILE "/tmp/canmore_ft_client_buffer"
+
 using namespace std::chrono_literals;
 
 std::string FileTransferTask::fileName(const std::string &path) {
@@ -19,9 +22,12 @@ std::string FileTransferTask::fileName(const std::string &path) {
 }
 
 void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, const std::string &src_file,
-                              const std::string &dst_file) {
+                              const std::string &dst_file, bool suppress_output) {
     bool first_write = true;
     int error_counter = 0;
+
+    bool output_suppressed_before = outputSuppressed_;
+    setOutputSuppressed(suppress_output);
 
     // open and check source file
     std::ifstream file(src_file.c_str());
@@ -40,13 +46,13 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
     int data_read = 0, data_len = 0, status = 0;
     uint32_t file_crc = 0xFFFFFFFF;
 
-    interface.writeLine("Uploading file");
-    interface.writeLine("");  // makes progress bar play better
+    printInfo(interface, "Uploading file");
+    printInfo(interface, "");  // makes progress bar play better
     while ((file && !file.eof()) || error_counter != 0) {
         // check for interrupt
         if (checkForInterrupt()) {
             // If ctrl+c, then break
-            interface.writeLine("Interrupted");
+            printInfo(interface, "Interrupted");
             file.close();
             return;
         }
@@ -88,22 +94,22 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
             return;
         }
         else if (status == CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC) {
-            interface.writeLine(COLOR_ERROR "Bad CRC" COLOR_RESET);
+            printError(interface, "Bad CRC");
 
             // retry writing the page. dont read anything new
             writeDataIntoBufferPage(interface, file_buffer_contents, data_len, 0);
             error_counter++;
             if (error_counter > FILE_UPLOAD_MAX_ERRORS) {
-                interface.writeLine(COLOR_ERROR "Maximum number of transmission errors reached while trying to "
-                                                "upload the file. Please check the connections on the CAN and "
-                                                "ensure that traffic is at a reasonable level." COLOR_RESET);
+                printError(interface, "Maximum number of transmission errors reached while trying to "
+                                      "upload the file. Please check the connections on the CAN and "
+                                      "ensure that traffic is at a reasonable level.");
                 file.close();
                 return;
             }
             continue;  // dont go further or else error_counter will be wrongly reset
         }
         else if (status != CANMORE_LINUX_FILE_STATUS_SUCCESS) {
-            interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become SUCCESS" COLOR_RESET);
+            printError(interface, "Timed out waiting for write status to become SUCCESS");
             file.close();
             return;
         }
@@ -125,14 +131,14 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
 
     // check the file crc
     // first compute the file crc
-    interface.writeLine("Checking file CRC");
+    printInfo(interface, "Checking file CRC");
     if (!checkFileCrc(interface, dst_file, file_crc)) {
         return;
     }
 
     // set remote file permissions
     // first get the local permissions
-    interface.writeLine("Setting file permissions");
+    printInfo(interface, "Setting file permissions");
     struct stat fileStat;
     if (stat(src_file.c_str(), &fileStat) < 0) {
         reportErrnoError(interface, "Failed to get file status");
@@ -156,28 +162,31 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
             return;
         }
         else {
-            interface.writeLine(COLOR_ERROR "Failed to set remote file permissions: Unknown error" COLOR_RESET);
+            printError(interface, "Failed to set remote file permissions: Unknown error");
 
             return;
         }
     }
 
-    interface.writeLine("Upload complete.");
+    printInfo(interface, "Upload complete.");
+    setOutputSuppressed(output_suppressed_before);
 }
 
 void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, const std::string &src_file,
-                                const std::string &dst_file) {
+                                const std::string &dst_file, bool suppress_output) {
     bool first_read = true;
     int error_counter = 0, status;
+
+    bool output_suppressed_before = outputSuppressed_;
+    setOutputSuppressed(suppress_output);
 
     // attempt to open local file for write
     std::ofstream file;
     file.open(dst_file.c_str());
     if (!file.good()) {
-        std::string err = COLOR_ERROR "Error opening file on local system: ";
+        std::string err = "Error opening file on local system: ";
         err += strerror(errno);
-        err += COLOR_RESET;
-        interface.writeLine(err);
+        printError(interface, err);
         return;
     }
 
@@ -198,8 +207,8 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
     }
 
     // start download
-    interface.writeLine("Downloading file");
-    interface.writeLine("");
+    printInfo(interface, "Downloading file");
+    printInfo(interface, "");
 
     uint32_t file_size = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
@@ -229,7 +238,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
                 return;
             }
             else {
-                interface.writeLine(COLOR_ERROR "Failed to read file data: Unknown error" COLOR_RESET);
+                printError(interface, "Failed to read file data: Unknown error");
                 file.close();
                 return;
             }
@@ -252,12 +261,12 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         // check crc
         uint32_t actual_buf_crc = crc32_compute((uint8_t *) file_buffer_contents, batch_size_bytes);
         if (expected_buf_crc != actual_buf_crc) {
-            interface.writeLine(COLOR_ERROR "Bad CRC");
+            printError(interface, "Bad CRC");
             error_counter++;
             if (error_counter > FILE_UPLOAD_MAX_ERRORS) {
-                interface.writeLine(COLOR_ERROR "Maximum number of transmission errors reached while trying to "
-                                                "upload the file. Please check the connections on the CAN and "
-                                                "ensure that traffic is at a reasonable level." COLOR_RESET);
+                printError(interface, "Maximum number of transmission errors reached while trying to "
+                                      "upload the file. Please check the connections on the CAN and "
+                                      "ensure that traffic is at a reasonable level.");
                 file.close();
                 return;
             }
@@ -275,7 +284,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         file_crc32 = crc32_update((uint8_t *) file_buffer_contents, batch_size_bytes, file_crc32);
 
         // update progress bar
-        if (file_size == 0) {
+        if (file_size > 0) {
             double percent_progress = read_offset / (double) file_size;
             drawProgressBar(interface, percent_progress);
         }
@@ -290,13 +299,13 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
     file.close();
 
     // check file crc
-    interface.writeLine("Checking file CRC");
+    printInfo(interface, "Checking file CRC");
     if (!checkFileCrc(interface, src_file, file_crc32)) {
         return;
     }
 
     // get file mode
-    interface.writeLine("Setting file permissions");
+    printInfo(interface, "Setting file permissions");
 
     // file name and length already in remote from previous operations. just do the operation
     status = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_GET_MODE);
@@ -306,7 +315,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
             return;
         }
         else {
-            interface.writeLine("Failed to get remote file permissions: Unknown error");
+            printError(interface, "Failed to get remote file permissions: Unknown error");
             return;
         }
     }
@@ -321,7 +330,124 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         return;
     }
 
-    interface.writeLine("Download complete.");
+    printInfo(interface, "Download complete.");
+
+    setOutputSuppressed(output_suppressed_before);
+}
+
+void FileTransferTask::cd(CLIInterface<Canmore::LinuxClient> &interface, const std::string &directory,
+                          bool suppress_output) {
+    bool output_suppressed_before = outputSuppressed_;
+    setOutputSuppressed(suppress_output);
+
+    // write desired directory into tmp file
+    writeStringToFile(FILE_TRANSFER_CLIENT_TMP_FILE, directory);
+
+    // transfer file to remote
+    upload(interface, FILE_TRANSFER_CLIENT_TMP_FILE, FILE_TRANSFER_SERVER_TMP_FILE, true);
+
+    // write tmp file name and length to file buffer and control pages
+    writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
+    interface.handle->client->writeRegister(
+        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+
+    // do operation
+    int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_CD);
+    if (result != CANMORE_LINUX_FILE_STATUS_SUCCESS) {
+        if (result == CANMORE_LINUX_FILE_STATUS_FAIL_DEVICE_ERROR) {
+            reportRemoteDeviceError(interface, "Failed to set working directory on remote");
+        }
+        else {
+            printError(interface, "Unknown error");
+        }
+    }
+
+    setOutputSuppressed(output_suppressed_before);
+}
+
+void FileTransferTask::ls(CLIInterface<Canmore::LinuxClient> &interface, const std::string &directory,
+                          bool suppress_output) {
+    bool output_suppressed_before = outputSuppressed_;
+    setOutputSuppressed(suppress_output);
+
+    // write directory to list to tmp file
+    if (!writeStringToFile(FILE_TRANSFER_CLIENT_TMP_FILE, directory)) {
+        reportErrnoError(interface, "Failed to write target directory in temporary file");
+    }
+
+    // transfer file
+    upload(interface, FILE_TRANSFER_CLIENT_TMP_FILE, FILE_TRANSFER_SERVER_TMP_FILE, true);
+
+    // write temp file name and length to file buffer
+    writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
+    interface.handle->client->writeRegister(
+        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+
+    // do ls operation
+    int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_LS);
+    if (result != CANMORE_LINUX_FILE_STATUS_SUCCESS) {
+        if (result == CANMORE_LINUX_FILE_STATUS_FAIL_DEVICE_ERROR) {
+            reportRemoteDeviceError(interface, "Failed to read temporary result from remote");
+        }
+        else {
+            printError(interface, "Unknown error");
+        }
+
+        return;
+    }
+
+    // if we got here the operation succeeded. Need to transfer result back and read it out
+    download(interface, FILE_TRANSFER_SERVER_TMP_FILE, FILE_TRANSFER_CLIENT_TMP_FILE, true);
+
+    std::string report = "";
+    if (!readFiletoString(FILE_TRANSFER_CLIENT_TMP_FILE, report)) {
+        reportErrnoError(interface, "Failed to read temporary result from local file");
+        return;
+    }
+
+    printInfo(interface, report);
+
+    setOutputSuppressed(output_suppressed_before);
+}
+
+void FileTransferTask::pwd(CLIInterface<Canmore::LinuxClient> &interface, bool suppress_output) {
+    bool output_suppressed_before = outputSuppressed_;
+    setOutputSuppressed(suppress_output);
+
+    // write tmp file name to the file buffer
+    writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
+
+    // write length
+    interface.handle->client->writeRegister(
+        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+
+    // do pwd operation
+    int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_PWD);
+    if (result != CANMORE_LINUX_FILE_STATUS_SUCCESS) {
+        if (result == CANMORE_LINUX_FILE_STATUS_FAIL_DEVICE_ERROR) {
+            reportRemoteDeviceError(interface, "Failed to read temporary result from remote");
+        }
+        else {
+            printError(interface, "Unknown error");
+        }
+
+        return;
+    }
+
+    // download result to tmp
+    download(interface, FILE_TRANSFER_SERVER_TMP_FILE, FILE_TRANSFER_CLIENT_TMP_FILE, true);
+
+    // read and print result
+    std::string path;
+    if (!readFiletoString(FILE_TRANSFER_CLIENT_TMP_FILE, path)) {
+        reportErrnoError(interface, "Could not read temporary result");
+    }
+
+    printInfo(interface, path);
+    setOutputSuppressed(output_suppressed_before);
 }
 
 size_t FileTransferTask::writeDataIntoBufferPage(CLIInterface<Canmore::LinuxClient> &interface, const char *data,
@@ -414,11 +540,10 @@ bool FileTransferTask::checkFileCrc(CLIInterface<Canmore::LinuxClient> &interfac
             reportRemoteDeviceError(interface, "Failed to check remote file CRC");
         }
         else if (status == CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC) {
-            interface.writeLine(COLOR_ERROR
-                                "Checksum of remote file does not match the local one. Please try again" COLOR_RESET);
+            printError(interface, "Checksum of remote file does not match the local one. Please try again");
         }
         else {
-            interface.writeLine(COLOR_ERROR "Failed to check file CRC: Unknown error" COLOR_RESET);
+            printError(interface, "Failed to check file CRC: Unknown error");
         }
 
         return false;
@@ -442,7 +567,7 @@ int FileTransferTask::doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &
                                                               CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET);
 
         if (std::chrono::system_clock::now() - start_time > 1s) {
-            interface.writeLine(COLOR_ERROR "Timed out waiting for write status to become READY" COLOR_RESET);
+            printError(interface, "Timed out waiting for write status to become READY");
             break;
         }
     }
@@ -468,17 +593,14 @@ int FileTransferTask::doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &
 }
 
 void FileTransferTask::reportErrnoError(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message) {
-    std::string err = COLOR_ERROR;
-    err += message;
+    std::string err = message;
     err += ": " + std::string(strerror(errno));
-    err += COLOR_RESET;
-    interface.writeLine(err);
+    printError(interface, err);
 }
 
 void FileTransferTask::reportRemoteDeviceError(CLIInterface<Canmore::LinuxClient> &interface,
                                                const std::string &message) {
-    std::string err_msg = COLOR_ERROR;
-    err_msg += message + "; Remote device reported error: ";
+    std::string err_msg = message + "; Remote device reported error: ";
 
     uint32_t error_len = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
                                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
@@ -497,8 +619,7 @@ void FileTransferTask::reportRemoteDeviceError(CLIInterface<Canmore::LinuxClient
     // assemble and send error message
     err_msg += std::string(file_buffer_contents);
 
-    err_msg += COLOR_RESET;
-    interface.writeLine(err_msg);
+    printError(interface, err_msg);
 }
 
 void FileTransferTask::drawProgressBar(CLIInterface<Canmore::LinuxClient> &interface, double progress) {
@@ -513,7 +634,7 @@ void FileTransferTask::drawProgressBar(CLIInterface<Canmore::LinuxClient> &inter
     }
 
     progress_bar += "] " + std::to_string((int) (progress * 100)) + "%";
-    interface.writeLine(progress_bar);
+    printInfo(interface, progress_bar);
 }
 
 bool FileTransferTask::checkForInterrupt() {
@@ -532,4 +653,42 @@ bool FileTransferTask::checkForInterrupt() {
     }
 
     return false;
+}
+
+bool FileTransferTask::readFiletoString(const std::string &filename, std::string &contents) {
+    std::ifstream in;
+    in.open(filename);
+    if (!in) {
+        return false;
+    }
+
+    size_t size = std::filesystem::file_size(filename);
+    contents.resize(size);
+    in.read(contents.data(), size);
+    return true;
+}
+
+bool FileTransferTask::writeStringToFile(const std::string &filename, const std::string &contents) {
+    std::ofstream out;
+    out.open(filename);
+    if (out) {
+        out << contents;
+        return true;
+    }
+
+    return false;
+}
+
+void FileTransferTask::setOutputSuppressed(bool suppressed) {
+    outputSuppressed_ = suppressed;
+}
+
+void FileTransferTask::printInfo(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message) {
+    if (!outputSuppressed_) {
+        interface.writeLine(message);
+    }
+}
+
+void FileTransferTask::printError(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message) {
+    interface.writeLine(COLOR_ERROR + message + COLOR_RESET);
 }

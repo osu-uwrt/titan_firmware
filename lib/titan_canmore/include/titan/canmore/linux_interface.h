@@ -243,8 +243,30 @@ extern "C" {
  *                                  Required registers:
  *                                  - FILENAME_LENGTH
  *                                      - File buffer must be populated at the beginning with this many bytes of data
- *                                        describing the name of the file to write.
+ *                                        describing the name of the file to check.
  *                                  - CRC: Contains the CRC32 of the file being checked.
+ *
+ * - OPERATION_CD               Change the working directory for file transfer to a relative or absolute directory
+ *                              specified in the file whose name is provided in the file buffer. Can return SUCCESS OR
+ *                              FAIL_DEVICE_ERROR
+ *                                  Requred registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to read.
+ *
+ * - OPERATION_LS               List the contents of the directory specified in the file whose name is provided in the
+ *                              file buffer. The directory contents will be written to that file as well. Can return
+ *                              SUCCESS or FAIL_DEVICE_ERROR Requred registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
+ *
+ * - OPERATION_PWD              Write the full current working directory to the file whose name is provided in the file
+ *                              buffer. Can return SUCCESS or FAIL_DEVICE_ERROR
+ *                                  Requred registers:
+ *                                  - FILENAME_LENGTH
+ *                                      - File buffer must be populated at the beginning with this many bytes of data
+ *                                        describing the name of the file to write.
  */
 
 #define CANMORE_LINUX_FILE_OPERATION_NOP 0
@@ -254,6 +276,9 @@ extern "C" {
 #define CANMORE_LINUX_FILE_OPERATION_GET_MODE 4
 #define CANMORE_LINUX_FILE_OPERATION_GET_FILE_LEN 5
 #define CANMORE_LINUX_FILE_OPERATION_CHECK_CRC 6
+#define CANMORE_LINUX_FILE_OPERATION_CD 7
+#define CANMORE_LINUX_FILE_OPERATION_LS 8
+#define CANMORE_LINUX_FILE_OPERATION_PWD 9
 
 /**
  * FILE STATUSES

@@ -68,6 +68,9 @@ CanmoreLinuxServer::CanmoreLinuxServer(int ifIndex, uint8_t clientId):
     upload_control->addMemoryRegister(CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET, REGISTER_PERM_READ_ONLY,
                                       &writeStatusReg_);
     addRegisterPage(CANMORE_LINUX_FILE_CONTROL_PAGE_NUM, std::move(upload_control));
+
+    // initialize pwd for file operations
+    file_pwd_ = getHome();
 }
 
 bool CanmoreLinuxServer::restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr) {
@@ -239,6 +242,81 @@ void CanmoreLinuxServer::doCheckCrc() {
         (crc32Reg_ == currentFileCrc_ ? CANMORE_LINUX_FILE_STATUS_SUCCESS : CANMORE_LINUX_FILE_STATUS_FAIL_BAD_CRC);
 }
 
+void CanmoreLinuxServer::doCd() {
+    std::string filename = readFileNameFromBuf();
+    std::string dir;
+    if (!readFiletoString(filename, dir)) {
+        reportDeviceError(strerror(errno));
+        return;
+    }
+
+    if (dir == "") {
+        file_pwd_ = getHome();
+    }
+
+    if (!dir.starts_with('/')) {
+        dir = joinPaths(file_pwd_, dir);
+    }
+
+    bool exists = std::filesystem::exists(dir), is_directory = std::filesystem::is_directory(dir);
+    if (exists && is_directory) {
+        file_pwd_ = std::filesystem::canonical(dir);
+        writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+        return;
+    }
+
+    // if we got here, the directory does not exist
+    if (!exists)
+        reportDeviceError("Does not exist");
+    else if (!is_directory)
+        reportDeviceError("Not a direcory");
+}
+
+void CanmoreLinuxServer::doLs() {
+    // read name of tmp file out of buffer. will have the name of the directory to list, and we will also store results
+    // in that file.
+    std::string filename = readFileNameFromBuf();
+    std::string dirname;
+    if (!readFiletoString(filename, dirname)) {
+        reportDeviceError(strerror(errno));
+        return;
+    }
+
+    if (!dirname.starts_with('/')) {
+        dirname = joinPaths(file_pwd_, dirname);
+    }
+
+    if (!std::filesystem::exists(dirname)) {
+        reportDeviceError("No such directory");
+        return;
+    }
+
+    // now list the directory into a string
+    std::string report = "";
+    auto dir_it = std::filesystem::directory_iterator(dirname);
+    for (const auto &entry : dir_it) {
+        report += entry.path().filename().string() + "\n";
+    }
+
+    // write report to file and transfer it
+    if (!writeStringToFile(filename, report)) {
+        reportDeviceError(strerror(errno));
+        return;
+    }
+
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
+void CanmoreLinuxServer::doPwd() {
+    std::string filename = readFileNameFromBuf();
+    if (!writeStringToFile(filename, file_pwd_)) {
+        reportDeviceError(strerror(errno));
+        return;
+    }
+
+    writeStatusReg_ = CANMORE_LINUX_FILE_STATUS_SUCCESS;
+}
+
 bool CanmoreLinuxServer::triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr) {
     bool want_operation = *data_ptr != CANMORE_LINUX_FILE_OPERATION_NOP;
     if (current_operation_ == CANMORE_LINUX_FILE_OPERATION_NOP && want_operation) {
@@ -260,6 +338,15 @@ bool CanmoreLinuxServer::triggerFileOperation(uint16_t addr, bool is_write, uint
             break;
         case CANMORE_LINUX_FILE_OPERATION_CHECK_CRC:
             doCheckCrc();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_CD:
+            doCd();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_LS:
+            doLs();
+            break;
+        case CANMORE_LINUX_FILE_OPERATION_PWD:
+            doPwd();
             break;
         default:
             reportDeviceError("Unknown operation");
@@ -293,7 +380,12 @@ std::string CanmoreLinuxServer::readFileNameFromBuf() {
         filename[i] = (char) fileBuf_.at(i);
     }
 
-    return std::string(filename);
+    std::string ret = filename;
+    if (!ret.starts_with("/")) {
+        ret = joinPaths(file_pwd_, ret);
+    }
+
+    return ret;
 }
 
 void CanmoreLinuxServer::forceTTYdisconnect() noexcept {
@@ -303,4 +395,54 @@ void CanmoreLinuxServer::forceTTYdisconnect() noexcept {
 
     canmore_remote_tty_cmd_disconnect_t pkt = { .pkt = { .is_err = true } };
     transmitFrameNoexcept(can_id, pkt.data, sizeof(pkt));
+}
+
+bool CanmoreLinuxServer::readFiletoString(const std::string &filename, std::string &contents) {
+    std::ifstream in;
+    in.open(filename);
+    if (!in) {
+        return false;
+    }
+
+    size_t size = std::filesystem::file_size(filename);
+    contents.resize(size);
+    in.read(contents.data(), size);
+    return true;
+}
+
+bool CanmoreLinuxServer::writeStringToFile(const std::string &filename, const std::string &contents) {
+    std::ofstream out;
+    out.open(filename);
+    if (out) {
+        out << contents;
+        return true;
+    }
+
+    return false;
+}
+
+std::string CanmoreLinuxServer::joinPaths(const std::string &path1, const std::string &path2) {
+    std::string p1 = path1, p2 = path2;
+
+    if (p1.ends_with('/')) {
+        p1 = p1.substr(0, p1.length() - 1);
+    }
+
+    if (p2.starts_with('/')) {
+        p2 = p2.substr(1);
+    }
+
+    return p1 + "/" + p2;
+}
+
+std::string CanmoreLinuxServer::getHome() {
+    const char *home = getenv("HOME");
+    if (home) {
+        // HOME was gotten successfully
+        return home;
+    }
+    else {
+        // HOME not gotten successfully, fall back to cwd
+        return std::filesystem::current_path();
+    }
 }

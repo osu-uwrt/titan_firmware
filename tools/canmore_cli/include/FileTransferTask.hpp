@@ -21,13 +21,19 @@ class FileTransferTask {
 public:
     static std::string fileName(const std::string &path);
 
-    void upload(CLIInterface<Canmore::LinuxClient> &interface, const std::string &src_file,
-                const std::string &dst_file);
+    void upload(CLIInterface<Canmore::LinuxClient> &interface, const std::string &src_file, const std::string &dst_file,
+                bool suppress_output = false);
 
     void download(CLIInterface<Canmore::LinuxClient> &interface, const std::string &src_file,
-                  const std::string &dst_file);
+                  const std::string &dst_file, bool suppress_output = false);
+
+    void cd(CLIInterface<Canmore::LinuxClient> &interface, const std::string &directory, bool suppress_output = false);
+    void ls(CLIInterface<Canmore::LinuxClient> &interface, const std::string &directory, bool suppress_output = false);
+    void pwd(CLIInterface<Canmore::LinuxClient> &interface, bool suppress_output = false);
 
 private:
+    bool outputSuppressed_ = false;
+
     /**
      * @brief Writes a string into the server buffer page.
      * @param interface used to perform the writes.
@@ -56,6 +62,16 @@ private:
     void drawProgressBar(CLIInterface<Canmore::LinuxClient> &interface, double progress);
 
     bool checkForInterrupt();
+
+    bool readFiletoString(const std::string &filename, std::string &contents);
+
+    bool writeStringToFile(const std::string &filename, const std::string &contents);
+
+    void setOutputSuppressed(bool suppressed);
+
+    void printInfo(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message);
+
+    void printError(CLIInterface<Canmore::LinuxClient> &interface, const std::string &message);
 
     char file_buffer_contents[FILE_BUFFER_SIZE] = { 0 };
 };

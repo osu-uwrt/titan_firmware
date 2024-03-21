@@ -119,6 +119,74 @@ private:
     FileTransferTask task;
 };
 
+class LinuxCdCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxCdCommand(): CLICommandHandler("cd") {}
+    std::string getArgList() const override { return "[directory]"; }
+    std::string getHelp() const override { return "Changes working directory on the remote device"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        std::string directory = "";
+        if (args.size() == 1) {
+            directory = args.at(0);
+        }
+        else if (args.size() > 1) {
+            // error
+            std::string err = COLOR_ERROR "Expected 0-1 arguments but got ";
+            err += std::to_string(args.size());
+            err += COLOR_RESET;
+            interface.writeLine(err);
+            return;
+        }
+
+        task.cd(interface, directory);
+    }
+
+private:
+    FileTransferTask task;
+};
+
+class LinuxLsCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxLsCommand(): CLICommandHandler("ls") {}
+    std::string getArgList() const override { return "[optional directory]"; }
+    std::string getHelp() const override { return "Lists the contents of a directory on the remote system"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        std::string directory = "";
+        if (args.size() == 1) {
+            directory = args.at(0);
+        }
+        else if (args.size() > 1) {
+            // error
+            std::string err = COLOR_ERROR "Expected 0-1 arguments but got ";
+            err += std::to_string(args.size());
+            err += COLOR_RESET;
+            interface.writeLine(err);
+            return;
+        }
+
+        task.ls(interface, directory);
+    }
+
+private:
+    FileTransferTask task;
+};
+
+class LinuxPwdCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxPwdCommand(): CLICommandHandler("pwd") {}
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Reports the current working directory of the remote device"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        task.pwd(interface);
+    }
+
+private:
+    FileTransferTask task;
+};
+
 class LinuxRemoteTTYCommand : public CLICommandHandler<Canmore::LinuxClient> {
 public:
     LinuxRemoteTTYCommand(): CLICommandHandler("remotesh") {}
@@ -208,6 +276,9 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommand(std::make_shared<LinuxDaemonRestartCommand>());
     registerCommand(std::make_shared<LinuxFileUploadCommand>());
     registerCommand(std::make_shared<LinuxFileDownloadCommand>());
+    registerCommand(std::make_shared<LinuxCdCommand>());
+    registerCommand(std::make_shared<LinuxLsCommand>());
+    registerCommand(std::make_shared<LinuxPwdCommand>());
     registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
     registerCommandPrefix(std::make_shared<LinuxSystemCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());

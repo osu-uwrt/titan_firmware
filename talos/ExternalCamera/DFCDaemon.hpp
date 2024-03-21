@@ -56,6 +56,7 @@ private:
     std::vector<uint8_t> termStrBuf_;
     std::vector<uint8_t> cmdBuf_;
     std::vector<uint8_t> fileBuf_;
+    std::string file_pwd_;
     uint8_t readBuf_[REG_MAPPED_PAGE_SIZE];
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
@@ -66,9 +67,16 @@ private:
     void doGetFileMode();
     void doGetFileLen();
     void doCheckCrc();
+    void doCd();
+    void doLs();
+    void doPwd();
     bool triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr);
     void reportDeviceError(const char *error);
     std::string readFileNameFromBuf();
+    bool readFiletoString(const std::string &filename, std::string &contents);
+    bool writeStringToFile(const std::string &filename, const std::string &contents);
+    std::string joinPaths(const std::string &path1, const std::string &path2);
+    std::string getHome();
 };
 
 class CanmoreTTYServer : public Canmore::RemoteTTYServerEventHandler, public Canmore::PollFDHandler {
