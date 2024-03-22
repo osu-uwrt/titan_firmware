@@ -129,7 +129,7 @@ int reg_mapped_client_write_array(const reg_mapped_client_cfg_t *cfg, uint8_t pa
 }
 
 int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t page, uint8_t offset_start,
-                                 uint32_t *data_array, uint8_t num_words) {
+                                 uint32_t *data_array, unsigned int num_words) {
     // Make sure we don't cross the page boundary
     if (((unsigned int) offset_start) + num_words > 0x100) {
         return REG_MAPPED_CLIENT_RESULT_INVALID_ARG;
@@ -138,7 +138,7 @@ int reg_mapped_client_read_array(const reg_mapped_client_cfg_t *cfg, uint8_t pag
     // TRANSFER_MODE_BULK does not support optimized reads
     // Fallback to single transfers
     uint8_t offset = offset_start;
-    for (int i = 0; i < num_words; i++) {
+    for (unsigned int i = 0; i < num_words; i++) {
         int ret = reg_mapped_client_read_register(cfg, page, offset++, data_array++);
         if (ret != REG_MAPPED_RESULT_SUCCESSFUL) {
             return ret;

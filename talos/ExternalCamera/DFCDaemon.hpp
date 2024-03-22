@@ -43,12 +43,40 @@ public:
 private:
     bool shouldStop_ = false;
     bool remoteTtyEnabled_ = false;
+    bool current_operation_ = false;
     uint32_t windowSzReg_ = 0;
+    uint32_t filenameLengthReg_ = 0;
+    uint32_t dataLengthReg_ = 0;
+    uint32_t crc32Reg_ = 0;
+    uint32_t clearFileReg_ = 0;
+    uint32_t readOffsetReg_ = 0;
+    uint32_t fileModeReg_ = 0;
+    uint32_t writeStatusReg_ = 0;
+    uint32_t currentFileCrc_ = 0xFFFFFFFF;
     std::vector<uint8_t> termStrBuf_;
     std::vector<uint8_t> cmdBuf_;
+    std::vector<uint8_t> fileBuf_;
+    std::string file_pwd_;
+    uint8_t readBuf_[REG_MAPPED_PAGE_SIZE];
 
     bool restartDaemonCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
     bool enableTtyCb(uint16_t addr, bool is_write, uint32_t *data_ptr);
+    void doFileWrite();
+    void doFileRead();
+    void doSetFileMode();
+    void doGetFileMode();
+    void doGetFileLen();
+    void doCheckCrc();
+    void doCd();
+    void doLs();
+    void doPwd();
+    bool triggerFileOperation(uint16_t addr, bool is_write, uint32_t *data_ptr);
+    void reportDeviceError(const char *error);
+    std::string readFileNameFromBuf();
+    bool readFiletoString(const std::string &filename, std::string &contents);
+    bool writeStringToFile(const std::string &filename, const std::string &contents);
+    std::string joinPaths(const std::string &path1, const std::string &path2);
+    std::string getHome();
 };
 
 class CanmoreTTYServer : public Canmore::RemoteTTYServerEventHandler, public Canmore::PollFDHandler {
