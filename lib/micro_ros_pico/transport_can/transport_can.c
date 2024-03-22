@@ -59,9 +59,9 @@ size_t transport_can_read(__unused struct uxrCustomTransport *transport, uint8_t
     return rx_len;
 }
 
-bi_decl(bi_program_feature("Micro-ROS over CAN"))
+bi_decl(bi_program_feature("Micro-ROS over CAN"));
 
-    bool transport_can_init(uint8_t client_id) {
+bool transport_can_init(uint8_t client_id) {
     if (!canbus_init(client_id)) {
         return false;
     }
