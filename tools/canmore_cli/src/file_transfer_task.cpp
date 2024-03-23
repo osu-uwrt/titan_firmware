@@ -1,11 +1,13 @@
 #include "FileTransferTask.hpp"
 
-#include "titan/canmore/crc32.h"
+#include "canmore/crc32.h"
+#include "canmore/reg_mapped/interface/linux.h"
 
 #include <filesystem>
 #include <fstream>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define FILE_TRANSFER_SERVER_TMP_FILE "/tmp/canmore_ft_server_buffer"
 #define FILE_TRANSFER_CLIENT_TMP_FILE "/tmp/canmore_ft_client_buffer"
@@ -67,22 +69,22 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
         // pack registers
         // filename length
         interface.handle->client->writeRegister(
-            CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+            CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
             CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, (uint32_t) dst_file.length());
 
         // data length
-        interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                 CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET, (uint32_t) data_len);
 
         // checksum
         uint32_t crc32 = crc32_compute((uint8_t *) file_buffer_contents, data_len);
-        interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                 CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET, crc32);
 
         // clear file
-        interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                 CANMORE_LINUX_FILE_CONTROL_CLEAR_OFFSET, (first_write ? 1 : 0));
 
@@ -146,8 +148,7 @@ void FileTransferTask::upload(CLIInterface<Canmore::LinuxClient> &interface, con
 
     // write permissions to remote register
     uint32_t mode_reg_val = (uint32_t) fileStat.st_mode;
-    interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                            CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                             CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET, mode_reg_val);
 
     // do operation
@@ -191,9 +192,9 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
     writeDataIntoBufferPage(interface, src_file.c_str(), src_file.size(), 0);
 
     // write filename length to remote
-    interface.handle->client->writeRegister(
-        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
-        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, (uint32_t) src_file.size());
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET,
+                                            (uint32_t) src_file.size());
 
     status = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_GET_FILE_LEN);
     if (status != CANMORE_LINUX_FILE_STATUS_SUCCESS) {
@@ -206,7 +207,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
     printInfo(interface, "Downloading file");
     printInfo(interface, "");
 
-    uint32_t file_size = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+    uint32_t file_size = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                                 CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET),
              batch_size_bytes, file_crc32 = 0xFFFFFFFF, read_offset = 0;
@@ -217,12 +218,12 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         writeDataIntoBufferPage(interface, src_file.c_str(), src_file.size(), 0);
 
         // write file read offset to remote
-        interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                 CANMORE_LINUX_FILE_CONTROL_READ_OFFSET_OFFSET, read_offset);
 
         // read clear flag to remote
-        interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                 CANMORE_LINUX_FILE_CONTROL_CLEAR_OFFSET, (first_read ? 1 : 0));
 
@@ -241,12 +242,12 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
         }
 
         // data length is present in the DATA_LENGTH register. Read it
-        batch_size_bytes = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        batch_size_bytes = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                                   CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                                   CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET);
 
         // crc of file buffer is present in the CRC register. Read it
-        uint32_t expected_buf_crc = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        uint32_t expected_buf_crc = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                                            CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                                            CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET);
 
@@ -317,7 +318,7 @@ void FileTransferTask::download(CLIInterface<Canmore::LinuxClient> &interface, c
     }
 
     // get file mode out of the FILE_MODE register
-    mode_t new_mode = (mode_t) interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+    mode_t new_mode = (mode_t) interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                                       CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                                       CANMORE_LINUX_FILE_CONTROL_FILE_MODE_OFFSET);
 
@@ -344,9 +345,9 @@ void FileTransferTask::cd(CLIInterface<Canmore::LinuxClient> &interface, const s
 
     // write tmp file name and length to file buffer and control pages
     writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
-    interface.handle->client->writeRegister(
-        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
-        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET,
+                                            sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
 
     // do operation
     int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_CD);
@@ -377,9 +378,9 @@ void FileTransferTask::ls(CLIInterface<Canmore::LinuxClient> &interface, const s
 
     // write temp file name and length to file buffer
     writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
-    interface.handle->client->writeRegister(
-        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
-        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET,
+                                            sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
 
     // do ls operation
     int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_LS);
@@ -416,9 +417,9 @@ void FileTransferTask::pwd(CLIInterface<Canmore::LinuxClient> &interface, bool s
     writeDataIntoBufferPage(interface, FILE_TRANSFER_SERVER_TMP_FILE, sizeof(FILE_TRANSFER_SERVER_TMP_FILE), 0);
 
     // write length
-    interface.handle->client->writeRegister(
-        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
-        CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET, sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_FILENAME_LENGTH_OFFSET,
+                                            sizeof(FILE_TRANSFER_SERVER_TMP_FILE));
 
     // do pwd operation
     int result = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_PWD);
@@ -473,7 +474,7 @@ size_t FileTransferTask::writeDataIntoBufferPage(CLIInterface<Canmore::LinuxClie
         position_in_string += 4;
     }
 
-    interface.handle->client->writeArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_BUFFER_PAGE_NUM,
+    interface.handle->client->writeArray(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_BUFFER_PAGE_NUM,
                                          offset, regs);
 
     return offset + regs.size();
@@ -483,8 +484,8 @@ void FileTransferTask::readFilePage(CLIInterface<Canmore::LinuxClient> &interfac
                                     unsigned int num_regs) {
     std::vector<uint32_t> regs;
     regs.resize(num_regs);
-    interface.handle->client->readArray(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_BUFFER_PAGE_NUM,
-                                        0, regs, num_regs);
+    interface.handle->client->readArray(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_BUFFER_PAGE_NUM, 0,
+                                        regs, num_regs);
 
     for (size_t reg = 0; reg < regs.size(); reg++) {
         uint32_t reg_value = regs.at(reg);
@@ -525,9 +526,8 @@ bool FileTransferTask::checkFileCrc(CLIInterface<Canmore::LinuxClient> &interfac
     writeDataIntoBufferPage(interface, filename.c_str(), filename.size(), 0);
 
     // write crc into remote register
-    interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                            CANMORE_LINUX_FILE_CONTROL_PAGE_NUM, CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET,
-                                            expected_crc);
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_CRC_OFFSET, expected_crc);
 
     // do operation
     status = doRemoteFileOperation(interface, CANMORE_LINUX_FILE_OPERATION_CHECK_CRC);
@@ -551,14 +551,14 @@ bool FileTransferTask::checkFileCrc(CLIInterface<Canmore::LinuxClient> &interfac
 int FileTransferTask::doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &interface, int operation) {
     // get ready for file write. In order to do this, the "write" register must be set to 0 and the "write
     // status" register must have a value of 0 indicating "ready"
-    interface.handle->client->writeRegister(
-        CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
-        CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET, CANMORE_LINUX_FILE_OPERATION_NOP);
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+                                            CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET,
+                                            CANMORE_LINUX_FILE_OPERATION_NOP);
 
     uint32_t write_status = -1;
     auto start_time = std::chrono::system_clock::now();
     while (write_status != CANMORE_LINUX_FILE_STATUS_READY) {
-        write_status = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        write_status = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                               CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                               CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET);
 
@@ -569,14 +569,13 @@ int FileTransferTask::doRemoteFileOperation(CLIInterface<Canmore::LinuxClient> &
     }
 
     // command write
-    interface.handle->client->writeRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
-                                            CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
+    interface.handle->client->writeRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX, CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                             CANMORE_LINUX_FILE_CONTROL_OPERATION_OFFSET, operation);
 
     // wait for write to complete or fail
     start_time = std::chrono::system_clock::now();
     while (write_status == CANMORE_LINUX_FILE_STATUS_READY || write_status == CANMORE_LINUX_FILE_STATUS_BUSY) {
-        write_status = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+        write_status = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                               CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                               CANMORE_LINUX_FILE_CONTROL_STATUS_OFFSET);
 
@@ -598,7 +597,7 @@ void FileTransferTask::reportRemoteDeviceError(CLIInterface<Canmore::LinuxClient
                                                const std::string &message) {
     std::string err_msg = message + "; Remote device reported error: ";
 
-    uint32_t error_len = interface.handle->client->readRegister(CANMORE_TITAN_CONTROL_INTERFACE_MODE_LINUX,
+    uint32_t error_len = interface.handle->client->readRegister(CANMORE_CONTROL_INTERFACE_MODE_LINUX,
                                                                 CANMORE_LINUX_FILE_CONTROL_PAGE_NUM,
                                                                 CANMORE_LINUX_FILE_CONTROL_DATA_LENGTH_OFFSET);
 

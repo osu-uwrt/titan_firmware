@@ -2,6 +2,7 @@
 #include "mcp251Xfd/CRC16_CMS.h"
 #include "mcp251Xfd/MCP251XFD.h"
 
+#include "canmore/msg_encoding.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
@@ -9,7 +10,6 @@
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
 #include "pico/mutex.h"
-#include "titan/canmore.h"
 
 #include <stdint.h>
 

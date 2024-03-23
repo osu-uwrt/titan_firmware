@@ -1,11 +1,11 @@
 #include "can_mcp251XFD_bridge.h"
 
+#include "canmore/msg_encoding.h"
 #include "driver/canbus.h"
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-#include "titan/canmore.h"
 #include "titan/debug.h"
 
 #include <assert.h>
@@ -320,7 +320,7 @@ static int candbg_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
 }
 
 void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
-    if (channel != CANMORE_TITAN_CHAN_CONTROL_INTERFACE) {
+    if (channel != CANMORE_CHAN_CONTROL_INTERFACE) {
         return;
     }
 
@@ -328,7 +328,7 @@ void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
 }
 
 void canbus_control_interface_transmit(uint8_t *msg, size_t len, __unused void *arg) {
-    canbus_utility_frame_write(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, msg, len);
+    canbus_utility_frame_write(CANMORE_CHAN_CONTROL_INTERFACE, msg, len);
 }
 #endif
 
@@ -358,7 +358,7 @@ bool canbus_init(unsigned int client_id) {
     // Debug interface only works if safety is compiled in
     // If not, we don't have any way to control the chip's watchdog/query chip status
     debug_init(&canbus_control_interface_transmit);
-    canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
+    canbus_utility_frame_register_cb(CANMORE_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
 
     debug_remote_cmd_register("candbg", "[action]",
                               "Issues a debug action to the can bus (trying to solve weird glitches)\n"
@@ -383,13 +383,13 @@ void canbus_tick(void) {
 
     // Heartbeat scheduling
     if (time_reached(canbus_next_heartbeat) && canbus_utility_frame_write_available()) {
-        canbus_next_heartbeat = make_timeout_time_ms(CAN_HEARTBEAT_INTERVAL_MS);
+        canbus_next_heartbeat = make_timeout_time_ms(CANMORE_HEARTBEAT_INTERVAL_MS);
 
-        static canmore_titan_heartbeat_t heartbeat = { .data = 0 };
+        static canmore_heartbeat_t heartbeat = { .data = 0 };
 
         heartbeat.pkt.cnt += 1;
         heartbeat.pkt.error = canbus_device_in_error_state;
-        heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
+        heartbeat.pkt.mode = CANMORE_CONTROL_INTERFACE_MODE_NORMAL;
 
         bool term_enabled;
         if (can_mcp251x_get_term_state(&term_enabled)) {

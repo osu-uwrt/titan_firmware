@@ -1,7 +1,7 @@
 #include "RemoteTTYClientTask.hpp"
 #include "TerminalDraw.hpp"
 
-#include "titan/canmore.h"
+#include "canmore/remote_tty_interface.h"
 
 #include <iostream>
 #include <signal.h>

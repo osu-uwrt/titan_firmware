@@ -2,11 +2,13 @@
 
 #include "bl_interface.h"
 
+#include "canmore/crc32.h"
+#include "canmore/protocol.h"
+#include "canmore/reg_mapped/interface/bootloader.h"
+#include "canmore/reg_mapped/server.h"
 #include "hardware/flash.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/sync.h"
-#include "titan/canmore.h"
-#include "titan/canmore/crc32.h"
 #include "titan/version.h"
 
 #include <assert.h>
@@ -330,7 +332,7 @@ reg_mapped_server_inst_t bl_server_inst = {
     .tx_func = &bl_interface_transmit,
     .page_array = bl_server_pages,
     .num_pages = sizeof(bl_server_pages) / sizeof(*bl_server_pages),
-    .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+    .control_interface_mode = CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
 };
 
 // ========================================
@@ -367,7 +369,7 @@ bool bl_server_tick(void) {
 bool bl_server_check_for_magic_packet(void) {
     size_t len;
     if (bl_interface_try_receive(msg_buffer, &len)) {
-        uint8_t boot_magic[] = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+        uint8_t boot_magic[] = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
         if (len != sizeof(boot_magic)) {
             return false;

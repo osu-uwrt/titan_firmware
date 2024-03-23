@@ -1,11 +1,12 @@
 #include "micro_ros_pico/transport_eth.h"
 
+#include "canmore/ethernet_defs.h"
+#include "canmore/protocol.h"
 #include "driver/wiznet.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
 #include "pico/unique_id.h"
 #include "titan/binary_info.h"
-#include "titan/canmore.h"
 #include "titan/debug.h"
 #include "titan/logger.h"
 
@@ -48,9 +49,9 @@ static uint8_t mac[] = { 0x2A, 0xCD, 0xC1, 0x12, 0x34, 0x56 };
 static udp_socket_t ros_socket, control_interface_socket;
 static w5k_data_t eth_device;
 
-static IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
-static uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
-static uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
+static IPAddress heartbeat_broadcast = CANMORE_ETH_BROADCAST_IP;
+static uint16_t heartbeat_port = CANMORE_ETH_HEARTBEAT_BROADCAST_PORT;
+static uint16_t control_port = CANMORE_ETH_CONTROL_INTERFACE_PORT;
 
 // Binary info definitions
 bi_decl(bi_program_feature("Micro-ROS over Ethernet"));
@@ -251,11 +252,11 @@ void ethernet_tick(void) {
     if (time_reached(ethernet_next_heartbeat)) {
         ethernet_next_heartbeat = make_timeout_time_ms(ETH_HEARTBEAT_INTERVAL_MS);
 
-        static canmore_titan_heartbeat_t heartbeat = { .data = 0 };
+        static canmore_heartbeat_t heartbeat = { .data = 0 };
 
         heartbeat.pkt.cnt += 1;
         heartbeat.pkt.error = (*fault_list_reg) != 0;
-        heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
+        heartbeat.pkt.mode = CANMORE_CONTROL_INTERFACE_MODE_NORMAL;
         heartbeat.pkt.term_enabled = 0;
         heartbeat.pkt.term_valid = 0;
 

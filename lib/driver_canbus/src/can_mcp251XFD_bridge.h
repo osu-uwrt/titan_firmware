@@ -1,15 +1,10 @@
 #ifndef CAN_MCP251XFD_BRIDGE_H
 #define CAN_MCP251XFD_BRIDGE_H
 
+#include "canmore/msg_encoding.h"
 #include "driver/canbus.h"
-#include "titan/canmore.h"
 
 #include <stdbool.h>
-
-// PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=driver_canbus
-#ifndef CAN_HEARTBEAT_INTERVAL_MS
-#define CAN_HEARTBEAT_INTERVAL_MS 500
-#endif
 
 // PICO_CONFIG: CAN_MCP251XFD_HEARTBEAT_TIMEOUT_MS, Time in milliseconds since last successful heartbeat transmission when the CAN bus is considered offline, type=int, min=1, default=2000, group=driver_canbus
 #ifndef CAN_MCP251XFD_HEARTBEAT_TIMEOUT_MS

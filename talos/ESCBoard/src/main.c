@@ -2,6 +2,7 @@
 #include "ros.h"
 #include "safety_interface.h"
 
+#include "canmore/protocol.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
@@ -9,7 +10,6 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "titan/binary_info.h"
-#include "titan/canmore.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
@@ -155,7 +155,7 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     core1_init(esc_board_num);
-    canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_THRUSTER_CMDS, &thruster_cmd_callback);
+    canbus_utility_frame_register_cb(CANMORE_CHAN_THRUSTER_CMDS, &thruster_cmd_callback);
 
     // Initialize ROS Transport
     if (!transport_can_init(client_id)) {

@@ -40,7 +40,7 @@ reg_mapped_server_page_def_t debug_server_pages[] = {
 reg_mapped_server_inst_t debug_server_inst = {
     .page_array = debug_server_pages,
     .num_pages = sizeof(debug_server_pages) / sizeof(*debug_server_pages),
-    .control_interface_mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL,
+    .control_interface_mode = CANMORE_CONTROL_INTERFACE_MODE_NORMAL,
 };
 
 // ========================================

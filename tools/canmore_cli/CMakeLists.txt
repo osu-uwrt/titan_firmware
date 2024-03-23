@@ -33,7 +33,7 @@ target_include_directories(canmore_cli PUBLIC include/)
 target_compile_options(canmore_cli PUBLIC -Wno-psabi -Wall -Wextra)
 
 target_link_libraries(canmore_cli
-    canmore_cpp
+    canmore_dbg_cpp
     rp2040_flash_itf
     binary_info_cpp
 )

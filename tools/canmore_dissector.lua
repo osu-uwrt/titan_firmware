@@ -1014,5 +1014,5 @@ function canmore_msg_decoder_protocol.dissector(buffer, pinfo, tree)
     entry:set_generated(true)
 
     -- Call the decode function to call the correct dissector
-    canmore_msg_decode(buffer, pinfo, tree, pinfo.private["canmore_msg_subtype"])
+    canmore_msg_decode(buffer, pinfo, tree, tonumber(pinfo.private["canmore_msg_subtype"]))
 end

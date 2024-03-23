@@ -1,8 +1,10 @@
 #ifndef TITAN_DEBUG_INTERNAL_H_
 #define TITAN_DEBUG_INTERNAL_H_
 
+#include "canmore/protocol.h"
+#include "canmore/reg_mapped/interface/debug.h"
+#include "canmore/reg_mapped/server.h"
 #include "pico/platform.h"
-#include "titan/canmore.h"
 #include "titan/debug.h"
 
 // Defined in debug_server.c

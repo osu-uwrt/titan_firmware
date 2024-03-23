@@ -28,6 +28,7 @@ target_include_directories(titan_bootloader PUBLIC include)
 
 # Target minimum compile size to fit in 16K
 target_compile_options(titan_bootloader PUBLIC -Os)
+target_compile_options(canmore PUBLIC -Os)  # Needs to also be marked as -Os since it's a static library
 
 # Disable arg in canmore reg mapped to save a decent amount of space
 target_compile_definitions(titan_bootloader PUBLIC CANMORE_CONFIG_DISABLE_REG_MAPPED_ARG=1)
@@ -37,7 +38,7 @@ target_link_libraries(titan_bootloader PUBLIC
     bootloader_runtime
 
     # We need canmore protocol in all builds as the bl_server depends on it
-    titan_canmore
+    canmore
 )
 
 # Set version: major minor (see titan/version.h for more info)
