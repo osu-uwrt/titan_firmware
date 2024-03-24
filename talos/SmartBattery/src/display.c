@@ -9,7 +9,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define DISPLAY_UPDATE_INTERVAL_MS 1000
+#define DISPLAY_UPDATE_INTERVAL_MS 500
+#define DISPLAY_HOLD_MS 4000
 
 absolute_time_t next_display_update = { 0 };
 absolute_time_t display_poweroff_time;
@@ -24,42 +25,15 @@ static uint8_t hold_count = 0;
 
 static bool next_menu_option = false;
 
+// Indicate the presence of input
 static bool battery_input_hold = false;
 
 bool display_on = false;
 
-void display_show_stats(unsigned int serial, unsigned int soc, float voltage) {
-    display_on = true;
-    display_poweroff_time = make_timeout_time_ms(10000);
-
-    char buf[16];
-    ssd1306_SetDisplayOn(1);
-    ssd1306_Fill(Black);
-
-    ssd1306_SetCursor(0, 0);
-    snprintf(buf, sizeof(buf), "ID: 2023-%d", serial);  // TODO: Replace with real number
-    ssd1306_WriteString(buf, Font_6x8, White);
-
-    ssd1306_SetCursor(120, 2);
-    snprintf(buf, sizeof(buf), "%d", serial);
-    ssd1306_WriteString(buf, Font_6x8, White);
-    ssd1306_DrawRectangle(118, 0, 127, 11, White);
-
-    ssd1306_FillRectangle(0, 11, 79, 32, White);
-    ssd1306_SetCursor(2, 13);
-    snprintf(buf, sizeof(buf), "SOC %d%%", soc);
-    ssd1306_WriteString(buf, Font_11x18, Black);
-
-    ssd1306_SetCursor(86, 22);
-    snprintf(buf, sizeof(buf), "%.2fV", voltage);
-    ssd1306_WriteString(buf, Font_7x10, White);
-
-    ssd1306_UpdateScreen();
-}
-
 static void display_show_menu(uint8_t op_hl) {
     display_on = true;
-    display_poweroff_time = (battery_input_hold) ? make_timeout_time_ms(5000) : display_poweroff_time;
+    if (battery_input_hold)
+        display_poweroff_time = make_timeout_time_ms(5000);
     ssd1306_SetDisplayOn(1);
     ssd1306_Fill(Black);
 
@@ -67,7 +41,7 @@ static void display_show_menu(uint8_t op_hl) {
 
     ssd1306_FillRectangle(0, op_hl * 8, SSD1306_WIDTH - 1, (op_hl + 1) * 8 - 1, White);
 
-    // Progress circle
+    // Progress circle indicate the presence of input
     if (battery_input_hold) {
         if (op_hl == 0) {
             ssd1306_DrawArc(122, 4, 5, 0, sweep, Black);
@@ -109,7 +83,7 @@ static void display_show_option(unsigned int serial, uint8_t op_hl, bool dsg_mod
     ssd1306_Fill(Black);
 
     ssd1306_SetCursor(0, 0);
-    snprintf(buf, sizeof(buf), "ID: 2023-%d", serial);  // TODO: Replace with real number
+    snprintf(buf, sizeof(buf), "ID: 2023-%d", serial);
     ssd1306_WriteString(buf, Font_6x8, White);
 
     ssd1306_SetCursor(120, 2);
@@ -162,37 +136,51 @@ void display_init(void) {
 void display_tick(uint16_t serial) {
     if (time_reached(next_display_update)) {
         if (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay)) {
+            // Display SOC first upon turning on
             if (!display_on) {
-                soc_wake_time = make_timeout_time_ms(4000);
-                display_show_option(serial, 0, core1_dsg_mode());  // display SOC upon wake first
+                // Display hold for at least 4 sec,
+                // but remains on for total of 7 sec (refer to display_poweroff_time in display_show_option func)
+                // allowing 3 sec for users to interact with the display
+                soc_wake_time = make_timeout_time_ms(DISPLAY_HOLD_MS);
+                display_show_option(serial, 0, core1_dsg_mode());
+                next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
             }
+            // Typical operation of display
             else if (time_reached(soc_wake_time)) {
                 if (next_menu_option) {
-                    sweep = 90;
+                    // Reset hold_count and progress circle
                     next_menu_option = false;
-                    menu_option = (menu_option >= 3) ? 0 : menu_option + 1;
+                    sweep = 90;
                     hold_count = 0;
                 }
                 else {
-                    sweep = (sweep == 360) ? 360 : (sweep + 90) % 450;
-                    hold_count = (hold_count == 3) ? 3 : hold_count + 1;
+                    sweep = (sweep == 360) ? 360 : (sweep + 90);
+                    hold_count = (hold_count == 3) ? 3 : (hold_count + 1);
                 }
                 if (!battery_input_hold) {
                     battery_input_hold = true;
                 }
-                display_show_menu(menu_option);
+                if (hold_count == 3 && battery_input_hold) {
+                    // Display hold for at least 4 sec,
+                    // but remains on for total of 7 sec (refer to display_poweroff_time in display_show_option func)
+                    // allowing 3 sec for users to interact with the display
+                    display_show_option(serial, menu_option, core1_dsg_mode());
+                    next_display_update = make_timeout_time_ms(DISPLAY_HOLD_MS);
+                    sweep = 0;
+                    hold_count = 0;
+                }
+                else {
+                    display_show_menu(menu_option);
+                    next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
+                }
             }
-            next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
         }
         else if (!time_reached(display_poweroff_time)) {
-            if (hold_count == 3 && battery_input_hold) {
-                display_show_option(serial, menu_option, core1_dsg_mode());
-                next_display_update = make_timeout_time_ms(4000);
-                sweep = 0;
-                hold_count = 0;
-            }
-            else if (time_reached(soc_wake_time)) {
+            // Move on to the next option once iff there was a presence of input but not currently
+            if (time_reached(soc_wake_time)) {
                 next_menu_option = true;
+                if (battery_input_hold)
+                    menu_option = (menu_option + 1) % 4;
                 display_show_menu(menu_option);
             }
             battery_input_hold = false;

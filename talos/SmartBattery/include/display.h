@@ -11,14 +11,8 @@
 void display_init(void);
 
 /**
- * @brief Show battery stats on the display
- *
- * @param serial Battery serial number
- * @param soc Battery current SOC
- * @param voltage Battery current voltage
+ * @brief Tick screen update which need to occur within display
  */
-void display_show_stats(unsigned int serial, unsigned int soc, float voltage);
-
 void display_tick(uint16_t serial);
 
 /**

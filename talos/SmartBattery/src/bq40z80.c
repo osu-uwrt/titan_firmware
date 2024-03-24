@@ -106,7 +106,10 @@ static int sbs_read_h4(uint32_t *data, uint8_t cmd) {
 }
 
 static int sbs_read_block(uint8_t *data, uint8_t len, uint8_t cmd) {
-    // TODO
+    uint8_t bq_cmd[1] = { cmd };
+    int ret_code = 0;
+    ret_code |= bq_handle_i2c_transfer(bq_cmd, data, len);
+    return ret_code;
 }
 
 /**
