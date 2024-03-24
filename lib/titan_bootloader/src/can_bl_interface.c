@@ -2,13 +2,13 @@
 #include "MCP251XFD.h"
 #include "bl_interface.h"
 
+#include "canmore/protocol.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
 #include "hardware/structs/iobank0.h"
 #include "pico/time.h"
 #include "titan/binary_info.h"
-#include "titan/canmore.h"
 
 #include <stdint.h>
 
@@ -203,10 +203,10 @@ static bool can_mcp251x_get_term_state(bool *term_state_out) {
 
     if (err == ERR_OK) {
         if (pin_state & MCP251XFD_GPIO0_HIGH) {
-            *term_state_out = false;
+            *term_state_out = true;
         }
         else {
-            *term_state_out = true;
+            *term_state_out = false;
         }
 
         return true;
@@ -266,7 +266,7 @@ bool bl_interface_init(void) {
     //--- Compute Filter Values ---
     // Mask was set up in initialization (use configured client_id and channel, set ID to be from agent)
     mcp251xfd_utility_rx_filter.AcceptanceID =
-        CANMORE_CALC_UTIL_ID_A2C(saved_client_id, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+        CANMORE_CALC_UTIL_ID_A2C(saved_client_id, CANMORE_CHAN_CONTROL_INTERFACE);
 
     //--- Initialize Int pins or GPIOs ---
     // Initialize CS Pin
@@ -334,7 +334,7 @@ bool bl_interface_init(void) {
 
 void can_mcp251x_send_heartbeat(int mode) {
     MCP251XFD_CANMessage msg;
-    static canmore_titan_heartbeat_t heartbeat = { .data = 0 };
+    static canmore_heartbeat_t heartbeat = { .data = 0 };
 
     heartbeat.pkt.cnt += 1;
     heartbeat.pkt.error = 0;
@@ -360,11 +360,11 @@ void can_mcp251x_send_heartbeat(int mode) {
 }
 
 void bl_interface_heartbeat(void) {
-    can_mcp251x_send_heartbeat(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER);
+    can_mcp251x_send_heartbeat(CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER);
 }
 
 void bl_interface_notify_boot(void) {
-    can_mcp251x_send_heartbeat(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY);
+    can_mcp251x_send_heartbeat(CANMORE_CONTROL_INTERFACE_MODE_BOOT_DELAY);
 }
 
 bool bl_interface_check_online(void) {
@@ -408,7 +408,7 @@ void bl_interface_transmit(uint8_t *msg, size_t len) {
     // Don't need to worry about checking if the buffer is full, we have no handling, it'll just drop the message
     MCP251XFD_CANMessage can_msg;
     can_msg.DLC = len;
-    can_msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    can_msg.MessageID = CANMORE_CALC_UTIL_ID_C2A(saved_client_id, CANMORE_CHAN_CONTROL_INTERFACE);
     can_msg.ControlFlags = MCP251XFD_CAN20_FRAME;
     can_msg.MessageSEQ = 0;
     can_msg.PayloadData = msg;

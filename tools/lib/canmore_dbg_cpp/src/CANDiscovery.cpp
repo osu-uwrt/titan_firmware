@@ -1,8 +1,6 @@
 #include "canmore_cpp/DebugClient.hpp"
 #include "canmore_cpp/Discovery.hpp"
 
-#include "titan/canmore.h"
-
 #include <fcntl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
@@ -74,7 +72,7 @@ void CANDiscovery::handleSocketData(int socketFd) {
 
     canmore_id_t id = { .identifier = frame.can_id };
     uint8_t clientId = id.pkt_std.client_id;
-    canmore_titan_heartbeat_t heartbeatData = { .data = frame.data[0] };
+    canmore_heartbeat_t heartbeatData = { .data = frame.data[0] };
 
     if (id.pkt_std.client_id == 0) {
         // Ignore client id 0
@@ -83,15 +81,18 @@ void CANDiscovery::handleSocketData(int socketFd) {
 
     // Create device class depending on reported mode
     std::shared_ptr<Device> device;
-    if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL) {
+    if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_NORMAL) {
         device = std::static_pointer_cast<Device>(std::make_shared<CANNormalDevice>(*this, clientId, heartbeatData));
     }
-    else if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY) {
+    else if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_BOOT_DELAY) {
         device = std::static_pointer_cast<Device>(std::make_shared<CANBootDelayDevice>(*this, clientId, heartbeatData));
     }
-    else if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER) {
+    else if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER) {
         device =
             std::static_pointer_cast<Device>(std::make_shared<CANBootloaderDevice>(*this, clientId, heartbeatData));
+    }
+    else if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_LINUX) {
+        device = std::static_pointer_cast<Device>(std::make_shared<CANLinuxDevice>(*this, clientId, heartbeatData));
     }
     else {
         device = std::make_shared<Device>(interfaceName, clientId, heartbeatData);
@@ -107,7 +108,7 @@ void CANDiscovery::handleSocketData(int socketFd) {
 uint64_t CANNormalDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             auto debugClient = DebugClient(interface);
             cachedFlashId.doubleword = debugClient.getFlashId();
             isFlashIdCached = true;
@@ -122,7 +123,7 @@ uint64_t CANNormalDevice::getFlashId() {
 std::string CANNormalDevice::getAppVersion() {
     if (!isAppVersionCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             auto debugClient = DebugClient(interface);
             cachedAppVersion = debugClient.getVersion();
             isAppVersionCached = true;
@@ -135,7 +136,7 @@ std::string CANNormalDevice::getAppVersion() {
 }
 
 std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     auto debugClient = DebugClient(interface);
     debugClient.enterBootloader();
 
@@ -151,15 +152,15 @@ std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
 }
 
 std::shared_ptr<DebugClient> CANNormalDevice::getClient() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     return std::make_shared<DebugClient>(interface);
 }
 
 uint64_t CANBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
-            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
             uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
@@ -181,8 +182,8 @@ uint64_t CANBootloaderDevice::getFlashId() {
 std::string CANBootloaderDevice::getBLVersion() {
     if (!isBLVersionCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
-            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
             uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
@@ -190,7 +191,7 @@ std::string CANBootloaderDevice::getBLVersion() {
                 throw BootloaderError("Unexpected bootloader magic");
             }
 
-            cachedBLVersion = interface->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            cachedBLVersion = interface->readStringPage(CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                                         CANMORE_BL_VERSION_STRING_PAGE_NUM);
             isBLVersionCached = true;
         } catch (RegMappedClientError &e) {
@@ -202,14 +203,14 @@ std::string CANBootloaderDevice::getBLVersion() {
 }
 
 std::shared_ptr<BootloaderClient> CANBootloaderDevice::getClient() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     return std::make_shared<BootloaderClient>(interface);
 }
 
 std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
-    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     interface->sendRaw(enterBootloaderMagic);
 
     // Get a discovery context to wait for bootloader
@@ -224,7 +225,7 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
 }
 
 std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t timeoutMs) {
-    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
     // Get a discovery context to wait for next boot delay
     auto discovery = CANDiscovery::create(ifIndex);
@@ -234,7 +235,7 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t 
     }
 
     // Send the command to enter bootloader
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_TITAN_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     interface->sendRaw(enterBootloaderMagic);
 
     // Wait for it to come back in bootlodaer mode
@@ -245,4 +246,24 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t 
         throw BootloaderError("Failed to reconnect to device in bootloader mode");
     }
     return dev->getClient();
+}
+
+uint64_t CANLinuxDevice::getFlashId() {
+    if (!isFlashIdCached) {
+        try {
+            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto linuxClient = LinuxClient(interface);
+            cachedFlashId.doubleword = linuxClient.getFlashId();
+            isFlashIdCached = true;
+        } catch (RegMappedClientError &e) {
+            return 0;
+        }
+    }
+
+    return cachedFlashId.doubleword;
+}
+
+std::shared_ptr<LinuxClient> CANLinuxDevice::getClient() {
+    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    return std::make_shared<LinuxClient>(interface);
 }

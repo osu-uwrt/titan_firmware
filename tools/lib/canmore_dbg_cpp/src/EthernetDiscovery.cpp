@@ -1,7 +1,7 @@
 #include "canmore_cpp/DebugClient.hpp"
 #include "canmore_cpp/Discovery.hpp"
 
-#include "titan/canmore.h"
+#include "canmore/ethernet_defs.h"
 
 #include <fcntl.h>
 #include <linux/can.h>
@@ -34,7 +34,7 @@ EthernetDiscovery::EthernetDiscovery() {
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET;
     addr.sin_addr = { 0 };
-    addr.sin_port = htons(CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT);
+    addr.sin_port = htons(CANMORE_ETH_HEARTBEAT_BROADCAST_PORT);
 
     if (bind(socketFd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         close(socketFd);
@@ -46,7 +46,7 @@ EthernetDiscovery::EthernetDiscovery() {
 }
 
 void EthernetDiscovery::handleSocketData(int socketFd) {
-    canmore_titan_heartbeat_t heartbeatData;
+    canmore_heartbeat_t heartbeatData;
 
     struct sockaddr_in recvaddr;
     socklen_t recvaddrlen = sizeof(recvaddr);
@@ -66,15 +66,15 @@ void EthernetDiscovery::handleSocketData(int socketFd) {
 
     // Create device class depending on reported mode
     std::shared_ptr<Device> device;
-    if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL) {
+    if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_NORMAL) {
         device = std::static_pointer_cast<Device>(
             std::make_shared<EthernetNormalDevice>(*this, recvaddr.sin_addr, heartbeatData));
     }
-    else if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY) {
+    else if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_BOOT_DELAY) {
         device = std::static_pointer_cast<Device>(
             std::make_shared<EthernetBootDelayDevice>(*this, recvaddr.sin_addr, heartbeatData));
     }
-    else if (heartbeatData.pkt.mode == CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER) {
+    else if (heartbeatData.pkt.mode == CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER) {
         device = std::static_pointer_cast<Device>(
             std::make_shared<EthernetBootloaderDevice>(*this, recvaddr.sin_addr, heartbeatData));
     }
@@ -92,7 +92,7 @@ void EthernetDiscovery::handleSocketData(int socketFd) {
 uint64_t EthernetNormalDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
             auto debugClient = DebugClient(interface);
             cachedFlashId.doubleword = debugClient.getFlashId();
             isFlashIdCached = true;
@@ -107,7 +107,7 @@ uint64_t EthernetNormalDevice::getFlashId() {
 std::string EthernetNormalDevice::getAppVersion() {
     if (!isAppVersionCached) {
         try {
-            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
             auto debugClient = DebugClient(interface);
             cachedAppVersion = debugClient.getVersion();
             isAppVersionCached = true;
@@ -120,7 +120,7 @@ std::string EthernetNormalDevice::getAppVersion() {
 }
 
 std::shared_ptr<BootloaderClient> EthernetNormalDevice::switchToBootloaderMode() {
-    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
     auto debugClient = DebugClient(interface);
     debugClient.enterBootloader();
 
@@ -136,15 +136,15 @@ std::shared_ptr<BootloaderClient> EthernetNormalDevice::switchToBootloaderMode()
 }
 
 std::shared_ptr<DebugClient> EthernetNormalDevice::getClient() {
-    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
     return std::make_shared<DebugClient>(interface);
 }
 
 uint64_t EthernetBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
-            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
+            RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
             uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
@@ -166,8 +166,8 @@ uint64_t EthernetBootloaderDevice::getFlashId() {
 std::string EthernetBootloaderDevice::getBLVersion() {
     if (!isBLVersionCached) {
         try {
-            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
-            RegisterPage mcuCtrlPage(interface, CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
+            RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
             uint32_t bl_magic = mcuCtrlPage.readRegister(CANMORE_BL_MCU_CONTROL_MAGIC_OFFSET);
@@ -175,7 +175,7 @@ std::string EthernetBootloaderDevice::getBLVersion() {
                 throw BootloaderError("Unexpected bootloader magic");
             }
 
-            cachedBLVersion = interface->readStringPage(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER,
+            cachedBLVersion = interface->readStringPage(CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                                         CANMORE_BL_VERSION_STRING_PAGE_NUM);
             isBLVersionCached = true;
         } catch (RegMappedClientError &e) {
@@ -187,14 +187,14 @@ std::string EthernetBootloaderDevice::getBLVersion() {
 }
 
 std::shared_ptr<BootloaderClient> EthernetBootloaderDevice::getClient() {
-    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
     return std::make_shared<BootloaderClient>(interface);
 }
 
 std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::enterBootloader() {
-    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
-    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
     interface->sendRaw(enterBootloaderMagic);
 
     // Get a discovery context to wait for bootloader
@@ -208,7 +208,7 @@ std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::enterBootloader() {
 }
 
 std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::waitForBootloader(int64_t timeoutMs) {
-    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_TITAN_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
+    const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
     // Get a discovery context to wait for next boot delay
     auto discovery = EthernetDiscovery::create();
@@ -218,7 +218,7 @@ std::shared_ptr<BootloaderClient> EthernetBootDelayDevice::waitForBootloader(int
     }
 
     // Send the command to enter bootloader
-    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT);
+    auto interface = RegMappedEthernetClient::create(devAddr, CANMORE_ETH_CONTROL_INTERFACE_PORT);
     interface->sendRaw(enterBootloaderMagic);
 
     // Wait for it to come back in bootlodaer mode

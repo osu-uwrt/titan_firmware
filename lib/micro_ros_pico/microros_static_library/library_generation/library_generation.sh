@@ -1,12 +1,9 @@
 #!/bin/bash
 
-######## Configure Raspberry Pi Pico SDK  ########
+set -e
 
 apt update
-
-apt install -y gcc-arm-none-eabi
-
-git clone https://github.com/raspberrypi/pico-sdk /pico-sdk
+apt -y install rsync
 
 ######## Init ########
 
@@ -39,11 +36,17 @@ pushd firmware/mcu_ws > /dev/null
 
 popd > /dev/null
 
-######## Clean and source ########
-find /project/src/ ! -name micro_ros_arduino.h ! -name *.c ! -name *.cpp ! -name *.c.in -delete
+######## Clean old builds ########
+rm -rf /project/libmicroros/include
+rm -f /project/libmicroros/libmicroros.a
+rm -f /project/built_packages
+rm -f /project/available_ros2_types
 
 ######## Build for Raspberry Pi Pico SDK  ########
 rm -rf firmware/build
+
+apt install -y gcc-arm-none-eabi
+git clone https://github.com/raspberrypi/pico-sdk /pico-sdk
 
 export PICO_SDK_PATH=/pico-sdk
 ros2 run micro_ros_setup build_firmware.sh /project/microros_static_library/library_generation/toolchain.cmake /project/microros_static_library/library_generation/colcon.meta
@@ -52,17 +55,18 @@ find firmware/build/include/ -name "*.c"  -delete
 mkdir -p /project/libmicroros/include
 cp -R firmware/build/include/* /project/libmicroros/include
 
-cp -R firmware/build/libmicroros.a /project/libmicroros/libmicroros.a
+cp firmware/build/libmicroros.a /project/libmicroros/libmicroros.a
 
 ######## Fix include paths  ########
 pushd firmware/mcu_ws > /dev/null
     INCLUDE_ROS2_PACKAGES=$(colcon list | awk '{print $1}' | awk -v d=" " '{s=(NR==1?s:s d)$0}END{print s}')
 popd > /dev/null
 
-apt -y install rsync
 for var in ${INCLUDE_ROS2_PACKAGES}; do
-    rsync -r /project/libmicroros/include/${var}/${var}/* /project/libmicroros/include/${var}
-    rm -rf /project/libmicroros/include/${var}/${var}
+    if [ -d "/project/libmicroros/include/${var}/${var}" ]; then
+        rsync -r /project/libmicroros/include/${var}/${var}/* /project/libmicroros/include/${var}
+        rm -rf /project/libmicroros/include/${var}/${var}
+    fi
 done
 
 ######## Generate extra files ########
@@ -78,3 +82,9 @@ sort -o /project/built_packages /project/built_packages
 ######## Fix permissions ########
 sudo chmod -R 777 /project/microros_static_library
 sudo chmod -R -x+X /project/microros_static_library
+sudo chmod +x /project/microros_static_library/library_generation/library_generation.sh
+
+echo
+echo ========================================
+echo Successfully Compiled MicroROS
+echo ========================================

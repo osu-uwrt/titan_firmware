@@ -1,4 +1,4 @@
 add_subdirectory(binary_info_cpp)
-add_subdirectory(canmore_cpp)
+add_subdirectory(canmore_dbg_cpp)
 add_subdirectory(pico_usb)
 add_subdirectory(rp2040_flash_itf)

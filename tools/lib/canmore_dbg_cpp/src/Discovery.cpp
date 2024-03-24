@@ -65,9 +65,15 @@ void Discovery::socketThread() {
             }
             // Discard data, it's just to wake up the thread
         }
+        else if (fds[0].revents) {
+            throw std::runtime_error("Poll rerpoted error event on eventfd: " + std::to_string(fds[0].revents));
+        }
 
         if (fds[1].revents & POLLIN) {
             handleSocketData(socketFd);
+        }
+        else if (fds[1].revents) {
+            throw std::runtime_error("Poll rerpoted error event on socket: " + std::to_string(fds[1].revents));
         }
     }
 }

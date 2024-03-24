@@ -49,6 +49,10 @@ void runCli(std::shared_ptr<Canmore::Device> dev) {
             auto cli = BootloaderCLI(bootDelayDevice->waitForBootloader(15000));
             cli.run();
         }
+        else if (auto linuxDevice = std::dynamic_pointer_cast<Canmore::LinuxDevice>(dev)) {
+            auto cli = LinuxCLI(linuxDevice->getClient());
+            cli.run();
+        }
         else {
             std::stringstream ss;
             ss << "Failed to start CLI!" << std::endl;

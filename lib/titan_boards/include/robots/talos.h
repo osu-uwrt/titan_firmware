@@ -16,10 +16,12 @@
 #define INTERNAL_CAN_ENABLE_FD 1
 #define INTERNAL_CAN_RATE 1000000
 #define INTERNAL_CAN_FD_RATE 5000000
-#define INTERNAL_CAN_ID 1
+// The define below comes from the titan_canmore/.../client_ids.h (implicitly included by titan_boards.cmake)
+#define INTERNAL_CAN_ID CANMORE_BUS_ID_INTERNAL
 
 #define EXTERNAL_CAN_ENABLE_FD 0
 #define EXTERNAL_CAN_RATE 250000
-#define EXTERNAL_CAN_ID 2
+// The define below comes from the titan_canmore/.../client_ids.h (implicitly included by titan_boards.cmake)
+#define EXTERNAL_CAN_ID CANMORE_BUS_ID_EXTERNAL
 
 #endif

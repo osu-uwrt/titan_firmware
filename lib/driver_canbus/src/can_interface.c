@@ -1,11 +1,11 @@
 #include "can_mcp251XFD_bridge.h"
 
+#include "canmore/msg_encoding.h"
 #include "driver/canbus.h"
 #include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-#include "titan/canmore.h"
 #include "titan/debug.h"
 
 #include <assert.h>
@@ -63,7 +63,9 @@ void canbus_set_device_in_error(bool device_in_error_state) {
 // ========================================
 
 canmore_msg_decoder_t msg_decoder = { 0 };
-canmore_msg_encoder_t encoding_buffer = { 0 };
+canmore_msg_encoder_t msg_encoder = { 0 };
+static uint8_t msg_encoder_buf[CANMORE_MAX_MSG_LENGTH];
+
 struct canmore_received_msg {
     // Message data buffer
     uint8_t data[CANMORE_MAX_MSG_LENGTH];
@@ -128,7 +130,7 @@ size_t canbus_msg_read(uint8_t *buf, size_t len) {
 bool canbus_msg_write_available(void) {
     assert(canbus_initialized);
 
-    return canbus_msg_opened && canmore_msg_encode_done(&encoding_buffer);
+    return canbus_msg_opened && canmore_msg_encode_done(&msg_encoder);
 }
 
 size_t canbus_msg_write(const uint8_t *buf, size_t len) {
@@ -143,12 +145,20 @@ size_t canbus_msg_write(const uint8_t *buf, size_t len) {
     // the position of two pointers in the object
     uint32_t prev_interrupt = save_and_disable_mcp251Xfd_irq();
 
-    if (!canmore_msg_encode_done(&encoding_buffer)) {
+    if (!canmore_msg_encode_done(&msg_encoder)) {
         restore_mcp251Xfd_irq(prev_interrupt);
         return 0;
     }
 
-    canmore_msg_encode_load(&encoding_buffer, buf, len);
+    // First copy the message into the backing buffer
+    // Since we service in interrupts, we need this to be copied out from the caller
+    if (len > CANMORE_MAX_MSG_LENGTH) {
+        len = CANMORE_MAX_MSG_LENGTH;
+    }
+    memcpy(msg_encoder_buf, buf, len);
+
+    // TODO: Enable message subtype support
+    canmore_msg_encode_load(&msg_encoder, 0, msg_encoder_buf, len);
     can_mcp251xfd_report_msg_tx_fifo_ready();
 
     restore_mcp251Xfd_irq(prev_interrupt);
@@ -169,22 +179,15 @@ void canbus_msg_driver_post_rx(uint32_t identifier, bool is_extended, size_t dat
         return;
     }
 
-    canmore_id_t client_id = { .identifier = identifier };
+    size_t msg_size = canmore_msg_decode_frame(&msg_decoder, identifier, is_extended, data, data_len);
 
-    if (!is_extended) {
-        canmore_msg_decode_frame(&msg_decoder, client_id.pkt_std.noc, data, data_len);
-    }
-    else {
-        size_t msg_size = canmore_msg_decode_last_frame(&msg_decoder, client_id.pkt_ext.noc, data, data_len,
-                                                        client_id.pkt_ext.crc, canmore_received_msg.data);
-
-        // Only queue the data if the decode was successful and we care to receive messages
-        // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
-        // when in reality we just didn't set opened until halfway through receive
-        if (msg_size > 0 && canbus_msg_opened) {
-            canmore_received_msg.length = msg_size;
-            canmore_received_msg.waiting = true;
-        }
+    // Only queue the data if the decode was successful and we care to receive messages
+    // This check occurs here (and not before decoding) as we don't want to think we got a corrupted message
+    // when in reality we just didn't set opened until halfway through receive
+    if (msg_size > 0 && canbus_msg_opened) {
+        memcpy(canmore_received_msg.data, canmore_msg_decode_get_buf(&msg_decoder), msg_size);
+        canmore_received_msg.length = msg_size;
+        canmore_received_msg.waiting = true;
     }
 }
 
@@ -241,8 +244,8 @@ size_t canbus_utility_frame_write(uint32_t channel, uint8_t *buf, size_t len) {
     }
 
     // Length bounds checking
-    if (len > CANMORE_FRAME_SIZE) {
-        len = CANMORE_FRAME_SIZE;
+    if (len > CANMORE_MAX_FRAME_SIZE) {
+        len = CANMORE_MAX_FRAME_SIZE;
     }
     if (len == 0) {
         return 0;
@@ -317,15 +320,15 @@ static int candbg_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
 }
 
 void canbus_control_interface_cb(uint32_t channel, uint8_t *buf, size_t len) {
-    if (channel != CANMORE_TITAN_CHAN_CONTROL_INTERFACE) {
+    if (channel != CANMORE_CHAN_CONTROL_INTERFACE) {
         return;
     }
 
     debug_process_message(buf, len);
 }
 
-void canbus_control_interface_transmit(uint8_t *msg, size_t len) {
-    canbus_utility_frame_write(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, msg, len);
+void canbus_control_interface_transmit(uint8_t *msg, size_t len, __unused void *arg) {
+    canbus_utility_frame_write(CANMORE_CHAN_CONTROL_INTERFACE, msg, len);
 }
 #endif
 
@@ -339,8 +342,9 @@ absolute_time_t heartbeat_transmit_timeout = { 0 };
 bool canbus_init(unsigned int client_id) {
     assert(!canbus_initialized);
 
-    canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL);
-    canmore_msg_encode_init(&encoding_buffer, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT);
+    // TODO: Enable CAN FD
+    canmore_msg_decode_init(&msg_decoder, report_canmore_msg_decode_error, NULL, false);
+    canmore_msg_encode_init(&msg_encoder, client_id, CANMORE_DIRECTION_CLIENT_TO_AGENT, false);
 
     if (!can_mcp251xfd_configure(client_id)) {
         return false;
@@ -354,7 +358,7 @@ bool canbus_init(unsigned int client_id) {
     // Debug interface only works if safety is compiled in
     // If not, we don't have any way to control the chip's watchdog/query chip status
     debug_init(&canbus_control_interface_transmit);
-    canbus_utility_frame_register_cb(CANMORE_TITAN_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
+    canbus_utility_frame_register_cb(CANMORE_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
 
     debug_remote_cmd_register("candbg", "[action]",
                               "Issues a debug action to the can bus (trying to solve weird glitches)\n"
@@ -372,20 +376,20 @@ bool canbus_check_online(void) {
 }
 
 absolute_time_t canbus_next_heartbeat = { 0 };
-static uint8_t msg_buffer[CANMORE_FRAME_SIZE];
+static uint8_t msg_buffer[CANMORE_MAX_FRAME_SIZE];
 
 void canbus_tick(void) {
     assert(canbus_initialized);
 
     // Heartbeat scheduling
     if (time_reached(canbus_next_heartbeat) && canbus_utility_frame_write_available()) {
-        canbus_next_heartbeat = make_timeout_time_ms(CAN_HEARTBEAT_INTERVAL_MS);
+        canbus_next_heartbeat = make_timeout_time_ms(CANMORE_HEARTBEAT_INTERVAL_MS);
 
-        static canmore_titan_heartbeat_t heartbeat = { .data = 0 };
+        static canmore_heartbeat_t heartbeat = { .data = 0 };
 
         heartbeat.pkt.cnt += 1;
         heartbeat.pkt.error = canbus_device_in_error_state;
-        heartbeat.pkt.mode = CANMORE_TITAN_CONTROL_INTERFACE_MODE_NORMAL;
+        heartbeat.pkt.mode = CANMORE_CONTROL_INTERFACE_MODE_NORMAL;
 
         bool term_enabled;
         if (can_mcp251x_get_term_state(&term_enabled)) {

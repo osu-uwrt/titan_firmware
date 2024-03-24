@@ -1,8 +1,10 @@
 #pragma once
 
-#include "Canmore.hpp"
 #include "GDBClient.hpp"
-#include "RegMappedClient.hpp"
+#include "canmore_cpp/Canmore.hpp"
+#include "canmore_cpp/RegMappedClient.hpp"
+
+#include "canmore/reg_mapped/interface/debug.h"
 
 #include <array>
 #include <bitset>

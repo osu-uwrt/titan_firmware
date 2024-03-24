@@ -6,7 +6,7 @@
 
 // This file is designed to be included in the debug_server.c
 // These headers each take a various page (or set of related pages) as part of the canmore debug protocol
-// See titan/canmore/debug_interface.h for more information about the underlying protocol implemented in these files
+// See canmore/debug_interface.h for more information about the underlying protocol implemented in these files
 
 // ========================================
 // Fault Data Bindings

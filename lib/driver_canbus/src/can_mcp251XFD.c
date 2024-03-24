@@ -2,6 +2,7 @@
 #include "mcp251Xfd/CRC16_CMS.h"
 #include "mcp251Xfd/MCP251XFD.h"
 
+#include "canmore/msg_encoding.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
@@ -9,7 +10,6 @@
 #include "hardware/sync.h"
 #include "pico/binary_info.h"
 #include "pico/mutex.h"
-#include "titan/canmore.h"
 
 #include <stdint.h>
 
@@ -64,7 +64,8 @@
 #define MCP2517FD_SPI_INST __CONCAT(spi, MCP2517FD_SPI)
 
 #define UTILITY_MSG_PAYLOAD_SIZE_ENUM MCP251XFD_PAYLOAD_8BYTE
-static_assert(CANMORE_FRAME_SIZE == 8, "Utility payload size enum does not match configured Utility Frame Size");
+static_assert(CANMORE_MAX_FRAME_SIZE == 8,
+              "Utility max payload size enum does not match configured Utility Max Frame Size");
 // Note if the static assert above fails, this requires a few things to be changed
 //  1. The UTILITY_MSG_PAYLOAD_SIZE_ENUM so it is the right size
 //  2. The DLC calculations when constructing a utility frame, as they assume 8 byte max (since DLC gets more
@@ -499,7 +500,7 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
     // Handle FIFO Events
     if (active_interrupts & MCP251XFD_INT_TX_EVENT) {
         if (check_fifo_event(&mcp251xfd_device, mcp251xfd_tx_fifo, MCP251XFD_TX_FIFO_NOT_FULL)) {
-            if (!canmore_msg_encode_done(&encoding_buffer)) {
+            if (!canmore_msg_encode_done(&msg_encoder)) {
                 uint8_t buffer[MCP251XFD_PAYLOAD_MAX];
                 bool is_extended;
                 MCP251XFD_CANMessage msg;
@@ -508,8 +509,8 @@ void can_mcp251xfd_interrupt_cb(uint gpio, uint32_t events) {
                 // This is because CAN FD compresses the DLC by only allowing specific sizes above 8 bytes
                 // The canmore encoding must be modified to account for this, as canmore messages support arbitrary
                 // lengths
-                static_assert(CANMORE_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
-                canmore_msg_encode_next(&encoding_buffer, buffer, &msg.DLC, &msg.MessageID, &is_extended);
+                static_assert(CANMORE_MAX_FRAME_SIZE <= 8, "Message encoding does not fit into simple DLC");
+                canmore_msg_encode_next(&msg_encoder, buffer, &msg.DLC, &msg.MessageID, &is_extended);
 
                 msg.ControlFlags = MCP251XFD_CAN20_FRAME;
 

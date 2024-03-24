@@ -2,9 +2,8 @@
 
 #include "BootloaderClient.hpp"
 #include "DebugClient.hpp"
+#include "LinuxClient.hpp"
 #include "RP2040FlashInterface.hpp"
-
-#include "titan/canmore.h"
 
 #include <arpa/inet.h>
 #include <chrono>
@@ -29,7 +28,7 @@ namespace Canmore {
 
 class Device : public RP2040Device {
 public:
-    Device(std::string interfaceName, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+    Device(std::string interfaceName, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         interfaceName(interfaceName), clientId(clientId), termValid(heartbeatData.pkt.term_valid),
         termEnabled(heartbeatData.pkt.term_enabled), inErrorState(heartbeatData.pkt.error),
         mode(heartbeatData.pkt.mode), discoveryTime(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -133,6 +132,19 @@ public:
     }
 };
 
+class LinuxDevice : public Device {
+public:
+    using Device::Device;
+
+    virtual uint64_t getFlashId() = 0;
+    virtual std::shared_ptr<LinuxClient> getClient() = 0;
+
+    // RP2040Device overrides
+    // We're not an RP2040, so there isn't much to give here
+    std::string getMode() const override { return "Linux Machine"; }
+    bool supportsFlashInterface() const override { return false; }
+};
+
 class Discovery : public RP2040Discovery {
 public:
     ~Discovery();
@@ -231,6 +243,10 @@ private:
 
     // Flag set during running, cleared to stop the thread
     std::atomic_flag threadStopFlag;
+
+public:
+    Discovery(Discovery const &) = delete;
+    Discovery &operator=(Discovery const &) = delete;
 };
 
 // ========================================
@@ -265,7 +281,7 @@ private:
 
 class CANNormalDevice : public NormalDevice {
 public:
-    CANNormalDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+    CANNormalDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         NormalDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
         ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false), isAppVersionCached(false) {}
 
@@ -284,7 +300,7 @@ private:
 
 class CANBootloaderDevice : public BootloaderDevice {
 public:
-    CANBootloaderDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+    CANBootloaderDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         BootloaderDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
         ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false), isBLVersionCached(false) {}
 
@@ -302,7 +318,7 @@ private:
 
 class CANBootDelayDevice : public BootDelayDevice {
 public:
-    CANBootDelayDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_titan_heartbeat_t heartbeatData):
+    CANBootDelayDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         BootDelayDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
         ifIndex(parentInterface.getInterfaceNum()) {}
 
@@ -311,6 +327,21 @@ public:
 
 private:
     int ifIndex;
+};
+
+class CANLinuxDevice : public LinuxDevice {
+public:
+    CANLinuxDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
+        LinuxDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
+        ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false) {}
+
+    uint64_t getFlashId() override;
+    std::shared_ptr<LinuxClient> getClient() override;
+
+private:
+    int ifIndex;
+    union flash_id cachedFlashId;
+    bool isFlashIdCached;
 };
 
 // ========================================
@@ -351,7 +382,7 @@ class EthernetNormalDevice : public NormalDevice {
 public:
     // Use lower byte of IP as client ID. This isn't ideal, but we shouldn't be trying to do anything larger than a /24
     // subnet
-    EthernetNormalDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_titan_heartbeat_t heartbeatData):
+    EthernetNormalDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_heartbeat_t heartbeatData):
         NormalDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData), isFlashIdCached(false),
         isAppVersionCached(false) {
         this->devAddr.s_addr = devAddr.s_addr;
@@ -372,8 +403,7 @@ private:
 
 class EthernetBootloaderDevice : public BootloaderDevice {
 public:
-    EthernetBootloaderDevice(EthernetDiscovery &parentInterface, in_addr devAddr,
-                             canmore_titan_heartbeat_t heartbeatData):
+    EthernetBootloaderDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_heartbeat_t heartbeatData):
         BootloaderDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData),
         isFlashIdCached(false), isBLVersionCached(false) {
         this->devAddr.s_addr = devAddr.s_addr;
@@ -393,8 +423,7 @@ private:
 
 class EthernetBootDelayDevice : public BootDelayDevice {
 public:
-    EthernetBootDelayDevice(EthernetDiscovery &parentInterface, in_addr devAddr,
-                            canmore_titan_heartbeat_t heartbeatData):
+    EthernetBootDelayDevice(EthernetDiscovery &parentInterface, in_addr devAddr, canmore_heartbeat_t heartbeatData):
         BootDelayDevice(parentInterface.getInterfaceName(), (devAddr.s_addr >> 24), heartbeatData) {
         this->devAddr.s_addr = devAddr.s_addr;
     }

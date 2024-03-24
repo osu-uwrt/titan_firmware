@@ -1,7 +1,7 @@
 #ifndef TITAN__DEBUG_H_
 #define TITAN__DEBUG_H_
 
-#include "titan/canmore.h"
+#include "canmore/reg_mapped/server.h"
 
 #include <stdint.h>
 #include <stdio.h>

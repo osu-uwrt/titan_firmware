@@ -1,10 +1,6 @@
 #include "UploadTool.hpp"
-#include "canmore_cpp/BootloaderClient.hpp"
 #include "canmore_cpp/Discovery.hpp"
-#include "canmore_cpp/RegMappedClient.hpp"
 #include "pico_usb/USBDiscovery.hpp"
-
-#include "titan/canmore.h"
 
 #include <cxxabi.h>
 #include <iostream>
