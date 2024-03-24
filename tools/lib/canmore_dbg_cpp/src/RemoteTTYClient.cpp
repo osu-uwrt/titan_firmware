@@ -88,11 +88,15 @@ void RemoteTTYClient::handleFrame(canid_t can_id, const std::span<const uint8_t>
         // Not control, must be stream. Try to handle it
         // If the check fails, then just drop the packet
         if (rxScheduler_.checkPacket(seqCmd)) {
-            if (subch == CANMORE_REMOTE_TTY_SUBCH_STDERR) {
-                handler_.handleStderr(data);
-            }
-            else if (subch == CANMORE_REMOTE_TTY_SUBCH_STDOUT) {
-                handler_.handleStdout(data);
+            auto result1 = std::find_if(std::rbegin(data), std::rend(data), [](auto &v) { return v != 0; });
+            if (result1 != std::rend(data)) {
+                size_t trimmedLength = std::distance(std::begin(data), (result1 + 1).base()) + 1;
+                if (subch == CANMORE_REMOTE_TTY_SUBCH_STDERR) {
+                    handler_.handleStderr(std::span<const uint8_t>(data.data(), trimmedLength));
+                }
+                else if (subch == CANMORE_REMOTE_TTY_SUBCH_STDOUT) {
+                    handler_.handleStdout(std::span<const uint8_t>(data.data(), trimmedLength));
+                }
             }
         }
     }

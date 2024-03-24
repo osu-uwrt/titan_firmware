@@ -187,7 +187,8 @@ RemoteTTYClientTask::RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> l
                                          std::shared_ptr<Canmore::RegMappedCANClient> canClient,
                                          const std::string &cmd):
     linuxRegClient_(linuxRegClient),
-    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, CANMORE_MAX_FRAME_SIZE), cmd_(cmd) {}
+    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, client_.getMaxFrameSize()),
+    cmd_(cmd) {}
 
 void RemoteTTYClientTask::run() {
     if (linuxRegClient_->remoteTtyEnabled()) {
@@ -235,13 +236,6 @@ void RemoteTTYClientTask::run() {
 
 void RemoteTTYClientTask::handleTerminalInput(const std::span<const uint8_t> &input) {
     client_.stdinWrite(input);
-
-    // TODO: Remove once tty fully implemented
-    // Once you do that, you can move it to the header file
-    if (std::find(input.begin(), input.end(), 3) != input.end()) {
-        // We found a Ctrl+C, notify stop
-        stopReceived_ = true;
-    }
 }
 
 void RemoteTTYClientTask::handleTerminalResize(uint16_t newRows, uint16_t newCols) {
