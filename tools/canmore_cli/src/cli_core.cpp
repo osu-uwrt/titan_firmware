@@ -12,7 +12,7 @@ void CLICore::initTerminal() {
     }
 
     // Set new flags disabling canonical mode, echo, interrupt signals, and flow control
-    struct termios newt = oldt;
+    newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO | ISIG);
     newt.c_iflag &= ~(IXON | IXOFF | IXANY);
 
@@ -28,6 +28,18 @@ void CLICore::cleanupTerminal() noexcept {
     std::cout << exitMessage << std::endl;
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+}
+
+void CLICore::tempRestoreTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &oldt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
+}
+
+void CLICore::tempReinitTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
 }
 
 void CLICore::writeLine(std::string const &line) {

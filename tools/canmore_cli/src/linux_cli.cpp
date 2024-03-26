@@ -199,7 +199,6 @@ public:
     }
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
-        (void) args;
         auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
         if (canClient) {
             std::stringstream iss;
@@ -226,25 +225,35 @@ public:
     LinuxSystemCmdPrefix(): CLICommandPrefixHandler('!') {}
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        std::string cmd;
         if (args.size() == 0) {
-            interface.writeLine("Cannot execute empty command");
-            return;
-        }
-
-        // Create command to execute
-        std::stringstream oss;
-        bool first = false;
-        for (auto &arg : args) {
-            if (!first) {
-                oss << ' ';
+            // If no command specified, run the shell
+            const char *shell = getenv("SHELL");
+            if (shell == NULL) {
+                interface.writeLine("Cannot launch system shell!");
+                interface.writeLine("SHELL environment variable not set");
+                return;
             }
-            first = false;
-            oss << arg;
+            cmd = shell;
+        }
+        else {
+            // Create command to execute
+            std::stringstream oss;
+            bool first = true;
+            for (auto &arg : args) {
+                if (!first) {
+                    oss << ' ';
+                }
+                first = false;
+                oss << arg;
+            }
+            cmd = oss.str();
         }
 
         // Execute Command
-        std::string cmd = oss.str();
+        interface.tempRestoreTerm();
         int returncode = system(cmd.c_str());
+        interface.tempReinitTerm();
 
         // Report if error occurred
         if (returncode != 0) {
@@ -260,10 +269,54 @@ public:
             return;
         }
 
-        interface.writeLine("");
-        interface.writeLine(COLOR_NAME "! Prefix" COLOR_RESET);
-        interface.writeLine("\tExecutes command with the system shell");
-        interface.writeLine("\tExample: !ls");
+        interface.writeLine(COLOR_NAME "!command" COLOR_RESET);
+        interface.writeLine("\tExecute 'command' in the local shell");
+        interface.writeLine(COLOR_NAME "!" COLOR_RESET);
+        interface.writeLine("\tEscape to local shell");
+    }
+
+private:
+    bool remoteHelpFetched = false;
+    std::string remoteHelpMsg;
+};
+
+class LinuxRemoteCmdPrefix : public CLICommandPrefixHandler<Canmore::LinuxClient> {
+public:
+    LinuxRemoteCmdPrefix(): CLICommandPrefixHandler('@') {}
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
+        if (canClient) {
+            std::stringstream iss;
+            auto itr = args.begin();
+            while (itr != args.end()) {
+                iss << *itr;
+                itr++;
+                if (itr != args.end()) {
+                    iss << ' ';
+                }
+            }
+
+            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str());
+            ttyClient.run();
+        }
+        else {
+            interface.writeLine(COLOR_ERROR "Current interface is not CAN bus, cannot create TTY client" COLOR_RESET);
+        }
+    }
+
+    void showHelp(CLIInterface<Canmore::LinuxClient> &interface, bool showUsage) override {
+        if (showUsage) {
+            std::stringstream oss;
+            oss << "Usage: " << prefixChar << "[Command to Execute]";
+            interface.writeLine(oss.str());
+            return;
+        }
+
+        interface.writeLine(COLOR_NAME "@command" COLOR_RESET);
+        interface.writeLine("\tExecute 'command' in the remote shell");
+        interface.writeLine(COLOR_NAME "@" COLOR_RESET);
+        interface.writeLine("\tSpawn a remote shell");
     }
 
 private:
@@ -282,6 +335,7 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommand(std::make_shared<LinuxPwdCommand>());
     registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
     registerCommandPrefix(std::make_shared<LinuxSystemCmdPrefix>());
+    registerCommandPrefix(std::make_shared<LinuxRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());
 
     auto devMap = DeviceMap::create();

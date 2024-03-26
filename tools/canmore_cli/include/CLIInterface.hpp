@@ -52,6 +52,9 @@ public:
     std::string getCommand(std::vector<std::string> &argsOut);  // Note this function may return whenever with an empty
                                                                 // string to allow a background task to refresh
 
+    void tempRestoreTerm();
+    void tempReinitTerm();
+
     std::string prompt;
     std::string exitMessage;
 
@@ -64,6 +67,7 @@ private:
     void cleanupTerminal() noexcept;
 
     struct termios oldt;
+    struct termios newt;
 };
 
 template <class T> class CLIInterface {
@@ -129,8 +133,10 @@ public:
                     // First try to find prefix command
                     auto prefixItr = prefixHandlers.find(cmd.at(0));
                     if (prefixItr != prefixHandlers.end()) {
-                        // Add the remainder of the prefix command to the args
-                        args.insert(args.begin(), cmd.substr(1));
+                        if (cmd.size() > 1) {
+                            // Add the remainder of the prefix command to the args
+                            args.insert(args.begin(), cmd.substr(1));
+                        }
                         // Execute the command
                         prefixItr->second->callback(*this, args);
                     }
@@ -215,6 +221,9 @@ public:
         cliCore.exitMessage = message;
         should_exit = true;
     }
+
+    void tempRestoreTerm() { cliCore.tempRestoreTerm(); }
+    void tempReinitTerm() { cliCore.tempReinitTerm(); }
 
     const std::shared_ptr<T> handle;
 
