@@ -123,20 +123,22 @@ BootloaderCLI::BootloaderCLI(std::shared_ptr<Canmore::BootloaderClient> handle):
     registerCommand(std::make_shared<BLGdbServer>());
     setBackgroundTask(std::make_shared<BLKeepaliveTask>());
 
-    auto devMap = DeviceMap::create();
-    uint64_t flashId = handle->getFlashId();
-    auto devDescr = devMap.lookupSerial(flashId);
+    if (!quietConnect) {
+        auto devMap = DeviceMap::create();
+        uint64_t flashId = handle->getFlashId();
+        auto devDescr = devMap.lookupSerial(flashId);
 
-    std::cout << std::endl;
-    renderHeader("Connecting to Bootloader");
-    renderName(devDescr.name);
-    if (devDescr.boardType != "unknown")
-        renderField("Board Type", devDescr.boardType);
-    else if (flashId != 0)
-        renderField("Unique ID", devDescr.hexSerialNum());
-    auto lastPrecision = std::cout.precision(1);
-    renderField("Flash Size", std::to_string(handle->getFlashSize() / 1024.0 / 1024.0) + " MB");
-    std::cout.precision(lastPrecision);
-    renderField("Version", handle->getVersion());
-    std::cout << std::endl;
+        std::cout << std::endl;
+        renderHeader("Connecting to Bootloader");
+        renderName(devDescr.name);
+        if (devDescr.boardType != "unknown")
+            renderField("Board Type", devDescr.boardType);
+        else if (flashId != 0)
+            renderField("Unique ID", devDescr.hexSerialNum());
+        auto lastPrecision = std::cout.precision(1);
+        renderField("Flash Size", std::to_string(handle->getFlashSize() / 1024.0 / 1024.0) + " MB");
+        std::cout.precision(lastPrecision);
+        renderField("Version", handle->getVersion());
+        std::cout << std::endl;
+    }
 }

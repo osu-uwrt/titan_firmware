@@ -25,7 +25,7 @@ std::string LinuxClient::getVersion() {
 }
 
 void LinuxClient::enableRemoteTty(const std::string &term_env, uint16_t windowRows, uint16_t windowCols,
-                                  const std::string &cmd) {
+                                  const std::string &cmd, bool useUploadWorkingDir) {
     // Write terminal environment variable
     if (term_env.size() >= REG_MAPPED_PAGE_SIZE) {
         throw CanmoreError("Terminal environment variable too large to transmit");
@@ -37,6 +37,7 @@ void LinuxClient::enableRemoteTty(const std::string &term_env, uint16_t windowRo
     RegisterPage ttyCtrlPage(client, linux_itf_mode, CANMORE_LINUX_TTY_CONTROL_PAGE_NUM);
     uint32_t windowSize = ((uint32_t) windowRows) << 16 | windowCols;
     ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_WINDOW_SIZE_OFFSET, windowSize);
+    ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_USE_UPLOAD_DIR_OFFSET, useUploadWorkingDir);
     ttyCtrlPage.writeRegister(CANMORE_LINUX_TTY_CONTROL_ENABLE_OFFSET, 1);
 }
 

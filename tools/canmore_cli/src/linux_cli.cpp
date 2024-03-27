@@ -195,7 +195,7 @@ public:
     std::string getArgList() const override { return "[optional command]"; }
     std::string getHelp() const override {
         return "Launches a remote shell on the host. If the optional command is provided, that is executed instead of "
-               "the login shell.";
+               "the login shell. The command is ran from the user's home directory";
     }
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
@@ -211,7 +211,7 @@ public:
                 }
             }
 
-            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str());
+            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str(), false);
             ttyClient.run();
         }
         else {
@@ -297,7 +297,7 @@ public:
                 }
             }
 
-            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str());
+            RemoteTTYClientTask ttyClient(interface.handle, canClient, iss.str(), true);
             ttyClient.run();
         }
         else {
@@ -314,9 +314,9 @@ public:
         }
 
         interface.writeLine(COLOR_NAME "@command" COLOR_RESET);
-        interface.writeLine("\tExecute 'command' in the remote shell");
+        interface.writeLine("\tExecute 'command' in the remote shell from the current working directory");
         interface.writeLine(COLOR_NAME "@" COLOR_RESET);
-        interface.writeLine("\tSpawn a remote shell");
+        interface.writeLine("\tSpawn a remote shell in the current working directory");
     }
 
 private:
@@ -338,17 +338,19 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommandPrefix(std::make_shared<LinuxRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());
 
-    auto devMap = DeviceMap::create();
-    uint64_t flashId = handle->getFlashId();
-    auto devDescr = devMap.lookupSerial(flashId);
+    if (!quietConnect) {
+        auto devMap = DeviceMap::create();
+        uint64_t flashId = handle->getFlashId();
+        auto devDescr = devMap.lookupSerial(flashId);
 
-    std::cout << std::endl;
-    renderHeader("Connecting to Linux Device");
-    renderName(devDescr.name);
-    if (devDescr.boardType != "unknown")
-        renderField("Board Type", devDescr.boardType);
-    else if (flashId != 0)
-        renderField("Unique ID", devDescr.hexSerialNum());
-    renderField("Version", handle->getVersion());
-    std::cout << std::endl;
+        std::cout << std::endl;
+        renderHeader("Connecting to Linux Device");
+        renderName(devDescr.name);
+        if (devDescr.boardType != "unknown")
+            renderField("Board Type", devDescr.boardType);
+        else if (flashId != 0)
+            renderField("Unique ID", devDescr.hexSerialNum());
+        renderField("Version", handle->getVersion());
+        std::cout << std::endl;
+    }
 }

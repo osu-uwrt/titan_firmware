@@ -56,7 +56,8 @@ private:
 class RemoteTTYClientTask : public RemoteTTYStdioHandler, Canmore::RemoteTTYClientEventHandler {
 public:
     RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> linuxRegClient,
-                        std::shared_ptr<Canmore::RegMappedCANClient> canClient, const std::string &cmd);
+                        std::shared_ptr<Canmore::RegMappedCANClient> canClient, const std::string &cmd,
+                        bool useUploadWorkingDir);
 
     void run();
 
@@ -81,4 +82,5 @@ private:
     uint16_t windowCols_ = 0;
     std::string termName_;
     std::string cmd_;
+    bool useUploadWorkingDir_ = false;
 };

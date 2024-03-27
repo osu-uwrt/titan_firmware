@@ -4,10 +4,12 @@
 #include "canmore_cpp/Canmore.hpp"
 
 #include <chrono>
+#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
 #include <sstream>
+#include <stdlib.h>
 #include <termios.h>
 #include <vector>
 
@@ -70,7 +72,13 @@ private:
     struct termios newt;
 };
 
-template <class T> class CLIInterface {
+class CLIRunnable {
+public:
+    virtual void run() = 0;
+    virtual void runCommand(const std::string &cmd, const std::vector<std::string> &args) = 0;
+};
+
+template <class T> class CLIInterface : public CLIRunnable {
     class HelpCommand : public CLICommandHandler<T> {
     public:
         HelpCommand(): CLICommandHandler<T>("help") {}
@@ -106,7 +114,7 @@ template <class T> class CLIInterface {
     };
 
 public:
-    CLIInterface(std::shared_ptr<T> handle): handle(handle) {
+    CLIInterface(std::shared_ptr<T> handle): quietConnect(getEnvironmentBool("CANMORECLI_QUIET")), handle(handle) {
         registerCommand(std::make_shared<ClearCommand>());
         registerCommand(std::make_shared<ExitCommand>());
         registerCommand(std::make_shared<HelpCommand>());
@@ -114,7 +122,7 @@ public:
 
     virtual std::string getCliName() const = 0;
 
-    void run() {
+    void run() override {
         writeLine("Connected to " + getCliName() + " CLI. Type 'help' for a list of commands.");
         cliCore.prompt = COLOR_PROMPT + getCliName() + "> " COLOR_RESET;
         cliCore.exitMessage = "Connection Closed";
@@ -128,32 +136,8 @@ public:
         should_exit = false;
         while (!should_exit) {
             auto cmd = cliCore.getCommand(args);
-            if (cmd.size() > 0) {
-                try {
-                    // First try to find prefix command
-                    auto prefixItr = prefixHandlers.find(cmd.at(0));
-                    if (prefixItr != prefixHandlers.end()) {
-                        if (cmd.size() > 1) {
-                            // Add the remainder of the prefix command to the args
-                            args.insert(args.begin(), cmd.substr(1));
-                        }
-                        // Execute the command
-                        prefixItr->second->callback(*this, args);
-                    }
-                    else {
-                        // Not a special prefix, try to find a normal command
-                        auto itr = handlers.find(cmd);
-                        if (itr == handlers.end())
-                            writeLine(cmd + ": command not found");
-                        else
-                            itr->second->callback(*this, args);
-                    }
-                    args.clear();
-                } catch (Canmore::CanmoreError &e) {
-                    writeLine(COLOR_ERROR "Exception caught while running command:" COLOR_RESET);
-                    writeLine(COLOR_ERROR "  what(): " + std::string(e.what()) + COLOR_RESET);
-                }
-            }
+            runCommand(cmd, args);
+            args.clear();
 
             if (std::chrono::steady_clock::now() - lastRefresh > std::chrono::milliseconds(1500) && !should_exit) {
                 if (bgTask)
@@ -222,9 +206,40 @@ public:
         should_exit = true;
     }
 
+    void runCommand(const std::string &cmd, const std::vector<std::string> &args) override {
+        if (cmd.size() > 0) {
+            try {
+                // First try to find prefix command
+                auto prefixItr = prefixHandlers.find(cmd.at(0));
+                if (prefixItr != prefixHandlers.end()) {
+                    std::vector<std::string> argsDup = args;
+
+                    if (cmd.size() > 1) {
+                        // Add the remainder of the prefix command to the args
+                        argsDup.insert(argsDup.begin(), cmd.substr(1));
+                    }
+                    // Execute the command
+                    prefixItr->second->callback(*this, argsDup);
+                }
+                else {
+                    // Not a special prefix, try to find a normal command
+                    auto itr = handlers.find(cmd);
+                    if (itr == handlers.end())
+                        writeLine(cmd + ": command not found");
+                    else
+                        itr->second->callback(*this, args);
+                }
+            } catch (Canmore::CanmoreError &e) {
+                writeLine(COLOR_ERROR "Exception caught while running command:" COLOR_RESET);
+                writeLine(COLOR_ERROR "  what(): " + std::string(e.what()) + COLOR_RESET);
+            }
+        }
+    }
+
     void tempRestoreTerm() { cliCore.tempRestoreTerm(); }
     void tempReinitTerm() { cliCore.tempReinitTerm(); }
 
+    const bool quietConnect;
     const std::shared_ptr<T> handle;
 
 protected:
@@ -250,4 +265,22 @@ private:
     std::map<std::string, std::shared_ptr<CLICommandHandler<T>>> handlers;
     std::map<char, std::shared_ptr<CLICommandPrefixHandler<T>>> prefixHandlers;
     std::shared_ptr<CLIBackgroundTask<T>> bgTask;
+
+    bool getEnvironmentBool(const char *name, bool defaultValue = false) {
+        const char *value = getenv(name);
+        if (value == NULL) {
+            return defaultValue;
+        }
+        else if (value[0] == '1' && value[1] == '\0') {
+            return true;
+        }
+        else if (value[0] == '0' && value[1] == '\0') {
+            return false;
+        }
+        else {
+            std::cerr << "[WARNING] Invalid boolean value '" << value << "' for enviornment variable '" << name
+                      << "'. Expected either '0' or '1'." << std::endl;
+            return defaultValue;
+        }
+    }
 };

@@ -692,34 +692,36 @@ ApplicationCLI::ApplicationCLI(std::shared_ptr<Canmore::DebugClient> handle): CL
     registerCommandPrefix(std::make_shared<AppRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<AppKeepaliveTask>());
 
-    auto devMap = DeviceMap::create();
-    uint64_t flashId = handle->getFlashId();
-    auto devDescr = devMap.lookupSerial(flashId);
+    if (!quietConnect) {
+        auto devMap = DeviceMap::create();
+        uint64_t flashId = handle->getFlashId();
+        auto devDescr = devMap.lookupSerial(flashId);
 
-    // Show general device information on connect
+        // Show general device information on connect
 
-    std::cout << std::endl;
-    renderHeader("Connecting to Application");
-    renderName(devDescr.name);
-    if (devDescr.boardType != "unknown")
-        renderField("Board Type", devDescr.boardType);
-    else if (flashId != 0)
-        renderField("Unique ID", devDescr.hexSerialNum());
-    renderField("Version", handle->getVersion());
+        std::cout << std::endl;
+        renderHeader("Connecting to Application");
+        renderName(devDescr.name);
+        if (devDescr.boardType != "unknown")
+            renderField("Board Type", devDescr.boardType);
+        else if (flashId != 0)
+            renderField("Unique ID", devDescr.hexSerialNum());
+        renderField("Version", handle->getVersion());
 
-    auto lastCrash = handle->getLastResetEntry();
-    renderField("Reset Cause", lastCrash.format());
+        auto lastCrash = handle->getLastResetEntry();
+        renderField("Reset Cause", lastCrash.format());
 
-    auto uptime = handle->getUptime();
-    renderField("Uptime", uptime.format());
+        auto uptime = handle->getUptime();
+        renderField("Uptime", uptime.format());
 
-    auto crashCounter = handle->getCrashCounter();
-    if (crashCounter.totalCount > 0) {
-        renderField("Crash Count", crashCounter.format());
+        auto crashCounter = handle->getCrashCounter();
+        if (crashCounter.totalCount > 0) {
+            renderField("Crash Count", crashCounter.format());
+        }
+
+        auto safetyStatus = handle->getSafetyStatus();
+        renderField("System State", safetyStatus.getGlobalState());
+        renderField("Error State", safetyStatus.faultPresent ? COLOR_ERROR "Fault Present" : "Normal");
+        std::cout << std::endl;
     }
-
-    auto safetyStatus = handle->getSafetyStatus();
-    renderField("System State", safetyStatus.getGlobalState());
-    renderField("Error State", safetyStatus.faultPresent ? COLOR_ERROR "Fault Present" : "Normal");
-    std::cout << std::endl;
 }

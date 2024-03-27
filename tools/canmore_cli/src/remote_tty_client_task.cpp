@@ -184,11 +184,11 @@ void RemoteTTYStdioManager::handleEvent(const pollfd &fd) {
 // ========================================
 
 RemoteTTYClientTask::RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> linuxRegClient,
-                                         std::shared_ptr<Canmore::RegMappedCANClient> canClient,
-                                         const std::string &cmd):
+                                         std::shared_ptr<Canmore::RegMappedCANClient> canClient, const std::string &cmd,
+                                         bool useUploadWorkingDir):
     linuxRegClient_(linuxRegClient),
-    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, client_.getMaxFrameSize()),
-    cmd_(cmd) {}
+    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, client_.getMaxFrameSize()), cmd_(cmd),
+    useUploadWorkingDir_(useUploadWorkingDir) {}
 
 void RemoteTTYClientTask::run() {
     if (linuxRegClient_->remoteTtyEnabled()) {
@@ -207,7 +207,7 @@ void RemoteTTYClientTask::run() {
         }
 
         // Startup remote tty on server side
-        linuxRegClient_->enableRemoteTty(termName_, windowRows_, windowCols_, cmd_);
+        linuxRegClient_->enableRemoteTty(termName_, windowRows_, windowCols_, cmd_, useUploadWorkingDir_);
     }
 
     // Initialize terminal and event loops
@@ -229,9 +229,10 @@ void RemoteTTYClientTask::run() {
 
     stdioManager_.cleanupTerm();
 
-    if (disconnectedInError) {
-        std::cout << COLOR_NOTICE "Host disconnected due to error!" COLOR_RESET << std::endl;
-    }
+    // Giving a lot of unnecessary spam, just don't show it until this is figured out
+    // if (disconnectedInError) {
+    //     std::cout << COLOR_NOTICE "Host disconnected due to error!" COLOR_RESET << std::endl;
+    // }
 }
 
 void RemoteTTYClientTask::handleTerminalInput(const std::span<const uint8_t> &input) {

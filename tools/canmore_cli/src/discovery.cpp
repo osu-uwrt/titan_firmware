@@ -623,8 +623,44 @@ static MenuItemConstIterator mapDeviceItr(const std::vector<std::shared_ptr<Menu
     return menuItems.begin();
 }
 
+std::shared_ptr<Device> waitForTargetDevice(const std::string &targetName, const DeviceMap &devMap,
+                                            const std::vector<std::shared_ptr<Discovery>> &discoverySources) {
+    std::unordered_map<Device, uint64_t, canmore_device_hasher> flashIdCache;
+    while (true) {
+        // Check all sources for devices
+        std::vector<std::shared_ptr<Device>> discovered;
+        for (auto discovery : discoverySources) {
+            std::vector<std::shared_ptr<Device>> interfaceDiscovered;
+            discovery->discoverCanmoreDevices(interfaceDiscovered);
+            discovered.insert(std::end(discovered), std::begin(interfaceDiscovered), std::end(interfaceDiscovered));
+        }
+
+        for (const auto &dev : discovered) {
+            auto itr = flashIdCache.find(*dev);
+            uint64_t flashId;
+            if (itr != flashIdCache.end()) {
+                flashId = itr->second;
+            }
+            else {
+                flashId = dev->getFlashId();
+                if (flashId != 0) {
+                    flashIdCache.emplace(*dev, flashId);
+                }
+            }
+            auto devDescr = devMap.lookupSerial(flashId);
+
+            // If we find our target device, return it
+            if (devDescr.name == targetName) {
+                return dev;
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
 std::shared_ptr<Device> getTargetDevice(const DeviceMap &devMap,
-                                        std::vector<std::shared_ptr<Discovery>> discoverySources) {
+                                        const std::vector<std::shared_ptr<Discovery>> &discoverySources) {
     TerminalOverride termOver;
 
     std::unordered_map<Device, uint64_t, canmore_device_hasher> flashIdCache;
