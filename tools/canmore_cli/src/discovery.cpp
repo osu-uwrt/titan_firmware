@@ -623,8 +623,8 @@ static MenuItemConstIterator mapDeviceItr(const std::vector<std::shared_ptr<Menu
     return menuItems.begin();
 }
 
-std::shared_ptr<Device> waitForTargetDevice(const std::string &targetName, const DeviceMap &devMap,
-                                            const std::vector<std::shared_ptr<Discovery>> &discoverySources) {
+std::shared_ptr<Device> waitForTargetDevice(const std::vector<std::shared_ptr<Discovery>> &discoverySources,
+                                            uint64_t targetSerialNum) {
     std::unordered_map<Device, uint64_t, canmore_device_hasher> flashIdCache;
     while (true) {
         // Check all sources for devices
@@ -647,10 +647,8 @@ std::shared_ptr<Device> waitForTargetDevice(const std::string &targetName, const
                     flashIdCache.emplace(*dev, flashId);
                 }
             }
-            auto devDescr = devMap.lookupSerial(flashId);
 
-            // If we find our target device, return it
-            if (devDescr.name == targetName) {
+            if (flashId == targetSerialNum) {
                 return dev;
             }
         }

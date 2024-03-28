@@ -254,32 +254,20 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
 }
 
 std::shared_ptr<RP2040Device> selectDeviceByName(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices,
-                                                 DeviceMap &deviceMap, const std::string &deviceName) {
-    std::shared_ptr<RP2040Device> matchingDevice = nullptr;
-
+                                                 DeviceMap &deviceMap, uint64_t targetSerialNum) {
     if (discoveredDevices.size() == 0) {
         throw std::runtime_error("No devices to select");
     }
 
     // First try to see if we can find one device which matches the specified device name
     for (std::shared_ptr<RP2040Device> dev : discoveredDevices) {
-        auto devDescr = deviceMap.lookupSerial(dev->getFlashId());
-        if (devDescr.name == deviceName) {
-            matchingDevice = dev;
+        if (dev->getFlashId() == targetSerialNum && dev->supportsFlashInterface()) {
+            printDevice(0, dev, deviceMap);
+            return dev;
         }
     }
 
-    if (matchingDevice == nullptr) {
-        throw std::runtime_error("Could not find device with name: " + deviceName);
-    }
-
-    // If we found a valid device, return
-    // Note that we check for the supporting flash interface here, so that if a device is present but in an invalid
-    // mode, it won't hide it from the user
-    if (matchingDevice != nullptr && matchingDevice->supportsFlashInterface()) {
-        printDevice(0, matchingDevice, deviceMap);
-    }
-    return matchingDevice;
+    throw std::runtime_error("Could not find requested device: " + deviceMap.lookupSerial(targetSerialNum).name);
 }
 
 std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources,

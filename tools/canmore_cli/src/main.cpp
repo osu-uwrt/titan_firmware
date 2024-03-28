@@ -61,10 +61,12 @@ int main(int argc, char **argv) {
             }
         }
         else {
+            std::string targetName = argv[1];
+            uint64_t targetSerialNum = devMap.lookupSerialByName(targetName);
             // Client requested, run the specified command
-            auto device = waitForTargetDevice(argv[1], devMap, discoverySources);
+            auto device = waitForTargetDevice(discoverySources, targetSerialNum);
             if (!device) {
-                std::cerr << "Failed to find target " << argv[1] << std::endl;
+                std::cerr << "Failed to find target " << targetName << std::endl;
                 return 1;
             }
 

@@ -21,7 +21,7 @@ RemoteTTYClient::RemoteTTYClient(RemoteTTYClientEventHandler &handler_, int ifIn
     // The remote tty interface only uses extended frame packets, so we just watch for those
     struct can_filter rfilter[] = { { .can_id = CAN_EFF_FLAG | CANMORE_REMOTE_TTY_CALC_ID_C2A(clientId, 0, 0),
                                       .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CANMORE_REMOTE_TTY_ID_MASK) } };
-    setRxFilters(std::span { rfilter });
+    setRxFilters(std::span<can_filter> { rfilter });
 
     // Start the timerfd
     // rxScheduler_ also requires that we call receiverHandleTimer() once at startup to begin transmission

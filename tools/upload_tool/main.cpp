@@ -43,7 +43,7 @@ public:
     }
 
     void printHelp() {
-        std::cout << "Usage: " << progname << " [-fiopw] [uf2] [board_name (optional)]" << std::endl;
+        std::cout << "Usage: " << progname << " [-fiopw] [uf2] [device name (optional)]" << std::endl;
         std::cout << "\t-h: Show this help message" << std::endl;
         std::cout << "\t-f: Full Image Flash (if omitted, uf2 is assumed ota file)" << std::endl;
         std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA"
@@ -62,6 +62,7 @@ public:
         std::cout << "\t-w: Wait for Boot" << std::endl;
         std::cout << "\t\tPrompts to wait for CANmore device in boot" << std::endl;
         std::cout << "\tuf2: A UF2 file to flash" << std::endl;
+        std::cout << "\tdevice name: The name of an RP2040 board to specifically select" << std::endl;
         std::cout << std::endl;
         std::cout << "Environment Variables:" << std::endl;
         std::cout << "\tUPLOADTOOL_OPENOCD_PATH:" << std::endl;
@@ -242,7 +243,7 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (blArgs.deviceName[0] == '\0') {
+            if (blArgs.deviceName.empty()) {
                 auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
                 if (!dev) {
                     return 1;
@@ -250,7 +251,8 @@ int main(int argc, char **argv) {
                 interface = dev->getFlashInterface();
             }
             else {
-                auto dev = UploadTool::selectDeviceByName(discovered, devMap, blArgs.deviceName);
+                uint64_t targetSerialNum = devMap.lookupSerialByName(blArgs.deviceName);
+                auto dev = UploadTool::selectDeviceByName(discovered, devMap, targetSerialNum);
                 if (!dev) {
                     return 1;
                 }

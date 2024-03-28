@@ -8,8 +8,7 @@ std::shared_ptr<Canmore::Device>
 getTargetDevice(const DeviceMap &devMap, const std::vector<std::shared_ptr<Canmore::Discovery>> &discoverySources);
 
 std::shared_ptr<Canmore::Device>
-waitForTargetDevice(const std::string &targetName, const DeviceMap &devMap,
-                    const std::vector<std::shared_ptr<Canmore::Discovery>> &discoverySources);
+waitForTargetDevice(const std::vector<std::shared_ptr<Canmore::Discovery>> &discoverySources, uint64_t serialNum);
 
 // CLI Handler
 void runCli(std::shared_ptr<Canmore::Device> dev);
