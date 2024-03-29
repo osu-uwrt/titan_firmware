@@ -1,15 +1,10 @@
 #ifndef CAN_MCP251XFD_BRIDGE_H
 #define CAN_MCP251XFD_BRIDGE_H
 
-#include <stdbool.h>
-
+#include "canmore/msg_encoding.h"
 #include "driver/canbus.h"
-#include "titan/canmore.h"
 
-// PICO_CONFIG: CAN_HEARTBEAT_INTERVAL_MS, Interval for CANmore heartbeat transmission over CAN bus in milliseconds, type=int, default=1000, group=driver_canbus
-#ifndef CAN_HEARTBEAT_INTERVAL_MS
-#define CAN_HEARTBEAT_INTERVAL_MS 500
-#endif
+#include <stdbool.h>
 
 // PICO_CONFIG: CAN_MCP251XFD_HEARTBEAT_TIMEOUT_MS, Time in milliseconds since last successful heartbeat transmission when the CAN bus is considered offline, type=int, min=1, default=2000, group=driver_canbus
 #ifndef CAN_MCP251XFD_HEARTBEAT_TIMEOUT_MS
@@ -17,7 +12,8 @@
 #endif
 
 // Note this is necessary due to the strange behavior of the chip randomly locking out transmissions in edge cases.
-// Rather than trying to solve all of these issues, it'll just reinitialize every so often if we haven't transmitted a heartbeat in a while
+// Rather than trying to solve all of these issues, it'll just reinitialize every so often if we haven't transmitted a
+// heartbeat in a while
 // PICO_CONFIG: CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS, Time in milliseconds since CAN bus has gone offline after which the MCP251XFD is reset, type=int, min=1, default=10000, group=driver_canbus
 #ifndef CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS
 #define CAN_MCP251XFD_OFFLINE_RESET_TIMEOUT_MS 10000
@@ -28,8 +24,8 @@
 // ========================================
 
 // Message sequence numbers when referring back to messages from the TEF
-#define MESSAGE_SEQ_UTILITY_NORMAL    0
-#define MESSAGE_SEQ_MSG_FRAME         1
+#define MESSAGE_SEQ_UTILITY_NORMAL 0
+#define MESSAGE_SEQ_MSG_FRAME 1
 #define MESSAGE_SEQ_UTILITY_HEARTBEAT 2
 
 bool can_mcp251xfd_configure(unsigned int client_id);
@@ -69,7 +65,7 @@ struct utility_message_buffer {
     uint32_t seq;
     uint8_t channel;
     bool waiting;
-    uint8_t data[CANMORE_FRAME_SIZE];
+    uint8_t data[CANMORE_MAX_FRAME_SIZE];
 };
 
 extern struct utility_message_buffer utility_tx_buf;
@@ -77,8 +73,8 @@ extern struct utility_message_buffer utility_rx_buf;
 
 /**
  * @brief Holds data waiting to be transmitted
-*/
-extern canmore_msg_encoder_t encoding_buffer;
+ */
+extern canmore_msg_encoder_t msg_encoder;
 
 /**
  * @brief Time after which the last heartbeat transmit has timed out, and the CAN bus is considered offline.
@@ -92,5 +88,12 @@ void canbus_call_receive_error_cb(enum canbus_receive_error_codes error_code);
 
 #define canbus_report_driver_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, true)
 #define canbus_report_library_error(error_code) canbus_call_internal_error_cb(__LINE__, error_code, false)
+
+// Debug Bindings
+// TODO: Remove me when can bus bug fixed
+
+void canbus_reenable_intr(void);
+void canbus_fifo_clear(void);
+void canbus_reset(void);
 
 #endif

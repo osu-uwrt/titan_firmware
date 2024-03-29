@@ -1,16 +1,18 @@
 #pragma once
 
-#include <string>
-#include <map>
-#include "RP2040FlashInterface.hpp"
 #include "BinaryInfo.hpp"
+#include "RP2040FlashInterface.hpp"
+#include "pico_usb/flash_getid.h"
+
+#include <map>
+#include <string>
 
 namespace PicoUSB {
 
 class PicoprobeError : public std::runtime_error {
-    public:
-        PicoprobeError(const char* msg): std::runtime_error(msg) {};
-        PicoprobeError(const std::string& msg): std::runtime_error(msg) {};
+public:
+    PicoprobeError(const char *msg): std::runtime_error(msg) {};
+    PicoprobeError(const std::string &msg): std::runtime_error(msg) {};
 };
 
 class OpenOCDInstance {
@@ -18,7 +20,7 @@ public:
     struct OpenOCDVersion {
         OpenOCDVersion(): valid(false) {}
         OpenOCDVersion(uint8_t major, uint8_t minor): valid(true), major(major), minor(minor) {}
-        std::string str() {return "v" + std::to_string(major) + "." + std::to_string(minor);}
+        std::string str() { return "v" + std::to_string(major) + "." + std::to_string(minor); }
 
         bool valid;
         uint8_t major;
@@ -28,9 +30,11 @@ public:
     OpenOCDInstance();
     ~OpenOCDInstance();
 
-    std::string sendCommand(std::string cmd, int timeout_ms = 5000);
+    std::string sendCommand(std::string cmd, bool strip_whitespace = true, int timeout_ms = 5000);
     void init();
     OpenOCDVersion getVersion();
+
+    static bool hasCustomInit();
 
     const bool ranCustomProbeInit;
     const bool enableStderr;
@@ -41,15 +45,26 @@ private:
     pid_t openocdPid;
     int stdinFd;
     int stdoutFd;
+
+public:
+    // Disable copying since we have a file descriptor
+    OpenOCDInstance(OpenOCDInstance const &) = delete;
+    OpenOCDInstance &operator=(OpenOCDInstance const &) = delete;
 };
 
 class RP2040OCDTarget {
 public:
     RP2040OCDTarget(std::string probeSerial);
 
-    void reboot() {openocd->sendCommand("reset"); openocd.reset();}
-    uint32_t lookupRomFunc(char c1, char c2) {return funcTable.at((c2 << 8) | c1);}
-    uint32_t callFunction(uint32_t addr, uint32_t r0 = 0, uint32_t r1 = 0, uint32_t r2 = 0, uint32_t r3 = 0, int timeout_ms = 5000);
+    void reboot() {
+        // Note this implicitly calls reset
+        // Detach destroys and recreates openocd, which will call reset upon destruction
+        // Then this sets the right DAP registers (without a target that will rexamine the core) to detach the debugger
+        doDetach();
+    }
+    uint32_t lookupRomFunc(char c1, char c2) { return funcTable.at((c2 << 8) | c1); }
+    uint32_t callFunction(uint32_t addr, uint32_t r0 = 0, uint32_t r1 = 0, uint32_t r2 = 0, uint32_t r3 = 0,
+                          int timeout_ms = 5000);
 
     uint32_t readWord(uint32_t addr, int width = 32);
     std::vector<uint32_t> readMemory(uint32_t addr, uint32_t count, int width = 32);
@@ -67,11 +82,12 @@ private:
     void initCommon();
     void initRescue();
     void initNormal();
+    void doDetach();
     void readoutRom();
-    std::map<uint16_t,uint16_t> funcTable;
+    std::map<uint16_t, uint16_t> funcTable;
 };
 
-class PicoprobeClient: public RP2040FlashInterface {
+class PicoprobeClient : public RP2040FlashInterface {
 public:
     enum FlashState { FlashUnknown = 0, FlashXIP, FlashCommand };
 
@@ -83,15 +99,16 @@ public:
     bool verifyBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytes);
     void reboot();
 
-    uint32_t tryGetBootloaderSize() {return firstApp.isBootloader ? firstApp.blAppBase - FLASH_BASE : 0;}
-    uint64_t getFlashId() {return cachedFlashId;}
-    uint32_t getFlashSize() {return 0x1000000;} // TODO: Calculate this
-    bool shouldWarnOnBootloaderOverwrite() {return false;}
+    uint32_t tryGetBootloaderSize() { return firstApp.isBootloader ? firstApp.blAppBase - FLASH_BASE : 0; }
+    uint64_t getFlashId() { return cachedFlashId; }
+    uint32_t getFlashSize() { return cachedFlashSize; }
+    bool shouldWarnOnBootloaderOverwrite() { return false; }
 
 private:
     RP2040OCDTarget target;
     FlashState flashState;
     uint64_t cachedFlashId;
+    uint32_t cachedFlashSize;
     std::vector<uint32_t> writeBuffer;
     uint32_t writeBufferAddr;
 
@@ -100,31 +117,29 @@ private:
     void enterCommandMode();
     void notifyCommandDone();  // Must be called after running flash commands requiring enterCommandMode()
 
-    uint64_t readFlashId(); // TODO: Remove me
-    void flashCsForce(bool high);
-    uint32_t ssiTransfer(uint32_t tx, int timeout_ms = 5000);
+    flash_info_t readFlashInfo();
 
 public:
     BinaryInfo::AppInfo firstApp, nestedApp;
 };
 
-class PicoprobeDevice: public RP2040Device {
+class PicoprobeDevice : public RP2040Device {
 public:
     PicoprobeDevice(std::string serialStr): serialStr(serialStr), itf(new PicoprobeClient(serialStr)) {}
 
-    uint64_t getFlashId() override {return itf->getFlashId();}
-    std::string getInterface() const override {return "Picoprobe (SWD)";}
-    bool supportsFlashInterface() const override {return true;}
+    uint64_t getFlashId() override { return itf->getFlashId(); }
+    std::string getInterface() const override { return "Picoprobe (SWD)"; }
+    bool supportsFlashInterface() const override { return true; }
 
     void getAdditionalInfo(std::vector<std::pair<std::string, std::string>> &infoOut) override {
         BinaryInfo::reportVersionInfo(infoOut, itf->firstApp, itf->nestedApp);
     }
 
-    std::shared_ptr<RP2040FlashInterface> getFlashInterface() override {return itf;}
+    std::shared_ptr<RP2040FlashInterface> getFlashInterface() override { return itf; }
 
 private:
     std::string serialStr;
     std::shared_ptr<PicoprobeClient> itf;
 };
 
-};
+};  // namespace PicoUSB

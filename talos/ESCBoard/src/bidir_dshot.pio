@@ -74,10 +74,11 @@ JMP start               ; Go back to start and receive new packet
 
 ; == Clock recovery ==
 ; Due to the fact that the ESC MCUs use their internal oscillator, there is a non-insignificant amount of clock drift
-; This results in data loss of we assume that the data will be perfectly sent at 5/4 the data rate
-; Instead after receiving every bit, this will check for a bit transition
+; This results in data loss if we assume that the data will be perfectly sent at 5/4 the data rate
+; Instead, after receiving every bit, this will check for a bit transition
 ; If a transition occurs, it will resynchronize with the ESCs data rate based on this transition
 ; If one does not occur, it will instead keep timing from the previous clock transition
+; This is actually how the protocol was intended, because it uses the 5/4 data encoding to force edges in each nibble
 clock_recovery:
 JMP PIN clkrec_pin_high     ; (T+18) First go to the correct routine, correct while high or low
 
@@ -155,7 +156,7 @@ static inline void bidir_dshot_reset(PIO pio, uint sm, uint offset, uint dshot_r
 
     // Check if a delay needs to occur, if so perform a elayed start
     int64_t tx_delay_us = absolute_time_diff_us(get_absolute_time(), next_allowed_tx);
-    if (tx_delay_us > 0) {
+    if (!is_nil_time(next_allowed_tx) && tx_delay_us > 0) {
         uint delay_value = (tx_delay_us * dshot_rate_khz) / 1000;
         pio_sm_exec(pio, sm, pio_encode_jmp(offset + bidir_dshot_offset_delayed_start));
         pio_sm_put_blocking(pio, sm, delay_value);

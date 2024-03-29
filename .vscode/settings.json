@@ -1,0 +1,39 @@
+{
+    "cmake.sourceDirectory": [
+        "${workspaceFolder}/talos/Actuator/",
+        "${workspaceFolder}/talos/CameraCageBB/",
+        "${workspaceFolder}/talos/ESCBoard/",
+        "${workspaceFolder}/talos/PowerBoard/",
+        "${workspaceFolder}/talos/SmartBattery/",
+        "${workspaceFolder}/puddles/Backplane/",
+        "${workspaceFolder}/tools/upload_tool/",
+        "${workspaceFolder}/tools/canmore_cli/"
+    ],
+    "cmake.configureOnOpen": true,
+    "cmake.generator": "Unix Makefiles",
+    "cmake.options.advanced": {
+        "build": {
+            "statusBarVisibility": "visible"
+        },
+        "launch": {
+            "statusBarVisibility": "hidden"
+        },
+        "debug": {
+            "statusBarVisibility": "hidden"
+        }
+    },
+    "debug.onTaskErrors": "abort",
+    "editor.detectIndentation": false,
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "editor.rulers": [
+        120
+    ],
+    "editor.tabSize": 4,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "git.autofetch": true,
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.autoAddFileAssociations": false
+}

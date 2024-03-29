@@ -6,15 +6,10 @@ cmake_minimum_required(VERSION 3.13)
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD pico)
 
-# The Target Robot
-# These can be found in lib/uwrt_boards/include/robots
-# Store any robot dependent configuration values in these files
-set(UWRT_ROBOT talos)
-
 # Include global definitions
 execute_process(COMMAND git rev-parse --show-cdup
-	WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-	OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE relative_path_to_repository_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
 get_filename_component(REPO_DIR "${CMAKE_CURRENT_LIST_DIR}/${relative_path_to_repository_root}" ABSOLUTE)
 include(${REPO_DIR}/global_defs.cmake)
 
@@ -24,7 +19,7 @@ titan_firmware_init()
 
 # Define executable
 add_executable(dynamixel_test
-	main.c
+    main.c
 )
 
 # Set version: major minor (see titan/version.h for more info)

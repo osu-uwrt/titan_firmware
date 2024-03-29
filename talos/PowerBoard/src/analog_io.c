@@ -1,7 +1,8 @@
+#include "analog_io.h"
+
+#include "hardware/adc.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
-#include "analog_io.h"
-#include "hardware/adc.h"
 
 #define ADC_VREF 3.3
 #define ADC_RANGE (1 << 12)

@@ -1,8 +1,9 @@
 #ifndef DRIVER__DEPTH_INTERNAL_H_
 #define DRIVER__DEPTH_INTERNAL_H_
 
-#include <stdint.h>
 #include "driver/depth.h"
+
+#include <stdint.h>
 
 typedef void (*ms5837_init_cb)(void);
 // Callback with pressure in Pascals and Temperature in hundredths of deg C
@@ -18,7 +19,8 @@ typedef void (*ms5837_error_cb)(enum depth_error_event event);
  * @param init_cb Callback upon successful init
  * @param error_cb Callback upon initialization error
  */
-void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837_init_cb init_cb, ms5837_error_cb error_cb);
+void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837_init_cb init_cb,
+                 ms5837_error_cb error_cb);
 
 /**
  * @brief Executes a conversion

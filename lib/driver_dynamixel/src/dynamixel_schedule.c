@@ -1,16 +1,17 @@
-#include <stdlib.h>
-#include <string.h>
-#include "pico/sync.h"
-#include "pico/time.h"
-
-#include "driver/dynamixel.h"
-#include "titan/logger.h"
-#include "titan/queue.h"
-
 #include "dynamixel_schedule.h"
+
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
 #include "dynamixel_reg.h"
+
+#include "driver/dynamixel.h"
+#include "pico/sync.h"
+#include "pico/time.h"
+#include "titan/logger.h"
+#include "titan/queue.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dynamixel_schedule"
@@ -30,23 +31,27 @@
 #define DYNAMIXEL_MAX_MISSED_PINGS 3
 #endif
 
-#define dynamixel_report_error_with_arg(error_code, arg) do { \
-        dynamixel_error_t error_msg = {.fields = {.error = error_code, .error_source = DYNAMIXEL_SOURCE_SCHEDULE, \
-                                        .line = __LINE__, .wrapped_error_code = arg}};    \
-        inst->error_cb(error_msg); \
-    } while(0)
+#define dynamixel_report_error_with_arg(error_code, arg)                                                               \
+    do {                                                                                                               \
+        dynamixel_error_t error_msg = { .fields = { .error = error_code,                                               \
+                                                    .error_source = DYNAMIXEL_SOURCE_SCHEDULE,                         \
+                                                    .line = __LINE__,                                                  \
+                                                    .wrapped_error_code = arg } };                                     \
+        inst->error_cb(error_msg);                                                                                     \
+    } while (0)
 
 #define dynamixel_report_error(error_code) dynamixel_report_error_with_arg(error_code, 0)
 
-#define retcheck_refresh_dxl_call(ret_code) do {\
-        enum DXLLibErrorCode ret = ret_code; \
-        if (ret != DXL_LIB_OK) { \
-            LOG_DEBUG("Error calling dxl function during refresh: %d (line %d)", ret, __LINE__); \
-            dynamixel_report_error_with_arg(DYNAMIXEL_DRIVER_ERROR, ret); \
-            handle_refresh_transfer_done(); \
-            return; \
-        } \
-    } while(0)
+#define retcheck_refresh_dxl_call(ret_code)                                                                            \
+    do {                                                                                                               \
+        enum DXLLibErrorCode ret = ret_code;                                                                           \
+        if (ret != DXL_LIB_OK) {                                                                                       \
+            LOG_DEBUG("Error calling dxl function during refresh: %d (line %d)", ret, __LINE__);                       \
+            dynamixel_report_error_with_arg(DYNAMIXEL_DRIVER_ERROR, ret);                                              \
+            handle_refresh_transfer_done();                                                                            \
+            return;                                                                                                    \
+        }                                                                                                              \
+    } while (0)
 
 struct internal_cmd {
     InfoToMakeDXLPacket_t packet;
@@ -74,7 +79,7 @@ struct dynamixel_scheduler_instance {
     // Refresh Control
     repeating_timer_t refresh_timer;
     size_t next_index_to_refresh;
-} dynamixel_inst = {0};
+} dynamixel_inst = { 0 };
 
 // Define global instance pointer (so we don't have to dereference all that much)
 static struct dynamixel_scheduler_instance *const inst = &dynamixel_inst;
@@ -121,7 +126,8 @@ static inline bool try_get_transfer_lock(void) {
  * @attention This function must be called with transfer lock held
  */
 static inline void release_transfer_lock(void) {
-    assert(inst->transfer_active);  // If this fails, then multiple functions thought they had a lock and then two tried to release
+    assert(inst->transfer_active);  // If this fails, then multiple functions thought they had a lock and then two tried
+                                    // to release
     inst->transfer_active = false;
 }
 
@@ -129,8 +135,7 @@ static inline void release_transfer_lock(void) {
 // Dynamixel Initialization
 // ========================================
 
-void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt,
-                             dynamixel_error_cb _error_cb,
+void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb _error_cb,
                              dynamixel_event_cb _event_cb) {
     // Save callbacks
     inst->error_cb = _error_cb;
@@ -148,12 +153,12 @@ void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt,
     }
 
     // Begin the background refresh
-    inst->transfer_active = true;   // We can just set the lock, as no other code should be acessing inst right now
+    inst->transfer_active = true;  // We can just set the lock, as no other code should be acessing inst right now
     inst->refresh_active = true;
     inst->next_index_to_refresh = 0;
 
-    // Add the timer first, then we manually trigger the refresh (as the timer won't fire until at least one interval elapses)
-    // Note timer duration is multiplied by -1 for a start->start delay rather than end->start delay
+    // Add the timer first, then we manually trigger the refresh (as the timer won't fire until at least one interval
+    // elapses) Note timer duration is multiplied by -1 for a start->start delay rather than end->start delay
     hard_assert(add_repeating_timer_ms(-DYNAMIXEL_REFRESH_INTERVAL_MS, refresh_timer_cb, NULL, &inst->refresh_timer));
     trigger_next_refresh();
 }
@@ -238,12 +243,12 @@ static void trigger_next_refresh(void) {
     struct dynamixel_state *servo = &inst->servo_states[inst->next_index_to_refresh];
     if (servo->connected) {
         retcheck_refresh_dxl_call(dynamixel_reg_ram_gen_request(&inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf,
-            sizeof(inst->refresh_cmd.packet_buf), servo->id));
+                                                                sizeof(inst->refresh_cmd.packet_buf), servo->id));
         dynamixel_send_packet(periodic_ram_read_cb, &inst->refresh_cmd.packet);
     }
     else {
         retcheck_refresh_dxl_call(dynamixel_create_ping_packet(&inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf,
-            sizeof(inst->refresh_cmd.packet_buf), servo->id));
+                                                               sizeof(inst->refresh_cmd.packet_buf), servo->id));
         dynamixel_send_packet(connect_ping_cb, &inst->refresh_cmd.packet);
     }
 }
@@ -276,7 +281,7 @@ static bool check_refresh_response_valid(dynamixel_error_t err, struct dynamixel
     }
 
     // Make sure the device we want is the one that responded
-    assert(servo->id == result->request_id);    // Ensure the state didn't get desynchronized
+    assert(servo->id == result->request_id);  // Ensure the state didn't get desynchronized
     if (result->packet->id != servo->id) {
         LOG_DEBUG("[ID: %d, INSTR: %d] Unexpected device %d responded", servo->id, result->instr, result->packet->id);
         return false;
@@ -284,7 +289,8 @@ static bool check_refresh_response_valid(dynamixel_error_t err, struct dynamixel
 
     // Check that the packet didn't report an error (alert bit is separate)
     if (result->packet->err_idx & 0x7F) {
-        LOG_DEBUG("[ID: %d, INSTR: %d] Error field set in response: %d", servo->id, result->instr, result->packet->err_idx);
+        LOG_DEBUG("[ID: %d, INSTR: %d] Error field set in response: %d", servo->id, result->instr,
+                  result->packet->err_idx);
         return false;
     }
 
@@ -308,7 +314,8 @@ static void periodic_ram_read_cb(dynamixel_error_t err, struct dynamixel_req_res
     // If a command was scheduled between scheduling the refresh and receiving the data, drop the data
     // This data may contain a state that will be changed by the command in the queue.
     // Instead, allow the transfer to process, then retry the refresh to read the new data
-    // Note this relies on the assumption that commands are scheduled at the same priority or lower than the refresh trigger
+    // Note this relies on the assumption that commands are scheduled at the same priority or lower than the refresh
+    // trigger
     if (!QUEUE_EMPTY(&inst->cmd_queue)) {
         inst->refresh_active = false;
         inst->refresh_pending = true;
@@ -354,7 +361,7 @@ static void connect_ping_cb(dynamixel_error_t err, struct dynamixel_req_result *
     // Now that we've found the servo, try reading its state
     // First read eeprom
     retcheck_refresh_dxl_call(dynamixel_reg_eeprom_gen_request(&inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf,
-        sizeof(inst->refresh_cmd.packet_buf), servo->id));
+                                                               sizeof(inst->refresh_cmd.packet_buf), servo->id));
     dynamixel_send_packet(initial_eeprom_read_cb, &inst->refresh_cmd.packet);
 }
 
@@ -371,7 +378,7 @@ static void initial_eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_r
 
     // Now read the RAM
     retcheck_refresh_dxl_call(dynamixel_reg_ram_gen_request(&inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf,
-        sizeof(inst->refresh_cmd.packet_buf), servo->id));
+                                                            sizeof(inst->refresh_cmd.packet_buf), servo->id));
     dynamixel_send_packet(initial_ram_read_cb, &inst->refresh_cmd.packet);
 }
 
@@ -388,9 +395,9 @@ static void initial_ram_read_cb(dynamixel_error_t err, struct dynamixel_req_resu
 
     // Disable torque on connect (in case a disconnect, but not power cycle, occurred)
     uint8_t torque_enable = 0;
-    retcheck_refresh_dxl_call(dynamixel_create_write_packet(&inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf,
-                                    sizeof(inst->refresh_cmd.packet_buf), servo->id, DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR,
-                                    &torque_enable, 1));
+    retcheck_refresh_dxl_call(dynamixel_create_write_packet(
+        &inst->refresh_cmd.packet, inst->refresh_cmd.packet_buf, sizeof(inst->refresh_cmd.packet_buf), servo->id,
+        DYNAMIXEL_CTRL_TABLE_TORQUE_ENABLE_ADDR, &torque_enable, 1));
     dynamixel_send_packet(initial_torque_disable_cb, &inst->refresh_cmd.packet);
 }
 
@@ -478,8 +485,7 @@ static void write_cmd_cb(dynamixel_error_t err, struct dynamixel_req_result *res
 }
 
 void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len) {
-
-    size_t max_pkt_len = 13 + (4 * ((data_len) / 3)); // Worst case calculations for packet write with byte stuffing
+    size_t max_pkt_len = 13 + (4 * ((data_len) / 3));  // Worst case calculations for packet write with byte stuffing
     // Address shouldn't trigger byte stuffing since we should never write address 0xFFFx
 
     // Limit max length to the buffer size in queue
@@ -489,8 +495,8 @@ void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, ui
 
     InfoToMakeDXLPacket_t packet;
     uint8_t packet_buf[max_pkt_len];
-    enum DXLLibErrorCode ret = dynamixel_create_write_packet(&packet, packet_buf, sizeof(packet_buf), id,
-        start_address, data, data_len);
+    enum DXLLibErrorCode ret =
+        dynamixel_create_write_packet(&packet, packet_buf, sizeof(packet_buf), id, start_address, data, data_len);
 
     // Make sure the packet was created ok
     if (ret != DXL_LIB_OK) {
@@ -570,8 +576,7 @@ static void eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_result *r
 }
 
 void dynamixel_schedule_eeprom_read(dynamixel_id id) {
-
-    size_t max_pkt_len = 16; // Worst case calculations for packet read
+    size_t max_pkt_len = 16;  // Worst case calculations for packet read
     // Address shouldn't trigger byte stuffing since we should never write address 0xFFFx
 
     // Limit max length to the buffer size in queue
@@ -617,7 +622,7 @@ void dynamixel_schedule_eeprom_read(dynamixel_id id) {
     }
 }
 
-struct dynamixel_state* dynamixel_schedule_get_state_ptr(dynamixel_id id) {
+struct dynamixel_state *dynamixel_schedule_get_state_ptr(dynamixel_id id) {
     for (size_t i = 0; i < inst->servo_count; i++) {
         if (id == inst->servo_states[i].id) {
             return &inst->servo_states[i];

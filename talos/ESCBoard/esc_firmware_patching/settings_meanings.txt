@@ -1,0 +1,25 @@
+Meaning for the various indices in the settings/config file saved by APD Configuration Tool:
+ 0: ---Unknown---, but possibly the ESC model #?
+ 1: Bidirectional (0 disabled, 1 enabled)
+ 2: Reverse Direction (0: Normal, 1: Reverse)
+ 3: Ramp Up Response (%/100ms)
+ 4: Ramp Down Response (%/100ms)
+ 5: Timing Advance: (0: Auto, 12-28: Manual Advance)
+ 6: Unused always 0
+ 7: Motor Start Power: (0: Low, 1: Medium, 2: High)
+ 8: Current Limit (Value in Amps)
+ 9: Auto Detect PWM Endpoints (0: No, 1: Yes)
+10: PWM Lower Endpoint (1000 + value uS)
+11: PWM Upper Endpoint (2000 - value uS)
+12: Telemetry Enabled (0: No, 1: Yes)
+13: Brake on Stop (0: No, 1: Yes)
+14: Beep Tones (0: All Beep Tones, 1: No Idle Beep Tones, 2: No Tones)
+15: Telemetry Type (0: Dshot/betaflight telemetry, 1: PWM Telemetry, 2: RPM Output)
+16: Temperature Limit (Value in C)
+17: Temperature Limit Behavior (0: Power Limit 50%, 1: Power Limit 75%, 2: Hard Shutdown, 3: None)
+18: Dead Zone Percentage (Value: 1-10%)
+19: F5B Startup - Super fast startup (0: Disabled, 1: Enabled)
+20: Input Signal Type (0 auto, 1: PWM, 2: dshot, 4: Proshot)
+21: DShot Baud Rate (0: auto/unused, 1: DShot 150, 2: DShot 300, 3: DShot 600)
+22: Unused always 0
+23: CRC8

@@ -153,10 +153,6 @@ SECTIONS
         . = ALIGN(4);
     } > FLASH_BL
 
-    .trampoline_align : {
-        . = ALIGN(256);
-    } > FLASH_BL
-
     /* Stash boot trampoline at bottom of stack, needed since XIP cache needs to be re-enabled here */
     .boot_trampoline : {
         . = ALIGN(4);
@@ -197,7 +193,7 @@ SECTIONS
     } > FLASH_APP
 
     /* stack limit is poorly named, but historically is maximum heap ptr */
-    __StackLimit = ORIGIN(RAM) + LENGTH(RAM);
+    __StackLimit = ORIGIN(SCRATCH_X) + LENGTH(SCRATCH_X);
     __StackTop = ORIGIN(SCRATCH_Y) + LENGTH(SCRATCH_Y);
     __StackBottom = __StackTop - SIZEOF(.stack_dummy);
     PROVIDE(__stack = __StackTop);

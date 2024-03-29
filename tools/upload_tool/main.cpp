@@ -1,23 +1,20 @@
+#include "UploadTool.hpp"
+#include "canmore_cpp/Discovery.hpp"
+#include "pico_usb/USBDiscovery.hpp"
+
 #include <cxxabi.h>
 #include <iostream>
 #include <memory>
-#include <vector>
-#include <thread>
 #include <net/if.h>
-
-#include "UploadTool.hpp"
-#include "titan/canmore.h"
-#include "canmore_cpp/Discovery.hpp"
-#include "canmore_cpp/BootloaderClient.hpp"
-#include "canmore_cpp/RegMappedClient.hpp"
-#include "pico_usb/USBDiscovery.hpp"
+#include <string.h>
+#include <thread>
+#include <vector>
 
 bool isValidCANDevice(const char *name) {
-    return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' &&
-            (name[3] >= '0' && name[3] <= '9'));
+    return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' && (name[3] >= '0' && name[3] <= '9'));
 }
 
-static const char* const positionalArgsNames[] = {"uf2"};
+static const char *const positionalArgsNames[] = { "uf2" };
 
 class CANBlToolArgs {
 public:
@@ -29,53 +26,62 @@ public:
     bool forceOpenocd;
     bool showHelpAndQuit;
     const char *filename;
+    std::string deviceName;
     const char *progname;
 
     bool parseSuccessful;
 
-    CANBlToolArgs(int argc, char** argv):
-            // Define default args
-            waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), alwaysPromptForDev(false), forceOpenocd(false), showHelpAndQuit(false), filename(""),
+    CANBlToolArgs(int argc, char **argv):
+        // Define default args
+        waitInBootDelay(false), justPullInfo(false), allowBootloaderOverwrite(false), alwaysPromptForDev(false),
+        forceOpenocd(false), showHelpAndQuit(false), filename(""), deviceName(""),
 
-            // Attributes
-            progname("[???]"), parseSuccessful(false), argc(argc), argv(argv), positionalIndex(0) {
-
+        // Attributes
+        progname("[???]"), parseSuccessful(false), argc(argc), argv(argv), positionalIndex(0) {
         // Do parse
         parseSuccessful = tryParse();
     }
 
     void printHelp() {
-        std::cout << "Usage: " << progname << " [-fiopw] [uf2]" << std::endl;
+        std::cout << "Usage: " << progname << " [-fiopw] [uf2] [device name (optional)]" << std::endl;
         std::cout << "\t-h: Show this help message" << std::endl;
         std::cout << "\t-f: Full Image Flash (if omitted, uf2 is assumed ota file)" << std::endl;
-        std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA" << std::endl;
+        std::cout << "\t\tAllows flashing of images containing a bootloader rather than restricting to OTA"
+                  << std::endl;
         std::cout << "\t-i: Print Info" << std::endl;
         std::cout << "\t\tPrints information from the passed file and quits" << std::endl;
         std::cout << "\t-o: Force OpenOCD" << std::endl;
         std::cout << "\t\tForces uploading via OpenOCD, bypassing device discovery." << std::endl;
-        std::cout << "\t\tUseful with UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT to enable flashing with non-picoprobe devices." << std::endl;
+        std::cout
+            << "\t\tUseful with UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT to enable flashing with non-picoprobe devices."
+            << std::endl;
         std::cout << "\t-p: Always Prompt for Device" << std::endl;
-        std::cout << "\t\tDisable automatic device selection, and instead always prompts the user for which RP2040 to upload to" << std::endl;
+        std::cout << "\t\tDisable automatic device selection, and instead always prompts the user for which RP2040 to "
+                     "upload to"
+                  << std::endl;
         std::cout << "\t-w: Wait for Boot" << std::endl;
         std::cout << "\t\tPrompts to wait for CANmore device in boot" << std::endl;
         std::cout << "\tuf2: A UF2 file to flash" << std::endl;
+        std::cout << "\tdevice name: The name of an RP2040 board to specifically select" << std::endl;
         std::cout << std::endl;
         std::cout << "Environment Variables:" << std::endl;
         std::cout << "\tUPLOADTOOL_OPENOCD_PATH:" << std::endl;
-        std::cout << "\t\tSet this to override the openocd exectuable path. Useful if using custom openocd version" << std::endl;
+        std::cout << "\t\tSet this to override the openocd exectuable path. Useful if using custom openocd version"
+                  << std::endl;
         std::cout << "\tUPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT:" << std::endl;
         std::cout << "\t\tSet this to override the openocd picoprobe initialization routine." << std::endl;
         std::cout << "\t\tUseful when combined with -o flag to run with non-picoprobe interfaces." << std::endl;
         std::cout << "\tUPLOADTOOL_OPENOCD_EN_STDERR:" << std::endl;
-        std::cout << "\t\tSet to 1 to enable stderr on openocd subprocess, 0 to supress stderr output (Default)" << std::endl;
+        std::cout << "\t\tSet to 1 to enable stderr on openocd subprocess, 0 to supress stderr output (Default)"
+                  << std::endl;
     }
 
 private:
     int argc;
-    char** argv;
+    char **argv;
     size_t positionalIndex;
 
-    const char* tryGetArgument(const char *argname) {
+    const char *tryGetArgument(const char *argname) {
         if (!argc) {
             std::cout << "Error: Expected argument '" << argname << "'" << std::endl;
             return NULL;
@@ -86,27 +92,33 @@ private:
 
     bool tryParsePositional(const char *arg) {
         switch (positionalIndex) {
-            case 0:
-                filename = arg;
-                break;
-            default:
-                std::cout << "Unexpected positional argument '" << arg << "'" << std::endl;
-                return false;
+        case 0:
+            filename = arg;
+            break;
+        case 1:
+            deviceName = arg;
+            break;
+        default:
+            std::cout << "Unexpected positional argument '" << arg << "'" << std::endl;
+            return false;
         }
         positionalIndex++;
         return true;
     }
 
-
     bool tryParse() {
-        const char* prognameTemp = tryGetArgument("progname"); \
-        if (!prognameTemp) {return false;}
+        const char *prognameTemp = tryGetArgument("progname");
+        if (!prognameTemp) {
+            return false;
+        }
         progname = prognameTemp;
 
         // Loop until all positional arguments found (or help, which is special)
-        while ((positionalIndex < (sizeof(positionalArgsNames)/sizeof(*positionalArgsNames)) || argc > 0) && !showHelpAndQuit) {
-            const char* arg = tryGetArgument(positionalArgsNames[positionalIndex]);
-            if (!arg) return false;
+        while ((positionalIndex < (sizeof(positionalArgsNames) / sizeof(*positionalArgsNames)) || argc > 0) &&
+               !showHelpAndQuit) {
+            const char *arg = tryGetArgument(positionalArgsNames[positionalIndex]);
+            if (!arg)
+                return false;
 
             // Check if flag
             if (arg[0] == '-') {
@@ -150,7 +162,7 @@ private:
     }
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     try {
         auto devMap = DeviceMap::create();
 
@@ -174,29 +186,38 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        if (blArgs.forceOpenocd) {
-            auto itf = std::make_shared<PicoUSB::PicoprobeClient>("");
-            UploadTool::flashImage(itf, uf2, !blArgs.allowBootloaderOverwrite);
-            return 0;
-        }
-
         // ===== Discover devices =====
         std::vector<std::shared_ptr<RP2040Discovery>> discoverySources;
-        discoverySources.push_back(Canmore::EthernetDiscovery::create());
-        discoverySources.push_back(PicoUSB::USBDiscovery::create());
+        bool skipDelay = false;
 
-        // Discover all CAN interfaces
-        struct if_nameindex *if_nidxs, *intf;
-        if_nidxs = if_nameindex();
-        if (if_nidxs != NULL)
-        {
-            for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++)
-            {
-                if (isValidCANDevice(intf->if_name)) {
-                    discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
-                }
+        if (blArgs.forceOpenocd) {
+            // If we are told to do a custom openocd init script, don't try to search, blindly trust OpenOCD
+            if (PicoUSB::OpenOCDInstance::hasCustomInit()) {
+                auto itf = std::make_shared<PicoUSB::PicoprobeClient>("");
+                UploadTool::flashImage(itf, uf2, !blArgs.allowBootloaderOverwrite);
+                return 0;
             }
-            if_freenameindex(if_nidxs);
+            else {
+                // If not, just do a usb discovery for picoprobes
+                discoverySources.push_back(PicoUSB::USBDiscovery::create(true));
+                skipDelay = true;
+            }
+        }
+        else {
+            discoverySources.push_back(Canmore::EthernetDiscovery::create());
+            discoverySources.push_back(PicoUSB::USBDiscovery::create());
+
+            // Discover all CAN interfaces
+            struct if_nameindex *if_nidxs, *intf;
+            if_nidxs = if_nameindex();
+            if (if_nidxs != NULL) {
+                for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++) {
+                    if (isValidCANDevice(intf->if_name)) {
+                        discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
+                    }
+                }
+                if_freenameindex(if_nidxs);
+            }
         }
 
         std::shared_ptr<RP2040FlashInterface> interface;
@@ -206,7 +227,8 @@ int main(int argc, char** argv) {
         else {
             // Wait for devices to appear
             std::cout << "Waiting for devices..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            if (!skipDelay)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
             // Find all discovered devices
             std::vector<std::shared_ptr<RP2040Device>> discovered;
@@ -218,31 +240,43 @@ int main(int argc, char** argv) {
 
             if (discovered.size() == 0) {
                 std::cout << "No devices to select" << std::endl;
-                return 0;
+                return 1;
             }
 
-            auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
-            interface = dev->getFlashInterface();
+            if (blArgs.deviceName.empty()) {
+                auto dev = UploadTool::selectDevice(discovered, devMap, uf2.boardType, !blArgs.alwaysPromptForDev);
+                if (!dev) {
+                    return 1;
+                }
+                interface = dev->getFlashInterface();
+            }
+            else {
+                uint64_t targetSerialNum = devMap.lookupSerialByName(blArgs.deviceName);
+                auto dev = UploadTool::selectDeviceByName(discovered, devMap, targetSerialNum);
+                if (!dev) {
+                    return 1;
+                }
+                interface = dev->getFlashInterface();
+            }
         }
 
-        // std::array<uint8_t, UF2_PAGE_SIZE> my_page;
-        // interface->readBytes(0x10000000, my_page);
-        // DumpHex(my_page.data(), my_page.size());
-
-        UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite);
-
-    }
-    catch (std::exception &e) {
+        if (UploadTool::flashImage(interface, uf2, !blArgs.allowBootloaderOverwrite)) {
+            return 0;
+        }
+        else {
+            return 1;
+        }
+    } catch (std::exception &e) {
         int status;
         char *exceptionName = abi::__cxa_demangle(abi::__cxa_current_exception_type()->name(), 0, 0, &status);
         // const char *exceptionName = typeid(i).name();
-        std::cerr << std::endl << "[EXCEPTION] Exception '" << exceptionName << "' caused program termination" << std::endl;
+        std::cerr << std::endl
+                  << "[EXCEPTION] Exception '" << exceptionName << "' caused program termination" << std::endl;
         free(exceptionName);
         std::cerr << "  what():  " << e.what() << std::endl;
-    }
-    catch (...) {
+        return 255;
+    } catch (...) {
         std::cerr << std::endl << "[EXCEPTION] Unknown exception caused program termination" << std::endl;
+        return 255;
     }
-
-    return 0;
 }

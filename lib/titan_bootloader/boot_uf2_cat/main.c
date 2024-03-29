@@ -1,15 +1,15 @@
+#include "boot/uf2.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include "boot/uf2.h"
 
 #define BOOTLOADER_SIZE 0x4000
 #define FLASH_BASE 0x10000000
-#define FLASH_SIZE (16*1024*1024) // 16 MB Flash size
-#define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing
+#define FLASH_SIZE (16 * 1024 * 1024)  // 16 MB Flash size
+#define UF2_PAGE_SIZE 256              // All RP2040 UF2 files are have 256 bytes of data for flashing
 
 struct uf2_handle {
     const char *filename;
@@ -22,9 +22,10 @@ struct uf2_handle {
 struct uf2_write_handle {
     const char *filename;
     FILE *fp;
-    uint32_t num_blocks;    // Total number of blocks to write
-    uint32_t block_count;   // The current count of blocks written to fp
-    uint32_t next_addr;     // The next address to write in the uf2 (needed for contiguous UF2s), only valid when block_count > 0
+    uint32_t num_blocks;   // Total number of blocks to write
+    uint32_t block_count;  // The current count of blocks written to fp
+    uint32_t next_addr;    // The next address to write in the uf2 (needed for contiguous UF2s), only valid when
+                           // block_count > 0
 };
 
 // #define DEBUG_VERIFY(...) do {} while(0)
@@ -76,7 +77,8 @@ bool is_block_valid(struct uf2_block *block, bool is_bootloader, uint32_t expect
 
     // Check address is valid within flash
     if (block->target_addr < min_addr || block->target_addr > max_addr) {
-        DEBUG_VERIFY("Invalid address: 0x%08x out of range (0x%08x - 0x%08x)\n", block->target_addr, min_addr, max_addr);
+        DEBUG_VERIFY("Invalid address: 0x%08x out of range (0x%08x - 0x%08x)\n", block->target_addr, min_addr,
+                     max_addr);
         return false;
     }
 
@@ -95,8 +97,8 @@ bool is_block_valid(struct uf2_block *block, bool is_bootloader, uint32_t expect
     return true;
 }
 
-bool open_uf2(const char *filename, bool is_bootloader, struct uf2_handle* handle_out) {
-    FILE* f = fopen(filename, "r");
+bool open_uf2(const char *filename, bool is_bootloader, struct uf2_handle *handle_out) {
+    FILE *f = fopen(filename, "r");
     if (f == NULL) {
         printf("[%s] Failed to open file: %s\n", filename, strerror(errno));
         return false;
@@ -108,7 +110,8 @@ bool open_uf2(const char *filename, bool is_bootloader, struct uf2_handle* handl
     if (readsize != sizeof(block)) {
         if (feof(f)) {
             printf("[%s] Unexpected end of UF2 file\n", filename);
-        } else {
+        }
+        else {
             printf("[%s] Failed to read uf2 block: %s\n", filename, strerror(errno));
         }
         goto fail;
@@ -164,7 +167,6 @@ static struct uf2_block padding_block = {
     .flags = UF2_FLAG_FAMILY_ID_PRESENT,
     .payload_size = UF2_PAGE_SIZE,
     .file_size = RP2040_FAMILY_ID,
-    .data = {[0 ... (UF2_PAGE_SIZE-1)] = 0xFF},
     .magic_end = UF2_MAGIC_END,
 };
 
@@ -219,7 +221,7 @@ bool pad_uf2(struct uf2_write_handle *write_handle, uint32_t target_addr) {
     return true;
 }
 
-bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle) {
+bool append_uf2(struct uf2_handle *handle, struct uf2_write_handle *write_handle) {
     struct uf2_block block;
     uint32_t expected_block_no = 0;
 
@@ -239,7 +241,8 @@ bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle
         if (readsize != sizeof(block)) {
             if (feof(handle->fp)) {
                 printf("[%s] Unexpected end of UF2 file\n", handle->filename);
-            } else {
+            }
+            else {
                 printf("[%s] Failed to read uf2 block: %s\n", handle->filename, strerror(errno));
             }
             return false;
@@ -253,14 +256,16 @@ bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle
 
         // Ensure that the block numbering is sequential
         if (expected_block_no != block.block_no) {
-            printf("[%s] Out of order UF2 block (%d expected, %d found)\n", handle->filename, expected_block_no, block.block_no);
+            printf("[%s] Out of order UF2 block (%d expected, %d found)\n", handle->filename, expected_block_no,
+                   block.block_no);
             return false;
         }
         expected_block_no++;
 
         // Ensure that target address is in-order and contiguous
         if (write_handle->next_addr != block.target_addr) {
-            printf("[%s] Non-contiguous UF2 address (0x%08x expected, 0x%08x found)\n", handle->filename, write_handle->next_addr, block.target_addr);
+            printf("[%s] Non-contiguous UF2 address (0x%08x expected, 0x%08x found)\n", handle->filename,
+                   write_handle->next_addr, block.target_addr);
             return false;
         }
         write_handle->next_addr += UF2_PAGE_SIZE;
@@ -284,10 +289,13 @@ bool append_uf2(struct uf2_handle* handle, struct uf2_write_handle *write_handle
     return true;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     struct uf2_write_handle write_handle;
     struct uf2_handle bl_handle, app_handle;
     bool successful = false;
+
+    // Initialize padding block properly
+    memset(padding_block.data, 0xFF, UF2_PAGE_SIZE);
 
     if (argc < 4) {
         printf("Usage: %s <bootloader uf2> <app uf2> <output uf2>\n", argv[0]);
@@ -300,15 +308,20 @@ int main(int argc, char** argv) {
     }
 
     // Open input files
-    if (!open_uf2(argv[1], true, &bl_handle)) goto cleanup_output;
+    if (!open_uf2(argv[1], true, &bl_handle))
+        goto cleanup_output;
     write_handle.num_blocks += bl_handle.num_blocks;
-    if (!open_uf2(argv[2], false, &app_handle)) goto cleanup_bl;
-    write_handle.num_blocks += calc_required_padding_blocks(bl_handle.base_addr, bl_handle.num_blocks, app_handle.base_addr);
+    if (!open_uf2(argv[2], false, &app_handle))
+        goto cleanup_bl;
+    write_handle.num_blocks +=
+        calc_required_padding_blocks(bl_handle.base_addr, bl_handle.num_blocks, app_handle.base_addr);
     write_handle.num_blocks += app_handle.num_blocks;
 
     // Append output files
-    if (!append_uf2(&bl_handle, &write_handle)) goto cleanup;
-    if (!append_uf2(&app_handle, &write_handle)) goto cleanup;
+    if (!append_uf2(&bl_handle, &write_handle))
+        goto cleanup;
+    if (!append_uf2(&app_handle, &write_handle))
+        goto cleanup;
 
     // In theory other checks should catch this, but just make sure all blocks have been written
     assert(write_handle.block_count == write_handle.num_blocks);
@@ -333,7 +346,7 @@ cleanup_output:
     }
 
     if (!successful) {
-        if (unlink(write_handle.filename)) {
+        if (remove(write_handle.filename)) {
             printf("[%s] Failed to delete incomplete output file: %s\n", write_handle.filename, strerror(errno));
         }
     }

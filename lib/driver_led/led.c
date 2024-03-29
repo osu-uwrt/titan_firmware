@@ -1,39 +1,40 @@
-#include <stdbool.h>
-#include "pico/binary_info.h"
-#include "pico/time.h"
+#include "driver/led.h"
+
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
+#include "pico/binary_info.h"
+#include "pico/time.h"
 
-#include "driver/led.h"
+#include <stdbool.h>
 
 /**
  * @brief Rate at which the normal LED value and fault value alternates between
  */
 #define LED_TOGGLE_RATE_MS 500
 
-#define LED_BRIGHTNESS_STEPS 32
+#define LED_BRIGHTNESS_STEPS 1024
 #define LED_FREQUENCY_HZ 1000
 #define LED_LVL_ON LED_BRIGHTNESS_STEPS
 #define LED_LVL_OFF 0
-#define LED_LVL_YELLOW 7
-#define set_led_pin(pin, val)  pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
+#define LED_LVL_YELLOW 224
+#define set_led_pin(pin, val) pwm_set_chan_level(pwm_gpio_to_slice_num(pin), pwm_gpio_to_channel(pin), val)
 
 static struct led_status {
-    bool initialized;   // If this is false, the PWM hardware hasn't been setup yet
+    bool initialized;  // If this is false, the PWM hardware hasn't been setup yet
     bool fault;
     bool network_online;
     bool ros_connected;
     bool killswitch;
-} status = {.initialized = false};
+} status = { .initialized = false };
 
 void led_init() {
     pwm_config config = pwm_get_default_config();
 
     // Set clkdiv to tick once per millisecond (assert clock is disible cleanly into ms)
     // and for the cycle to rollover after blink cycle ms
-    pwm_config_set_clkdiv(&config, ((float)clock_get_hz(clk_sys)) / (LED_FREQUENCY_HZ * LED_BRIGHTNESS_STEPS));
-    pwm_config_set_wrap(&config, LED_BRIGHTNESS_STEPS-1);
+    pwm_config_set_clkdiv(&config, ((float) clock_get_hz(clk_sys)) / (LED_FREQUENCY_HZ * LED_BRIGHTNESS_STEPS));
+    pwm_config_set_wrap(&config, LED_BRIGHTNESS_STEPS - 1);
 
     // Invert the output polarity as this is an RGB led so it will have inverted logic levels
     pwm_config_set_output_polarity(&config, true, true);
@@ -42,16 +43,16 @@ void led_init() {
     bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDR_PIN, "Status LED Red"));
     bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDG_PIN, "Status LED Green"));
     bi_decl_if_func_used(bi_1pin_with_name(STATUS_LEDB_PIN, "Status LED Blue"));
-    uint led_pins[] = {STATUS_LEDR_PIN, STATUS_LEDG_PIN, STATUS_LEDB_PIN};
+    uint led_pins[] = { STATUS_LEDR_PIN, STATUS_LEDG_PIN, STATUS_LEDB_PIN };
     uint32_t initialized_slices = 0;
 
-    for (unsigned int i = 0; i < sizeof(led_pins) / sizeof(*led_pins); i++){
+    for (unsigned int i = 0; i < sizeof(led_pins) / sizeof(*led_pins); i++) {
         uint pin = led_pins[i];
         uint slice_num = pwm_gpio_to_slice_num(pin);
 
         // Initialize slice if needed
-        if (!(initialized_slices & (1<<slice_num))) {
-            initialized_slices |= (1<<slice_num);
+        if (!(initialized_slices & (1 << slice_num))) {
+            initialized_slices |= (1 << slice_num);
 
             pwm_init(slice_num, &config, false);
         }
@@ -66,8 +67,8 @@ void led_init() {
 
     // Finally enable all the configured slices
     int slice_num = 0;
-    while (initialized_slices != 0){
-        if (initialized_slices & 1){
+    while (initialized_slices != 0) {
+        if (initialized_slices & 1) {
             pwm_set_enabled(slice_num, true);
         }
         slice_num++;
@@ -94,7 +95,7 @@ void led_update_pins() {
         modified = false;
 
         // Compute blinking if a fault is present
-        uint32_t value = (to_ms_since_boot(get_absolute_time()) % (LED_TOGGLE_RATE_MS*2));
+        uint32_t value = (to_ms_since_boot(get_absolute_time()) % (LED_TOGGLE_RATE_MS * 2));
 
         if (status.fault && value >= LED_TOGGLE_RATE_MS) {
             set_led_pin(STATUS_LEDR_PIN, LED_LVL_ON);
@@ -106,14 +107,17 @@ void led_update_pins() {
             uint16_t g = LED_LVL_OFF;
             uint16_t b = LED_LVL_OFF;
 
-            if(status.killswitch) {
+            if (status.killswitch) {
                 b = LED_LVL_ON;
-            } else if(status.ros_connected) {
+            }
+            else if (status.ros_connected) {
                 g = LED_LVL_ON;
-            } else if(status.network_online) {
+            }
+            else if (status.network_online) {
                 r = LED_LVL_ON;
                 g = LED_LVL_YELLOW;
-            } else {
+            }
+            else {
                 r = LED_LVL_ON;
             }
 

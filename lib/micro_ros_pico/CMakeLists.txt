@@ -7,7 +7,7 @@ if(EXISTS "${MICRO_ROS_DIR}/libmicroros" AND EXISTS "${MICRO_ROS_DIR}/libmicroro
     add_subdirectory(transport_usb)
 else()
     message(WARNING "Could not locate prebuilt libmicroros install!\n"
-            "Please install docker and run './build.sh' in the lib/micro_ros_pico directory"
+            "Please install docker and run './build.sh' in the lib/micro_ros_pico directory "
             "or copy the 'lib/micro_ros_pico/libmicroros' directory from another machine.\n"
             "MicroROS library targets will not be created for this build")
 endif()

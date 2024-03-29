@@ -1,8 +1,10 @@
-#include <stdint.h>
+#include "ms5837.h"
+
+#include "ms5837_commands.h"
+
 #include "driver/async_i2c.h"
 
-#include "ms5837.h"
-#include "ms5837_commands.h"
+#include <stdint.h>
 
 static struct depth_state {
     // --- I2C data ---
@@ -42,7 +44,7 @@ static struct depth_state {
     bool reading_d2;
     // Variable to hold the d1 reading from the ADC when reading the D2 value from the sensor
     uint32_t d1_temp;
-} depth_inst = {0};
+} depth_inst = { 0 };
 
 /**
  * @brief Aborts the current operation with the specific error event.
@@ -64,10 +66,10 @@ static void ms5837_abort_operation(struct depth_state *inst, enum depth_error_ev
  * @param req The request that failed
  * @param abort_data The contents of the abort register
  */
-static void ms5837_i2c_error_cb(const struct async_i2c_request* req, __unused uint32_t abort_data) {
-    struct depth_state *inst = (struct depth_state*)req->user_data;
+static void ms5837_i2c_error_cb(const struct async_i2c_request *req, __unused uint32_t abort_data) {
+    struct depth_state *inst = (struct depth_state *) req->user_data;
 
-    //LOG_DEBUG("Error communicating with depth sensor (Tx Abort: %lu, cmd: %d)", abort_data, inst->cmd);
+    // LOG_DEBUG("Error communicating with depth sensor (Tx Abort: %lu, cmd: %d)", abort_data, inst->cmd);
     if (inst->cmd == DEPTH_CMD_RESET)
         ms5837_abort_operation(inst, DEPTH_ERROR_RESET_CMD);
     else
@@ -116,78 +118,80 @@ static void ms5837_calculate(struct depth_state *inst, uint32_t D2, int32_t *pre
 
     // Modified from Blue Robotics Depth Sensor Arduino Library
     // Given C1-C6 and D1, D2, calculated TEMP and P
-	// Do conversion first and then second order temp compensation
+    // Do conversion first and then second order temp compensation
 
-	int32_t dT = 0;
-	int64_t SENS = 0;
-	int64_t OFF = 0;
-	int32_t SENSi = 0;
-	int32_t OFFi = 0;
-	int32_t Ti = 0;
-	int64_t OFF2 = 0;
-	int64_t SENS2 = 0;
+    int32_t dT = 0;
+    int64_t SENS = 0;
+    int64_t OFF = 0;
+    int32_t SENSi = 0;
+    int32_t OFFi = 0;
+    int32_t Ti = 0;
+    int64_t OFF2 = 0;
+    int64_t SENS2 = 0;
     int32_t TEMP = 0;
     int32_t P = 0;
 
-	// Terms called
-	dT = D2-(uint32_t)(C[5])*256l;
-	if ( model == MS5837_02BA ) {
-		SENS = (int64_t)(C[1])*65536l+((int64_t)(C[3])*dT)/128l;
-		OFF = (int64_t)(C[2])*131072l+((int64_t)(C[4])*dT)/64l;
-		P = (D1*SENS/(2097152l)-OFF)/(32768l);
-	} else {
-		SENS = (int64_t)(C[1])*32768l+((int64_t)(C[3])*dT)/256l;
-		OFF = (int64_t)(C[2])*65536l+((int64_t)(C[4])*dT)/128l;
-		P = (D1*SENS/(2097152l)-OFF)/(8192l);
-	}
+    // Terms called
+    dT = D2 - (uint32_t) (C[5]) * 256l;
+    if (model == MS5837_02BA) {
+        SENS = (int64_t) (C[1]) * 65536l + ((int64_t) (C[3]) * dT) / 128l;
+        OFF = (int64_t) (C[2]) * 131072l + ((int64_t) (C[4]) * dT) / 64l;
+        P = (D1 * SENS / (2097152l) - OFF) / (32768l);
+    }
+    else {
+        SENS = (int64_t) (C[1]) * 32768l + ((int64_t) (C[3]) * dT) / 256l;
+        OFF = (int64_t) (C[2]) * 65536l + ((int64_t) (C[4]) * dT) / 128l;
+        P = (D1 * SENS / (2097152l) - OFF) / (8192l);
+    }
 
-	// Temp conversion
-	TEMP = 2000l+(int64_t)(dT)*C[6]/8388608LL;
+    // Temp conversion
+    TEMP = 2000l + (int64_t) (dT) *C[6] / 8388608LL;
 
-	//Second order compensation
-	if ( model == MS5837_02BA ) {
-		if((TEMP/100)<20){         //Low temp
-			Ti = (11*(int64_t)(dT)*(int64_t)(dT))/(34359738368LL);
-			OFFi = (31*(TEMP-2000)*(TEMP-2000))/8;
-			SENSi = (63*(TEMP-2000)*(TEMP-2000))/32;
-		}
-	} else {
-		if((TEMP/100)<20){         //Low temp
-			Ti = (3*(int64_t)(dT)*(int64_t)(dT))/(8589934592LL);
-			OFFi = (3*(TEMP-2000)*(TEMP-2000))/2;
-			SENSi = (5*(TEMP-2000)*(TEMP-2000))/8;
-			if((TEMP/100)<-15){    //Very low temp
-				OFFi = OFFi+7*(TEMP+1500l)*(TEMP+1500l);
-				SENSi = SENSi+4*(TEMP+1500l)*(TEMP+1500l);
-			}
-		}
-		else if((TEMP/100)>=20){    //High temp
-			Ti = 2*(dT*dT)/(137438953472LL);
-			OFFi = (1*(TEMP-2000)*(TEMP-2000))/16;
-			SENSi = 0;
-		}
-	}
+    // Second order compensation
+    if (model == MS5837_02BA) {
+        if ((TEMP / 100) < 20) {  // Low temp
+            Ti = (11 * (int64_t) (dT) * (int64_t) (dT)) / (34359738368LL);
+            OFFi = (31 * (TEMP - 2000) * (TEMP - 2000)) / 8;
+            SENSi = (63 * (TEMP - 2000) * (TEMP - 2000)) / 32;
+        }
+    }
+    else {
+        if ((TEMP / 100) < 20) {  // Low temp
+            Ti = (3 * (int64_t) (dT) * (int64_t) (dT)) / (8589934592LL);
+            OFFi = (3 * (TEMP - 2000) * (TEMP - 2000)) / 2;
+            SENSi = (5 * (TEMP - 2000) * (TEMP - 2000)) / 8;
+            if ((TEMP / 100) < -15) {  // Very low temp
+                OFFi = OFFi + 7 * (TEMP + 1500l) * (TEMP + 1500l);
+                SENSi = SENSi + 4 * (TEMP + 1500l) * (TEMP + 1500l);
+            }
+        }
+        else if ((TEMP / 100) >= 20) {  // High temp
+            Ti = 2 * (dT * dT) / (137438953472LL);
+            OFFi = (1 * (TEMP - 2000) * (TEMP - 2000)) / 16;
+            SENSi = 0;
+        }
+    }
 
-	OFF2 = OFF-OFFi;           //Calculate pressure and temp second order
-	SENS2 = SENS-SENSi;
+    OFF2 = OFF - OFFi;  // Calculate pressure and temp second order
+    SENS2 = SENS - SENSi;
 
-	TEMP = (TEMP-Ti);
+    TEMP = (TEMP - Ti);
 
-	if ( model == MS5837_02BA ) {
-		P = (((D1*SENS2)/2097152l-OFF2)/32768l);
-	} else {
-		P = (((D1*SENS2)/2097152l-OFF2)/8192l);
-	}
+    if (model == MS5837_02BA) {
+        P = (((D1 * SENS2) / 2097152l - OFF2) / 32768l);
+    }
+    else {
+        P = (((D1 * SENS2) / 2097152l - OFF2) / 8192l);
+    }
 
-    if ( model == MS5837_02BA ) {
+    if (model == MS5837_02BA) {
         *pressure_out = P;  // Bar02 is already in Pa (0.01 mbar)
     }
     else {
-        *pressure_out = P*10;  // Bar30 is in units of 0.1 mbar, need to get to Pa
+        *pressure_out = P * 10;  // Bar30 is in units of 0.1 mbar, need to get to Pa
     }
     *temp_out = TEMP;
 }
-
 
 // ========================================
 // Initialization Operation
@@ -197,7 +201,8 @@ static void ms5837_reset_finished(const struct async_i2c_request *req);
 static int64_t ms5837_reset_timer_callback(alarm_id_t id, void *user_data);
 static void ms5837_prom_read_finished(const struct async_i2c_request *req);
 
-void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837_init_cb init_cb, ms5837_error_cb error_cb) {
+void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837_init_cb init_cb,
+                 ms5837_error_cb error_cb) {
     struct depth_state *inst = &depth_inst;
 
     // Make sure we aren't doing anything before we reinitialize state
@@ -235,26 +240,29 @@ void ms5837_init(unsigned int bus_id, enum depth_sensor_type sensor_type, ms5837
  * @param n_prom The PROM to calculate the CRC4 for
  * @return unsigned char The calculated CRC for the PROM
  */
-static unsigned char crc4(uint16_t n_prom[]) // n_prom defined as 8x unsigned int (n_prom[8])
+static unsigned char crc4(uint16_t n_prom[])  // n_prom defined as 8x unsigned int (n_prom[8])
 {
-    int cnt; // simple counter
-    unsigned int n_rem=0; // crc remainder
+    int cnt;                 // simple counter
+    unsigned int n_rem = 0;  // crc remainder
     unsigned char n_bit;
-    n_prom[0]=((n_prom[0]) & 0x0FFF); // CRC byte is replaced by 0
-    n_prom[7]=0; // Subsidiary value, set to 0
-    for (cnt = 0; cnt < 16; cnt++) // operation is performed on bytes
+    n_prom[0] = ((n_prom[0]) & 0x0FFF);  // CRC byte is replaced by 0
+    n_prom[7] = 0;                       // Subsidiary value, set to 0
+    for (cnt = 0; cnt < 16; cnt++)       // operation is performed on bytes
     {
         // choose LSB or MSB
-        if (cnt%2==1) n_rem ^= (unsigned short) ((n_prom[cnt>>1]) & 0x00FF);
-        else n_rem ^= (unsigned short) (n_prom[cnt>>1]>>8);
+        if (cnt % 2 == 1)
+            n_rem ^= (unsigned short) ((n_prom[cnt >> 1]) & 0x00FF);
+        else
+            n_rem ^= (unsigned short) (n_prom[cnt >> 1] >> 8);
 
-        for (n_bit = 8; n_bit > 0; n_bit--)
-        {
-            if (n_rem & (0x8000)) n_rem = (n_rem << 1) ^ 0x3000;
-            else n_rem = (n_rem << 1);
+        for (n_bit = 8; n_bit > 0; n_bit--) {
+            if (n_rem & (0x8000))
+                n_rem = (n_rem << 1) ^ 0x3000;
+            else
+                n_rem = (n_rem << 1);
         }
     }
-    n_rem = ((n_rem >> 12) & 0x000F); // final 4-bit remainder is CRC code
+    n_rem = ((n_rem >> 12) & 0x000F);  // final 4-bit remainder is CRC code
     return (n_rem ^ 0x00);
 }
 
@@ -264,7 +272,7 @@ static unsigned char crc4(uint16_t n_prom[]) // n_prom defined as 8x unsigned in
  * @param req Request that caused the callback
  */
 static void ms5837_reset_finished(const struct async_i2c_request *req) {
-    struct depth_state *inst = (struct depth_state*)req->user_data;
+    struct depth_state *inst = (struct depth_state *) req->user_data;
 
     if (add_alarm_in_ms(DEPTH_RESET_DELAY_MS, ms5837_reset_timer_callback, inst, true) < 0) {
         ms5837_abort_operation(inst, DEPTH_ERROR_ALARM_QUEUE_FULL);
@@ -280,7 +288,7 @@ static void ms5837_reset_finished(const struct async_i2c_request *req) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t ms5837_reset_timer_callback(__unused alarm_id_t id, void *user_data) {
-    struct depth_state *inst = (struct depth_state*)user_data;
+    struct depth_state *inst = (struct depth_state *) user_data;
 
     inst->prom_read_index = 0;
     ms5837_i2c_cmd(inst, DEPTH_CMD_PROM_READ(0), 2, ms5837_prom_read_finished);
@@ -293,14 +301,15 @@ static int64_t ms5837_reset_timer_callback(__unused alarm_id_t id, void *user_da
  * @param req The request which caused the callback
  */
 static void ms5837_prom_read_finished(const struct async_i2c_request *req) {
-    struct depth_state *inst = (struct depth_state*)req->user_data;
+    struct depth_state *inst = (struct depth_state *) req->user_data;
 
     inst->sensor_prom[inst->prom_read_index] = (inst->rx_buf[0] << 8) + inst->rx_buf[1];
     inst->prom_read_index++;
 
     if (inst->prom_read_index < 7) {
         ms5837_i2c_cmd(inst, DEPTH_CMD_PROM_READ(inst->prom_read_index), 2, ms5837_prom_read_finished);
-    } else {
+    }
+    else {
         uint8_t crc = (inst->sensor_prom[0] >> 12) & 0xF;
         uint8_t calculated_crc = crc4(inst->sensor_prom);
         if (crc != calculated_crc) {
@@ -314,7 +323,6 @@ static void ms5837_prom_read_finished(const struct async_i2c_request *req) {
         inst->success_cb.init_cb();
     }
 }
-
 
 // ========================================
 // Conversion Operation
@@ -347,7 +355,7 @@ void ms5837_do_conversion(ms5837_read_cb read_cb, ms5837_error_cb error_cb) {
  * @param req The request which caused the callback
  */
 static void ms5837_convert_cmd_finished(const struct async_i2c_request *req) {
-    struct depth_state *inst = (struct depth_state*)req->user_data;
+    struct depth_state *inst = (struct depth_state *) req->user_data;
 
     if (add_alarm_in_us(DEPTH_CONVERT_DELAY_US(DEPTH_OVERSAMPLING), ms5837_adc_wait_callback, inst, true) < 0) {
         ms5837_abort_operation(inst, DEPTH_ERROR_ALARM_QUEUE_FULL);
@@ -362,7 +370,7 @@ static void ms5837_convert_cmd_finished(const struct async_i2c_request *req) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t ms5837_adc_wait_callback(__unused alarm_id_t id, void *user_data) {
-    struct depth_state *inst = (struct depth_state*)user_data;
+    struct depth_state *inst = (struct depth_state *) user_data;
 
     ms5837_i2c_cmd(inst, DEPTH_CMD_ADC_READ, 3, ms5837_adc_read_finished);
     return 0;
@@ -373,8 +381,8 @@ static int64_t ms5837_adc_wait_callback(__unused alarm_id_t id, void *user_data)
  *
  * @param req The request which caused the callback
  */
-static void ms5837_adc_read_finished(const struct async_i2c_request *req){
-    struct depth_state *inst = (struct depth_state*)req->user_data;
+static void ms5837_adc_read_finished(const struct async_i2c_request *req) {
+    struct depth_state *inst = (struct depth_state *) req->user_data;
 
     if (!inst->reading_d2) {
         inst->reading_d2 = true;

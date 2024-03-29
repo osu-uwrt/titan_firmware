@@ -1,11 +1,13 @@
 #ifndef SAFETY_INTERNAL_H_
 #define SAFETY_INTERNAL_H_
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "safety_helper.h"
 
 #include "titan/logger.h"
 #include "titan/safety.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "safety"
@@ -22,12 +24,12 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=3000, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_TIMER_MS
-#define SAFETY_WATCHDOG_SETUP_TIMER_MS  3000
+#define SAFETY_WATCHDOG_SETUP_TIMER_MS 3000
 #endif
 
 // PICO_CONFIG: SAFETY_WATCHDOG_ACTIVE_TIMER_MS, Watchdog timer duration when safety is initialized in milliseconds, type=int, default=250, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_TIMER_MS
-#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS  250
+#define SAFETY_WATCHDOG_ACTIVE_TIMER_MS 250
 #endif
 
 // PICO_CONFIG: SAFETY_PAUSE_WATCHDOG_ON_DEBUG, Allows watchdog timer to pause when CPU is being debugged. Required to be 1 during debugging, type=bool, default=0, group=titan_safety
@@ -37,19 +39,23 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety is setup but not initialized in milliseconds. Useful for long-running initialization code, type=int, default=500, group=titan_safety
 #ifndef SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS  500
+#define SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS 500
 #endif
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS  100
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 160
+#endif
+
+// PICO_CONFIG: SAFETY_CORE1_CHECKIN_INTERVAL_MS, Maximum time interval in milliseconds between core1 calling safety_core1_checkin to ensure the core is still alive. The program will panic if core1 does not check in within this time, type=int, default=250, group=titan_safety
+#ifndef SAFETY_CORE1_CHECKIN_INTERVAL_MS
+#define SAFETY_CORE1_CHECKIN_INTERVAL_MS 250
 #endif
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_SAFETY, Enable/disable assertions for safety library, type=bool, default=0, group=titan_safety
 #ifndef PARAM_ASSERTIONS_ENABLED_SAFETY
 #define PARAM_ASSERTIONS_ENABLED_SAFETY 0
 #endif
-
 
 // ========================================
 // External Interface Functions
@@ -62,17 +68,23 @@ extern struct kill_switch_state kill_switch_states[];
 /**
  * @brief Called to set the fault led light
  *
+ * @note This function is called during safety tick
+ *
  * @param on Logic level of the light
  */
 void safety_set_fault_led(bool on);
 
 /**
- * @brief Handles a kill request from a kill switch. This may be called during an interrupt
+ * @brief Handles a kill request from a kill switch
+ *
+ * @attention This function may be called during an interrupt
  */
 void safety_handle_kill(void);
 
 /**
  * @brief Called when all kill switches are no longer asserting a kill and the system is re-enabled
+ *
+ * @note This function is called during safety tick
  */
 void safety_handle_enable(void);
 
@@ -82,7 +94,7 @@ void safety_handle_enable(void);
  * @param fault_id The fault id to lookup
  * @return const char* The fault name
  */
-const char * safety_lookup_fault_id(uint32_t fault_id);
+const char *safety_lookup_fault_id(uint32_t fault_id);
 
 /**
  * @brief Called for implementation specific code during safety_setup
@@ -96,7 +108,7 @@ void safety_interface_init(void);
 
 /**
  * @brief Called for implementation specific code during safety_deinit
-*/
+ */
 void safety_interface_deinit(void);
 
 /**
@@ -106,6 +118,15 @@ void safety_interface_deinit(void);
  */
 void safety_interface_tick(void);
 
+// ========================================
+// Fault Definitions
+// ========================================
+
+// Note this should be defined in safety_interface.h, but we need to define it here
+// so safety internal functions can refer to fault names
+
+#define DEFINE_ENUMERATION(name, id) name = id,
+enum safety_fault_internal { XLIST_OF_LIBSAFETY_FAULTS(DEFINE_ENUMERATION) };
 
 // ========================================
 // Internal Functions
@@ -125,6 +146,13 @@ void safety_internal_crash_reporting_handle_init(void);
  * @brief Notifies kill switch management that safety has been initialized
  */
 void safety_internal_kill_handle_init(void);
+
+/**
+ * @brief Performs core initialization required for the safety fault system.
+ *
+ * @attention Must be called before raising any faults
+ */
+void safety_internal_fault_setup(void);
 
 /**
  * @brief Ticks fault reporting
@@ -148,5 +176,10 @@ void safety_internal_kill_handle_deinit(void);
  * This function should only be called when safety is initialized
  */
 void safety_internal_kill_refresh_switches(void);
+
+/**
+ * @brief Ticks the multicore checkin logic
+ */
+void safety_internal_multicore_tick(void);
 
 #endif

@@ -4,10 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum uart_telem_recv_type {
-    ESC_TELEM_FRAME,
-    ESC_INFO_FRAME
-};
+enum uart_telem_recv_type { ESC_TELEM_FRAME, ESC_INFO_FRAME };
 
 struct __attribute__((__packed__)) esc_telem_pkt {
     uint8_t temperature;
@@ -45,10 +42,11 @@ struct uart_telem_buffer {
     union {
         uint8_t raw[1];
         struct esc_telem_pkt telem_pkt;
-//        struct esc_info_pkt info_pkt;     // Info not implemented on APD ESCs
+        //        struct esc_info_pkt info_pkt;     // Info not implemented on APD ESCs
     } buffer;
     enum uart_telem_recv_type type;
     uint8_t crc;
+    bool rpm_reversed;
     size_t recv_index;
     int thruster;
 };

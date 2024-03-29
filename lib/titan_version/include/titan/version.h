@@ -69,6 +69,6 @@ extern const enum version_release_type RELEASE_TYPE;
  * @brief The full build tag of the software as a string
  * Should be able to uniquely identify builds of the program
  */
-extern const char * const FULL_BUILD_TAG;
+extern const char *const FULL_BUILD_TAG;
 
 #endif

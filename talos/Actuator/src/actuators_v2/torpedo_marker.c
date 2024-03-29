@@ -1,8 +1,8 @@
-#include "titan/logger.h"
-
 #include "actuators.h"
 #include "actuators_internal.h"
 #include "safety_interface.h"
+
+#include "titan/logger.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "torpedo_marker"
@@ -27,10 +27,10 @@ static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
 /**
  * @brief Positions for various fire targets
  */
-#define POSITION_DROPPER1_FIRE 1024
-#define POSITION_DROPPER2_FIRE 20
-#define POSITION_TORPEDO1_FIRE 3072
-#define POSITION_TORPEDO2_FIRE 4076
+#define POSITION_DROPPER1_FIRE 3072
+#define POSITION_DROPPER2_FIRE 4076
+#define POSITION_TORPEDO1_FIRE 1024
+#define POSITION_TORPEDO2_FIRE 20
 
 #define MAX_MOVEMENT_TIME_MS 5000
 
@@ -88,15 +88,16 @@ static bool torpedo_marker_set_target(const char **errMsgOut, int32_t target_pos
     // Everything checks out, begin movement
     torpedo_marker_target_position = target_position;
     torpedo_marker_move_timeout = make_timeout_time_ms(MAX_MOVEMENT_TIME_MS);
-    __compiler_memory_barrier();    // Make sure moving is set after we configure the parameters right, or else things might get squirly
+    __compiler_memory_barrier();  // Make sure moving is set after we configure the parameters right, or else things
+                                  // might get squirly
     torpedo_marker_moving = true;
     dynamixel_set_target_position(torpedo_marker_id, target_position);
 
     return true;
 }
 
-void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t target_position,
-                                    int32_t current_position, uint8_t hardware_err_status) {
+void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t target_position, int32_t current_position,
+                                 uint8_t hardware_err_status) {
     torpedo_marker_enabled = torque_enabled;
     torpedo_marker_hardware_err = (hardware_err_status != 0);
 
@@ -112,7 +113,6 @@ void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t targe
 
         // Make sure we're still enabled and the target is our target before processing the state data
         else if (torque_enabled && target_position == torpedo_marker_target_position) {
-
             bool in_position;
             if (current_position > target_position + HOME_MARGIN) {
                 in_position = false;
@@ -209,10 +209,10 @@ void torpedo_marker_safety_disable(void) {
         // Now this *could* be non-deterministic behavior if torpedo_marker_safety_disable is called from a higher
         // interrupt priority than the async uart receive IRQ priority, as the refresh can't be aborted after the
         // refresh event callback fires. But if this preempts it, but before torpedo_marker_report_state sets
-        // torpedo_marker_enabled, then it will be  overrwitten with old data from the refresh before torque is disabled.
-        // But this firmware only gets kill switch updates from ROS, unlike the power board which uses a GPIO interrupt
-        // so I'll just let it slide since solving this is a big pain and makes this whole code even more convoluted
-        // then it already is.
+        // torpedo_marker_enabled, then it will be  overrwitten with old data from the refresh before torque is
+        // disabled. But this firmware only gets kill switch updates from ROS, unlike the power board which uses a GPIO
+        // interrupt so I'll just let it slide since solving this is a big pain and makes this whole code even more
+        // convoluted then it already is.
         torpedo_marker_enabled = false;
     }
 }
@@ -273,6 +273,11 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
         return false;
     }
 
+    if (torpedo_marker_hardware_err) {
+        *errMsgOut = "Hardware Error";
+        return false;
+    }
+
     if (!torpedo_marker_enabled || !actuators_armed) {
         *errMsgOut = "Not Armed";
         return false;
@@ -280,11 +285,6 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
 
     if (torpedo_marker_moving) {
         *errMsgOut = "Busy";
-        return false;
-    }
-
-    if (torpedo_marker_hardware_err) {
-        *errMsgOut = "Hardware Error";
         return false;
     }
 

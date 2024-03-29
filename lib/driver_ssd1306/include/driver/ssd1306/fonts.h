@@ -6,9 +6,9 @@
 #include "driver/ssd1306/conf.h"
 
 typedef struct {
-	const uint8_t FontWidth;    /*!< Font width in pixels */
-	uint8_t FontHeight;   /*!< Font height in pixels */
-	const uint16_t *data; /*!< Pointer to data font data array */
+    const uint8_t FontWidth; /*!< Font width in pixels */
+    uint8_t FontHeight;      /*!< Font height in pixels */
+    const uint16_t *data;    /*!< Pointer to data font data array */
 } FontDef;
 
 #ifdef SSD1306_INCLUDE_FONT_6x8
@@ -26,4 +26,4 @@ extern FontDef Font_16x26;
 #ifdef SSD1306_INCLUDE_FONT_16x24
 extern FontDef Font_16x24;
 #endif
-#endif // __SSD1306_FONTS_H__
+#endif  // __SSD1306_FONTS_H__

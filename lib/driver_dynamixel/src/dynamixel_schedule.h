@@ -21,8 +21,7 @@ struct dynamixel_state {
  * @param error_cb Callback to report an error (events which cannot be gracefully handled by the dynamixel driver)
  * @param event_cb Callback to report any scheduler events
  */
-void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt,
-                             dynamixel_error_cb error_cb,
+void dynamixel_schedule_init(const dynamixel_id *id_list, size_t id_cnt, dynamixel_error_cb error_cb,
                              dynamixel_event_cb event_cb);
 
 /**
@@ -50,6 +49,6 @@ void dynamixel_schedule_eeprom_read(dynamixel_id id);
  * @param id The ID to look up
  * @return struct dynamixel_state* Pointer to the dynamixel state, or NULL if the ID is not tracked
  */
-struct dynamixel_state* dynamixel_schedule_get_state_ptr(dynamixel_id id);
+struct dynamixel_state *dynamixel_schedule_get_state_ptr(dynamixel_id id);
 
 #endif

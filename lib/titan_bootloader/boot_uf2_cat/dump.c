@@ -1,19 +1,19 @@
+#include "boot/uf2.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "boot/uf2.h"
 
 #define BOOTLOADER_SIZE 0x4000
 #define FLASH_BASE 0x10000000
-#define FLASH_SIZE (16*1024*1024) // 16 MB Flash size
-#define UF2_PAGE_SIZE 256       // All RP2040 UF2 files are have 256 bytes of data for flashing
+#define FLASH_SIZE (16 * 1024 * 1024)  // 16 MB Flash size
+#define UF2_PAGE_SIZE 256              // All RP2040 UF2 files are have 256 bytes of data for flashing
 
-#define FLASH_USAGE_ARRAY_SIZE (FLASH_SIZE/(UF2_PAGE_SIZE*8))
-static_assert(FLASH_SIZE % (UF2_PAGE_SIZE*8) == 0, "Unaligned flash size");
-
+#define FLASH_USAGE_ARRAY_SIZE (FLASH_SIZE / (UF2_PAGE_SIZE * 8))
+static_assert(FLASH_SIZE % (UF2_PAGE_SIZE * 8) == 0, "Unaligned flash size");
 
 struct uf2_handle {
     const char *filename;
@@ -71,7 +71,8 @@ bool is_block_valid(struct uf2_block *block, uint32_t expected_num_blocks, bool 
 
     // Check address is valid within flash
     if (block->target_addr < min_addr || block->target_addr > max_addr) {
-        DEBUG_VERIFY("Invalid address: 0x%08x out of range (0x%08x - 0x%08x)\n", block->target_addr, min_addr, max_addr);
+        DEBUG_VERIFY("Invalid address: 0x%08x out of range (0x%08x - 0x%08x)\n", block->target_addr, min_addr,
+                     max_addr);
         return false;
     }
 
@@ -90,8 +91,8 @@ bool is_block_valid(struct uf2_block *block, uint32_t expected_num_blocks, bool 
     return true;
 }
 
-bool open_uf2(const char *filename, struct uf2_handle* handle_out) {
-    FILE* f = fopen(filename, "r");
+bool open_uf2(const char *filename, struct uf2_handle *handle_out) {
+    FILE *f = fopen(filename, "r");
     if (f == NULL) {
         printf("[%s] Failed to open file: %s\n", filename, strerror(errno));
         return false;
@@ -103,7 +104,8 @@ bool open_uf2(const char *filename, struct uf2_handle* handle_out) {
     if (readsize != sizeof(block)) {
         if (feof(f)) {
             printf("[%s] Unexpected end of UF2 file\n", filename);
-        } else {
+        }
+        else {
             printf("[%s] Failed to read uf2 block: %s\n", filename, strerror(errno));
         }
         goto fail;
@@ -136,7 +138,7 @@ fail:
     return false;
 }
 
-bool dump_uf2(struct uf2_handle* handle) {
+bool dump_uf2(struct uf2_handle *handle) {
     struct uf2_block block;
     uint32_t expected_block_no = 0;
     uint32_t expected_addr = handle->base_addr;
@@ -151,7 +153,8 @@ bool dump_uf2(struct uf2_handle* handle) {
         if (readsize != sizeof(block)) {
             if (feof(handle->fp)) {
                 printf("[%s] Unexpected end of UF2 file\n", handle->filename);
-            } else {
+            }
+            else {
                 printf("[%s] Failed to read uf2 block: %s\n", handle->filename, strerror(errno));
             }
             return false;
@@ -165,14 +168,16 @@ bool dump_uf2(struct uf2_handle* handle) {
 
         // Ensure that the block numbering is sequential
         if (expected_block_no != block.block_no) {
-            printf("[%s] Out of order UF2 block (%d expected, %d found)\n", handle->filename, expected_block_no, block.block_no);
+            printf("[%s] Out of order UF2 block (%d expected, %d found)\n", handle->filename, expected_block_no,
+                   block.block_no);
             return false;
         }
         expected_block_no++;
 
         // Ensure that target address is in-order and contiguous
         if (expected_addr != block.target_addr) {
-            printf("[%s] Non-contiguous UF2 address (0x%08x expected, 0x%08x found)\n", handle->filename, expected_addr, block.target_addr);
+            printf("[%s] Non-contiguous UF2 address (0x%08x expected, 0x%08x found)\n", handle->filename, expected_addr,
+                   block.target_addr);
             return false;
         }
         expected_addr += UF2_PAGE_SIZE;
@@ -188,7 +193,7 @@ bool dump_uf2(struct uf2_handle* handle) {
     return true;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     struct uf2_handle handle;
 
     if (argc < 2) {
@@ -196,7 +201,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!open_uf2(argv[1], &handle)) return 1;
+    if (!open_uf2(argv[1], &handle))
+        return 1;
     dump_uf2(&handle);
 
 cleanup:

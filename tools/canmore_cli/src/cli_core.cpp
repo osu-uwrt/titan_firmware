@@ -1,8 +1,9 @@
+#include "CLIInterface.hpp"
+
 #include <iostream>
 #include <sstream>
 #include <termios.h>
 #include <unistd.h>
-#include "CLIInterface.hpp"
 
 void CLICore::initTerminal() {
     // Backup old flags
@@ -11,7 +12,7 @@ void CLICore::initTerminal() {
     }
 
     // Set new flags disabling canonical mode, echo, interrupt signals, and flow control
-    struct termios newt = oldt;
+    newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO | ISIG);
     newt.c_iflag &= ~(IXON | IXOFF | IXANY);
 
@@ -20,7 +21,7 @@ void CLICore::initTerminal() {
     }
 }
 
-void CLICore::cleanupTerminal() {
+void CLICore::cleanupTerminal() noexcept {
     if (promptShown) {
         std::cout << std::endl;
     }
@@ -29,7 +30,19 @@ void CLICore::cleanupTerminal() {
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
-void CLICore::writeLine(std::string const& line) {
+void CLICore::tempRestoreTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &oldt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
+}
+
+void CLICore::tempReinitTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
+}
+
+void CLICore::writeLine(std::string const &line) {
     if (promptShown) {
         std::cout << CURSOR_RETURN << line << CLEAR_LINE_AFTER << std::endl;
         std::cout << prompt;
@@ -54,7 +67,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
     // Allow early exits for command refreshes
     std::chrono::time_point start = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(1550)) {
-        if (!keypressAvailable(1500)) break;
+        if (!keypressAvailable(1500))
+            break;
 
         int c = getchar();
 
@@ -69,7 +83,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
             std::cout << std::endl;
             promptShown = false;
 
-            if (cmdBuffer.empty()) break;
+            if (cmdBuffer.empty())
+                break;
 
             std::string line(cmdBuffer.begin(), cmdBuffer.end());
             cmdBuffer.clear();
@@ -98,13 +113,13 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
         // Check for backspace (according to what the terminal should send)
         else if (c == oldt.c_cc[VERASE]) {
             if (!cmdBuffer.empty()) {
-                std::cout << "\b" CLEAR_LINE_AFTER  << std::flush;
+                std::cout << "\b" CLEAR_LINE_AFTER << std::flush;
                 cmdBuffer.pop_back();
             }
         }
 
         else if (c == '\t') {
-            //std::cout << "TAB*" << std::flush;
+            // std::cout << "TAB*" << std::flush;
         }
 
         // Handle escape sequences
@@ -124,7 +139,8 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
                 if (ec == 'A' && modifiers.size() == 0) {
                     if (historyItr != cmdHistory.begin()) {
                         historyItr = std::prev(historyItr);
-                        // No need to check if historyIndex is 0, as we've incremented it, so we should never overflow our bounds
+                        // No need to check if historyIndex is 0, as we've incremented it, so we should never overflow
+                        // our bounds
                         cmdBuffer.clear();
                         cmdBuffer.insert(cmdBuffer.begin(), historyItr->begin(), historyItr->end());
                         std::cout << CURSOR_RETURN << prompt << *historyItr << CLEAR_LINE_AFTER << std::flush;
@@ -152,8 +168,91 @@ std::string CLICore::getCommand(std::vector<std::string> &argsOut) {
             std::cout << "^C" << std::endl;
             historyItr = cmdHistory.end();
             cmdBuffer.clear();
+            std::cout << CURSOR_RETURN << prompt << std::flush;
             break;
         }
     }
     return cmdName;
+}
+
+bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max) {
+    const std::string decLookup = "0123456789";
+    const std::string hexLookup = "0123456789ABCDEF";
+
+    uint32_t value = 0;
+    bool isHex = (str.rfind("0x", 0) == 0);
+
+    // It's safe to assume we've got at least 2 chars in it, since we found 2 characters
+    auto searchItr = (isHex ? str.begin() + 2 : str.begin());
+    const std::string &lookup = (isHex ? hexLookup : decLookup);
+    uint32_t multiplier = (isHex ? 16 : 10);
+
+    // Now search through the string to the end
+    while (searchItr != str.end()) {
+        // Find index in lookup
+        size_t pos = lookup.find(std::toupper(*searchItr++));
+
+        // Fail if its not a valid character
+        if (pos == std::string::npos) {
+            return false;
+        }
+
+        // Fail if it will overflow
+        uint32_t maxCurVal = max / multiplier;
+        uint32_t maxNextDigit = value % multiplier;
+
+        if (value > maxCurVal) {  // It'll overflow if we add another digit
+            return false;
+        }
+        else if (value == maxCurVal && pos > maxNextDigit) {
+            // It'll overflow since we're at the max, and the 1s digit will overflow it
+            return false;
+        }
+
+        // Perform multiplication
+        value *= multiplier;
+        value += pos;
+    }
+
+    intOut = value;
+    return true;
+}
+
+void DumpHex(uint32_t address, const void *data, size_t size) {
+    char ascii[17];
+    size_t i, j;
+    ascii[16] = '\0';
+    bool lineStart = true;
+    for (i = 0; i < size; ++i) {
+        if (lineStart) {
+            printf("0x%08X: ", (uint32_t) (address + i));
+            lineStart = false;
+        }
+
+        printf("%02X ", ((unsigned char *) data)[i]);
+        if (((unsigned char *) data)[i] >= ' ' && ((unsigned char *) data)[i] <= '~') {
+            ascii[i % 16] = ((unsigned char *) data)[i];
+        }
+        else {
+            ascii[i % 16] = '.';
+        }
+        if ((i + 1) % 8 == 0 || i + 1 == size) {
+            printf(" ");
+            if ((i + 1) % 16 == 0) {
+                printf("|  %s \n", ascii);
+                lineStart = true;
+            }
+            else if (i + 1 == size) {
+                ascii[(i + 1) % 16] = '\0';
+                if ((i + 1) % 16 <= 8) {
+                    printf(" ");
+                }
+                for (j = (i + 1) % 16; j < 16; ++j) {
+                    printf("   ");
+                }
+                printf("|  %s \n", ascii);
+                lineStart = true;
+            }
+        }
+    }
 }

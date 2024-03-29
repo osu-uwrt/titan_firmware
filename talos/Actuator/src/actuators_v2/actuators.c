@@ -1,12 +1,12 @@
-#include "pico/binary_info.h"
-#include "pico/sync.h"
-
-#include "driver/dynamixel.h"
-#include "titan/logger.h"
-
 #include "actuators.h"
+
 #include "actuators_internal.h"
 #include "safety_interface.h"
+
+#include "driver/dynamixel.h"
+#include "pico/binary_info.h"
+#include "pico/sync.h"
+#include "titan/logger.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuators"
@@ -16,13 +16,14 @@ bool actuators_initialized = false;
 volatile bool actuators_armed = false;
 
 #define MARKER_TORPEDO_ID 2
-const dynamixel_id dynamixel_servo_list[] = {MARKER_TORPEDO_ID};
+const dynamixel_id dynamixel_servo_list[] = { MARKER_TORPEDO_ID };
 const size_t dynamixel_servo_count = sizeof(dynamixel_servo_list) / sizeof(*dynamixel_servo_list);
 
 static void actuators_dynamixel_error_cb(dynamixel_error_t error) {
     LOG_ERROR("Dynamixel Driver Error: %d (arg: %d) - %s line %d", error.fields.error, error.fields.wrapped_error_code,
-        (error.fields.error_source == DYNAMIXEL_SOURCE_COMMS ? "dynamixel_comms" : "dynamixel_schedule"), error.fields.line);
-    safety_raise_fault(FAULT_ACTUATOR_FAILURE);
+              (error.fields.error_source == DYNAMIXEL_SOURCE_COMMS ? "dynamixel_comms" : "dynamixel_schedule"),
+              error.fields.line);
+    safety_raise_fault_with_arg(FAULT_ACTUATOR_FAILURE, error.data);
 }
 
 static void check_lower_actuator_unplugged_fault(void) {
@@ -37,37 +38,37 @@ static void check_lower_actuator_unplugged_fault(void) {
 static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_id id) {
     volatile struct dynamixel_ram *ram;
     switch (event) {
-        case DYNAMIXEL_EVENT_CONNECTED:
-            check_lower_actuator_unplugged_fault();
-            if (id == MARKER_TORPEDO_ID) {
-                torpedo_marker_report_connect();
-            }
-            break;
+    case DYNAMIXEL_EVENT_CONNECTED:
+        check_lower_actuator_unplugged_fault();
+        if (id == MARKER_TORPEDO_ID) {
+            torpedo_marker_report_connect();
+        }
+        break;
 
-        case DYNAMIXEL_EVENT_DISCONNECTED:
-            safety_raise_fault(FAULT_ACTUATOR_UNPLUGGED);
-            if (id == MARKER_TORPEDO_ID) {
-                torpedo_marker_report_disconnect();
-            }
-            break;
+    case DYNAMIXEL_EVENT_DISCONNECTED:
+        safety_raise_fault(FAULT_ACTUATOR_UNPLUGGED);
+        if (id == MARKER_TORPEDO_ID) {
+            torpedo_marker_report_disconnect();
+        }
+        break;
 
-        case DYNAMIXEL_EVENT_RAM_READ:
-            ram = dynamixel_get_ram(id);
-            if (id == MARKER_TORPEDO_ID) {
-                torpedo_marker_report_state(ram->torque_enable, ram->moving, ram->goal_position,
-                    ram->present_position, ram->hardware_error_status);
-            }
-            break;
+    case DYNAMIXEL_EVENT_RAM_READ:
+        ram = dynamixel_get_ram(id);
+        if (id == MARKER_TORPEDO_ID) {
+            torpedo_marker_report_state(ram->torque_enable, ram->moving, ram->goal_position, ram->present_position,
+                                        ram->hardware_error_status);
+        }
+        break;
 
-        case DYNAMIXEL_EVENT_ALERT:
-            safety_raise_fault(FAULT_ACTUATOR_FAILURE);
-            ram = dynamixel_get_ram(id);
-            LOG_WARN("Dynamixel (ID: %d) reporting hardware error 0x%02x", id, ram->hardware_error_status);
-            break;
+    case DYNAMIXEL_EVENT_ALERT:
+        ram = dynamixel_get_ram(id);
+        safety_raise_fault_with_arg(FAULT_ACTUATOR_FAILURE, (((uint32_t) id) << 24) | (ram->hardware_error_status));
+        LOG_WARN("Dynamixel (ID: %d) reporting hardware error 0x%02x", id, ram->hardware_error_status);
+        break;
 
-        case DYNAMIXEL_EVENT_EEPROM_READ:
-            // Don't care about eeprom reads, the status update will handle that
-            break;
+    case DYNAMIXEL_EVENT_EEPROM_READ:
+        // Don't care about eeprom reads, the status update will handle that
+        break;
     }
 }
 
@@ -76,12 +77,11 @@ void actuators_initialize(void) {
     hard_assert_if(ACTUATORS, actuators_initialized);
     bi_decl_if_func_used(bi_program_feature("Actuators V2"));
 
-    bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal"))
-    gpio_disable_pulls(CLAW_CHECK_PIN);
+    bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal")) gpio_disable_pulls(CLAW_CHECK_PIN);
     gpio_disable_pulls(CLAW_PWM_PIN);
 
-    dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count,
-                    actuators_dynamixel_error_cb, actuators_dynamixel_event_cb);
+    dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count, actuators_dynamixel_error_cb,
+                   actuators_dynamixel_event_cb);
 
     torpedo_marker_initialize(MARKER_TORPEDO_ID);
 

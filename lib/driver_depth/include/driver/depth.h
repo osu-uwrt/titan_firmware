@@ -16,13 +16,10 @@
 
 // PICO_CONFIG: DEPTH_BAD_READS_FAULT_COUNT, The number of invalid reads from the depth sensor before a fault is raised, type=int, default=3, group=driver_depth
 #ifndef DEPTH_BAD_READS_FAULT_COUNT
-#define DEPTH_BAD_READS_FAULT_COUNT 3
+#define DEPTH_BAD_READS_FAULT_COUNT 5
 #endif
 
-enum depth_sensor_type {
-    MS5837_02BA,
-    MS5837_30BA
-};
+enum depth_sensor_type { MS5837_02BA, MS5837_30BA };
 
 enum depth_error_event {
     /**

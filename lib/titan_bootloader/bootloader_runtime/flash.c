@@ -5,10 +5,10 @@
  */
 
 #include "hardware/flash.h"
-#include "pico/bootrom.h"
 
-#include "hardware/structs/ssi.h"
 #include "hardware/structs/ioqspi.h"
+#include "hardware/structs/ssi.h"
+#include "pico/bootrom.h"
 
 #define FLASH_BLOCK_ERASE_CMD 0xd8
 
@@ -27,9 +27,11 @@ void __no_inline_not_in_flash_func(flash_range_erase)(uint32_t flash_offs, size_
 #endif
     invalid_params_if(FLASH, flash_offs & (FLASH_SECTOR_SIZE - 1));
     invalid_params_if(FLASH, count & (FLASH_SECTOR_SIZE - 1));
-    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
-    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
-    rom_flash_range_erase_fn flash_range_erase = (rom_flash_range_erase_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_RANGE_ERASE);
+    rom_connect_internal_flash_fn connect_internal_flash =
+        (rom_connect_internal_flash_fn) rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    rom_flash_range_erase_fn flash_range_erase =
+        (rom_flash_range_erase_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_RANGE_ERASE);
     assert(flash_exit_xip && connect_internal_flash && flash_range_erase);
 
     // No flash accesses after this point
@@ -46,9 +48,11 @@ void __no_inline_not_in_flash_func(flash_range_program)(uint32_t flash_offs, con
 #endif
     invalid_params_if(FLASH, flash_offs & (FLASH_PAGE_SIZE - 1));
     invalid_params_if(FLASH, count & (FLASH_PAGE_SIZE - 1));
-    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
-    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
-    rom_flash_range_program_fn flash_range_program = (rom_flash_range_program_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_RANGE_PROGRAM);
+    rom_connect_internal_flash_fn connect_internal_flash =
+        (rom_connect_internal_flash_fn) rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    rom_flash_range_program_fn flash_range_program =
+        (rom_flash_range_program_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_RANGE_PROGRAM);
     assert(flash_exit_xip && connect_internal_flash && flash_range_program);
 
     __compiler_memory_barrier();
@@ -64,18 +68,16 @@ void __no_inline_not_in_flash_func(flash_range_program)(uint32_t flash_offs, con
 // Bitbanging the chip select using IO overrides, in case RAM-resident IRQs
 // are still running, and the FIFO bottoms out. (the bootrom does the same)
 static void __no_inline_not_in_flash_func(flash_cs_force)(bool high) {
-    uint32_t field_val = high ?
-        IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_HIGH :
-        IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_LOW;
-    hw_write_masked(&ioqspi_hw->io[1].ctrl,
-        field_val << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
-        IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS
-    );
+    uint32_t field_val =
+        high ? IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_HIGH : IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_VALUE_LOW;
+    hw_write_masked(&ioqspi_hw->io[1].ctrl, field_val << IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS);
 }
 
 void __no_inline_not_in_flash_func(flash_do_cmd)(const uint8_t *txbuf, uint8_t *rxbuf, size_t count) {
-    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
-    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    rom_connect_internal_flash_fn connect_internal_flash =
+        (rom_connect_internal_flash_fn) rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     assert(flash_exit_xip && connect_internal_flash);
     __compiler_memory_barrier();
     connect_internal_flash();
@@ -95,7 +97,7 @@ void __no_inline_not_in_flash_func(flash_do_cmd)(const uint8_t *txbuf, uint8_t *
             --tx_remaining;
         }
         if (can_get && rx_remaining) {
-            *rxbuf++ = (uint8_t)ssi_hw->dr0;
+            *rxbuf++ = (uint8_t) ssi_hw->dr0;
             --rx_remaining;
         }
     }
@@ -103,13 +105,12 @@ void __no_inline_not_in_flash_func(flash_do_cmd)(const uint8_t *txbuf, uint8_t *
 }
 
 void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
-    #ifdef PICO_FLASH_SIZE_BYTES
+#ifdef PICO_FLASH_SIZE_BYTES
     hard_assert(flash_offs + count <= PICO_FLASH_SIZE_BYTES);
 #endif
-    invalid_params_if(FLASH, flash_offs & (FLASH_PAGE_SIZE - 1));
-    invalid_params_if(FLASH, count & (FLASH_PAGE_SIZE - 1));
-    rom_connect_internal_flash_fn connect_internal_flash = (rom_connect_internal_flash_fn)rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
-    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn)rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
+    rom_connect_internal_flash_fn connect_internal_flash =
+        (rom_connect_internal_flash_fn) rom_func_lookup_inline(ROM_FUNC_CONNECT_INTERNAL_FLASH);
+    rom_flash_exit_xip_fn flash_exit_xip = (rom_flash_exit_xip_fn) rom_func_lookup_inline(ROM_FUNC_FLASH_EXIT_XIP);
     assert(flash_exit_xip && connect_internal_flash);
 
     __compiler_memory_barrier();
@@ -120,7 +121,7 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
     // As we exited XIP, we should be running in a compatible mode with a slow clock
     // 03h reads should be fine, as we shouldn't be beaming the clock
 
-    uint8_t cmd_buf[] = {0x03, (flash_offs >> 16) & 0xFF, (flash_offs >> 8) & 0xFF, (flash_offs) & 0xFF};
+    uint8_t cmd_buf[] = { 0x03, (flash_offs >> 16) & 0xFF, (flash_offs >> 8) & 0xFF, (flash_offs) & 0xFF };
 
     // Send command, starting with the command (discarding the command results), then receiving the actual data
     flash_cs_force(0);
@@ -142,8 +143,9 @@ void flash_read(uint32_t flash_offs, uint8_t *data_out, size_t count) {
             if (cmd_rx_count < sizeof(cmd_buf)) {
                 (void) ssi_hw->dr0;
                 cmd_rx_count++;
-            } else {
-                *data_out++ = (uint8_t)ssi_hw->dr0;
+            }
+            else {
+                *data_out++ = (uint8_t) ssi_hw->dr0;
             }
             --rx_remaining;
         }
@@ -161,8 +163,8 @@ void flash_get_unique_id(uint8_t *id_out) {
     __unused uint8_t *ignore = id_out;
     panic_unsupported();
 #else
-    uint8_t txbuf[FLASH_RUID_TOTAL_BYTES] = {0};
-    uint8_t rxbuf[FLASH_RUID_TOTAL_BYTES] = {0};
+    uint8_t txbuf[FLASH_RUID_TOTAL_BYTES] = { 0 };
+    uint8_t rxbuf[FLASH_RUID_TOTAL_BYTES] = { 0 };
     txbuf[0] = FLASH_RUID_CMD;
     flash_do_cmd(txbuf, rxbuf, FLASH_RUID_TOTAL_BYTES);
     for (int i = 0; i < FLASH_RUID_DATA_BYTES; i++)

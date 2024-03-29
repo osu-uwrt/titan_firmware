@@ -1,0 +1,12 @@
+# UDev Rules for RP2040/Titan Firmware Support
+
+# RP2040 Bootrom
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", MODE="0664", GROUP="plugdev"
+
+# RP2040 Picoprobe
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0004", MODE="0664", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", MODE="0664", GROUP="plugdev"
+
+# RP2040 CDC UART (Also enable serial access for plugdev users)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", MODE="0664", GROUP="plugdev"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", MODE="0664", GROUP="plugdev"

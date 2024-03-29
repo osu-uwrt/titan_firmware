@@ -11,17 +11,17 @@
 #if !defined(LIB_TINYUSB_HOST) && !defined(LIB_TINYUSB_DEVICE)
 #include "tusb.h"
 
-#include "pico/time.h"
-#include "pico/stdio/driver.h"
+#include "hardware/gpio.h"
+#include "hardware/irq.h"
 #include "pico/binary_info.h"
 #include "pico/mutex.h"
-#include "hardware/irq.h"
-#include "hardware/gpio.h"
+#include "pico/stdio/driver.h"
+#include "pico/time.h"
 
-#define USBD_ITF_STDIO_CDC       (0)
-#define USBD_ITF_SECONDARY_CDC   (1)
+#define USBD_ITF_STDIO_CDC (0)
+#define USBD_ITF_SECONDARY_CDC (1)
 
-static_assert(PICO_STDIO_USB_LOW_PRIORITY_IRQ > RTC_IRQ, ""); // note RTC_IRQ is currently the last one
+static_assert(PICO_STDIO_USB_LOW_PRIORITY_IRQ > RTC_IRQ, "");  // note RTC_IRQ is currently the last one
 static mutex_t stdio_usb_mutex;
 static mutex_t unsent_buffer_mutex;
 
@@ -34,20 +34,22 @@ static bool buffer_mutex_data_drop = false;
 static const char overflow_msg[] = "---DATA DROPPED---\r\n";
 static const char mutex_msg[] = "---DATA LOST MUTEX---\r\n";
 
-void _write_unsent_buffer(const char* buf, int length);
+void _write_unsent_buffer(const char *buf, int length);
 
 static int _stdio_usb_out_data(const char *buf, int length) {
     int i;
     for (i = 0; i < length;) {
         int n = length - i;
         int avail = (int) tud_cdc_n_write_available(USBD_ITF_STDIO_CDC);
-        if (n > avail) n = avail;
+        if (n > avail)
+            n = avail;
         if (n) {
-            int n2 = (int) tud_cdc_n_write(USBD_ITF_STDIO_CDC, buf + i, (uint32_t)n);
+            int n2 = (int) tud_cdc_n_write(USBD_ITF_STDIO_CDC, buf + i, (uint32_t) n);
             tud_task();
             tud_cdc_n_write_flush(USBD_ITF_STDIO_CDC);
             i += n2;
-        } else {
+        }
+        else {
             break;
         }
     }
@@ -67,7 +69,8 @@ bool _try_handle_unsent_buffer(void) {
         int sent = _stdio_usb_out_data(overflow_msg, sizeof(overflow_msg));
         if (sent == sizeof(overflow_msg)) {
             unsent_buffer_overflow = false;
-        } else {
+        }
+        else {
             return false;
         }
     }
@@ -76,15 +79,18 @@ bool _try_handle_unsent_buffer(void) {
         int sent = _stdio_usb_out_data(mutex_msg, sizeof(mutex_msg));
         if (sent == sizeof(mutex_msg)) {
             buffer_mutex_data_drop = false;
-        } else {
+        }
+        else {
             return false;
         }
     }
 
     int sent;
     if (unsent_buffer_next_in >= unsent_buffer_next_out) {
-        sent = _stdio_usb_out_data(&unsent_buffer[unsent_buffer_next_out], unsent_buffer_next_in - unsent_buffer_next_out);
-    } else {
+        sent =
+            _stdio_usb_out_data(&unsent_buffer[unsent_buffer_next_out], unsent_buffer_next_in - unsent_buffer_next_out);
+    }
+    else {
         sent = _stdio_usb_out_data(&unsent_buffer[unsent_buffer_next_out], unsent_buffer_size - unsent_buffer_next_out);
         if (sent == unsent_buffer_size - unsent_buffer_next_out)
             sent += _stdio_usb_out_data(unsent_buffer, unsent_buffer_next_in);
@@ -95,7 +101,7 @@ bool _try_handle_unsent_buffer(void) {
     return unsent_buffer_next_out == unsent_buffer_next_in;
 }
 
-void _write_unsent_buffer(const char* buf, int length) {
+void _write_unsent_buffer(const char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&unsent_buffer_mutex, &owner)) {
         if (owner == get_core_num()) {  // would deadlock otherwise
@@ -113,7 +119,8 @@ void _write_unsent_buffer(const char* buf, int length) {
     }
 
     // Check if buffer is going to overflow, and fix unsent_buffer_next_out if it will
-    if (length >= unsent_buffer_size - positive_modulo(unsent_buffer_next_in - unsent_buffer_next_out, unsent_buffer_size)) {
+    if (length >=
+        unsent_buffer_size - positive_modulo(unsent_buffer_next_in - unsent_buffer_next_out, unsent_buffer_size)) {
         unsent_buffer_overflow = true;
         unsent_buffer_next_out = ((unsent_buffer_next_in + length) % unsent_buffer_size) + 1;
     }
@@ -161,7 +168,7 @@ static void stdio_usb_out_chars(const char *buf, int length) {
             // If this is also locked it will fail, but should allow writing when usb is locked
             // This becomes useful if usb is commonly locked due to communication on the secondary port
             _write_unsent_buffer(buf, length);
-            return; // would deadlock otherwise
+            return;  // would deadlock otherwise
         }
         mutex_enter_blocking(&stdio_usb_mutex);
     }
@@ -172,10 +179,10 @@ static void stdio_usb_out_chars(const char *buf, int length) {
         if (sent < length) {
             _write_unsent_buffer(buf + sent, length - sent);
         }
-    } else {
+    }
+    else {
         // If not connected then buffer data
         _write_unsent_buffer(buf, length);
-
     }
     mutex_exit(&stdio_usb_mutex);
 }
@@ -183,24 +190,24 @@ static void stdio_usb_out_chars(const char *buf, int length) {
 int stdio_usb_in_chars(char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
-        if (owner == get_core_num()) return PICO_ERROR_NO_DATA; // would deadlock otherwise
+        if (owner == get_core_num())
+            return PICO_ERROR_NO_DATA;  // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
     }
     int rc = PICO_ERROR_NO_DATA;
     if (tud_cdc_n_connected(USBD_ITF_STDIO_CDC) && tud_cdc_n_available(USBD_ITF_STDIO_CDC)) {
         tud_task();
         int count = (int) tud_cdc_n_read(USBD_ITF_STDIO_CDC, buf, (uint32_t) length);
-        rc =  count ? count : PICO_ERROR_NO_DATA;
+        rc = count ? count : PICO_ERROR_NO_DATA;
     }
     mutex_exit(&stdio_usb_mutex);
     return rc;
 }
 
-stdio_driver_t stdio_usb = {
-    .out_chars = stdio_usb_out_chars,
-    .in_chars = stdio_usb_in_chars,
+stdio_driver_t stdio_usb = { .out_chars = stdio_usb_out_chars,
+                             .in_chars = stdio_usb_in_chars,
 #if PICO_STDIO_ENABLE_CRLF_SUPPORT
-    .crlf_enabled = PICO_STDIO_USB_DEFAULT_CRLF
+                             .crlf_enabled = PICO_STDIO_USB_DEFAULT_CRLF
 #endif
 };
 
@@ -253,31 +260,36 @@ size_t secondary_usb_out_chars(const unsigned char *buf, int length) {
     uint32_t owner;
     size_t chars_sent = 0;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
-        if (owner == get_core_num()) return 0; // would deadlock otherwise
+        if (owner == get_core_num())
+            return 0;  // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
     }
     if (tud_cdc_n_connected(USBD_ITF_SECONDARY_CDC)) {
         for (int i = 0; i < length;) {
             int n = length - i;
             int avail = (int) tud_cdc_n_write_available(USBD_ITF_SECONDARY_CDC);
-            if (n > avail) n = avail;
+            if (n > avail)
+                n = avail;
             if (n) {
-                int n2 = (int) tud_cdc_n_write(USBD_ITF_SECONDARY_CDC, buf + i, (uint32_t)n);
+                int n2 = (int) tud_cdc_n_write(USBD_ITF_SECONDARY_CDC, buf + i, (uint32_t) n);
                 tud_task();
                 tud_cdc_n_write_flush(USBD_ITF_SECONDARY_CDC);
                 i += n2;
                 chars_sent += n2;
                 last_avail_time_secondary = time_us_64();
-            } else {
+            }
+            else {
                 tud_task();
                 tud_cdc_n_write_flush(USBD_ITF_SECONDARY_CDC);
                 if (!tud_cdc_n_connected(USBD_ITF_SECONDARY_CDC) ||
-                    (!tud_cdc_n_write_available(USBD_ITF_SECONDARY_CDC) && time_us_64() > last_avail_time_secondary + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
+                    (!tud_cdc_n_write_available(USBD_ITF_SECONDARY_CDC) &&
+                     time_us_64() > last_avail_time_secondary + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
                     break;
                 }
             }
         }
-    } else {
+    }
+    else {
         // reset our timeout
         last_avail_time_secondary = 0;
     }
@@ -288,14 +300,15 @@ size_t secondary_usb_out_chars(const unsigned char *buf, int length) {
 int secondary_usb_in_chars(unsigned char *buf, int length) {
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
-        if (owner == get_core_num()) return PICO_ERROR_NO_DATA; // would deadlock otherwise
+        if (owner == get_core_num())
+            return PICO_ERROR_NO_DATA;  // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
     }
     int rc = PICO_ERROR_NO_DATA;
     if (tud_cdc_n_connected(USBD_ITF_SECONDARY_CDC) && tud_cdc_n_available(USBD_ITF_SECONDARY_CDC)) {
         tud_task();
         int count = (int) tud_cdc_n_read(USBD_ITF_SECONDARY_CDC, buf, (uint32_t) length);
-        rc =  count ? count : PICO_ERROR_NO_DATA;
+        rc = count ? count : PICO_ERROR_NO_DATA;
     }
     mutex_exit(&stdio_usb_mutex);
     return rc;

@@ -2,13 +2,24 @@ set(TITAN_BOOTLOADER_SCRIPT_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "")
 set(TITAN_BOOTLOADER_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE INTERNAL "")
 
 function(titan_enable_bootloader TARGET TYPE)
+    # Determine arguments to pass to bootloader
+    list(APPEND BOOTLOADER_CMAKE_ARGS "-DCMAKE_BUILD_TYPE=RelWithDebInfo")
+    list(APPEND BOOTLOADER_CMAKE_ARGS "-DBOOTLOADER_INTERFACE=${TYPE}")
+    if (DEFINED PICO_BOARD)
+        list(APPEND BOOTLOADER_CMAKE_ARGS "-DPICO_BOARD=${PICO_BOARD}")
+    endif()
+    if (DEFINED UWRT_ROBOT)
+        list(APPEND BOOTLOADER_CMAKE_ARGS "-DUWRT_ROBOT=${UWRT_ROBOT}")
+    endif()
+
     include(ExternalProject)
     ExternalProject_Add (
         titan_bootloader
         SOURCE_DIR ${TITAN_BOOTLOADER_SCRIPT_DIR}
         PREFIX ${TITAN_BOOTLOADER_BINARY_DIR}/titan_bootloader
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DBOOTLOADER_INTERFACE=${TYPE} -DPICO_BOARD=${PICO_BOARD} -DUWRT_ROBOT=${UWRT_ROBOT}
+        CMAKE_ARGS ${BOOTLOADER_CMAKE_ARGS}
         INSTALL_COMMAND ""
+        BUILD_ALWAYS 1
     )
 
     ExternalProject_Get_Property(titan_bootloader BINARY_DIR)
@@ -40,7 +51,7 @@ function(titan_enable_bootloader TARGET TYPE)
     add_dependencies(${TARGET} titan_bootloader)
 
     # Configure the project to use the bootloader app linker script (so it has space for the bootloader)
-	pico_set_linker_script(${TARGET} ${TITAN_BOOTLOADER_SCRIPT_DIR}/bootloader_runtime/memmap_app.ld)
+    pico_set_linker_script(${TARGET} ${TITAN_BOOTLOADER_SCRIPT_DIR}/bootloader_runtime/memmap_app.ld)
 
     # Prep for uf2 generation
     if (NOT BOOTUF2CAT_FOUND)

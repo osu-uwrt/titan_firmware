@@ -1,12 +1,13 @@
 #ifndef ROS__ROS_INTERNAL_H
 #define ROS__ROS_INTERNAL_H
 
-#include <rcl/rcl.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
-
 #include "ros.h"
+
 #include "titan/logger.h"
+
+#include <rcl/rcl.h>
+#include <rclc/executor.h>
+#include <rclc/rclc.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"

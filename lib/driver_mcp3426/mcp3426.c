@@ -1,6 +1,8 @@
-#include <math.h>
-#include "driver/async_i2c.h"
 #include "driver/mcp3426.h"
+
+#include "driver/async_i2c.h"
+
+#include <math.h>
 
 // Modes used internally by the driver
 #define MCP3426_MODE_UNINITIALIZED 2
@@ -35,26 +37,25 @@ static void mcp3426_on_write(const struct async_i2c_request *req);
 static void mcp3426_on_setup_complete(const struct async_i2c_request *req);
 
 static mcp3426_error_cb error_callback;
-static float adc_values[MCP3426_CHANNEL_COUNT] = {[0 ... MCP3426_CHANNEL_COUNT-1] = NAN};
+static float adc_values[MCP3426_CHANNEL_COUNT] = { [0 ... MCP3426_CHANNEL_COUNT - 1] = NAN };
 static int mode = MCP3426_MODE_UNINITIALIZED;
 static bool msg_in_progress = false;
 static int err_count = 2;  // Start where 1 error will cause fault, cleared to 0 on first successful read
 
 static void mcp3426_on_error(const struct async_i2c_request *req, uint32_t error_code) {
-
     err_count++;
     if (err_count >= 3) {
         if (error_callback) {
             error_callback(req, error_code);
         }
 
-        for (size_t i = 0; i < MCP3426_CHANNEL_COUNT; i++)  {
+        for (size_t i = 0; i < MCP3426_CHANNEL_COUNT; i++) {
             adc_values[i] = NAN;
         }
     }
 }
 
-static uint8_t set_channel_cmds[MCP3426_CHANNEL_COUNT] = {0};
+static uint8_t set_channel_cmds[MCP3426_CHANNEL_COUNT] = { 0 };
 static struct async_i2c_request set_channel_req = {
     .nostop = false,
     .tx_buffer = NULL,
@@ -101,8 +102,7 @@ static void mcp3426_on_write(const struct async_i2c_request *req) {
     add_alarm_in_ms(100, &mcp3426_enqueue_read, NULL, true);
 }
 
-static void mcp3426_set_channel(enum mcp3426_channel channel)
-{
+static void mcp3426_set_channel(enum mcp3426_channel channel) {
     assert(!msg_in_progress);
     assert(mode == MCP3426_MODE_CONTINOUS || mode == MCP3426_MODE_ONE_SHOT);
     assert(channel < MCP3426_CHANNEL_COUNT);
@@ -112,14 +112,12 @@ static void mcp3426_set_channel(enum mcp3426_channel channel)
     async_i2c_enqueue(&set_channel_req, &msg_in_progress);
 }
 
-static void mcp3426_on_setup_complete(const struct async_i2c_request *req)
-{
+static void mcp3426_on_setup_complete(const struct async_i2c_request *req) {
     mode = (int) req->user_data;
     mcp3426_set_channel(0);
 }
 
-static void mcp3426_on_read(const struct async_i2c_request *req)
-{
+static void mcp3426_on_read(const struct async_i2c_request *req) {
     (void) req;
     uint16_t data = rx_buffer[0];
     data = ((data << 8) & 0xFF00) | rx_buffer[1];
@@ -129,28 +127,29 @@ static void mcp3426_on_read(const struct async_i2c_request *req)
 
     err_count = 0;
 
-    if(ready) {
+    if (ready) {
         float voltage = (float) data;
         voltage *= 2.048 * 2.0;
         voltage /= 65536.0;
 
         adc_values[channel] = voltage;
 
-        if(channel == MCP3426_CHANNEL_COUNT - 1)  {
+        if (channel == MCP3426_CHANNEL_COUNT - 1) {
             mcp3426_set_channel(0);
-        } else {
+        }
+        else {
             mcp3426_set_channel(channel + 1);
         }
-    } else {
+    }
+    else {
         add_alarm_in_ms(100, &mcp3426_enqueue_read, NULL, true);
     }
 }
 
 /**
  * Initializes the driver and resets the MCP3426
-*/
-void mcp3426_init(uint8_t i2c_num, uint8_t addr, mcp3426_error_cb error_cb)
-{
+ */
+void mcp3426_init(uint8_t i2c_num, uint8_t addr, mcp3426_error_cb error_cb) {
     // Load requests with i2c number and address
     set_channel_req.i2c_num = i2c_num;
     set_channel_req.address = addr;
@@ -168,14 +167,13 @@ void mcp3426_init(uint8_t i2c_num, uint8_t addr, mcp3426_error_cb error_cb)
     hard_assert_if(DRIVER_MCP3426, mode != MCP3426_MODE_UNINITIALIZED);
     hard_assert_if(DRIVER_MCP3426, msg_in_progress);
 
-    for (int i = 0; i < MCP3426_CHANNEL_COUNT; i++)
-    {
+    for (int i = 0; i < MCP3426_CHANNEL_COUNT; i++) {
         set_channel_cmds[i] = mcp3426_config_reg(MCP3426_START_READ, i, adc_mode, rate, gain);
     }
 
     static_assert(sizeof(mode) <= sizeof(general_call_reset_req.user_data));
     general_call_reset_req.completed_callback = &mcp3426_on_setup_complete;
-    general_call_reset_req.user_data = (void*) mode;
+    general_call_reset_req.user_data = (void *) mode;
 
     mode = MCP3426_MODE_INITIALIZING;
     async_i2c_enqueue(&general_call_reset_req, &msg_in_progress);
@@ -185,9 +183,8 @@ void mcp3426_init(uint8_t i2c_num, uint8_t addr, mcp3426_error_cb error_cb)
  * Reads the most recent voltage returned by the ADC
  *
  * If not value has been read yet, zero is returned.
-*/
-float mcp3426_read_voltage(enum mcp3426_channel channel)
-{
+ */
+float mcp3426_read_voltage(enum mcp3426_channel channel) {
     valid_params_if(DRIVER_MCP3426, channel < MCP3426_CHANNEL_COUNT);
 
     return adc_values[channel];

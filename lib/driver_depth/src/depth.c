@@ -1,18 +1,18 @@
-#include "pico/time.h"
 #include "driver/depth.h"
+
 #include "ms5837.h"
 
+#include "pico/time.h"
 #include "titan/logger.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "depth_sensor"
 
-
 // Global variables, see header for docs
 volatile bool depth_initialized = false;
 volatile bool depth_set_on_read = false;
 
-#define FLUID_DENSITY 997   // TODO: Make dynamic or at least fix for chlorinated/salt water
+#define FLUID_DENSITY 997  // TODO: Make dynamic or at least fix for chlorinated/salt water
 
 static int64_t depth_read_alarm_callback(__unused alarm_id_t id, __unused void *user_data);
 
@@ -49,7 +49,6 @@ void depth_fatal_err_cb(enum depth_error_event event) {
     }
 }
 
-
 // ========================================
 // Sensor Zeroing
 // ========================================
@@ -70,7 +69,7 @@ static int32_t surface_pressure __attribute__((section(".uninitialized_data.dept
 static int32_t surface_pressure_xor __attribute__((section(".uninitialized_data.depth_sensor")));
 /**
  * @brief Contains SURFACE_PRESSURE_VALID_MAGIC to report that a valid surface pressure is contained in surface_pressure
-*/
+ */
 static uint32_t surface_pressure_valid __attribute__((section(".uninitialized_data.depth_sensor")));
 
 /**
@@ -90,7 +89,8 @@ static void depth_zero_read_cb(int32_t pressure, __unused int32_t temperature) {
         // First 20 readings aren't taken into account
         if (zero_count == 21) {
             surface_pressure = pressure;
-        } else if (zero_count > 21) {
+        }
+        else if (zero_count > 21) {
             surface_pressure = surface_pressure * .7 + pressure * .3;
         }
 
@@ -114,11 +114,12 @@ static void depth_zero_read_cb(int32_t pressure, __unused int32_t temperature) {
  */
 static void depth_init_complete(void) {
     if (surface_pressure_valid != SURFACE_PRESSURE_VALID_MAGIC ||
-            (surface_pressure ^ SURFACE_PRESSURE_VALID_MAGIC) != surface_pressure_xor) {
+        (surface_pressure ^ SURFACE_PRESSURE_VALID_MAGIC) != surface_pressure_xor) {
         surface_pressure_valid = 0;
         zero_count = 0;
         ms5837_do_conversion(&depth_zero_read_cb, &depth_fatal_err_cb);
-    } else {
+    }
+    else {
         LOG_INFO("Depth surface pressure found... Skipping Zeroing of Depth");
 
         // Start depth sensor read task
@@ -144,7 +145,7 @@ static int32_t depth_temp;
 /**
  * @brief The timeout of the last reading for when it will be invalid
  */
-static absolute_time_t depth_current_read_timeout = {0};
+static absolute_time_t depth_current_read_timeout = { 0 };
 /**
  * @brief Bool set to notify polling timer to stop and instead perform a calibration sequence.
  */
@@ -201,7 +202,7 @@ void depth_init(unsigned int bus_num, enum depth_sensor_type sensor_type, depth_
 }
 
 double depth_read(void) {
-    return (depth_pressure - surface_pressure)/(FLUID_DENSITY*9.80665);
+    return (depth_pressure - surface_pressure) / (FLUID_DENSITY * 9.80665);
 }
 
 bool depth_reading_valid(void) {

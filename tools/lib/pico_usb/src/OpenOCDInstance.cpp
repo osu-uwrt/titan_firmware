@@ -1,13 +1,13 @@
+#include "pico_usb/PicoprobeClient.hpp"
+
 #include <chrono>
 #include <cstring>
-#include <iostream>
-#include <sstream>
 #include <fcntl.h>
+#include <iostream>
 #include <poll.h>
+#include <sstream>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include "pico_usb/PicoprobeClient.hpp"
 
 using namespace PicoUSB;
 
@@ -29,9 +29,12 @@ static bool getEnvironmentBool(const char *name, bool defaultValue = false) {
     }
 }
 
+bool OpenOCDInstance::hasCustomInit() {
+    return getenv("UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT") != NULL;
+}
+
 OpenOCDInstance::OpenOCDInstance():
-        ranCustomProbeInit(getenv("UPLOADTOOL_OPENOCD_CUSTOM_INIT_SCRIPT") != NULL),
-        enableStderr(getEnvironmentBool("UPLOADTOOL_OPENOCD_EN_STDERR")) {
+    ranCustomProbeInit(hasCustomInit()), enableStderr(getEnvironmentBool("UPLOADTOOL_OPENOCD_EN_STDERR")) {
     // Ignore SIGPIPE since we're going to be messing around with pipes
     signal(SIGPIPE, SIG_IGN);
 
@@ -53,7 +56,7 @@ OpenOCDInstance::OpenOCDInstance():
     if (openocdPid == 0) {
         // Setup our pipes
         // First close the sides we aren't going to use as the child
-        close(fd_stdin[1]);  // Write end of stdin
+        close(fd_stdin[1]);   // Write end of stdin
         close(fd_stdout[0]);  // Read end of stdout
 
         // Next replace stdin and stdout file descriptors
@@ -107,20 +110,20 @@ OpenOCDInstance::OpenOCDInstance():
 
         if (initScript) {
             execlp(execPath, execPath, "-c", "gdb_port disabled", "-c", "telnet_port disabled", "-c", "tcl_port pipe",
-                    "-f", initScript, "-c", "noinit", NULL);
+                   "-f", initScript, "-c", "noinit", NULL);
         }
         else {
             execlp(execPath, execPath, "-c", "gdb_port disabled", "-c", "telnet_port disabled", "-c", "tcl_port pipe",
-                    "-c", "noinit", NULL);
+                   "-c", "noinit", NULL);
         }
 
         // Create error message to write to stderr (our duplicated f)
         std::stringstream errStream;
         errStream << "Failed to execute '" << execPath << "': " << std::strerror(errno) << std::endl;
         auto errStr = errStream.str();
-
-        // No use checking for error, as if we can't actually write to stderr, we don't have anywhere to put it
         write(stderrFd, errStr.c_str(), errStr.size());
+
+        // Abort with error code
         exit(1);
     }
     else if (openocdPid < 0) {
@@ -128,8 +131,8 @@ OpenOCDInstance::OpenOCDInstance():
     }
 
     // After forking, close the ends of the pipe parent process won't use
-    close(fd_stdin[0]); // Close read end of openocd stdin
-    close(fd_stdout[1]); // Close write end of openocd stdout pipe
+    close(fd_stdin[0]);   // Close read end of openocd stdin
+    close(fd_stdout[1]);  // Close write end of openocd stdout pipe
 
     // Store the file descriptors
     stdinFd = fd_stdin[1];
@@ -147,9 +150,10 @@ OpenOCDInstance::~OpenOCDInstance() {
             try {
                 sendCommand("reset");
                 sendCommand("shutdown");
+            } catch (std::exception &e) {
+            }  // Ignore any errors
+            catch (...) {
             }
-            catch (std::exception &e) {}  // Ignore any errors
-            catch (...) {}
 
             std::chrono::time_point start = std::chrono::steady_clock::now();
             while (ret == 0) {
@@ -158,7 +162,7 @@ OpenOCDInstance::~OpenOCDInstance() {
                 usleep(10000);
 
                 // If more than 1 second elapses, switch to trying to kill openocd
-                if(std::chrono::steady_clock::now() - start > std::chrono::seconds(1))
+                if (std::chrono::steady_clock::now() - start > std::chrono::seconds(1))
                     break;
             }
 
@@ -169,10 +173,10 @@ OpenOCDInstance::~OpenOCDInstance() {
             if (ret == 0) {
                 if (kill(openocdPid, SIGKILL) < 0) {
                     // We should not get here
-                    // It either means that we don't have permission to terminate, that SIGKILL isn't a valid POSIX signal,
-                    // or the process is already terminated
-                    // But to avoid infinitely waiting on a process we failed to kill, just raise an exception
-                    // (which might kill the program if we're already processing an exception, but that's probably fine)
+                    // It either means that we don't have permission to terminate, that SIGKILL isn't a valid POSIX
+                    // signal, or the process is already terminated But to avoid infinitely waiting on a process we
+                    // failed to kill, just raise an exception (which might kill the program if we're already processing
+                    // an exception, but that's probably fine)
                     perror("kill");
                     std::terminate();
                 }
@@ -208,7 +212,8 @@ void OpenOCDInstance::writeData(std::string data) {
         else {
             throw std::system_error(errno, std::generic_category(), "write");
         }
-    } else if ((size_t)ret != data.length()) {
+    }
+    else if ((size_t) ret != data.length()) {
         throw PicoprobeError("OpenOCD stdin pipe failed to fully write");
     }
 }
@@ -234,7 +239,7 @@ std::string OpenOCDInstance::readData(int timeout_ms) {
             return std::string(buf, ret);
         }
     }
-    else if (fds[0].revents & POLLHUP) {
+    else if (fds[0].revents & (POLLHUP | POLLERR)) {
         // If hangup event, then the other end of the pipe was broken
         throw PicoprobeError("OpenOCD stdout pipe broken");
     }
@@ -244,7 +249,7 @@ std::string OpenOCDInstance::readData(int timeout_ms) {
     }
 }
 
-std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
+std::string OpenOCDInstance::sendCommand(std::string cmd, bool strip_whitespace, int timeout_ms) {
     // If enabling debug, print the command we're sending to stderr
     if (enableStderr) {
         std::cerr << "> " << cmd << std::endl;
@@ -259,7 +264,8 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
         auto out = readData(timeout_ms);
         dataOut += out;
 
-        if (out.back() == '\x1A') break;
+        if (out.back() == '\x1A')
+            break;
 
         if (out.find('\x1A') != std::string::npos) {
             throw PicoprobeError("OpenOCD sent extra data after command separator");
@@ -267,13 +273,27 @@ std::string OpenOCDInstance::sendCommand(std::string cmd, int timeout_ms) {
     }
 
     // Remove last character from dataOut as this is the separator character
-    return dataOut.substr(0, dataOut.length() - 1);;
+    dataOut.erase(dataOut.length() - 1);
+
+    // Strip trailing whitespace if requested
+    if (strip_whitespace) {
+        size_t found = dataOut.find_last_not_of(" \t\f\v\n\r");
+        if (found != std::string::npos) {
+            dataOut.erase(found + 1);
+        }
+        else {
+            dataOut.clear();
+        }
+    }
+
+    return dataOut;
 }
 
 void OpenOCDInstance::init() {
     sendCommand("init");
     if (sendCommand("command mode") != "exec") {
-        throw PicoprobeError("Failed to initialize OpenOCD. Enable openocd stderr for more details");
+        throw PicoprobeError(
+            "Failed to initialize OpenOCD! (Is it already running?) Enable openocd stderr for more details");
     }
 }
 
@@ -297,8 +317,8 @@ OpenOCDInstance::OpenOCDVersion OpenOCDInstance::getVersion() {
         return OpenOCDVersion();
     }
 
-    const char* versionStrPtr = versionStr.c_str();
-    char* end;
+    const char *versionStrPtr = versionStr.c_str();
+    char *end;
 
     long versionMajor = std::strtol(versionStrPtr + prefix.size(), &end, 10);
     if (end != (versionStrPtr + maj_sep)) {
@@ -318,5 +338,5 @@ OpenOCDInstance::OpenOCDVersion OpenOCDInstance::getVersion() {
         return OpenOCDVersion();
     }
 
-    return OpenOCDVersion((uint8_t)versionMajor, (uint8_t)versionMinor);
+    return OpenOCDVersion((uint8_t) versionMajor, (uint8_t) versionMinor);
 }

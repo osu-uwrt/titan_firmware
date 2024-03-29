@@ -1,27 +1,26 @@
-#include <stdbool.h>
-#include <stdint.h>
+#include "actuators.h"
+#include "safety_interface.h"
 
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
 #include "pico/sync.h"
 #include "pico/time.h"
-
 #include "titan/logger.h"
 
-#include "actuators.h"
-#include "safety_interface.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "dropper"
 
 // Pin Definitions
-#define DROPPER_LEVEL_ON  1
+#define DROPPER_LEVEL_ON 1
 #define DROPPER_LEVEL_OFF 0
 
 bi_decl(bi_1pin_with_name(DROPPER_1_PIN, "Dropper 1 Drop"));
 bi_decl(bi_1pin_with_name(DROPPER_2_PIN, "Dropper 2 Drop"));
-static const uint dropper_pins[] = {DROPPER_1_PIN, DROPPER_2_PIN};
-#define NUM_DROPPERS (sizeof(dropper_pins)/sizeof(*dropper_pins))
+static const uint dropper_pins[] = { DROPPER_1_PIN, DROPPER_2_PIN };
+#define NUM_DROPPERS (sizeof(dropper_pins) / sizeof(*dropper_pins))
 
 // A time value of 0 means uninitialized
 static uint16_t dropper_active_time_ms = 0;
@@ -48,9 +47,9 @@ static volatile uint next_dropper_index = 0;
  * So instead we're just going to report we're dropping until the alarm fires *but* it will have technically stopped
  * by the kill switch event.
  *
- * The torpedo was done differently though since it's a lot easier to clean up a PIO machine (just write a few registers)
- * rather than cancel an alarm (they've got heaps and a bunch of fun stuff underneath the alarms which I don't want to
- * play games with)
+ * The torpedo was done differently though since it's a lot easier to clean up a PIO machine (just write a few
+ * registers) rather than cancel an alarm (they've got heaps and a bunch of fun stuff underneath the alarms which I
+ * don't want to play games with)
  *
  * So this *technically* isn't the boolean if the dropper is dropping, but rather a boolean if the alarm is firing.
  * Now we'll report this as a status of dropping, but there is technically a difference due to the kill switch.
@@ -85,8 +84,8 @@ void dropper_safety_disable(void) {
     if (dropper_alarm_active) {
         // Report that the actuation was aborted
         // This is important since we responed over ROS that the actuator fired, but now we're cancelling it
-        // Due to how brief these pulses are, it is worth the occasional fault when we pull the kill switch over thinking
-        // the actuator fired and some random kill event stopped it silently (like a timeout)
+        // Due to how brief these pulses are, it is worth the occasional fault when we pull the kill switch over
+        // thinking the actuator fired and some random kill event stopped it silently (like a timeout)
         safety_raise_fault(FAULT_ACTUATOR_FAILURE);
     }
 }
@@ -98,11 +97,11 @@ void dropper_safety_disable(void) {
 bool dropper_set_timings(uint16_t active_time_ms) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
-    if (active_time_ms == 0){
+    if (active_time_ms == 0) {
         return false;
     }
 
-    if(actuators_armed) {
+    if (actuators_armed) {
         return false;
     }
 
@@ -123,7 +122,6 @@ bool dropper_set_timings(uint16_t active_time_ms) {
  * @return int64_t If/How to restart the timer
  */
 static int64_t dropper_finish_callback(__unused alarm_id_t id, __unused void *user_data) {
-
     // Clear the dropper pins
     gpio_put_masked(dropper_pin_mask, dropper_off_mask);
 
@@ -134,7 +132,6 @@ static int64_t dropper_finish_callback(__unused alarm_id_t id, __unused void *us
     return 0;
 }
 
-
 // ===== Public Functions =====
 
 uint8_t dropper_get_state(void) {
@@ -142,11 +139,14 @@ uint8_t dropper_get_state(void) {
 
     if (dropper_active_time_ms == 0) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
-    } else if(!actuators_armed) {
+    }
+    else if (!actuators_armed) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DISARMED;
-    } if (dropper_alarm_active) {
+    }
+    if (dropper_alarm_active) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
-    } else {
+    }
+    else {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
     }
 }
@@ -159,7 +159,6 @@ uint8_t dropper_get_available(void) {
     int avail = NUM_DROPPERS - next_dropper_index;
     return (avail > 0 ? avail : 0);
 }
-
 
 bool dropper_drop_marker(const char **errMsgOut) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
@@ -183,7 +182,7 @@ bool dropper_drop_marker(const char **errMsgOut) {
         return false;
     }
 
-    if(!actuators_armed)  {
+    if (!actuators_armed) {
         restore_interrupts(prev_interrupts);
         *errMsgOut = "Not Armed";
         return false;
@@ -202,7 +201,7 @@ bool dropper_drop_marker(const char **errMsgOut) {
     // And hard assert if we couldn't schedule the alarm due to running out of timers (-1 is an out of timer error)
     hard_assert(add_alarm_in_ms(dropper_active_time_ms, dropper_finish_callback, NULL, true) >= 0);
 
-    LOG_INFO("Dropping Marker %d", fired_dropper+1);
+    LOG_INFO("Dropping Marker %d", fired_dropper + 1);
 
     return true;
 }

@@ -1,13 +1,13 @@
-#include <stdbool.h>
-#include <stdint.h>
+#include "safety_internal.h"
 
 #include "pico/assert.h"
 #include "pico/time.h"
 
-#include "safety_internal.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 static absolute_time_t last_kill_switch_change;
-static bool last_state_asserting_kill = true; // Start asserting kill
+static bool last_state_asserting_kill = true;  // Start asserting kill
 
 /**
  * @brief Local utility function to do common tasks for when the system is killed
@@ -22,7 +22,6 @@ static void safety_local_handle_kill(void) {
     safety_handle_kill();
 }
 
-
 void safety_internal_kill_refresh_switches(void) {
     // Check all kill switches for asserting kill
     bool asserting_kill = false;
@@ -33,7 +32,7 @@ void safety_internal_kill_refresh_switches(void) {
 
             // Kill if asserting kill or if timeout expired when requiring update
             if (kill_switch_states[i].asserting_kill ||
-                    (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout))) {
+                (kill_switch_states[i].needs_update && time_reached(kill_switch_states[i].update_timeout))) {
                 asserting_kill = true;
                 break;
             }
@@ -51,7 +50,8 @@ void safety_internal_kill_refresh_switches(void) {
 
         if (asserting_kill) {
             safety_local_handle_kill();
-        } else {
+        }
+        else {
             last_kill_switch_change = get_absolute_time();
             safety_handle_enable();
         }
@@ -63,8 +63,7 @@ void safety_internal_kill_handle_init(void) {
     last_kill_switch_change = get_absolute_time();
 }
 
-
-void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update){
+void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool needs_update) {
     valid_params_if(SAFETY, switch_num < num_kill_switches);
 
     kill_switch_states[switch_num].asserting_kill = asserting_kill;
@@ -78,6 +77,7 @@ void safety_kill_switch_update(uint8_t switch_num, bool asserting_kill, bool nee
 }
 
 bool __time_critical_func(safety_kill_get_asserting_kill)(void) {
+    // This function must be safe to be called from interrupts and across cores
     return last_state_asserting_kill;
 }
 

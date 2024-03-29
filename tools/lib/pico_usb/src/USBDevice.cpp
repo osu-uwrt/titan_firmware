@@ -1,7 +1,9 @@
+#include "pico_usb/USBDiscovery.hpp"
+
+#include "pico/usb_reset_interface.h"
+
 #include <chrono>
 #include <thread>
-#include "pico_usb/USBDiscovery.hpp"
-#include "pico/usb_reset_interface.h"
 
 using namespace PicoUSB;
 
@@ -23,14 +25,14 @@ int lookupHexChar(unsigned char c) {
 }
 
 NormalDevice::NormalDevice(std::shared_ptr<USBDeviceHandle> handle, uint8_t serial_desc_index):
-        USBDevice(libusb_get_bus_number(libusb_get_device(handle->handle)),
-                  libusb_get_device_address(libusb_get_device(handle->handle))),
-        handle(handle), flashIdCached(0), resetItf(-1), resetItfClaimed(false) {
-
+    USBDevice(libusb_get_bus_number(libusb_get_device(handle->handle)),
+              libusb_get_device_address(libusb_get_device(handle->handle))),
+    handle(handle), flashIdCached(0), resetItf(-1), resetItfClaimed(false) {
     unsigned char serialNumber[sizeof(flashIdCached) * 2 + 2];
 
     // Attempt to lookup serial number
-    ssize_t len = checkLibusbErr(libusb_get_string_descriptor_ascii(handle->handle, serial_desc_index, serialNumber, sizeof(serialNumber)));
+    ssize_t len = checkLibusbErr(
+        libusb_get_string_descriptor_ascii(handle->handle, serial_desc_index, serialNumber, sizeof(serialNumber)));
     if (len == sizeof(flashIdCached) * 2) {
         for (size_t i = 0; i < sizeof(flashIdCached); i++) {
             int nibbleUpper = lookupHexChar(serialNumber[2 * i]);
@@ -41,7 +43,7 @@ NormalDevice::NormalDevice(std::shared_ptr<USBDeviceHandle> handle, uint8_t seri
                 break;
             }
 
-            flashIdCached |= (uint64_t)((nibbleUpper << 4) | nibbleLower) << (8 * i);
+            flashIdCached |= (uint64_t) ((nibbleUpper << 4) | nibbleLower) << (8 * i);
         }
     }
 
@@ -49,12 +51,11 @@ NormalDevice::NormalDevice(std::shared_ptr<USBDeviceHandle> handle, uint8_t seri
     struct libusb_config_descriptor *config;
     checkLibusbErr(libusb_get_active_config_descriptor(libusb_get_device(handle->handle), &config));
 
-    for (int i = 0; i < config->bNumInterfaces; i++){
-        const struct libusb_interface * interface = &config->interface[i];
+    for (int i = 0; i < config->bNumInterfaces; i++) {
+        const struct libusb_interface *interface = &config->interface[i];
         if (interface->altsetting[0].bInterfaceClass == 0xFF &&
             interface->altsetting[0].bInterfaceSubClass == RESET_INTERFACE_SUBCLASS &&
             interface->altsetting[0].bInterfaceProtocol == RESET_INTERFACE_PROTOCOL) {
-
             resetItf = interface->altsetting[0].bInterfaceNumber;
         }
     }
@@ -75,7 +76,7 @@ std::shared_ptr<RP2040BootromInterface> NormalDevice::switchToBootromMode() {
 
     // Send reboot request
     // Don't check for errors since it doesn't respond to this request
-    libusb_control_transfer(handle->handle, LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+    libusb_control_transfer(handle->handle, ((int) LIBUSB_REQUEST_TYPE_CLASS) | ((int) LIBUSB_RECIPIENT_INTERFACE),
                             RESET_REQUEST_BOOTSEL, disable_mask, resetItf, NULL, 0, 500);
 
     // Wait for the new device to appear
@@ -86,15 +87,15 @@ std::shared_ptr<RP2040BootromInterface> NormalDevice::switchToBootromMode() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         newDev = handle->discoverySrc->rediscoverBootromDevice(handle, getFlashId());
 
-        if(std::chrono::steady_clock::now() - start > std::chrono::seconds(5))
+        if (std::chrono::steady_clock::now() - start > std::chrono::seconds(5))
             break;
     }
 
     // Ensure we actually got the device and return it
     if (newDev == nullptr) {
-        throw usb_error("Failed to rediscover RP2040 in bootrom", LIBUSB_ERROR_OTHER);
+        throw usb_error("Failed to rediscover RP2040 in bootrom - This could be due to the watchdog timer",
+                        LIBUSB_ERROR_OTHER);
     }
 
     return newDev->getBootromInterface();
 }
-

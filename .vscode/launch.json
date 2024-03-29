@@ -1,0 +1,60 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Pico Debug",
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            "executable": "${command:cmake.launchTargetPath}",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            // Configure toolchain path
+            // Note this MUST begin with arm-non-eabi-gdb, but most distros nowadays just have gdb-multiarch
+            // Run 'sudo ln -s gdb-multiarch /usr/bin/arm-none-eabi-gdb' and it'll make it happy
+            // This is just since Cortex Debug assumes your toolchain prefix based on your gdb executable
+            "gdbPath": "arm-none-eabi-gdb",
+            // Configure OpenOCD
+            "openOCDLaunchCommands": [
+                "adapter speed 2000"
+            ],
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg"
+            ],
+            // Using our custom upload task (since bootloader gets squirly when you upload the raw elf)
+            "preLaunchTask": "Upload SWD",
+            "overrideLaunchCommands": [],
+            // Configure how we want vscode to interact with things
+            "device": "RP2040",
+            "svdFile": "${workspaceRoot}/lib/pico-sdk/src/rp2040/hardware_regs/rp2040.svd",
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ],
+            "postStartSessionCommands": [
+                "monitor reset halt",
+                "break main",
+                "continue"
+            ]
+        },
+        {
+            "name": "Canmore Debug",
+            "cwd": "${command:cmake.getLaunchTargetDirectory}",
+            "executable": "${command:cmake.getLaunchTargetPath}",
+            "request": "attach",
+            "type": "cortex-debug",
+            "servertype": "external",
+            // Using localhost:3333 for gdbserver on CanmoreCLI
+            "gdbTarget": "localhost:3333",
+            // Configure toolchain path
+            "gdbPath": "arm-none-eabi-gdb",
+            // Using our custom upload task (since bootloader gets squirly when you upload the raw elf)
+            "preLaunchTask": "Verify Remote Version",
+            "overrideAttachCommands": [],
+            // Configure how we want vscode to interact with things
+            "device": "RP2040",
+            "svdFile": "${workspaceRoot}/lib/pico-sdk/src/rp2040/hardware_regs/rp2040.svd",
+            "breakAfterReset": false
+        }
+    ]
+}

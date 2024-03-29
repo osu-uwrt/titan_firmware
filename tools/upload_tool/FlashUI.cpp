@@ -1,11 +1,19 @@
+#include "UploadTool.hpp"
+#include "canmore_cpp/Discovery.hpp"
+
+#include <algorithm>
 #include <bit>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
-#include "UploadTool.hpp"
-#include "canmore_cpp/Discovery.hpp"
 
 namespace UploadTool {
+
+struct rp2040_device_fixed_sort {
+    inline bool operator()(const std::shared_ptr<RP2040Device> &dev1, const std::shared_ptr<RP2040Device> &dev2) {
+        return dev1->getInterface() < dev2->getInterface();
+    }
+};
 
 std::string hexWord(uint32_t word) {
     std::stringstream ss;
@@ -24,15 +32,19 @@ bool showConfirmation(const char *msg) {
 }
 
 void drawProgressBar(float percentage) {
-    if (percentage > 1.0) percentage = 1.0;
+    if (percentage > 1.0)
+        percentage = 1.0;
     const int barWidth = 40;
 
     std::cout << "[";
     int pos = barWidth * percentage;
     for (int i = 0; i < barWidth; ++i) {
-        if (i < pos) std::cout << "=";
-        else if (i == pos) std::cout << ">";
-        else std::cout << " ";
+        if (i < pos)
+            std::cout << "=";
+        else if (i == pos)
+            std::cout << ">";
+        else
+            std::cout << " ";
     }
     std::cout << "] " << int(percentage * 100.0) << " %\r";
     std::cout.flush();
@@ -47,7 +59,8 @@ void drawProgressBar(float percentage) {
 
 void dumpUF2(RP2040UF2 &uf2) {
     for (auto &app : uf2.apps) {
-        std::cout << COLOR_TITLE "==========" << (app.isBootloader ? "Bootloader" : "Application") << " Image==========" COLOR_RESET << std::endl;
+        std::cout << COLOR_TITLE "==========" << (app.isBootloader ? "Bootloader" : "Application")
+                  << " Image==========" COLOR_RESET << std::endl;
         dumpAppInfo(app);
         std::cout << std::endl;
     }
@@ -60,7 +73,8 @@ void printImageName(BinaryInfo::AppInfo &app) {
 
     if (app.programName.size() == 0) {
         std::cout << COLOR_HEADER "(No Program Name)" COLOR_RESET;
-    } else {
+    }
+    else {
         std::cout << COLOR_BODY << app.programName << COLOR_RESET;
     }
 
@@ -75,7 +89,8 @@ void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMa
     // Device ID
     if (index != 0) {
         std::cout << COLOR_ID "Dev " << index << ":\t";
-    } else {
+    }
+    else {
         std::cout << "\t";
     }
 
@@ -97,14 +112,16 @@ void printDevice(unsigned int index, std::shared_ptr<RP2040Device> dev, DeviceMa
 
     for (std::pair<std::string, std::string> entry : devInfo) {
         std::cout << COLOR_HEADER "\t" << entry.first << ":\t";
-        if (entry.first.size() <= 6) std::cout << "\t";
+        if (entry.first.size() <= 6)
+            std::cout << "\t";
         std::cout << COLOR_BODY << entry.second << COLOR_RESET << std::endl;
     }
 
     std::cout << std::endl;
 }
 
-std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices, DeviceMap &deviceMap, std::string &boardType, bool autoSelect) {
+std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices,
+                                           DeviceMap &deviceMap, std::string &boardType, bool autoSelect) {
     if (discoveredDevices.size() == 0) {
         throw std::runtime_error("No devices to select");
     }
@@ -119,7 +136,8 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
             if (devDescr.boardType == boardType) {
                 if (matchingDevice == nullptr) {
                     matchingDevice = dev;
-                } else {
+                }
+                else {
                     // If this is the second device, invalidate and break from the search
                     matchingDevice = nullptr;
                     break;
@@ -162,6 +180,10 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
         }
     }
 
+    std::sort(goodMatches.begin(), goodMatches.end(), rp2040_device_fixed_sort());
+    std::sort(otherMatches.begin(), otherMatches.end(), rp2040_device_fixed_sort());
+    std::sort(invalidMatches.begin(), invalidMatches.end(), rp2040_device_fixed_sort());
+
     if (goodMatches.size() > 0) {
         std::cout << COLOR_TITLE "===========Compatible Targets===========" COLOR_RESET << std::endl;
         for (auto dev : goodMatches) {
@@ -184,27 +206,32 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 
     while (1) {
-        std::cout << "Please Select a Device: ";
+        std::cout << "Please Select a Device [none to abort]: ";
 
         if (std::cin.peek() == '\n') {
             // Clear from buffer
             char c;
             std::cin.read(&c, 1);
 
-            // No default option
-            continue;
+            std::cout << "Upload aborted..." << std::endl;
+            return nullptr;
         }
 
         unsigned int userChoice;
         std::cin >> userChoice;
 
-        if(std::cin.fail()) {
+        if (std::cin.fail()) {
+            if (std::cin.eof()) {
+                std::cout << std::endl << "No stdin available! Aborting upload..." << std::endl;
+                return nullptr;
+            }
+
             std::cout << "Invalid input!" << std::endl;
             std::cin.clear();
-            std::cin.ignore(256,'\n');
+            std::cin.ignore(256, '\n');
             continue;
         }
-        std::cin.ignore(256,'\n');
+        std::cin.ignore(256, '\n');
 
         if (userChoice < 1 || userChoice >= index) {
             std::cout << "Invalid input!" << std::endl;
@@ -215,7 +242,8 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
         userChoice--;
         if (userChoice < goodMatches.size()) {
             return goodMatches.at(userChoice);
-        } else {
+        }
+        else {
             std::cout << "[WARNING] The selected board does not match the expected type '" << boardType << "'. ";
             if (!showConfirmation("Continue?")) {
                 continue;
@@ -225,7 +253,25 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 }
 
-std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources, DeviceMap &deviceMap, RP2040UF2 &uf2) {
+std::shared_ptr<RP2040Device> selectDeviceByName(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices,
+                                                 DeviceMap &deviceMap, uint64_t targetSerialNum) {
+    if (discoveredDevices.size() == 0) {
+        throw std::runtime_error("No devices to select");
+    }
+
+    // First try to see if we can find one device which matches the specified device name
+    for (std::shared_ptr<RP2040Device> dev : discoveredDevices) {
+        if (dev->getFlashId() == targetSerialNum && dev->supportsFlashInterface()) {
+            printDevice(0, dev, deviceMap);
+            return dev;
+        }
+    }
+
+    throw std::runtime_error("Could not find requested device: " + deviceMap.lookupSerial(targetSerialNum).name);
+}
+
+std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources,
+                                                       DeviceMap &deviceMap, RP2040UF2 &uf2) {
     std::cout << COLOR_TITLE "===========Available Interfaces===========" COLOR_RESET << std::endl;
     unsigned int index = 1;
     std::vector<std::shared_ptr<Canmore::Discovery>> validInterfaces;
@@ -262,13 +308,13 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
         unsigned int userChoice;
         std::cin >> userChoice;
 
-        if(std::cin.fail()) {
+        if (std::cin.fail()) {
             std::cout << "Invalid input!" << std::endl;
             std::cin.clear();
-            std::cin.ignore(256,'\n');
+            std::cin.ignore(256, '\n');
             continue;
         }
-        std::cin.ignore(256,'\n');
+        std::cin.ignore(256, '\n');
 
         if (userChoice < 1 || userChoice >= index) {
             std::cout << "Invalid input!" << std::endl;
@@ -282,7 +328,16 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
 
     uint8_t defaultClientId = 0;
     for (auto &app : uf2.apps) {
-        if (app.clientIds.size() == 1) {
+        if (app.clientIds.size() > 0 && app.deviceIpAddress.size() > 0) {
+            std::cout << "Both Ethernet and CAN bus supported?? Unable to determine image client id" << std::endl;
+        }
+        else if (app.deviceIpAddress.size() > 0) {
+            std::cout << "Found ethernet image with IP address: " << app.deviceIpAddress << std::endl;
+            std::cout << "   - The client ID for ethernet interfaces is the last byte of the bootloader IP address."
+                      << std::endl;
+            break;
+        }
+        else if (app.clientIds.size() == 1) {
             defaultClientId = app.clientIds.at(0);
             if (defaultClientId >= 255 || defaultClientId == 0) {
                 std::cout << "Invalid client ID decoded from image: " << std::to_string(defaultClientId) << std::endl;
@@ -293,7 +348,7 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
         else if (app.clientIds.size() > 1) {
             std::cout << "Provided Firmware Image has multiple valid CAN IDs:" << std::endl;
             for (auto id : app.clientIds) {
-                std::cout << "   -" << id << std::endl;
+                std::cout << "   - " << id << std::endl;
             }
             break;
         }
@@ -325,13 +380,13 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
         unsigned int userChoice;
         std::cin >> userChoice;
 
-        if(std::cin.fail()) {
+        if (std::cin.fail()) {
             std::cout << "Invalid input!" << std::endl;
             std::cin.clear();
-            std::cin.ignore(256,'\n');
+            std::cin.ignore(256, '\n');
             continue;
         }
-        std::cin.ignore(256,'\n');
+        std::cin.ignore(256, '\n');
 
         if (userChoice < 1 || userChoice >= 255) {
             std::cout << "Invalid input!" << std::endl;
@@ -376,37 +431,41 @@ std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_p
     return dev;
 }
 
-void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {
+bool flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2, bool isOTA) {
     // Error if the image is large for flash
     if (uf2.getBaseFlashOffset() + uf2.getSize() > interface->getFlashSize()) {
-        std::cout << "[ERROR] Requested image @+0x" << std::hex << uf2.getBaseFlashOffset() << " len 0x" << uf2.getSize()
-                  << " is too large to fit into device flash size 0x" << interface->getFlashSize()
+        std::cout << "[ERROR] Requested image @+0x" << std::hex << uf2.getBaseFlashOffset() << " len 0x"
+                  << uf2.getSize() << " is too large to fit into device flash size 0x" << interface->getFlashSize()
                   << std::dec << std::endl;
-        return;
+        return false;
     }
 
     // Error if uf2 reports OTA but tries to overwrite bootloader
     if (isOTA && uf2.getBaseFlashOffset() < interface->tryGetBootloaderSize()) {
         std::cout << "[ERROR] Requested OTA image @+0x" << std::hex << uf2.getBaseFlashOffset()
-                  << " overlaps with bootloader reserved space @+0x" << interface->tryGetBootloaderSize()
-                  << std::dec << std::endl;
-        return;
+                  << " overlaps with bootloader reserved space @+0x" << interface->tryGetBootloaderSize() << std::dec
+                  << std::endl;
+        std::cout << "Use the -f flag if you want to flash a full uf2, rather than just an ota." << std::endl;
+        return false;
     }
 
     // Check with user to confirm they want to overwrite bootloader
     if (!isOTA && interface->shouldWarnOnBootloaderOverwrite()) {
-        if (!showConfirmation("[WARNING!] Attempting to flash/overwrite the bootloader via the bootloader interface! This may brick the interface!\nAre you CERTAIN you want to continue flashing the full image?")) {
+        if (!showConfirmation(
+                "[WARNING!] Attempting to flash/overwrite the bootloader via the bootloader interface! This may brick "
+                "the interface!\nAre you CERTAIN you want to continue flashing the full image?")) {
             std::cout << "Flash aborted." << std::endl;
-            return;
+            return false;
         }
         interface->enableBootloaderOverwrite();
     }
 
     // Warn if trying to flash OTA without a bootloader
     if (isOTA && uf2.getBaseFlashOffset() != 0 && interface->tryGetBootloaderSize() == 0) {
-        if (!showConfirmation("[WARNING] Attempting to flash OTA image but no bootloader was found. Continue with flashing?")) {
+        if (!showConfirmation(
+                "[WARNING] Attempting to flash OTA image but no bootloader was found. Continue with flashing?")) {
             std::cout << "Flash aborted." << std::endl;
-            return;
+            return false;
         }
     }
 
@@ -418,9 +477,10 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         auto appBoot2 = uf2.getFlashOffset(appBoot2Off);
 
         if (!interface->verifyBytes(FLASH_BASE, appBoot2)) {
-            if (!showConfirmation("[WARNING] The boot2 used by this application does not match the bootloader boot2. This may cause performance or other stability issues. Continue with flashing?")) {
+            if (!showConfirmation("[WARNING] The boot2 used by this application does not match the bootloader boot2. "
+                                  "This may cause performance or other stability issues. Continue with flashing?")) {
                 std::cout << "Flash aborted." << std::endl;
-                return;
+                return false;
             }
         }
     }
@@ -428,7 +488,8 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     // Report which image we're flashing
     if (isOTA && uf2.getBaseFlashOffset() != 0) {
         std::cout << std::endl << "Flashing OTA Image:";
-    } else {
+    }
+    else {
         std::cout << std::endl << "Flashing Full Image:";
     }
     if (uf2.apps.size() == 0) {
@@ -453,13 +514,13 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     // Write all blocks except for first
     // This allows for the application to be verified before sealing (w/ boot2)
     // By writing this way, if the upload is interrupted, the previous stage (whether it be bootrom or bootloader)
-    // will notice that the boot2 has an invalid crc (since we can only erase in 4KB pages, so boot2 will be erased when)
-    // the second block (@256 bytes) is written. It will then refuse to run, and fallback to accepting a new image
+    // will notice that the boot2 has an invalid crc (since we can only erase in 4KB pages, so boot2 will be erased
+    // when) the second block (@256 bytes) is written. It will then refuse to run, and fallback to accepting a new image
     std::cout << "Writing Image..." << std::endl;
     uint32_t blockCount = uf2.getNumBlocks();
     for (uint32_t i = 1; i < blockCount; i++) {
         // Draw progress
-        drawProgressBar(((float)i) / (blockCount - 1));
+        drawProgressBar(((float) i) / (blockCount - 1));
 
         // Write data
         auto block = uf2.getBlock(i);
@@ -470,13 +531,14 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
     std::cout << std::endl << "Verifying Image..." << std::endl;
     for (uint32_t i = 1; i < blockCount; i++) {
         // Draw progress
-        drawProgressBar(((float)i) / (blockCount - 1));
+        drawProgressBar(((float) i) / (blockCount - 1));
 
         // Write data
         auto block = uf2.getBlock(i);
         if (!interface->verifyBytes(uf2.getBlockAddress(i), block)) {
-            std::cout << std::endl << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(i) << std::dec << std::endl;
-            return;
+            std::cout << std::endl
+                      << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(i) << std::dec << std::endl;
+            return false;
         }
     }
     drawProgressBar(1.0);
@@ -488,12 +550,13 @@ void flashImage(std::shared_ptr<RP2040FlashInterface> interface, RP2040UF2 &uf2,
         flashWrapper.writeBytes(uf2.getBlockAddress(0), block);
         if (!interface->verifyBytes(uf2.getBlockAddress(0), block)) {
             std::cout << "Verify failed at address 0x" << std::hex << uf2.getBlockAddress(0) << std::dec << std::endl;
-            return;
+            return false;
         }
     }
 
     std::cout << "Image Written." << std::endl;
     interface->reboot();
+    return true;
 }
 
-}
+}  // namespace UploadTool

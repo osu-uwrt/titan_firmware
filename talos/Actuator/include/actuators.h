@@ -1,9 +1,10 @@
 #ifndef ACTUATORS_H
 #define ACTUATORS_H
 
+#include <riptide_msgs2/msg/actuator_status.h>
+
 #include <stdbool.h>
 #include <stdint.h>
-#include <riptide_msgs2/msg/actuator_status.h>
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ACTUATORS, Enable/disable assertions for the actuators module, type=bool, default=0, group=talos/actuators
 #ifndef PARAM_ASSERTIONS_ENABLED_ACTUATORS
@@ -81,7 +82,6 @@ bool claw_open(const char **errMsgOut);
  */
 bool claw_close(const char **errMsgOut);
 
-
 // ========================================
 // Droppers
 // ========================================
@@ -115,7 +115,6 @@ bool dropper_drop_marker(const char **errMsgOut);
  * @return bool Result for the attempted command (true on success)
  */
 bool dropper_notify_reload(const char **errMsgOut);
-
 
 // ========================================
 // Torpedos
@@ -196,8 +195,9 @@ bool torpedo_set_timings(uint8_t torpedo_num, enum torpedo_timing_type timing_ty
 
 #if ACTUATOR_V2_SUPPORT
 
-#include <stddef.h>
 #include <riptide_msgs2/msg/dynamixel_status.h>
+
+#include <stddef.h>
 
 typedef size_t actuator_dxlitr_t;
 

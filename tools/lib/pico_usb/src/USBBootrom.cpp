@@ -1,7 +1,16 @@
+#include "DeviceMap.hpp"
 #include "pico_usb/USBDiscovery.hpp"
-#include "read_flash.h"
+#include "pico_usb/cfg_watchdog.h"
+#include "pico_usb/flash_getid.h"
+
+#include <iostream>
 
 using namespace PicoUSB;
+
+// Load stub to read flash unique ID and JEDEC ID into end of memory
+// This will be fine to write our stub, since this space is reserved for the boot2 writeout during boot
+#define flash_stub_max_len 256
+const static uint32_t flash_bin_stub_loc = SRAM_END - flash_stub_max_len;
 
 static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> handle) {
     struct libusb_config_descriptor *config;
@@ -10,7 +19,8 @@ static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> han
 
     if (config->bNumInterfaces == 1) {
         itf.interface = 0;
-    } else {
+    }
+    else {
         itf.interface = 1;
     }
     if (config->interface[itf.interface].altsetting[0].bInterfaceClass == 0xff &&
@@ -28,31 +38,37 @@ static struct picoboot_itf claimPicobootItf(std::shared_ptr<USBDeviceHandle> han
 }
 
 RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> handle):
-        handle(handle), conn(handle->handle, claimPicobootItf(handle)) {
-
+    handle(handle), conn(handle->handle, claimPicobootItf(handle)) {
     // Try to find discover the flash ID
-    union {
-        uint8_t data[8];
-        uint64_t doubleword;
-    } serial = {0};
+    flash_info_t flash_data = { 0 };
 
     try {
-        // TODO: Make this a little nicer
-        // Currently just puts a small stub to read the flash ID to 0x20001000
-        conn.write(0x20001000, serial.data, sizeof(serial));
-        conn.exit_xip();
-        conn.write(0x20000000, flash_bin, flash_bin_len);
-        conn.exec(0x20000000);
-        conn.enter_cmd_xip();
-        conn.read(0x20001000, serial.data, sizeof(serial));
+        // Load stub to read flash unique ID and JEDEC ID into end of memory
+        // This will be fine to write our stub, since this space is reserved for the boot2 writeout during boot
+        if (flash_getid_bin_len > flash_stub_max_len) {
+            throw std::logic_error("Flash Binary Stub won't fit into space");
+        }
 
-        cachedFlashId = serial.doubleword;
-    }
-    catch (picoboot::command_failure &e) {
+        conn.write(flash_bin_stub_loc, flash_getid_bin, flash_getid_bin_len);
+        conn.exec(flash_bin_stub_loc);
+        conn.enter_cmd_xip();
+        conn.read(flash_bin_stub_loc + flash_getid_bin_len, flash_data.data, sizeof(flash_data.data));
+
+        cachedFlashId = flash_data.info.flash_id;
+
+        auto &map = DeviceMap::create();
+        auto flashInfo = map.lookupFlashChip(flash_data.info.jedec_id);
+        if (flashInfo.isUnknown) {
+            std::cerr << "Unknown flash chip ID '" << flashInfo.hexId()
+                      << "' - please define in DeviceList.jsonc - Falling back to max capacity" << std::endl;
+        }
+        cachedFlashSize = flashInfo.capacity;
+    } catch (picoboot::command_failure &e) {
         cachedFlashId = 0;
-    }
-    catch (picoboot::connection_error &e) {
+        cachedFlashSize = FLASH_END - FLASH_START;
+    } catch (picoboot::connection_error &e) {
         cachedFlashId = 0;
+        cachedFlashSize = FLASH_END - FLASH_START;
     }
 
     // Extract current BinaryInfo on device
@@ -61,9 +77,10 @@ RP2040BootromInterface::RP2040BootromInterface(std::shared_ptr<USBDeviceHandle> 
         if (firstApp.isBootloader) {
             BinaryInfo::extractAppInfo(*this, nestedApp, firstApp.blAppBase);
         }
+    } catch (std::exception &e) {
+    }  // Ignore any failures during discovery
+    catch (...) {
     }
-    catch (std::exception &e) {}    // Ignore any failures during discovery
-    catch (...) {}
 }
 
 void RP2040BootromInterface::readBytes(uint32_t addr, std::array<uint8_t, UF2_PAGE_SIZE> &bytesOut) {
@@ -86,7 +103,8 @@ void RP2040BootromInterface::writeBytes(uint32_t addr, std::array<uint8_t, UF2_P
 }
 
 void RP2040BootromInterface::eraseSector(uint32_t addr) {
-    static_assert(FLASH_SECTOR_ERASE_SIZE == FLASH_ERASE_SIZE, "Picoboot erase size definition does not UploadTool definition");
+    static_assert(FLASH_SECTOR_ERASE_SIZE == FLASH_ERASE_SIZE,
+                  "Picoboot erase size definition does not UploadTool definition");
     if (addr < FLASH_START || addr >= FLASH_END || (addr & (FLASH_SECTOR_ERASE_SIZE - 1)) != 0) {
         throw std::logic_error("Invalid Erase Address");
     }
@@ -109,5 +127,16 @@ uint64_t RP2040BootromInterface::getFlashId() {
 }
 
 uint32_t RP2040BootromInterface::getFlashSize() {
-    return FLASH_END - FLASH_START;     // TODO: Actually try to figure this out
+    return cachedFlashSize;
+}
+
+void RP2040BootromInterface::reboot() {
+    if (cfg_watchdog_bin_len > flash_stub_max_len) {
+        throw std::logic_error("Configure Watchdog Stub won't fit into space");
+    }
+
+    conn.write(flash_bin_stub_loc, cfg_watchdog_bin, cfg_watchdog_bin_len);
+    conn.exec(flash_bin_stub_loc);
+
+    conn.reboot(0, 0, 10);
 }

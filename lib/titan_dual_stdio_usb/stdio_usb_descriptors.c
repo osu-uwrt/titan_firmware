@@ -29,27 +29,28 @@
 #if !defined(LIB_TINYUSB_HOST) && !defined(LIB_TINYUSB_DEVICE)
 
 #include "tusb.h"
+
 #include "pico/stdio_usb/reset_interface.h"
 #include "pico/unique_id.h"
 
-#define USBD_VID (0x2E8A) // Raspberry Pi
-#define USBD_PID (0x000a) // Raspberry Pi Pico SDK CDC
+#define USBD_VID (0x2E8A)  // Raspberry Pi
+#define USBD_PID (0x000a)  // Raspberry Pi Pico SDK CDC
 
-#define TUD_RPI_RESET_DESC_LEN  9
+#define TUD_RPI_RESET_DESC_LEN 9
 #if !PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
-#define USBD_DESC_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN*2)
+#define USBD_DESC_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN * 2)
 #else
-#define USBD_DESC_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN*2 + TUD_RPI_RESET_DESC_LEN)
+#define USBD_DESC_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN * 2 + TUD_RPI_RESET_DESC_LEN)
 #endif
 #define USBD_MAX_POWER_MA (250)
 
-#define USBD_ITF_STDIO_CDC       (0) // needs 2 interfaces
-#define USBD_ITF_SECONDARY_CDC   (2) // needs 2 interfaces
+#define USBD_ITF_STDIO_CDC (0)      // needs 2 interfaces
+#define USBD_ITF_SECONDARY_CDC (2)  // needs 2 interfaces
 #if !PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
-#define USBD_ITF_MAX       (4)
+#define USBD_ITF_MAX (4)
 #else
 #define USBD_ITF_RPI_RESET (4)
-#define USBD_ITF_MAX       (5)
+#define USBD_ITF_MAX (5)
 #endif
 
 #define USBD_CDC_EP_STDIO_CMD (0x81)
@@ -88,19 +89,19 @@ static const tusb_desc_device_t usbd_desc_device = {
     .bNumConfigurations = 1,
 };
 
-#define TUD_RPI_RESET_DESCRIPTOR(_itfnum, _stridx) \
-  /* Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, RESET_INTERFACE_SUBCLASS, RESET_INTERFACE_PROTOCOL, _stridx,
+#define TUD_RPI_RESET_DESCRIPTOR(_itfnum, _stridx)                                                                     \
+    /* Interface */                                                                                                    \
+    9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, RESET_INTERFACE_SUBCLASS,                       \
+        RESET_INTERFACE_PROTOCOL, _stridx,
 
 static const uint8_t usbd_desc_cfg[USBD_DESC_LEN] = {
-    TUD_CONFIG_DESCRIPTOR(1, USBD_ITF_MAX, USBD_STR_0, USBD_DESC_LEN,
-        0, USBD_MAX_POWER_MA),
+    TUD_CONFIG_DESCRIPTOR(1, USBD_ITF_MAX, USBD_STR_0, USBD_DESC_LEN, 0, USBD_MAX_POWER_MA),
 
-    TUD_CDC_DESCRIPTOR(USBD_ITF_STDIO_CDC, USBD_STR_STDIO_CDC, USBD_CDC_EP_STDIO_CMD,
-        USBD_CDC_CMD_MAX_SIZE, USBD_CDC_EP_STDIO_OUT, USBD_CDC_EP_STDIO_IN, USBD_CDC_IN_OUT_MAX_SIZE),
+    TUD_CDC_DESCRIPTOR(USBD_ITF_STDIO_CDC, USBD_STR_STDIO_CDC, USBD_CDC_EP_STDIO_CMD, USBD_CDC_CMD_MAX_SIZE,
+                       USBD_CDC_EP_STDIO_OUT, USBD_CDC_EP_STDIO_IN, USBD_CDC_IN_OUT_MAX_SIZE),
 
-    TUD_CDC_DESCRIPTOR(USBD_ITF_SECONDARY_CDC, USBD_STR_SECONDARY_CDC, USBD_CDC_EP_SECONDARY_CMD,
-        USBD_CDC_CMD_MAX_SIZE, USBD_CDC_EP_SECONDARY_OUT, USBD_CDC_EP_SECONDARY_IN, USBD_CDC_IN_OUT_MAX_SIZE),
+    TUD_CDC_DESCRIPTOR(USBD_ITF_SECONDARY_CDC, USBD_STR_SECONDARY_CDC, USBD_CDC_EP_SECONDARY_CMD, USBD_CDC_CMD_MAX_SIZE,
+                       USBD_CDC_EP_SECONDARY_OUT, USBD_CDC_EP_SECONDARY_IN, USBD_CDC_IN_OUT_MAX_SIZE),
 
 #if PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
     TUD_RPI_RESET_DESCRIPTOR(USBD_ITF_RPI_RESET, USBD_STR_RPI_RESET)
@@ -114,18 +115,15 @@ static char usbd_serial_str[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 #endif
 
 static const char *const usbd_desc_str[] = {
-    [USBD_STR_MANUF] = "OSU UWRT",
-    [USBD_STR_PRODUCT] = USB_PRODUCT_STR,
-    [USBD_STR_SERIAL] = usbd_serial_str,
-    [USBD_STR_STDIO_CDC] = "Board CDC",
-    [USBD_STR_SECONDARY_CDC] = "Micro-ROS",
+    [USBD_STR_MANUF] = "OSU UWRT",      [USBD_STR_PRODUCT] = USB_PRODUCT_STR,   [USBD_STR_SERIAL] = usbd_serial_str,
+    [USBD_STR_STDIO_CDC] = "Board CDC", [USBD_STR_SECONDARY_CDC] = "Micro-ROS",
 #if PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
     [USBD_STR_RPI_RESET] = "Reset",
 #endif
 };
 
 const uint8_t *tud_descriptor_device_cb(void) {
-    return (const uint8_t *)&usbd_desc_device;
+    return (const uint8_t *) &usbd_desc_device;
 }
 
 const uint8_t *tud_descriptor_configuration_cb(__unused uint8_t index) {
@@ -133,7 +131,7 @@ const uint8_t *tud_descriptor_configuration_cb(__unused uint8_t index) {
 }
 
 const uint16_t *tud_descriptor_string_cb(uint8_t index, __unused uint16_t langid) {
-    #define DESC_STR_MAX (20)
+#define DESC_STR_MAX (20)
     static uint16_t desc_str[DESC_STR_MAX];
 
     // Assign the SN using the unique flash id
@@ -143,9 +141,10 @@ const uint16_t *tud_descriptor_string_cb(uint8_t index, __unused uint16_t langid
 
     uint8_t len;
     if (index == 0) {
-        desc_str[1] = 0x0409; // supported language is English
+        desc_str[1] = 0x0409;  // supported language is English
         len = 1;
-    } else {
+    }
+    else {
         if (index >= sizeof(usbd_desc_str) / sizeof(usbd_desc_str[0])) {
             return NULL;
         }

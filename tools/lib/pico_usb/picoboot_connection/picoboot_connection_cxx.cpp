@@ -4,37 +4,39 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <stdexcept>
-#include <system_error>
-#include <map>
-#include <algorithm>
 #include "picoboot_connection_cxx.h"
 
+#include <algorithm>
+#include <map>
+#include <stdexcept>
+#include <system_error>
+
+using picoboot::command_failure;
 using picoboot::connection;
 using picoboot::connection_error;
-using picoboot::command_failure;
 
 std::map<enum picoboot_status, const char *> status_code_strings = {
-        {picoboot_status::PICOBOOT_OK, "ok"},
-        {picoboot_status::PICOBOOT_BAD_ALIGNMENT, "bad address alignment"},
-        {picoboot_status::PICOBOOT_INTERLEAVED_WRITE, "interleaved write"},
-        {picoboot_status::PICOBOOT_INVALID_ADDRESS, "invalid address"},
-        {picoboot_status::PICOBOOT_INVALID_CMD_LENGTH, "invalid cmd length"},
-        {picoboot_status::PICOBOOT_INVALID_TRANSFER_LENGTH, "invalid transfer length"},
-        {picoboot_status::PICOBOOT_REBOOTING, "rebooting"},
-        {picoboot_status::PICOBOOT_UNKNOWN_CMD, "unknown cmd"},
+    { picoboot_status::PICOBOOT_OK, "ok" },
+    { picoboot_status::PICOBOOT_BAD_ALIGNMENT, "bad address alignment" },
+    { picoboot_status::PICOBOOT_INTERLEAVED_WRITE, "interleaved write" },
+    { picoboot_status::PICOBOOT_INVALID_ADDRESS, "invalid address" },
+    { picoboot_status::PICOBOOT_INVALID_CMD_LENGTH, "invalid cmd length" },
+    { picoboot_status::PICOBOOT_INVALID_TRANSFER_LENGTH, "invalid transfer length" },
+    { picoboot_status::PICOBOOT_REBOOTING, "rebooting" },
+    { picoboot_status::PICOBOOT_UNKNOWN_CMD, "unknown cmd" },
 };
 
 const char *command_failure::what() const noexcept {
     auto f = status_code_strings.find((enum picoboot_status) code);
     if (f != status_code_strings.end()) {
         return f->second;
-    } else {
+    }
+    else {
         return "<unknown>";
     }
 }
 
-template <typename F> void connection::wrap_call(F&& func) {
+template <typename F> void connection::wrap_call(F &&func) {
     int rc = func();
 #if 0
     // we should always get a failure if there is an error, hence this is NDEBUG
@@ -51,7 +53,7 @@ template <typename F> void connection::wrap_call(F&& func) {
         status.dStatusCode = 0;
         rc = picoboot_cmd_status(device, &itf, &status);
         if (!rc) {
-            throw command_failure(status.dStatusCode ? (int)status.dStatusCode : PICOBOOT_UNKNOWN_ERROR);
+            throw command_failure(status.dStatusCode ? (int) status.dStatusCode : PICOBOOT_UNKNOWN_ERROR);
         }
         throw connection_error(rc);
     }

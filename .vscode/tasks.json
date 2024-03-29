@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Upload SWD",
+            "detail": "Uploads Active CMake Project over SWD",
+            "type": "shell",
+            "isBackground": false,
+            "command": "make swd_flash",
+            "options": {
+                "cwd": "${command:cmake.launchTargetDirectory}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true,
+                "clear": true,
+                "showReuseMessage": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "hide": true,
+            "label": "Verify Remote Version",
+            "detail": "Verifies that the GDB remote version matches the copiled version",
+            "type": "shell",
+            "isBackground": false,
+            "command": "${workspaceRoot}/.vscode/verify_remote_version.sh",
+            "args": [
+                "${command:cmake.getLaunchTargetPath}"
+            ],
+            "options": {
+                "cwd": "${command:cmake.getLaunchTargetDirectory}",
+            },
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated",
+                "clear": true,
+                "showReuseMessage": false
+            }
+        }
+    ]
+}

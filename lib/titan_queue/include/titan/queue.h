@@ -14,7 +14,7 @@
  * This implementation is designed to be atomic (sort-of).
  * If one location is writing, it can be interrupted with a read, as well as a read interrupted with a write
  * However, a write cannot be interrupted with another write, nor a read with another read.
-*/
+ */
 
 /*
  * Guide for using QUEUE macros
@@ -50,7 +50,7 @@
  *
  *     return true;
  * }
-*/
+ */
 
 /**
  * Defines a new ring buffer that can fit size elements
@@ -66,11 +66,12 @@
  * To create a queue of fixed-size arrays, a typedef will need to be used:
  * typedef char my_string[64];
  * struct QUEUE_DEFINE(my_string, 8) my_queue;
-*/
-#define QUEUE_DEFINE(type, size) { \
-        type buf[size + 1]; \
-        volatile size_t write_pos; \
-        volatile size_t read_pos; \
+ */
+#define QUEUE_DEFINE(type, size)                                                                                       \
+    {                                                                                                                  \
+        type buf[size + 1];                                                                                            \
+        volatile size_t write_pos;                                                                                     \
+        volatile size_t read_pos;                                                                                      \
     }
 
 /**
@@ -78,16 +79,17 @@
  *
  * This is not atomic, ensure no other code accesses the array during this operation
  * This can be skipped if the queue is initialized to 0 when defined
-*/
-#define QUEUE_INIT(queue) do { \
-        (queue)->write_pos = 0; \
-        (queue)->read_pos = 0; \
-    } while(0)
+ */
+#define QUEUE_INIT(queue)                                                                                              \
+    do {                                                                                                               \
+        (queue)->write_pos = 0;                                                                                        \
+        (queue)->read_pos = 0;                                                                                         \
+    } while (0)
 
 /**
  * Utility macros
-*/
-#define QUEUE_RAW_SIZE(queue) (sizeof((queue)->buf)/sizeof(*((queue)->buf)))
+ */
+#define QUEUE_RAW_SIZE(queue) (sizeof((queue)->buf) / sizeof(*((queue)->buf)))
 #define QUEUE_INDEX_NEXT(queue, index) ((index + 1) % QUEUE_RAW_SIZE(queue))
 
 /**
@@ -96,7 +98,7 @@
  * Examples:
  * if (QUEUE_EMPTY(queue)) {...}
  * bool queue_is_empty = QUEUE_EMPTY(queue);
-*/
+ */
 #define QUEUE_EMPTY(queue) ((queue)->write_pos == (queue)->read_pos)
 
 /**
@@ -105,7 +107,7 @@
  * Examples:
  * while (QUEUE_FULL(queue)) {...}
  * bool queue_is_full = QUEUE_FULL(queue);
-*/
+ */
 #define QUEUE_FULL(queue) (QUEUE_INDEX_NEXT(queue, (queue)->write_pos) == (queue)->read_pos)
 
 /**
@@ -117,7 +119,7 @@
  * struct QUEUE_DEFINE(int, 8) my_queue;
  * int *current_entry = QUEUE_CUR_WRITE_ENTRY(&my_queue);
  * *current_entry = 5;
-*/
+ */
 #define QUEUE_CUR_WRITE_ENTRY(queue) (&(queue)->buf[(queue)->write_pos])
 
 /**
@@ -129,8 +131,11 @@
  * int *current_entry = QUEUE_CUR_WRITE_ENTRY(&my_queue);
  * *current_entry = 5;
  * QUEUE_MARK_WRITE_DONE(&my_queue);
-*/
-#define QUEUE_MARK_WRITE_DONE(queue) do {(queue)->write_pos = QUEUE_INDEX_NEXT(queue, (queue)->write_pos);} while(0)
+ */
+#define QUEUE_MARK_WRITE_DONE(queue)                                                                                   \
+    do {                                                                                                               \
+        (queue)->write_pos = QUEUE_INDEX_NEXT(queue, (queue)->write_pos);                                              \
+    } while (0)
 
 /**
  * @brief Get a pointer for the current entry to be read
@@ -139,7 +144,7 @@
  * Example:
  * struct QUEUE_DEFINE(int, 8) my_queue;
  * int *current_entry = QUEUE_CUR_READ_ENTRY(&my_queue);
-*/
+ */
 #define QUEUE_CUR_READ_ENTRY(queue) (&(queue)->buf[(queue)->read_pos])
 
 /**
@@ -151,7 +156,10 @@
  * int *current_entry = QUEUE_CUR_READ_ENTRY(&my_queue);
  * printf("Queue: %d\n", *current_entry);
  * QUEUE_MARK_READ_DONE(&my_queue);
-*/
-#define QUEUE_MARK_READ_DONE(queue) do {(queue)->read_pos = QUEUE_INDEX_NEXT(queue, (queue)->read_pos);} while(0)
+ */
+#define QUEUE_MARK_READ_DONE(queue)                                                                                    \
+    do {                                                                                                               \
+        (queue)->read_pos = QUEUE_INDEX_NEXT(queue, (queue)->read_pos);                                                \
+    } while (0)
 
 #endif

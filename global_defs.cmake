@@ -5,12 +5,32 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "CMake Build Type")
 
 # Include sdk
 set(PICO_SDK_PATH ${REPO_DIR}/lib/pico-sdk)
-include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+if (EXISTS ${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+else()
+    message(FATAL_ERROR "Could not locate pico-sdk import script. Ensure all submodules are pulled.")
+endif()
 
 # Define global initialization function
 function(titan_firmware_init)
-    # Make relwithdebuginfo actually like Release
-    set(CMAKE_${LANG}_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -g")
+    # Make relwithdebuginfo actually like Release (-O3 instead of -O2), but with enhanced debug info (-ggdb3)
+    set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG -ggdb3" PARENT_SCOPE)
+
+    # Enable more debug info so we get fancy macro expansion during debug (normally just -g)
+    set(CMAKE_ASM_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_DEBUG "-Og -ggdb3" PARENT_SCOPE)
+
+    # Split function and data into sections to allow linker to optimize unused functions
+    add_compile_options(-ffunction-sections -fdata-sections)
+
+    # Map all __FILE__ invoctaions to remove the prefix before the repo root - Makes logging cleaner
+    # Only supported by GCC version 8.0 and above
+    if(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 8.0)
+        add_compile_options(-fmacro-prefix-map=${REPO_DIR}/=)
+    endif()
 
     # Enable param asserts if in debug mode
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -24,8 +44,8 @@ function(titan_firmware_init)
     include(${REPO_DIR}/lib/titan_boards/titan_boards.cmake)
 
     # Setup sdk
-    set(CMAKE_C_STANDARD 11)
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_C_STANDARD 11 PARENT_SCOPE)
+    set(CMAKE_CXX_STANDARD 17 PARENT_SCOPE)
     pico_sdk_init()
 
     # Add support for upload command
