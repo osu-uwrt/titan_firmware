@@ -1,9 +1,14 @@
+set(NANOPB_SRC_ROOT_FOLDER ${REPO_DIR}/lib/nanopb)
+set(CMAKE_MODULE_PATH ${REPO_DIR}/lib/nanopb/extra)
+find_package(Nanopb REQUIRED)
+include_directories(${NANOPB_INCLUDE_DIRS})
+
 # Generate NanoPB Files
-NANOPB_GENERATE_CPP(PROTO_SRCS PROTO_HDRS RELPATH include include/titan/test.proto)
+NANOPB_GENERATE_CPP(PROTO_SRCS PROTO_HDRS test.proto)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Create a library using those files
 add_library(titan_msgs INTERFACE ${PROTO_HDRS} ${PROTO_SRCS})
-
 target_include_directories(titan_msgs INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${NANOPB_INCLUDE_DIRS}
@@ -12,8 +17,5 @@ target_include_directories(titan_msgs INTERFACE
 
 target_sources(titan_msgs INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/titan_msgs.c
-)
-
-target_link_libraries(titan_msgs INTERFACE
-    titan_list
+    ${PROTO_SRCS}
 )

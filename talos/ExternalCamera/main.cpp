@@ -1,5 +1,6 @@
 #include "CanmoreMsgClient.hpp"
 #include "DFCDaemon.hpp"
+#include "TitanMsgHandler.hpp"
 
 #include <iostream>
 #include <net/if.h>
@@ -44,12 +45,6 @@ static void cleanupShutdownHandler() {
     signalServerPtr = nullptr;
 }
 
-class TestHandler : public Canmore::ClientMsgHandler {
-    virtual void handleMessage(uint8_t subtype, std::span<uint8_t> data) {}
-
-    virtual void handleDecodeError(unsigned int errorCode) {}
-};
-
 // ========================================
 // Main Function
 // ========================================
@@ -66,7 +61,7 @@ int main(int argc, char **argv) {
 
     HeartbeatTransmitter heartbeatTx(ifIdx, clientId);
     CanmoreLinuxServer regMappedServer(ifIdx, clientId);
-    TestHandler handler;
+    TitanMsgCanmoreClientHandler handler;
     Canmore::MsgClient msgClient(ifIdx, clientId, handler);
 
     std::shared_ptr<CanmoreTTYServer> ttyServer;

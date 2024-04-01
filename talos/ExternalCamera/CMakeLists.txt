@@ -17,6 +17,8 @@ add_subdirectory(${REPO_DIR}/tools/lib/canmore_cpp_core canmore_cpp_core)
 add_subdirectory(${REPO_DIR}/tools/lib/span_compat span_cpp)
 
 # Add titan messages
+include(${REPO_DIR}/lib/nanopb/extra/FindNanopb.cmake)
+add_subdirectory(${REPO_DIR}/lib/titan_msgs titan_msgs)
 
 # Find threading support
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -36,6 +38,7 @@ target_compile_options(dfc_daemon PUBLIC -Wno-unused-parameter -Wall -Wextra)
 
 target_link_libraries(dfc_daemon
     canmore_cpp_core
+    titan_msgs
     Threads::Threads
 )
 

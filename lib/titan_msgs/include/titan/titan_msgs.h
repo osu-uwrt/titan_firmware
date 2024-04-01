@@ -20,12 +20,15 @@ typedef bool (*titan_msgs_transport_send)(uint8_t msg_type, uint8_t *buf, size_t
 
 typedef size_t (*titan_msgs_transport_recv)(uint8_t *msg_type, uint8_t *buf, size_t max_len);
 
+typedef uint64_t (*titan_msgs_get_time_ms_cb)();
+
 struct titan_msgs_config {
     titan_msgs_on_recv_cb on_recv;
     titan_msgs_on_req_cb on_req;
     titan_msgs_on_error_cb on_error;
     titan_msgs_transport_send trans_send;
     titan_msgs_transport_recv trans_recv;
+    titan_msgs_get_time_ms_cb get_time_ms_cb;
     uint32_t board_id;  // TODO - do we need this...? if we do what size?
     uint32_t subscribed_topics;
     uint32_t hosted_services;

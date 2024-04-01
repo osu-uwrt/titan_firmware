@@ -5,9 +5,6 @@
 #include "pb_encode.h"
 #include "test.pb.h"
 
-#include "pico/time.h"
-#include "titan/list.h"
-
 #define PROTOCOL_VERSION 1
 
 #define MAX_PENDING_MSGS 16
@@ -53,12 +50,13 @@ static titan_msgs_on_error_cb on_error_cb = NULL;
 static titan_msgs_on_req_cb on_req_cb = NULL;
 static titan_msgs_transport_send transport_send = NULL;
 static titan_msgs_transport_recv transport_recv = NULL;
+static titan_msgs_get_time_ms_cb get_time_ms = NULL;
 static uint32_t subscribed_topics;
 static uint32_t hosted_services;
 static uint32_t board_id;
 
 static bool connected = false;
-static absolute_time_t last_connect_send;
+static uint64_t last_connect_send;
 static uint32_t last_connect_ack_num = 0;
 
 static bool protobuf_send(message_type type, const void *msg, const pb_msgdesc_t *fields) {
@@ -107,7 +105,7 @@ void send_connect() {
         .version = PROTOCOL_VERSION,
         .board_id = board_id,
     };
-    last_connect_send = get_absolute_time();
+    last_connect_send = get_time_ms();
 
     protobuf_send(message_type_TITAN_CONNECT_REQ, &req, titan_connect_req_fields);
 }
@@ -123,6 +121,7 @@ void titan_msgs_init(struct titan_msgs_config cfg) {
     transport_send = cfg.trans_send;
     transport_recv = cfg.trans_recv;
     board_id = cfg.board_id;
+    get_time_ms = cfg.get_time_ms_cb;
 
     send_connect();
 }
@@ -132,13 +131,13 @@ void titan_msgs_tick() {
     uint8_t buf[MAX_PROTOBUF_SIZE];
     message_type recv_msg_type;
     size_t message_len = 0;
-    while ((message_len = transport_recv(&recv_msg_type, buf, MAX_PROTOBUF_SIZE)) > 0) {
+    while ((message_len = transport_recv((uint8_t *) &recv_msg_type, buf, MAX_PROTOBUF_SIZE)) > 0) {
         protobuf_recv(recv_msg_type, buf, message_len);
     }
 
     // Send a connect message if neccessary
     if (!connected) {
-        if (absolute_time_diff_us(get_absolute_time(), last_connect_send) > SEND_CONNECT_TIME_US) {
+        if (get_time_ms() - last_connect_send > SEND_CONNECT_TIME_US) {
             send_connect();
         }
     }

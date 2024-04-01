@@ -2,6 +2,7 @@
 
 #include "pico/stdlib.h"
 #include "titan/logger.h"
+#include "titan/titan_msgs.h"
 #include "titan/version.h"
 
 #undef LOGGING_UNIT_NAME
@@ -82,6 +83,9 @@ int main() {
     gpio_init(led_pin);
     gpio_put(led_pin, led_state);
     gpio_set_dir(led_pin, GPIO_OUT);
+
+    struct titan_msgs_config config = { 0 };
+    titan_msgs_init(config);
 
     // TODO: Put any additional hardware initialization code here
 
