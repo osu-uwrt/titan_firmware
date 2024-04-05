@@ -19,7 +19,7 @@
  *
  * 64: ~5.625 deg in each direction / 11.25 deg total
  */
-#define HOME_MARGIN 64
+#define HOME_MARGIN 96
 
 static_assert(POSITION_HOME + HOME_MARGIN < 4096, "Margin overflows");
 static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
@@ -30,7 +30,7 @@ static_assert(POSITION_HOME - HOME_MARGIN >= 0, "Margin overflows");
 #define POSITION_DROPPER1_FIRE 3072
 #define POSITION_DROPPER2_FIRE 4076
 #define POSITION_TORPEDO1_FIRE 1024
-#define POSITION_TORPEDO2_FIRE 20
+#define POSITION_TORPEDO2_FIRE 5
 
 #define MAX_MOVEMENT_TIME_MS 5000
 

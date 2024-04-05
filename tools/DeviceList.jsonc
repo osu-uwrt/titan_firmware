@@ -16,6 +16,14 @@
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
         // ========================================
+        // 2023-2024 Boards
+        // ========================================
+        {
+            "name": "Downwards Facing Camera",
+            "boardType": "downwards_facing_camera",
+            "serial": "4E4DD83ADD9FB46D"
+        },
+        // ========================================
         // Mark 2 Era Boards
         // ========================================
         {

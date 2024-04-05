@@ -13,6 +13,7 @@ add_subdirectory(micro_ros_pico/)
 # titan_boards/ is handled specially in global_defs.cmake
 include(titan_bootloader/enable_bootloader.cmake)
 add_subdirectory(titan_binary_info/)
+set(NO_AMENT 1)
 add_subdirectory(titan_canmore/)
 add_subdirectory(titan_debug/)
 add_subdirectory(titan_dual_stdio_usb/)
