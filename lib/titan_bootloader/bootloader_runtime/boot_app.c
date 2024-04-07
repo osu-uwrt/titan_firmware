@@ -1,8 +1,8 @@
 #include "boot_app.h"
 
-#include "crc32.h"
 #include "pico.h"
 
+#include "canmore/crc32.h"
 #include "hardware/flash.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/structs/watchdog.h"

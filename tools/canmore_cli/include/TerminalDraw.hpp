@@ -16,6 +16,7 @@
 #define COLOR_HEADER "\033[90m"
 #define COLOR_NAME "\033[1;94m"
 #define COLOR_NAME_SELECTED "\033[0;34;47m"
+#define COLOR_HEADER_HIGHLIGHTED "\033[0;37;100m"
 #define COLOR_BODY "\033[0;32m"
 #define COLOR_NOTICE "\033[0;93m"
 #define COLOR_ERROR "\033[1;31m"

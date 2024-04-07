@@ -12,7 +12,7 @@ void CLICore::initTerminal() {
     }
 
     // Set new flags disabling canonical mode, echo, interrupt signals, and flow control
-    struct termios newt = oldt;
+    newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO | ISIG);
     newt.c_iflag &= ~(IXON | IXOFF | IXANY);
 
@@ -21,13 +21,25 @@ void CLICore::initTerminal() {
     }
 }
 
-void CLICore::cleanupTerminal() {
+void CLICore::cleanupTerminal() noexcept {
     if (promptShown) {
         std::cout << std::endl;
     }
     std::cout << exitMessage << std::endl;
 
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+}
+
+void CLICore::tempRestoreTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &oldt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
+}
+
+void CLICore::tempReinitTerm() {
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcsetattr");
+    }
 }
 
 void CLICore::writeLine(std::string const &line) {
@@ -204,4 +216,43 @@ bool decodeU32(const std::string &str, uint32_t &intOut, uint32_t max) {
 
     intOut = value;
     return true;
+}
+
+void DumpHex(uint32_t address, const void *data, size_t size) {
+    char ascii[17];
+    size_t i, j;
+    ascii[16] = '\0';
+    bool lineStart = true;
+    for (i = 0; i < size; ++i) {
+        if (lineStart) {
+            printf("0x%08X: ", (uint32_t) (address + i));
+            lineStart = false;
+        }
+
+        printf("%02X ", ((unsigned char *) data)[i]);
+        if (((unsigned char *) data)[i] >= ' ' && ((unsigned char *) data)[i] <= '~') {
+            ascii[i % 16] = ((unsigned char *) data)[i];
+        }
+        else {
+            ascii[i % 16] = '.';
+        }
+        if ((i + 1) % 8 == 0 || i + 1 == size) {
+            printf(" ");
+            if ((i + 1) % 16 == 0) {
+                printf("|  %s \n", ascii);
+                lineStart = true;
+            }
+            else if (i + 1 == size) {
+                ascii[(i + 1) % 16] = '\0';
+                if ((i + 1) % 16 <= 8) {
+                    printf(" ");
+                }
+                for (j = (i + 1) % 16; j < 16; ++j) {
+                    printf("   ");
+                }
+                printf("|  %s \n", ascii);
+                lineStart = true;
+            }
+        }
+    }
 }

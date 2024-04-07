@@ -253,6 +253,23 @@ std::shared_ptr<RP2040Device> selectDevice(std::vector<std::shared_ptr<RP2040Dev
     }
 }
 
+std::shared_ptr<RP2040Device> selectDeviceByName(std::vector<std::shared_ptr<RP2040Device>> &discoveredDevices,
+                                                 DeviceMap &deviceMap, uint64_t targetSerialNum) {
+    if (discoveredDevices.size() == 0) {
+        throw std::runtime_error("No devices to select");
+    }
+
+    // First try to see if we can find one device which matches the specified device name
+    for (std::shared_ptr<RP2040Device> dev : discoveredDevices) {
+        if (dev->getFlashId() == targetSerialNum && dev->supportsFlashInterface()) {
+            printDevice(0, dev, deviceMap);
+            return dev;
+        }
+    }
+
+    throw std::runtime_error("Could not find requested device: " + deviceMap.lookupSerial(targetSerialNum).name);
+}
+
 std::shared_ptr<RP2040FlashInterface> catchInBootDelay(std::vector<std::shared_ptr<RP2040Discovery>> discoverySources,
                                                        DeviceMap &deviceMap, RP2040UF2 &uf2) {
     std::cout << COLOR_TITLE "===========Available Interfaces===========" COLOR_RESET << std::endl;

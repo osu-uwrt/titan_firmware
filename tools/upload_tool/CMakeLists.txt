@@ -24,10 +24,10 @@ add_executable(upload_tool
 target_compile_options(upload_tool PUBLIC -Wno-psabi -Wall -Wextra)
 
 target_link_libraries(upload_tool
-        binary_info_cpp
-        canmore_cpp
-        pico_usb
-        rp2040_flash_itf
+    binary_info_cpp
+    canmore_dbg_cpp
+    pico_usb
+    rp2040_flash_itf
 )
 
 install(TARGETS upload_tool RUNTIME DESTINATION bin)

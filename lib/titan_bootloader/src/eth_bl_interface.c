@@ -1,11 +1,12 @@
 #include "bl_interface.h"
 
+#include "canmore/ethernet_defs.h"
+#include "canmore/protocol.h"
 #include "driver/wiznet.h"
 #include "hardware/flash.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "titan/binary_info.h"
-#include "titan/canmore.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -25,9 +26,9 @@ static const IPAddress gateway = ETHERNET_GATEWAY;
 static const IPAddress subnet = ETHERNET_MASK;
 bi_decl(bi_device_ip_address_array(device_ip));
 
-static const IPAddress heartbeat_broadcast = CANMORE_TITAN_ETH_BROADCAST_IP;
-static const uint16_t heartbeat_port = CANMORE_TITAN_ETH_HEARTBEAT_BROADCAST_PORT;
-static const uint16_t control_port = CANMORE_TITAN_ETH_CONTROL_INTERFACE_PORT;
+static const IPAddress heartbeat_broadcast = CANMORE_ETH_BROADCAST_IP;
+static const uint16_t heartbeat_port = CANMORE_ETH_HEARTBEAT_BROADCAST_PORT;
+static const uint16_t control_port = CANMORE_ETH_CONTROL_INTERFACE_PORT;
 
 static w5k_data_t eth_device;
 static udp_socket_t heartbeat_socket;
@@ -126,12 +127,12 @@ static void bl_interface_send_heartbeat_byte(uint8_t mode) {
 }
 
 void bl_interface_heartbeat(void) {
-    bl_interface_send_heartbeat_byte(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOTLOADER);
+    bl_interface_send_heartbeat_byte(CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER);
 }
 
 void bl_interface_notify_boot(void) {
     busy_wait_ms(1000);
-    bl_interface_send_heartbeat_byte(CANMORE_TITAN_CONTROL_INTERFACE_MODE_BOOT_DELAY);
+    bl_interface_send_heartbeat_byte(CANMORE_CONTROL_INTERFACE_MODE_BOOT_DELAY);
 }
 
 bool bl_interface_check_online(void) {

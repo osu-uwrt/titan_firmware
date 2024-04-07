@@ -16,6 +16,14 @@
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
         // ========================================
+        // 2023-2024 Boards
+        // ========================================
+        {
+            "name": "Downwards Facing Camera",
+            "boardType": "downwards_facing_camera",
+            "serial": "4E4DD83ADD9FB46D"
+        },
+        // ========================================
         // Mark 2 Era Boards
         // ========================================
         {
@@ -109,7 +117,7 @@
         {
             "name": "Team Raspberry Pi Pico",
             "boardType": "pico",
-            "serial": "E660583883731D2D"
+            "serial": "E660583883754F2C"
         },
         {
             // The puddles backplane breakout board. As stated in the Tempest one, it was designed originally to go in puddles
@@ -186,7 +194,7 @@
             // Mark 1 actuator hat.
             "name": "One of the first picos the team bought, taken during competition for use in the abomination of the 2022 Competition Actuator Board",
             "boardType": "mk1/terry",
-            "serial": "E660583883754F2C"
+            "serial": "E660583883731D2D"
         },
         {
             // This was the 5th pico we got on the digikey order of 6 picos, and continues on the board type trend of calling

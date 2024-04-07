@@ -19,7 +19,7 @@
 #define NUM_THRUSTERS 4
 
 // The minimum rate that new commands must be sent from ROS. If this rate isn't met, the thrusters will be disabled
-#define DSHOT_MIN_UPDATE_RATE_MS 200
+#define DSHOT_MIN_UPDATE_RATE_MS 500
 
 // The amount of time in milliseconds thrusters will be disabled for if DSHOT_MIN_UPDATE_RATE_MS isn't met. Prevents
 // jittering from commands being sent slightly slower than the minimum update rate

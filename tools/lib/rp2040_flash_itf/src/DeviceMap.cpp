@@ -81,6 +81,28 @@ DeviceMap::DeviceMap() {
     }
 }
 
+uint64_t DeviceMap::lookupSerialByName(const std::string &devName) const {
+    uint64_t serialNum = 0;
+    bool serialNumFound = false;
+
+    for (const auto &dev : devices) {
+        if (!dev.isUnknown && dev.name == devName) {
+            if (serialNumFound) {
+                throw std::runtime_error("Multiple devices in database with name: " + devName);
+            }
+            serialNum = dev.serialNumber;
+            serialNumFound = true;
+        }
+    }
+
+    if (!serialNumFound) {
+        throw std::runtime_error("Device database does not have any devices with name: " + devName);
+    }
+    else {
+        return serialNum;
+    }
+}
+
 DeviceIdentifier DeviceMap::lookupSerial(uint64_t flashId) const {
     auto unknownDev = DeviceIdentifier(flashId);
     auto it = devices.find(unknownDev);

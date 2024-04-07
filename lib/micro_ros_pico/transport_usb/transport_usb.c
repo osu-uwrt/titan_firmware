@@ -59,9 +59,9 @@ size_t transport_usb_read(__unused struct uxrCustomTransport *transport, uint8_t
     return (len - bytes_remaining);
 }
 
-bi_decl(bi_program_feature("Micro-ROS over USB"))
+bi_decl(bi_program_feature("Micro-ROS over USB"));
 
-    void transport_usb_init(void) {
+void transport_usb_init(void) {
     rmw_uros_set_custom_transport(true, NULL, transport_usb_open, transport_usb_close, transport_usb_write,
                                   transport_usb_read);
 }

@@ -34,19 +34,52 @@ void reportError(std::string msg) {
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
+static std::shared_ptr<CLIRunnable> createCliInstance(std::shared_ptr<Canmore::Device> dev) {
+    if (auto bootloaderDevice = std::dynamic_pointer_cast<Canmore::BootloaderDevice>(dev)) {
+        return std::dynamic_pointer_cast<CLIRunnable>(std::make_shared<BootloaderCLI>(bootloaderDevice->getClient()));
+    }
+    else if (auto normalDevice = std::dynamic_pointer_cast<Canmore::NormalDevice>(dev)) {
+        return std::dynamic_pointer_cast<CLIRunnable>(std::make_shared<ApplicationCLI>(normalDevice->getClient()));
+    }
+    else if (auto bootDelayDevice = std::dynamic_pointer_cast<Canmore::BootDelayDevice>(dev)) {
+        std::cout << "Waiting for 15 seconds for boot delay device to reappear..." << std::endl;
+        return std::dynamic_pointer_cast<CLIRunnable>(
+            std::make_shared<BootloaderCLI>(bootDelayDevice->waitForBootloader(15000)));
+    }
+    else if (auto linuxDevice = std::dynamic_pointer_cast<Canmore::LinuxDevice>(dev)) {
+        return std::dynamic_pointer_cast<CLIRunnable>(std::make_shared<LinuxCLI>(linuxDevice->getClient()));
+    }
+    else {
+        return nullptr;
+    }
+}
+
 void runCli(std::shared_ptr<Canmore::Device> dev) {
     try {
-        if (auto bootloaderDevice = std::dynamic_pointer_cast<Canmore::BootloaderDevice>(dev)) {
-            auto cli = BootloaderCLI(bootloaderDevice->getClient());
-            cli.run();
+        auto cli = createCliInstance(dev);
+        if (cli) {
+            cli->run();
         }
-        else if (auto normalDevice = std::dynamic_pointer_cast<Canmore::NormalDevice>(dev)) {
-            auto cli = ApplicationCLI(normalDevice->getClient());
-            cli.run();
+        else {
+            std::stringstream ss;
+            ss << "Failed to start CLI!" << std::endl;
+            ss << "No compatible CLI backends for device mode '" << dev->getMode() << "'";
+            reportError(ss.str());
         }
-        else if (auto bootDelayDevice = std::dynamic_pointer_cast<Canmore::BootDelayDevice>(dev)) {
-            auto cli = BootloaderCLI(bootDelayDevice->waitForBootloader(5000));
-            cli.run();
+    } catch (Canmore::CanmoreError &e) {
+        std::stringstream ss;
+        ss << "Exception while executing CLI!" << std::endl;
+        ss << "  what(): " << e.what();
+        reportError(ss.str());
+    }
+    fseek(stdin, 0, SEEK_END);  // Clear stdin buffer before returning to GUI
+}
+
+void runCliCommand(std::shared_ptr<Canmore::Device> dev, const std::string &cmd, const std::vector<std::string> &args) {
+    try {
+        auto cli = createCliInstance(dev);
+        if (cli) {
+            cli->runCommand(cmd, args);
         }
         else {
             std::stringstream ss;

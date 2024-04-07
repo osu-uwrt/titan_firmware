@@ -72,8 +72,9 @@ protected:
 class DeviceMap {
 public:
     static const DeviceMap &create();
-    DeviceIdentifier lookupSerial(uint64_t flashId) const;
+    DeviceIdentifier lookupSerial(uint64_t targetSerialNum) const;
     FlashChipInfo lookupFlashChip(uint32_t jedecId) const;
+    uint64_t lookupSerialByName(const std::string &devName) const;
 
 private:
     DeviceMap();

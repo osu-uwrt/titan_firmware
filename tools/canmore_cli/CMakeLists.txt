@@ -22,7 +22,10 @@ add_executable(canmore_cli
     src/cli_selection.cpp
     src/application_cli.cpp
     src/bootloader_cli.cpp
+    src/linux_cli.cpp
     src/gdbserver.cpp
+    src/remote_tty_client_task.cpp
+    src/file_transfer_task.cpp
 )
 
 target_include_directories(canmore_cli PUBLIC include/)
@@ -30,9 +33,9 @@ target_include_directories(canmore_cli PUBLIC include/)
 target_compile_options(canmore_cli PUBLIC -Wno-psabi -Wall -Wextra)
 
 target_link_libraries(canmore_cli
-        canmore_cpp
-        rp2040_flash_itf
-        binary_info_cpp
+    canmore_dbg_cpp
+    rp2040_flash_itf
+    binary_info_cpp
 )
 
 install(TARGETS canmore_cli RUNTIME DESTINATION bin)
