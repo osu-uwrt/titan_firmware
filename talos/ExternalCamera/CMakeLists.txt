@@ -32,6 +32,7 @@ add_executable(dfc_daemon
     PTYMaster.cpp
     RemoteTTYServer.cpp
     CanmoreMsgClient.cpp
+    TitanMsgHandler.cpp
 )
 
 target_compile_options(dfc_daemon PUBLIC -Wno-unused-parameter -Wall -Wextra)

@@ -59,6 +59,8 @@ int main(int argc, char **argv) {
         throw std::system_error(errno, std::generic_category(), "if_nametoindex");
     }
 
+    TitanMsgLib::getInstance().init();
+
     HeartbeatTransmitter heartbeatTx(ifIdx, clientId);
     CanmoreLinuxServer regMappedServer(ifIdx, clientId);
     TitanMsgCanmoreClientHandler handler;
@@ -76,6 +78,9 @@ int main(int argc, char **argv) {
 
     try {
         while (!regMappedServer.stopRequested()) {
+            // Update titan msg lib
+            TitanMsgLib::getInstance().SendAll(msgClient);
+
             group.processEvent(1000);
 
             // Handle starting up/shutting down the tty server
