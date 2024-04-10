@@ -37,6 +37,8 @@ void debug_init(reg_mapped_server_tx_func tx_func);
  */
 void debug_process_message(uint8_t *msg_buffer, size_t len);
 
+#endif
+
 /**
  * @brief Callback typedef for canmore debug remote command handlers.
  *
@@ -65,7 +67,5 @@ typedef int (*debug_remote_cmd_cb)(size_t argc, const char *const *argv, FILE *f
  * @param callback The function callback which will be called when this command is executed by Canmore CLI
  */
 void debug_remote_cmd_register(const char *name, const char *usage, const char *help_msg, debug_remote_cmd_cb callback);
-
-#endif
 
 #endif
