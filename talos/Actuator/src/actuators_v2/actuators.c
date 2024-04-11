@@ -6,7 +6,10 @@
 #include "driver/dynamixel.h"
 #include "pico/binary_info.h"
 #include "pico/sync.h"
+#include "titan/debug.h"
 #include "titan/logger.h"
+
+#include <string.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "actuators"
@@ -72,6 +75,74 @@ static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_i
     }
 }
 
+#define str_table_lookup(table, idx) ((idx) < (sizeof(table) / sizeof(*table)) ? table[idx] : "Unknown")
+#define bool_lookup(val) ((val) ? "Yes" : "No")
+static const char *const claw_states[] = { "ERROR",  "DISARMED", "UNKNOWN_POSITION", "OPENED",
+                                           "CLOSED", "OPENING",  "CLOSING" };
+static const char *const dropper_states[] = { "ERROR", "DISARMED", "READY", "DROPPING", "DROPPED" };
+static const char *const torpedo_states[] = { "ERROR", "DISARMED", "CHARGING", "CHARGED", "FIRING", "FIRED" };
+
+static int actuators_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc != 2) {
+        fprintf(fout, "Usage: @actuator [cmd]\n");
+    }
+
+    const char *cmd = argv[1];
+    bool successful;
+    const char *err = "No Error Occurred";
+
+    if (!strcmp(cmd, "arm")) {
+        successful = actuators_arm(&err);
+    }
+    else if (!strcmp(cmd, "disarm")) {
+        actuators_disarm();
+        successful = true;
+    }
+    else if (!strcmp(cmd, "status")) {
+        fprintf(fout, "Actuators Busy:\t%s\n", bool_lookup(actuators_get_busy()));
+        fprintf(fout, "Claw State:\t%s\n", str_table_lookup(claw_states, claw_get_state()));
+        fprintf(fout, "Dropper State:\t\t%s\n", str_table_lookup(dropper_states, dropper_get_state()));
+        fprintf(fout, "# Droppers Left:\t%d\n", dropper_get_available());
+        fprintf(fout, "Torpedo State:\t\t%s\n", str_table_lookup(torpedo_states, torpedo_get_state()));
+        fprintf(fout, "# Torpedoes Left:\t%d\n", torpedo_get_available());
+        return 0;
+    }
+    else if (!strcmp(cmd, "drop")) {
+        successful = dropper_drop_marker(&err);
+    }
+    else if (!strcmp(cmd, "fire")) {
+        successful = torpedo_fire(&err);
+    }
+    else if (!strcmp(cmd, "notifyreload")) {
+        successful = torpedo_notify_reload(&err);
+    }
+    else if (!strcmp(cmd, "gohome")) {
+        successful = torpedo_marker_move_home(&err);
+    }
+    else if (!strcmp(cmd, "sethome")) {
+        successful = torpedo_marker_set_home(&err);
+    }
+    else if (!strcmp(cmd, "clawopen")) {
+        successful = claw_open(&err);
+    }
+    else if (!strcmp(cmd, "clawclose")) {
+        successful = claw_close(&err);
+    }
+    else {
+        fprintf(fout, "Unknown Command: '%s'\n", cmd);
+        return 2;
+    }
+
+    // Report if successful or not
+    if (!successful) {
+        fprintf(fout, "Command '%s' Failed with Error: %s\n", cmd, err);
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
 // Public Functions
 void actuators_initialize(void) {
     hard_assert_if(ACTUATORS, actuators_initialized);
@@ -84,6 +155,24 @@ void actuators_initialize(void) {
                    actuators_dynamixel_event_cb);
 
     torpedo_marker_initialize(MARKER_TORPEDO_ID);
+
+    debug_remote_cmd_register("actuator", "[cmd]",
+                              "Issues the requested actuator command\n"
+                              "===Command Options===\n"
+                              "Global Commands:\n"
+                              "  arm:\t\tArms the actuator system\n"
+                              "  disarm:\tDisarms the actuator system\n"
+                              "  status:\tReports global actuator state\n"
+                              "Torpedo/Marker Commands:\n"
+                              "  drop:\t\tDrops a marker dropper\n"
+                              "  fire:\t\tFires a torpedo\n"
+                              "  notifyreload:\tNotifies that the dropper/torpedo has been reloaded\n"
+                              "  gohome:\tSends the torpedo/marker to the home position\n"
+                              "  sethome:\tSets the torpedo/marker to the home position to the current position\n"
+                              "Claw Commands:\n"
+                              "  clawopen:\tOpen the claw\n"
+                              "  clawclose:\tClose the claw",
+                              actuators_cmd_cb);
 
     actuators_initialized = true;
 }

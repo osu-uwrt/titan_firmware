@@ -220,6 +220,8 @@ static int dyneeprom_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
 void dynamixel_canmore_cmds_register(void) {
     debug_remote_cmd_register("dynwrite", "[id] [addr] [u8/s8/u16/s16/u32/s32] [value]",
                               "Writes the data to the requested address\n"
+                              "Refer to the Servo Register Map for more information:\n"
+                              "\thttps://emanual.robotis.com/docs/en/dxl/x/xl430-w250/\n"
                               "Note: All numbers are in decimal"
                               "Example: dynwrite 4 7 u8 5\n"
                               "\tWrites ID register (7) of dynamixel 4, changing its ID to 5",

@@ -43,12 +43,12 @@ static uint dropper_next_index = 0;
 // These variables are safe to modify in interrupts
 static dynamixel_id torpedo_marker_id;
 static volatile bool torpedo_marker_connected = false;
-static volatile bool torpedo_marker_moving = false;
+static volatile bool torpedo_marker_move_active = false;
 static volatile bool torpedo_marker_enabled = false;
 static volatile bool torpedo_marker_homed = false;
 static volatile bool torpedo_marker_hardware_err = false;
 
-// Only valid when torpedo_marker_moving = true
+// Only valid when torpedo_marker_move_active = true
 static int32_t torpedo_marker_target_position = 0;
 static absolute_time_t torpedo_marker_move_timeout;
 
@@ -70,7 +70,7 @@ static bool torpedo_marker_set_target(const char **errMsgOut, int32_t target_pos
         return false;
     }
 
-    if (torpedo_marker_moving) {
+    if (torpedo_marker_move_active) {
         *errMsgOut = "Busy";
         return false;
     }
@@ -90,7 +90,7 @@ static bool torpedo_marker_set_target(const char **errMsgOut, int32_t target_pos
     torpedo_marker_move_timeout = make_timeout_time_ms(MAX_MOVEMENT_TIME_MS);
     __compiler_memory_barrier();  // Make sure moving is set after we configure the parameters right, or else things
                                   // might get squirly
-    torpedo_marker_moving = true;
+    torpedo_marker_move_active = true;
     dynamixel_set_target_position(torpedo_marker_id, target_position);
 
     return true;
@@ -101,12 +101,11 @@ void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t targe
     torpedo_marker_enabled = torque_enabled;
     torpedo_marker_hardware_err = (hardware_err_status != 0);
 
-    if (torpedo_marker_moving) {
+    if (torpedo_marker_move_active) {
         // Timeout if we've been moving for too long
         if (time_reached(torpedo_marker_move_timeout)) {
-            dynamixel_enable_torque(torpedo_marker_id, false);
-            torpedo_marker_moving = false;
-            torpedo_marker_enabled = false;
+            torpedo_marker_move_active = false;
+            actuators_disarm();
             LOG_WARN("Failed to reach target within timeout period");
             safety_raise_fault(FAULT_ACTUATOR_FAILURE);
         }
@@ -128,7 +127,7 @@ void torpedo_marker_report_state(bool torque_enabled, bool moving, int32_t targe
             if (in_position && !moving) {
                 // If we're going home, then mark moving as false, and allow new commands
                 if (target_position == POSITION_HOME) {
-                    torpedo_marker_moving = false;
+                    torpedo_marker_move_active = false;
                 }
                 // If not, we're going to a target, and we've got there. Time to go home
                 else {
@@ -166,14 +165,14 @@ void torpedo_marker_report_connect(void) {
 
 void torpedo_marker_report_disconnect(void) {
     // Clear state
-    if (torpedo_marker_enabled || torpedo_marker_moving) {
+    if (torpedo_marker_enabled || torpedo_marker_move_active) {
         // Raise fault if a disconnect occurred while we were in an active state
         // This is important as a disconnect will disarm the dynamixel on re-connect
         // Also we can't trust what state the dynamixel will be in when it reconnects
         // It's better to start fresh, and fault that a previously sent command will fail
         safety_raise_fault(FAULT_ACTUATOR_FAILURE);
     }
-    torpedo_marker_moving = false;
+    torpedo_marker_move_active = false;
     torpedo_marker_enabled = false;
     torpedo_marker_connected = false;
 }
@@ -218,7 +217,7 @@ void torpedo_marker_safety_disable(void) {
 }
 
 bool torpedo_marker_get_busy(void) {
-    return torpedo_marker_moving;
+    return torpedo_marker_move_active;
 }
 
 bool torpedo_marker_set_home(const char **errMsgOut) {
@@ -283,7 +282,7 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
         return false;
     }
 
-    if (torpedo_marker_moving) {
+    if (torpedo_marker_move_active) {
         *errMsgOut = "Busy";
         return false;
     }
@@ -307,7 +306,7 @@ uint8_t dropper_get_state(void) {
     else if (!torpedo_marker_enabled || !actuators_armed) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DISARMED;
     }
-    else if (torpedo_marker_moving) {
+    else if (torpedo_marker_move_active) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
     }
     else if (dropper_next_index == 2) {
@@ -352,7 +351,7 @@ bool dropper_drop_marker(const char **errMsgOut) {
 bool dropper_notify_reload(const char **errMsgOut) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
-    if (torpedo_marker_moving) {
+    if (torpedo_marker_move_active) {
         *errMsgOut = "Busy";
         return false;
     }
@@ -375,7 +374,7 @@ uint8_t torpedo_get_state(void) {
     else if (!torpedo_marker_enabled) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
     }
-    else if (torpedo_marker_moving) {
+    else if (torpedo_marker_move_active) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
     }
     else if (torpedo_next_index == 2) {
@@ -420,7 +419,7 @@ bool torpedo_fire(const char **errMsgOut) {
 bool torpedo_notify_reload(const char **errMsgOut) {
     hard_assert_if(ACTUATORS, !actuators_initialized);
 
-    if (torpedo_marker_moving) {
+    if (torpedo_marker_move_active) {
         *errMsgOut = "Busy";
         return false;
     }
