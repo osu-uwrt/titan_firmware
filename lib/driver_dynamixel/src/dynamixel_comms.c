@@ -93,6 +93,19 @@ static void on_receive_reply_body(enum async_uart_rx_err error, uint8_t *data, s
     result.packet = &rx_packet;
     packet_in_flight = false;
 
+    // Make sure that the packet goes through okay
+    if (result.request_id != result.packet->id) {
+        dynamixel_comms_report_error_with_arg(DYNAMIXEL_INVALID_ID, result.packet->id);
+        return;
+    }
+
+    // Check that the packet didn't report an error
+    if (result.packet->err_idx & 0x7F) {
+        dynamixel_comms_report_error_with_arg(DYNAMIXEL_RESPONSE_ERROR, result.packet->err_idx & 0x7F);
+        return;
+    }
+
+    // Packet looks good, report that parse was successful
     dynamixel_error_t errcode = {
         .fields = { .error = DYNAMIXEL_ERROR_NONE, .line = __LINE__, .error_source = DYNAMIXEL_SOURCE_COMMS }
     };
@@ -163,6 +176,14 @@ void dynamixel_send_packet(dynamixel_request_cb callback, InfoToMakeDXLPacket_t 
 enum DXLLibErrorCode dynamixel_create_ping_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf,
                                                   size_t packet_buf_size, dynamixel_id id) {
     DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_PING, 0, packet_buf, packet_buf_size));
+    DXL_RETCHECK(end_make_dxl_packet(packet));
+
+    return DXL_LIB_OK;
+}
+
+enum DXLLibErrorCode dynamixel_create_reboot_packet(InfoToMakeDXLPacket_t *packet, uint8_t *packet_buf,
+                                                    size_t packet_buf_size, dynamixel_id id) {
+    DXL_RETCHECK(begin_make_dxl_packet(packet, id, PROTOCOL, DXL_INST_REBOOT, 0, packet_buf, packet_buf_size));
     DXL_RETCHECK(end_make_dxl_packet(packet));
 
     return DXL_LIB_OK;

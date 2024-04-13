@@ -31,15 +31,15 @@ enum dynamixel_error_code {
     DYNAMIXEL_REQUEST_ERROR,
     /* This is triggered when a packet is not properly parsed. */
     DYNAMIXEL_PACKET_ERROR,
-    /* This is triggered when the dynamixel reports it is in an error state (error field set) */
-    DYNAMIXEL_HARDWARE_ERROR,
+    /* This is triggered when the dynamixel responds with an error number from a packet request */
+    DYNAMIXEL_RESPONSE_ERROR,
     /* The command queue is full and the most recently queued command was dropped */
     DYNAMIXEL_CMD_QUEUE_FULL_ERROR,
-    /* This is triggered when the driver encounters a packet with an ID that is not known to the driver. */
+    /* This is triggered when the driver encounters a packet with an ID that does not match the intended target. */
     DYNAMIXEL_INVALID_ID,
 };
 
-enum dynamixel_error_source { DYNAMIXEL_SOURCE_SCHEDULE = 0, DYNAMIXEL_SOURCE_COMMS = 1 };
+enum dynamixel_error_source { DYNAMIXEL_SOURCE_SCHEDULE = 0, DYNAMIXEL_SOURCE_COMMS };
 
 typedef union dynamixel_error {
     struct {
