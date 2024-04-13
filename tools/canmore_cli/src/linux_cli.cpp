@@ -1,5 +1,6 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
+#include "CameraSocketListener.hpp"
 #include "DeviceMap.hpp"
 #include "FileTransferTask.hpp"
 #include "RemoteTTYClientTask.hpp"
@@ -216,6 +217,29 @@ public:
         }
         else {
             interface.writeLine(COLOR_ERROR "Current interface is not CAN bus, cannot create TTY client" COLOR_RESET);
+        }
+    }
+};
+
+class LinuxCameraCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxCameraCommand(): CLICommandHandler("camera_server") {}
+
+    std::string getArgList() const override { return ""; }
+    std::string getHelp() const override { return "Launches a camera server to receive images over CANmore"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        (void) args;
+        auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
+        if (canClient) {
+            // TODO: Allow port remapping
+            interface.writeLine(COLOR_BODY "Listening for connections on port 3005" COLOR_RESET);
+            CameraSocketListener listener(3005, canClient->ifIndex, canClient->clientId);
+            listener.run();
+        }
+        else {
+            interface.writeLine(COLOR_ERROR
+                                "Current interface is not CAN bus, cannot create camera listener" COLOR_RESET);
         }
     }
 };

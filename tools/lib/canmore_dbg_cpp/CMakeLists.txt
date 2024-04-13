@@ -17,6 +17,7 @@ target_sources(canmore_dbg_cpp INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/BootloaderClient.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/RemoteTTYClient.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/LinuxClient.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/ImageReceiver.cpp
 )
 
 target_include_directories(canmore_dbg_cpp INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)

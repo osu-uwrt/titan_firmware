@@ -26,6 +26,7 @@ add_executable(canmore_cli
     src/gdbserver.cpp
     src/remote_tty_client_task.cpp
     src/file_transfer_task.cpp
+    src/camera_socket_listener.cpp
 )
 
 target_include_directories(canmore_cli PUBLIC include/)
