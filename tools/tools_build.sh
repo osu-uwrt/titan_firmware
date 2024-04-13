@@ -31,7 +31,7 @@ build_tool() {
 mkdir -p "$INSTALL_DIR"
 
 # Initialize Directory
-git clone --depth=1 --branch=dev https://github.com/osu-uwrt/titan_firmware "$WORK_DIR/titan_firmware"
+git clone --depth=1 --branch=master https://github.com/osu-uwrt/titan_firmware "$WORK_DIR/titan_firmware"
 pushd "$WORK_DIR/titan_firmware"
 
 # Setup submodules

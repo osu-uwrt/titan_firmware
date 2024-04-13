@@ -4,9 +4,9 @@
 #include "canmore_cpp/PollFD.hpp"
 #include "canmore_cpp/RegMappedClient.hpp"
 #include "canmore_cpp/RemoteTTYClient.hpp"
+#include "canmore_cpp/span_compat.hpp"
 
 #include <signal.h>
-#include <span>
 #include <termios.h>
 
 class RemoteTTYStdioHandler {
