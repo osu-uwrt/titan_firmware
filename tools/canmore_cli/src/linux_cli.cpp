@@ -358,6 +358,7 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommand(std::make_shared<LinuxLsCommand>());
     registerCommand(std::make_shared<LinuxPwdCommand>());
     registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
+    registerCommand(std::make_shared<LinuxCameraCommand>());
     registerCommandPrefix(std::make_shared<LinuxSystemCmdPrefix>());
     registerCommandPrefix(std::make_shared<LinuxRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());
