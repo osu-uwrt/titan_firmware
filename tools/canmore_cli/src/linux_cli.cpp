@@ -225,17 +225,25 @@ class LinuxCameraCommand : public CLICommandHandler<Canmore::LinuxClient> {
 public:
     LinuxCameraCommand(): CLICommandHandler("camera_server") {}
 
-    std::string getArgList() const override { return ""; }
+    std::string getArgList() const override { return "[optional port (defaults to 3005)]"; }
     std::string getHelp() const override { return "Launches a camera server to receive images over CANmore"; }
 
     void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
         (void) args;
         auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
         if (canClient) {
-            // TODO: Allow port remapping
-            interface.writeLine(COLOR_BODY "Listening for connections on port 3005" COLOR_RESET);
-            CameraSocketListener listener(3005, canClient->ifIndex, canClient->clientId);
+            uint32_t port = 3005;
+            if (args.size() > 0) {
+                if (!decodeU32(args.at(0), port, UINT16_MAX - 1)) {
+                    interface.writeLine("Invalid port number");
+                    return;
+                }
+            }
+
+            interface.writeLine(COLOR_NAME "Listening for connections on port " + std::to_string(port) + COLOR_RESET);
+            CameraSocketListener listener(port, canClient->ifIndex, canClient->clientId);
             listener.run();
+            interface.writeLine(COLOR_NAME "Server Stopped" COLOR_RESET);
         }
         else {
             interface.writeLine(COLOR_ERROR

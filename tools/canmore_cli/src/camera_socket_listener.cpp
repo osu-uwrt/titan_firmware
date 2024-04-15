@@ -7,6 +7,52 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define CTRL_TYPE_STREAM_ENABLE 1
+#define CTRL_TYPE_QUALITY 2
+#define CTRL_TYPE_KEYPRESS 3
+#define CTRL_TYPE_STREAM_SELECT 4
+#define CTRL_TYPE_MAX_DIMENSION 5
+
+class InterruptPollListener : public Canmore::PollFDHandler {
+public:
+    InterruptPollListener() { stdinDescriptor_ = Canmore::PollFDDescriptor::create(*this, STDIN_FILENO, POLLIN); }
+
+    void populateFds(std::vector<std::weak_ptr<Canmore::PollFDDescriptor>> &descriptors) override {
+        descriptors.push_back(stdinDescriptor_);
+    }
+
+    bool isInterrupted() { return interruptSeen_; }
+
+protected:
+    void handleEvent(const pollfd &fd) override {
+        if (fd.fd != STDIN_FILENO)
+            return;
+
+        if (fd.revents & (POLLERR | POLLHUP)) {
+            // Stdin closed, interrupt now
+            interruptSeen_ = true;
+        }
+        else if (fd.revents & POLLIN) {
+            char c;
+            int len = read(STDIN_FILENO, &c, sizeof(c));
+            if (len == 1) {
+                // Got a character, see if control c
+                if (c == 3) {
+                    interruptSeen_ = true;
+                }
+            }
+            else {
+                // We got an error during read, just interrupt since stdin broke
+                interruptSeen_ = true;
+            }
+        }
+    }
+
+private:
+    std::shared_ptr<Canmore::PollFDDescriptor> stdinDescriptor_;
+    bool interruptSeen_ = false;
+};
+
 TCPSocketServer::TCPSocketServer(CameraSocketListener &listener, int connFd, const sockaddr_in6 &sa):
     listener_(listener), sa_(sa), connFd_(connFd) {
     char name[INET6_ADDRSTRLEN];
@@ -89,23 +135,69 @@ void TCPSocketServer::handleEvent(const pollfd &fd) {
     }
 
     if (fd.revents & POLLIN) {
-        // TODO: Actually process incoming packet (right now just sets stream id)
-        char tmpBuf;
-        int len = read(connFd_, &tmpBuf, 1);
-        if (len == 0) {
+        int curlen = pendingRxBuf_.size();
+        int rxlen;
+        if (curlen < 2) {
+            // Need to receive the header if we haven't received it yet
+            pendingRxBuf_.resize(2);
+            rxlen = read(connFd_, pendingRxBuf_.data() + curlen, pendingRxBuf_.size() - curlen);
+        }
+        else {
+            // Receive the rest of the packet based on the length
+            pendingRxBuf_.resize(2 + pendingRxBuf_.at(1));
+            rxlen = read(connFd_, pendingRxBuf_.data() + curlen, pendingRxBuf_.size() - curlen);
+        }
+
+        // Hanle errors during receive
+        if (rxlen == 0) {
             std::cout << "(" << connFd_ << ") Connection closed" << std::endl;
             alive_ = false;
             listener_.reportChildServerDeath();
             return;
         }
-        else if (len != 1) {
+        else if (rxlen < 0) {
             std::cout << "(" << connFd_ << ") Failed to read: " << errno << " - Closing connection..." << std::endl;
             alive_ = false;
             listener_.reportChildServerDeath();
             return;
         }
 
-        listener_.imageRx_.setStreamId(tmpBuf);
+        // We got a packet, resize the pending buffer to that length
+        pendingRxBuf_.resize(curlen + rxlen);
+
+        // Check if we have a full packet
+        size_t len = pendingRxBuf_.size();
+        if (len >= 2 && len == pendingRxBuf_.at(1) + 2u) {
+            uint8_t cmd = pendingRxBuf_.at(0);
+            uint8_t param_len = pendingRxBuf_.at(1);
+            switch (cmd) {
+            case CTRL_TYPE_STREAM_ENABLE:
+                if (param_len == 0) {
+                    listener_.imageRx_.setStreamEnabled(true);
+                }
+                break;
+            case CTRL_TYPE_KEYPRESS:
+                listener_.imageRx_.sendKeypress(pendingRxBuf_.at(2));
+                break;
+            case CTRL_TYPE_QUALITY:
+                if (param_len == 1) {
+                    listener_.imageRx_.setStreamQuality(pendingRxBuf_.at(2));
+                }
+                break;
+            case CTRL_TYPE_STREAM_SELECT:
+                if (param_len == 1) {
+                    listener_.imageRx_.setStreamId(pendingRxBuf_.at(2));
+                }
+                break;
+            case CTRL_TYPE_MAX_DIMENSION:
+                if (param_len == 2) {
+                    uint16_t maxDim = (((uint16_t) pendingRxBuf_.at(2)) << 8) | pendingRxBuf_.at(3);
+                    listener_.imageRx_.setMaxDimension(maxDim);
+                }
+                break;
+            }
+            pendingRxBuf_.clear();
+        }
     }
     else if (fd.revents) {
         std::cout << "(" << connFd_ << ") Connection closed";
@@ -166,12 +258,17 @@ CameraSocketListener::CameraSocketListener(uint16_t port, int canIfIndex, uint8_
     nextServerToAdd_ = servers_.end();
 }
 
+CameraSocketListener::~CameraSocketListener() {
+    close(sockFd_);
+}
+
 void CameraSocketListener::run() {
-    while (true) {
+    InterruptPollListener interruptListener;
+    pollGroup_.addFd(interruptListener);
+
+    while (!interruptListener.isInterrupted()) {
         // Run the poll group
         pollGroup_.processEvent(1000);
-
-        // TODO: Handle interrupts
 
         // Handle any newly added/removed servers
         processPollGroupUpdates();

@@ -16,6 +16,13 @@ ImageReceiver::ImageReceiver(int ifIndex, uint8_t clientId, ImageReceiverHandler
     setRxFilters(std::span { rfilter });
 }
 
+ImageReceiver::~ImageReceiver() {
+    // Unregister from images upon receiver destruction
+    canmore_camera_feed_cmd_t cmd = { .pkt = { .cmd = CANMORE_CAMERA_FEED_CMD_ENABLE,
+                                               .data = { .max_dimension = false } } };
+    transmitFrameNoexcept(CANMORE_CAMERA_FEED_CALC_CTRL_ID(clientId), cmd.data, CANMORE_CAMERA_FEED_CMD_MAX_LEN);
+}
+
 void ImageReceiver::handleFrame(canid_t can_id, const std::span<const uint8_t> &data) {
     bool isExtended = (can_id & CAN_EFF_FLAG) != 0;
     canmore_id_t id = { .identifier = can_id };
@@ -97,5 +104,17 @@ void ImageReceiver::setStreamId(uint8_t streamId) {
 void ImageReceiver::setStreamQuality(uint8_t quality) {
     canmore_camera_feed_cmd_t cmd = { .pkt = { .cmd = CANMORE_CAMERA_FEED_CMD_QUALITY,
                                                .data = { .quality = quality } } };
+    transmitFrame(CANMORE_CAMERA_FEED_CALC_CTRL_ID(clientId), cmd.data);
+}
+
+void ImageReceiver::sendKeypress(uint8_t keypress) {
+    canmore_camera_feed_cmd_t cmd = { .pkt = { .cmd = CANMORE_CAMERA_FEED_CMD_KEYPRESS,
+                                               .data = { .keypress = keypress } } };
+    transmitFrame(CANMORE_CAMERA_FEED_CALC_CTRL_ID(clientId), cmd.data);
+}
+
+void ImageReceiver::setMaxDimension(uint16_t maxDim) {
+    canmore_camera_feed_cmd_t cmd = { .pkt = { .cmd = CANMORE_CAMERA_FEED_CMD_MAX_DIMENSION,
+                                               .data = { .max_dimension = maxDim } } };
     transmitFrame(CANMORE_CAMERA_FEED_CALC_CTRL_ID(clientId), cmd.data);
 }

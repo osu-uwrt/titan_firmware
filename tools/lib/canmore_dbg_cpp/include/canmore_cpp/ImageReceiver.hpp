@@ -21,6 +21,7 @@ public:
      * @param handler The handler to call with the JPEG upon successful reception
      */
     ImageReceiver(int ifIndex, uint8_t clientId, ImageReceiverHandler &handler);
+    ~ImageReceiver();
 
     /**
      * @brief Enables/Disables the remote stream
@@ -42,6 +43,20 @@ public:
      * @param quality The JPEG compression quality (must be 0-100)
      */
     void setStreamQuality(uint8_t quality);
+
+    /**
+     * @brief Sends a keypress event
+     *
+     * @param keypress The keypress character to send
+     */
+    void sendKeypress(uint8_t keypress);
+
+    /**
+     * @brief Sets the max image dimension to transmit over CAN bus
+     *
+     * @param maxDim The max image dimension
+     */
+    void setMaxDimension(uint16_t maxDim);
 
     const uint8_t clientId;
 

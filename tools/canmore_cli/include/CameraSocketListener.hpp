@@ -26,6 +26,7 @@ private:
     std::shared_ptr<Canmore::PollFDDescriptor> fdDescriptor_;
     sockaddr_in6 sa_;
     const int connFd_;
+    std::vector<uint8_t> pendingRxBuf_;
 };
 
 class CameraSocketListener : protected Canmore::ImageReceiverHandler, protected Canmore::PollFDHandler {
@@ -33,6 +34,7 @@ class CameraSocketListener : protected Canmore::ImageReceiverHandler, protected 
 
 public:
     CameraSocketListener(uint16_t port, int canIfIndex, uint8_t canClientId, bool loopbackOnly = false);
+    ~CameraSocketListener();
 
     void run();
 
