@@ -54,5 +54,6 @@ target_link_libraries(smart_battery PUBLIC
     hardware_pio
     hardware_i2c
     pico_stdlib       # Pico SDK Standard Library
+    pico_multicore
 )
 
