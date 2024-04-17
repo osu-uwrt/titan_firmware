@@ -23,7 +23,6 @@
 #define PRESENCE_CHECK_INTERVAL_MS 1000
 #define PRESENCE_TIMEOUT_COUNT 10
 #define PWRCYCL_CHECK_INTERVAL_MS 250
-#define PWR_CYCLE_DURATION_MS 10000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -132,7 +131,7 @@ static void tick_background_tasks() {
     }
 
     // Update LCD if reed switch held and we are in time for a display update
-    display_tick(bq_mfg_info.serial);
+    display_tick();
 
     if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
         // check if we need to update the presence counter
@@ -143,14 +142,12 @@ static void tick_background_tasks() {
             presence_fail_count = 0;
         }
 
-        // if the presence counter times out, shut down
-        if (presence_fail_count > PRESENCE_TIMEOUT_COUNT) {
+        // if the presence counter times out and the display is off, shut down
+        if (presence_fail_count > PRESENCE_TIMEOUT_COUNT && !display_check_on()) {
             LOG_WARN("Pack not detected after %ds. Powering down!", PRESENCE_TIMEOUT_COUNT);
             gpio_put(PWR_CTRL_PIN, 0);
         }
     }
-
-    display_check_poweroff();
 }
 
 static void sht41_sensor_error_cb(const sht41_error_code error_type) {
@@ -158,13 +155,6 @@ static void sht41_sensor_error_cb(const sht41_error_code error_type) {
 }
 
 int main() {
-    // Latch RP2040 power to on
-    gpio_init(PWR_CTRL_PIN);
-    gpio_set_dir(PWR_CTRL_PIN, GPIO_OUT);
-    gpio_put(PWR_CTRL_PIN, 1);
-
-    gpio_init(SWITCH_SIGNAL_PIN);
-
     // Initialize stdio
     stdio_init_all();
     LOG_INFO("%s", FULL_BUILD_TAG);
@@ -175,30 +165,49 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
 
-    uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
-    core1_init(sbh_mcu_serial_num);
+    // Latch RP2040 power to on
+    // Don't call gpio_init as this will disable our pad override we set in preinit before writing 1 to GPIO
+    gpio_set_dir(PWR_CTRL_PIN, GPIO_OUT);
+    gpio_put(PWR_CTRL_PIN, 1);
+    gpio_set_function(PWR_CTRL_PIN, GPIO_FUNC_SIO);
 
+    // Enable signal pin for reading reed switch
+    gpio_init(SWITCH_SIGNAL_PIN);
+
+    // Initialize all I2C Peripherals
     async_i2c_init(PERIPH_SDA_PIN, PERIPH_SCL_PIN, -1, -1, 400000, 20);
     display_init();
     sht41_init(&sht41_sensor_error_cb, PERIPH_I2C);
 
-    sleep_ms(1000);
-    safety_tick();
+    // Load the serial number
+    uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
+    if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
+        display_show_msg("No Ser# Err");
+        panic("Unprogrammed serial number");
+    }
+
+    // Initialize the BQ40
+    core1_init(sbh_mcu_serial_num);
 
     uint8_t retry = 0;
-    while (!core1_get_pack_mfg_info(&bq_mfg_info)) {
-        if (++retry > 5)
-            panic("BQ40Z80 Init failed!");
-    }
+    do {
+        if (++retry > 5) {
+            display_show_msg("Init Failed");
+            panic("BQ Init Failed");
+        }
+        if (retry > 1) {
+            char msg[] = "BQ Con #X";
+            msg[8] = retry + 48;
+            display_show_msg(msg);
+        }
+        sleep_ms(1000);
+        safety_tick();
+    } while (!core1_get_pack_mfg_info(&bq_mfg_info));
 
     LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_mfg_info.name, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
              bq_mfg_info.mfg_year, bq_mfg_info.serial);
 
     // Initialize ROS Transports
-    if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
-        panic("Unprogrammed serial number");
-    }
-
     can_id = sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
@@ -220,7 +229,7 @@ int main() {
         if (is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
-                display_show_ros_connect();
+                display_show_msg("ROS Connect");
 
                 // Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
@@ -246,7 +255,7 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
-            display_show_ros_disconnect();
+            display_show_msg("ROS Lost");
             ros_initialized = false;
         }
         else {
@@ -254,12 +263,6 @@ int main() {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }
-        }
-
-        // handle the power cycle outside of the timer environment as its a bit sensitive
-        // this will block but also feed the watchdog. this will skew timing when called
-        if (power_cycle_requested()) {
-            bq_open_dschg_temp(PWR_CYCLE_DURATION_MS);
         }
 
         // Tick safety

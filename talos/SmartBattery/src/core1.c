@@ -12,7 +12,6 @@
 #define BQ40Z80_REFRESH_TIME_MS 100
 #define FIFO_REQ_VALUE_WIDTH 24
 
-static uint32_t fet_open_time_ms;
 static bool read_once_cached = false;
 static uint8_t sbh_mcu_serial;
 static bq_mfg_info_t battery_mfg_info;
@@ -32,7 +31,7 @@ typedef union sio_fifo_req {
             // BQ_MAC_RESET_CMD,
             // BQ_MAC_SHTDN_CMD,
         } type;
-        uint32_t cmd : FIFO_REQ_VALUE_WIDTH;
+        uint32_t arg : FIFO_REQ_VALUE_WIDTH;
     };
     uint32_t raw;
 } sio_fifo_req_t;
@@ -89,7 +88,7 @@ static void core1_bq40z80_error_cb(const bq_error type, const int error_code) {
         safety_raise_fault_with_arg(FAULT_BQ40_SAFETY_STATUS, error_code);
     }
     else {
-        safety_raise_fault_with_arg(FAULT_BQ40_ERROR, type);
+        safety_raise_fault_with_arg(FAULT_BQ40_ERROR, (type << 8) | (error_code & 0xFFFFFF));
     }
 }
 
@@ -159,7 +158,7 @@ static void __time_critical_func(core1_main)(void) {
         while (multicore_fifo_rvalid()) {
             sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
             if (req.type == BQ_POWER_CYCLE) {
-                bq_open_dschg_temp(fet_open_time_ms);
+                bq_open_dschg_temp(req.arg);  // Command is fet open time milliseconds
             }
             // TODO still WIP for pack chemistry, cycle count and stateofhealth
         }
@@ -247,6 +246,14 @@ uint16_t core1_time_to_empty(void) {
     return remaining_time_out;
 }
 
+uint16_t core1_time_to_full(void) {
+    uint16_t remaining_time_out;
+    uint32_t irq = spin_lock_blocking(shared_status.lock);
+    remaining_time_out = shared_status.time_to_full;
+    spin_unlock(shared_status.lock, irq);
+    return remaining_time_out;
+}
+
 uint16_t core1_voltage(void) {
     uint16_t voltage_out;
     uint32_t irq = spin_lock_blocking(shared_status.lock);
@@ -264,7 +271,6 @@ int16_t core1_current(void) {
 }
 
 void core1_open_dsg_temp(const uint32_t open_time_ms) {
-    fet_open_time_ms = open_time_ms;
-    sio_fifo_req_t req = { .type = BQ_POWER_CYCLE, .cmd = 0x270C };
+    sio_fifo_req_t req = { .type = BQ_POWER_CYCLE, .arg = open_time_ms };
     multicore_fifo_push_blocking(req.raw);
 }

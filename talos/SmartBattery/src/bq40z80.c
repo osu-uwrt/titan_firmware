@@ -4,6 +4,7 @@
 
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
+#include "titan/safety.h"
 
 #include <stdio.h>
 
@@ -275,9 +276,9 @@ void bq_open_dschg_temp(const int64_t open_time_ms) {
 
     absolute_time_t fet_off_command_end = make_timeout_time_ms(open_time_ms);
     while (bq_pack_discharging() && !time_reached(fet_off_command_end)) {
-        sleep_us(100);
+        sleep_ms(10);
         // also feed the watchdog so we dont reset
-        watchdog_update();
+        safety_core1_checkin();
     }
 
     uint8_t data[2] = { 0, 0 };

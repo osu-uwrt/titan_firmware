@@ -228,7 +228,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
 }
 
 /* Write full string to screenbuffer */
-char ssd1306_WriteString(char *str, FontDef Font, SSD1306_COLOR color) {
+char ssd1306_WriteString(const char *str, FontDef Font, SSD1306_COLOR color) {
     while (*str) {
         if (ssd1306_WriteChar(*str, Font, color) != *str) {
             // Char could not be written
@@ -372,11 +372,11 @@ void ssd1306_DrawArcWithRadiusLine(uint8_t x, uint8_t y, uint8_t radius, uint16_
 
     rad = ssd1306_DegToRad(count * approx_degree);
     uint8_t first_point_x = x + (int8_t) (sin(rad) * radius);
-    uint8_t first_point_y = y + (int8_t) (cos(rad) * radius);
+    uint8_t first_point_y = y - (int8_t) (cos(rad) * radius);
     while (count < approx_segments) {
         rad = ssd1306_DegToRad(count * approx_degree);
         xp1 = x + (int8_t) (sin(rad) * radius);
-        yp1 = y + (int8_t) (cos(rad) * radius);
+        yp1 = y - (int8_t) (cos(rad) * radius);
         count++;
         if (count != approx_segments) {
             rad = ssd1306_DegToRad(count * approx_degree);
@@ -385,7 +385,7 @@ void ssd1306_DrawArcWithRadiusLine(uint8_t x, uint8_t y, uint8_t radius, uint16_
             rad = ssd1306_DegToRad(loc_sweep);
         }
         xp2 = x + (int8_t) (sin(rad) * radius);
-        yp2 = y + (int8_t) (cos(rad) * radius);
+        yp2 = y - (int8_t) (cos(rad) * radius);
         ssd1306_Line(xp1, yp1, xp2, yp2, color);
     }
 

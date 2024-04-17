@@ -27,6 +27,7 @@
 // Global Definitions
 // ========================================
 
+#define PWR_CYCLE_DURATION_MS 10000
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
@@ -37,7 +38,6 @@
 #define HUMIDITY_STATUS_PUBLISHER_NAME "status/humidity/smartbattery"
 
 bool ros_connected = false;
-bool request_powercycle = false;
 
 // Core Variables
 rcl_node_t node;
@@ -68,7 +68,7 @@ static void electrical_command_callback(const void *msgin) {
 
     // check if the command was a power cycle
     if (msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER) {
-        request_powercycle = true;
+        core1_open_dsg_temp(PWR_CYCLE_DURATION_MS);
     }
 
     // also check for a reset
@@ -271,14 +271,4 @@ bool is_ros_connected(void) {
 bool ros_ping(void) {
     ros_connected = rmw_uros_ping_agent(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT, 1) == RCL_RET_OK;
     return ros_connected;
-}
-
-bool power_cycle_requested(void) {
-    // clear the request as we are going to service it
-    if (request_powercycle) {
-        request_powercycle = false;
-        return true;
-    }
-
-    return false;
 }
