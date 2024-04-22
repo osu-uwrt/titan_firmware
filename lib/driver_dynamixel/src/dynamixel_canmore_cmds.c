@@ -510,13 +510,13 @@ static int dyneeprom_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     fprintf(fout, "  Baud Rate (8):\t\t%s (%d)\n", str_table_lookup(baudrates, eeprom->baud_rate), eeprom->baud_rate);
     fprintf(fout, "  Return Delay Time (9):\t%d us\n", eeprom->return_delay_time);
     fprintf(fout, "  Drive Mode (10):\t\t%d\n", eeprom->drive_mode);
+    fprintf(fout, "   - Bit 0: Servo Direction:\t%s\n",
+            (eeprom->drive_mode & (1 << 0) ? "Reverse (CW+, CCW-)" : "Normal (CCW+, CW-)"));
+    fprintf(fout, "   - Bit 2: Profile Config:\t%s\n",
+            (eeprom->drive_mode & (1 << 2) ? "Time-based" : "Velocity-based"));
+    fprintf(fout, "   - Bit 3: Torque Auto-Enable:\t%s\n", bool_lookup(eeprom->drive_mode & (1 << 3)));
     fprintf(fout, "  Operating Mode (11):\t\t%s (%d)\n", str_table_lookup(operating_modes, eeprom->operating_mode),
             eeprom->operating_mode);
-    fprintf(fout, "   - Bit 0: Servo Direction:\t%s\n",
-            (eeprom->operating_mode & (1 << 0) ? "Normal (CCW+, CW-)" : "Reverse (CW+, CCW-)"));
-    fprintf(fout, "   - Bit 2: Profile Config:\t%s\n",
-            (eeprom->operating_mode & (1 << 2) ? "Velocity-based" : "Time-based"));
-    fprintf(fout, "   - Bit 3: Torque Auto-Enable:\t%s\n", bool_lookup(eeprom->operating_mode & (1 << 3)));
     fprintf(fout, "  Secondary ID (12):\t\t%d\n", eeprom->secondary_id);
     fprintf(fout, "  Protocol (13):\t\tv%d\n", eeprom->protocol_type);
     fprintf(fout, "  Homing Offset (20):\t\t%ld\n", eeprom->homing_offset);

@@ -60,7 +60,7 @@ def main():
     import numpy as np
     import cv2
 
-    imgsocket = CanmoreImageSocketListener('localhost')
+    imgsocket = CanmoreImageSocketListener('orin')
     target_width = 1280
 
     try:
@@ -88,6 +88,9 @@ def main():
                 key = cv2.waitKey(10)
                 if key == ord('q'):
                     break
+                elif key == ord('p'):
+                    imgsocket.sendSetMaxDim(190)
+                    imgsocket.sendSetQuality(25)
                 elif key != -1:
                     imgsocket.sendKeypress(key)
             else:
