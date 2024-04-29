@@ -1,6 +1,8 @@
 #ifndef TITAN_DEBUG_INTERNAL_H_
 #define TITAN_DEBUG_INTERNAL_H_
 
+#if TITAN_SAFETY
+
 #include "canmore/protocol.h"
 #include "canmore/reg_mapped/interface/debug.h"
 #include "canmore/reg_mapped/server.h"
@@ -18,5 +20,7 @@ int debug_remote_cmd_handle(const char *args, size_t resp_size, char *resp);
 
 // Handles registration for global remote commands (rather than passing complex data objects over titan debug)
 void debug_register_global_remote_cmds(void);
+
+#endif
 
 #endif
