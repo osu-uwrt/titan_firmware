@@ -5,8 +5,9 @@
 
 #include "pico/stdlib.h"
 
+#define BQ_PIO_INST pio0
+#define BQ_PIO_SM 0
 #define BQ_ADDR 0x0B
-#define PIO_SM 0
 
 #define WARN_SOC_THRESH 60
 #define STOP_SOC_THRESH 30
@@ -45,6 +46,7 @@ enum bq_reg_map {
     BQ_READ_CELL_DATE = 0x1B,
     BQ_READ_CELL_SERI = 0x1C,
     BQ_READ_CELL_NAME = 0x21,
+    BQ_MFG_BLK_ACCESS = 0x44,
     BQ_READ_GPIO = 0x48,
     BQ_READ_SAFE_STAT = 0x51,
     BQ_READ_OPER_STAT = 0x54,
@@ -62,21 +64,14 @@ enum bq_mac_cmds {
     BQ_MAC_SHTDN_CMD = 0x0010,
 };
 
-typedef enum {
-    BQ_ERROR_OFFLINE = 1,
-    BQ_ERROR_SAFETY_STATUS,
-    BQ_ERROR_I2C_DISCONNECT,
-    BQ_ERROR_SERIAL_MISMATCHED,
-    BQ_ERROR_POWER_CYCLE_FAIL,
-} bq_error;
-
-typedef void (*bq40z80_error_cb)(const bq_error type, const int error_code);
+// This prevents these functions from being called unless the C file sets this define
+// Calling these functions from a the main core will break a lot of things
+#ifdef RUNNING_ON_CORE1
 
 /**
  * @brief initialize PIO hardware for i2c usage, GPIO for BQ_LEDS_CORE1, and BMS_WAKE_PIN
- *
  */
-void bq40z80_init(bq40z80_error_cb error_cb);
+void bq40z80_init(void);
 
 void bq40z80_update_soc_leds(uint8_t soc);
 
@@ -95,9 +90,10 @@ bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info
 // used for opening the discharge fets for a specified amount of time
 // WARNING THIS WILL BLOCK FOR THE SPECIFIED DURATION as there is a lot of
 // important communication with the BQ40z80 during this
-void bq_open_dschg_temp(const int64_t open_time_ms);
+bool bq_open_dschg_temp(const int64_t open_time_ms);
 
-uint16_t bq_cycle_count();
+bool bq_cycle_count(uint16_t *cycles_out);
 
-void bq_device_chemistry(char *name);
+#endif
+
 #endif

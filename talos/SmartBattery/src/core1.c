@@ -1,7 +1,7 @@
+#define RUNNING_ON_CORE1
 #include "core1.h"
 
 #include "bq40z80.h"
-#include "pio_i2c.h"
 #include "safety_interface.h"
 
 #include "pico/multicore.h"
@@ -83,15 +83,6 @@ static volatile struct core1_mfg_info_shared_mem {
     struct bq_mfg_info_t pack_info;
 } shared_mfg_info = { 0 };
 
-static void core1_bq40z80_error_cb(const bq_error type, const int error_code) {
-    if (type == BQ_ERROR_SAFETY_STATUS) {
-        safety_raise_fault_with_arg(FAULT_BQ40_SAFETY_STATUS, error_code);
-    }
-    else {
-        safety_raise_fault_with_arg(FAULT_BQ40_ERROR, (type << 8) | (error_code & 0xFFFFFF));
-    }
-}
-
 /**
  * @brief flush data to shared_mfg_info via locking spin lock
  *
@@ -137,7 +128,7 @@ static void core1_bq40z80_flush_battery_info(bq_battery_info_t *bat_stat) {
 // Entry point and control loop of core1
 // ===========================================
 static void __time_critical_func(core1_main)(void) {
-    bq40z80_init(&core1_bq40z80_error_cb);
+    bq40z80_init();
 
     while (1) {
         safety_core1_checkin();
