@@ -272,11 +272,6 @@ void display_tick() {
     }
     state.last_switch_state = cur_switch_state;
 
-    // Message takes highest priority, if we have a pending message force enter show message state
-    if (state.msg_pending) {
-        target_state.op = OP_SHOW_MESSAGE;
-    }
-
     // Stage 2: Determine the next target state based on button presses and timers
     // This will write target_state depending on previous state and button state
 
@@ -335,6 +330,11 @@ void display_tick() {
         default:
             break;
         }
+    }
+
+    // Message takes highest priority, if we have a pending message force enter show message state
+    if (state.msg_pending) {
+        target_state.op = OP_SHOW_MESSAGE;
     }
 
     // Stage 3: Interpret the meaning out of the various state transitions and timeouts to prepare for drawing
