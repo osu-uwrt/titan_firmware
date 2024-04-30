@@ -4,6 +4,8 @@
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
 
+#if defined(PORT_MEAS_PIN) && defined(STBD_MEAS_PIN)
+
 #define ADC_VREF 3.3
 #define ADC_RANGE (1 << 12)
 #define ADC_CONVERT (ADC_VREF / (ADC_RANGE - 1))
@@ -60,3 +62,13 @@ float analog_io_read_port_meas() {
 float analog_io_read_stbd_meas() {
     return stbd_measurement;
 }
+
+#else
+
+void analog_io_init() {}
+
+float analog_io_read_port_meas() {}
+
+float analog_io_read_stbd_meas() {}
+
+#endif

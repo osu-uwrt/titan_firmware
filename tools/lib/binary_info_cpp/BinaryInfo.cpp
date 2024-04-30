@@ -23,6 +23,12 @@
 #include <set>
 #include <vector>
 
+#undef assert
+#define assert(cond)                                                                                                   \
+    if (!cond) {                                                                                                       \
+        throw std::logic_error("Assert failed");                                                                       \
+    }
+
 namespace BinaryInfo {
 using std::map;
 using std::pair;
