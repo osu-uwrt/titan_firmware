@@ -31,9 +31,14 @@
             "serial": "4E4DD83ADD9FB46D"
         },
         {
-            "name": "Poactuator Board",
+            "name": "Talos Poactuator Board",
             "boardType": "talos/poac_board",
             "serial": "E461BC98932C3B2E"
+        },
+        {
+            "name": "Talos LED Board",
+            "boardType": "talos/led_board",
+            "serial": "E461BC98932C232E"
         },
         // ========================================
         // Mark 2 Era Boards
