@@ -8,28 +8,21 @@
 #include "titan/logger.h"
 
 #include <stdio.h>
+#include <string.h>
 
-#define BQ40Z80_REFRESH_TIME_MS 100
+#define BQ40Z80_REFRESH_TIME_MS 200
 #define FIFO_REQ_VALUE_WIDTH 24
 
-static bool read_once_cached = false;
 static uint8_t sbh_mcu_serial;
-static bq_mfg_info_t battery_mfg_info;
-static bq_battery_info_t battery_status_info;
-
-static absolute_time_t next_bq40z80_refresh;
 
 typedef union sio_fifo_req {
     struct __packed {
         enum __packed cmd_type {
             BQ_POWER_CYCLE,
-            BQ_CYCLE_COUNT,
-            BQ_CHEMISTRY,
-            BQ_STATE_OF_HEALTH,
-            // TODO might add more
-            // BQ_MAC_REG_ADDR,
-            // BQ_MAC_RESET_CMD,
-            // BQ_MAC_SHTDN_CMD,
+            BQ_KILL_POWER,
+            BQ_READ_CYCLE_COUNT,
+            BQ_READ_STATE_OF_HEALTH,
+            BQ_READ_CAPACITY
         } type;
         uint32_t arg : FIFO_REQ_VALUE_WIDTH;
     };
@@ -54,104 +47,106 @@ static volatile struct core1_status_shared_mem {
      */
     spin_lock_t *lock;
 
-    bool pres_flag;
-    bool port_detected;
-    int16_t avg_current;
-    uint8_t soc;
-    bool dsg_mode;
-    uint16_t time_to_empty;
-    uint16_t time_to_full;
-    uint16_t voltage;
-    int16_t current;
-    uint16_t chg_voltage;
-    uint16_t chg_current;
+    bool connected;
+    struct bq_battery_info_t batt_info;
+    struct bq_mfg_info_t mfg_info;
 
 } shared_status = { 0 };
-
-static volatile struct core1_mfg_info_shared_mem {
-    /**
-     * @brief spin lock to protect manufacturer info transferring across cores
-     *
-     */
-    spin_lock_t *lock;
-
-    /**
-     * @brief manufacturer info from bq40z80 including:
-     * device name, device date, device serial number
-     *
-     */
-    struct bq_mfg_info_t pack_info;
-} shared_mfg_info = { 0 };
-
-/**
- * @brief flush data to shared_mfg_info via locking spin lock
- *
- * @param pack_info
- */
-static void core1_bq40z80_flush_mfg_info(bq_mfg_info_t *pack_info) {
-    uint32_t irq = spin_lock_blocking(shared_mfg_info.lock);
-    shared_mfg_info.pack_info.serial = pack_info->serial;
-    shared_mfg_info.pack_info.mfg_day = pack_info->mfg_day;
-    shared_mfg_info.pack_info.mfg_mo = pack_info->mfg_mo;
-    shared_mfg_info.pack_info.mfg_year = pack_info->mfg_year;
-    for (uint8_t i = 0; i < 21; i++) {
-        shared_mfg_info.pack_info.name[i] = pack_info->name[i];
-        if (shared_mfg_info.pack_info.name[i] == 0)
-            break;
-    }
-    spin_unlock(shared_mfg_info.lock, irq);
-}
-
-/**
- * @brief flush data to shared_status via locking spin lock
- *
- * @param bat_stat
- */
-static void core1_bq40z80_flush_battery_info(bq_battery_info_t *bat_stat) {
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    shared_status.pres_flag = bat_stat->battery_presence;
-    shared_status.port_detected = bat_stat->port_detected;
-    shared_status.avg_current = bat_stat->avg_current;
-    shared_status.soc = bat_stat->soc;
-    shared_status.dsg_mode = bat_stat->dsg_mode;
-    shared_status.time_to_empty = bat_stat->time_to_empty;
-    shared_status.voltage = bat_stat->voltage;
-    shared_status.current = bat_stat->current;
-    shared_status.time_to_full = bat_stat->time_to_full;
-    shared_status.chg_voltage = bat_stat->chg_voltage;
-    shared_status.chg_current = bat_stat->chg_current;
-
-    spin_unlock(shared_status.lock, irq);
-}
 
 // ===========================================
 // Entry point and control loop of core1
 // ===========================================
 static void __time_critical_func(core1_main)(void) {
-    bq40z80_init();
+    bq_init();
+
+    absolute_time_t next_bq40z80_refresh = get_absolute_time();
+    uint error_count = 0;
+
+    // Mark as static so we don't eat up our stack
+    static bq_mfg_info_t mfg_info;
+    static bq_battery_info_t batt_info;
 
     while (1) {
         safety_core1_checkin();
 
         if (time_reached(next_bq40z80_refresh)) {
             next_bq40z80_refresh = make_timeout_time_ms(BQ40Z80_REFRESH_TIME_MS);
-            if (bq40z80_refresh_reg(sbh_mcu_serial, read_once_cached, &battery_status_info, &battery_mfg_info)) {
-                bq40z80_update_soc_leds(core1_soc());
-                if (!read_once_cached) {
-                    read_once_cached = true;
-                    core1_bq40z80_flush_mfg_info(&battery_mfg_info);
+
+            // Perform refresh of device registers
+            bq_error_t err = { .fields.error_code = BQ_ERROR_SUCCESS };
+            if (!shared_status.connected) {
+                // If we aren't connected, we need to first start by scanning the mfg info
+                err = bq_read_mfg_info(&mfg_info);
+
+                // Report error if this PCB's burned serial number doesn't match the BMS's serial/
+                if (mfg_info.serial != sbh_mcu_serial) {
+                    safety_raise_fault_with_arg(FAULT_BQ40_MISMATCHED_SERIAL, (sbh_mcu_serial << 16) | mfg_info.serial);
                 }
-                core1_bq40z80_flush_battery_info(&battery_status_info);
+                else {
+                    safety_lower_fault(FAULT_BQ40_MISMATCHED_SERIAL);
+                }
+            }
+
+            if (BQ_CHECK_SUCCESSFUL(err)) {
+                // Don't scan regular regs of we failed to readout mfg info
+                err = bq_read_battery_info(&mfg_info, &batt_info);
+            }
+
+            // Handle the data we received
+            if (BQ_CHECK_SUCCESSFUL(err)) {
+                // Refresh successful do processing
+                error_count = 0;
+
+                // If this was the first successful refresh after disconnect, we just connected again
+                // Handle the refreshed data
+                if (!shared_status.connected) {
+                    safety_lower_fault(FAULT_BQ40_NOT_CONNECTED);
+
+                    // Update shared status
+                    uint32_t irq = spin_lock_blocking(shared_status.lock);
+                    memcpy((void *) &shared_status.mfg_info, &mfg_info, sizeof(shared_status.mfg_info));
+                    shared_status.connected = true;
+                    spin_unlock(shared_status.lock, irq);
+                }
+
+                // Refresh the battery info
+                bq_update_soc_leds(batt_info.relative_soc);
+                uint32_t irq = spin_lock_blocking(shared_status.lock);
+                memcpy((void *) &shared_status.batt_info, &batt_info, sizeof(shared_status.batt_info));
+                spin_unlock(shared_status.lock, irq);
+            }
+            else {
+                if (shared_status.connected) {
+                    error_count++;
+                    if (error_count > BQ_MAX_ERRORS_BEFORE_DISCONNECT) {
+                        // No need to lock, word writes are atomic
+                        shared_status.connected = false;
+
+                        safety_raise_fault_with_arg(FAULT_BQ40_NOT_CONNECTED, err.data);
+                    }
+                }
+                else {
+                    safety_raise_fault_with_arg(FAULT_BQ40_NOT_CONNECTED, err.data);
+                    // Try to wake up the battery
+                    bq_pulse_wake();
+                }
             }
         }
 
         // Handle fifo affairs
         while (multicore_fifo_rvalid()) {
             sio_fifo_req_t req = { .raw = multicore_fifo_pop_blocking() };
-            if (req.type == BQ_POWER_CYCLE) {
-                bq_open_dschg_temp(req.arg);  // Command is fet open time milliseconds
+            if (shared_status.connected) {
+                // if (req.type == BQ_POWER_CYCLE) {
+                //     bq_open_dschg_temp(req.arg);  // Command is fet open time milliseconds
+                // }
+                // TODO still WIP for pack chemistry, cycle count and stateofhealth
             }
-            // TODO still WIP for pack chemistry, cycle count and stateofhealth
+            else {
+                // Drop the command if we don't support it
+                // Raise fault to show that we couldn't send it
+                safety_raise_fault(FAULT_BQ40_COMMAND_FAIL);
+            }
         }
     }
 }
@@ -162,7 +157,7 @@ static void __time_critical_func(core1_main)(void) {
 
 void core1_init(uint8_t expected_serial) {
     shared_status.lock = spin_lock_init(spin_lock_claim_unused(true));
-    shared_mfg_info.lock = spin_lock_init(spin_lock_claim_unused(true));
+    shared_status.lock = spin_lock_init(spin_lock_claim_unused(true));
 
     sbh_mcu_serial = expected_serial;
     safety_launch_core1(core1_main);
@@ -170,95 +165,68 @@ void core1_init(uint8_t expected_serial) {
 
 bool core1_get_pack_mfg_info(bq_mfg_info_t *pack_info_out) {
     bool read_successful = false;
-    if (read_once_cached) {
-        uint32_t irq = spin_lock_blocking(shared_mfg_info.lock);
-        pack_info_out->serial = shared_mfg_info.pack_info.serial;
-        pack_info_out->mfg_day = shared_mfg_info.pack_info.mfg_day;
-        pack_info_out->mfg_mo = shared_mfg_info.pack_info.mfg_mo;
-        pack_info_out->mfg_year = shared_mfg_info.pack_info.mfg_year;
 
-        for (uint8_t i = 0; i < 21; i++) {
-            pack_info_out->name[i] = shared_mfg_info.pack_info.name[i];
-            if (pack_info_out->name[i] == 0)
-                break;
-        }
-
-        spin_unlock(shared_mfg_info.lock, irq);
+    uint32_t irq = spin_lock_blocking(shared_status.lock);
+    if (shared_status.connected) {
+        memcpy(pack_info_out, (void *) &shared_status.mfg_info, sizeof(shared_status.mfg_info));
         read_successful = true;
     }
+    spin_unlock(shared_status.lock, irq);
+
     return read_successful;
 }
 
 bool core1_check_present(void) {
-    bool present_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    present_out = shared_status.pres_flag;
-    spin_unlock(shared_status.lock, irq);
-    return present_out;
+    // No need to worry about locking, since the only race is that connected will be true and then operation_status will
+    // be invalid after connected turns to false. However, this will never be the case, and in the event connected does
+    // change before reading pres_flag, it changes nothing since operation_status won't get touched
+    if (!shared_status.connected) {
+        return false;
+    }
+    return sbs_check_bit(shared_status.batt_info.operation_status, SBS_OPERATION_STATUS_PRES);
 }
 
 bool core1_check_port_detected(void) {
-    bool port_detected_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    port_detected_out = shared_status.port_detected;
-    spin_unlock(shared_status.lock, irq);
-    return port_detected_out;
+    // TODO: We need to figure out how this will be negotiated, this won't be through refresh
+
+    return shared_status.batt_info.port_detected;
 }
 
 bool core1_dsg_mode(void) {
-    bool dsg_mode_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    dsg_mode_out = shared_status.dsg_mode;
-    spin_unlock(shared_status.lock, irq);
-    return dsg_mode_out;
+    return sbs_check_bit(shared_status.batt_info.battery_status, SBS_BATTERY_STATUS_DSG);
 }
 
-int16_t core1_avg_current(void) {
-    int16_t avg_curr_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    avg_curr_out = shared_status.avg_current;
-    spin_unlock(shared_status.lock, irq);
-    return avg_curr_out;
+int32_t core1_avg_current(void) {
+    return shared_status.batt_info.avg_current;
 }
 
 uint8_t core1_soc(void) {
-    uint8_t soc_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    soc_out = shared_status.soc;
-    spin_unlock(shared_status.lock, irq);
-    return soc_out;
+    return shared_status.batt_info.relative_soc;
 }
 
-uint16_t core1_time_to_empty(void) {
-    uint16_t remaining_time_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    remaining_time_out = shared_status.time_to_empty;
-    spin_unlock(shared_status.lock, irq);
-    return remaining_time_out;
-}
+uint16_t core1_time_remaining(bool *is_charging) {
+    uint16_t remaining;
 
-uint16_t core1_time_to_full(void) {
-    uint16_t remaining_time_out;
     uint32_t irq = spin_lock_blocking(shared_status.lock);
-    remaining_time_out = shared_status.time_to_full;
+    if (sbs_check_bit(shared_status.batt_info.battery_status, SBS_BATTERY_STATUS_DSG)) {
+        *is_charging = false;
+        remaining = shared_status.batt_info.time_to_empty;
+    }
+    else {
+        *is_charging = true;
+        remaining = shared_status.batt_info.time_to_full;
+    }
     spin_unlock(shared_status.lock, irq);
-    return remaining_time_out;
+
+    return remaining;
 }
 
 uint16_t core1_voltage(void) {
-    uint16_t voltage_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    voltage_out = shared_status.voltage;
-    spin_unlock(shared_status.lock, irq);
-    return voltage_out;
+    return shared_status.batt_info.da_status1.pack_voltage;
 }
 
-int16_t core1_current(void) {
-    int16_t current_out;
-    uint32_t irq = spin_lock_blocking(shared_status.lock);
-    current_out = shared_status.current;
-    spin_unlock(shared_status.lock, irq);
-    return current_out;
+int32_t core1_current(void) {
+    return shared_status.batt_info.current;
 }
 
 void core1_open_dsg_temp(const uint32_t open_time_ms) {

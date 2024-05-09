@@ -30,6 +30,10 @@ add_executable(smart_battery
 target_include_directories(smart_battery PUBLIC include)
 pico_generate_pio_header(smart_battery ${CMAKE_CURRENT_LIST_DIR}/src/i2c.pio)
 
+# Extend Core 1 checkin interval that it's okay to not check in within 1 second
+# There are some long running operations that we don't want to choke too much (like bq wake pulse)
+target_compile_definitions(smart_battery PUBLIC SAFETY_CORE1_CHECKIN_INTERVAL_MS=1000)
+
 # Set version: major minor (see titan/version.h for more info)
 titan_generate_version_tag(smart_battery 1 0)
 

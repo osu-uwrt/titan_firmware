@@ -146,8 +146,8 @@ rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     riptide_msgs2__msg__BatteryStatus status;
 
     // push in the common cell info
-    status.cell_name.data = bq_pack_info.name;
-    status.cell_name.size = strlen(bq_pack_info.name);
+    status.cell_name.data = "";
+    status.cell_name.size = 0;
     status.serial = bq_pack_info.serial;
 
     // test for port and stbd
@@ -165,7 +165,8 @@ rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     status.pack_voltage = ((float) core1_voltage()) / 1000.0;
     status.pack_current = ((float) core1_current()) / 1000.0;
     status.average_current = ((float) core1_avg_current()) / 1000.0;
-    status.time_to_dischg = core1_time_to_empty();
+    bool dsg;
+    status.time_to_dischg = core1_time_remaining(&dsg);
     status.soc = core1_soc();
 
     // send out the ros message

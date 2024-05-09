@@ -2,19 +2,18 @@
 #include "bq40z80.h"
 
 #include "pio_smbus.h"
-#include "safety_interface.h"
 
 #include "hardware/gpio.h"
-#include "hardware/watchdog.h"
+#include "pico/time.h"
+#include "titan/logger.h"  // TODO: Remove me
 
 #include <stdio.h>
 #include <string.h>
 
-uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
-uint pio_i2c_program;
+#undef LOGGING_UNIT_NAME
+#define LOGGING_UNIT_NAME "bq40z80"
 
-static bool battery_connected;
-static int err_count = 2;
+const uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
 
 // ========================================
 // BQ40 SMBus Interface
@@ -99,8 +98,8 @@ static int bq_mfg_access_read(uint16_t mac_cmd, uint8_t *rxbuf, size_t *len) {
 
     // Issue the MAC cmd
     uint8_t mac_cmd_buf[] = { mac_cmd & 0xFF, mac_cmd >> 8 };
-    int ret =
-        pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, BQ_MFG_BLK_ACCESS, mac_cmd_buf, sizeof(mac_cmd_buf));
+    int ret = pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_cmd_buf,
+                                        sizeof(mac_cmd_buf));
     if (ret != PIO_SMBUS_SUCCESS) {
         bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
         return ret;
@@ -109,13 +108,14 @@ static int bq_mfg_access_read(uint16_t mac_cmd, uint8_t *rxbuf, size_t *len) {
     // Receive response
     // No need to throttle here it seems
     uint8_t mac_resp[*len + 2];
-    ret = pio_smbus_block_read_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, BQ_MFG_BLK_ACCESS, mac_resp, sizeof(mac_resp));
+    ret = pio_smbus_block_read_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_resp,
+                                   sizeof(mac_resp));
     bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
     if (ret < 0)
         return ret;
 
     // The command must at least contain the command we just sent
-    if (ret < 2 || rxbuf[0] != mac_cmd_buf[0] || rxbuf[1] != mac_cmd_buf[1]) {
+    if (ret < 2 || mac_resp[0] != mac_cmd_buf[0] || mac_resp[1] != mac_cmd_buf[1]) {
         return PIO_SMBUS_ERR_INVALID_RESP;
     }
 
@@ -141,8 +141,8 @@ static int bq_mfg_access_cmd(uint16_t mac_cmd) {
 
     // Issue the MAC cmd
     uint8_t mac_cmd_buf[] = { mac_cmd & 0xFF, mac_cmd >> 8 };
-    int ret =
-        pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, BQ_MFG_BLK_ACCESS, mac_cmd_buf, sizeof(mac_cmd_buf));
+    int ret = pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_cmd_buf,
+                                        sizeof(mac_cmd_buf));
     bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
     return ret;
 }
@@ -196,69 +196,166 @@ static int bq_read_byte(uint8_t cmd, uint8_t *byte_out) {
 // Add checks into all code, and make sure this check is valid
 #define I2CCHECK(func)                                                                                                 \
     do {                                                                                                               \
-        int ret = func;                                                                                                \
-        if (ret)                                                                                                       \
-            return false;                                                                                              \
+        int rc = (func);                                                                                               \
+        if (rc) {                                                                                                      \
+            bq_error_t ret = { .fields = { .error_code = rc, .line = __LINE__ } };                                     \
+            return ret;                                                                                                \
+        }                                                                                                              \
     } while (0)
 
+#define BQERRCHECK(func)                                                                                               \
+    do {                                                                                                               \
+        bq_error_t ret = (func);                                                                                       \
+        if (!BQ_CHECK_SUCCESSFUL(ret))                                                                                 \
+            return ret;                                                                                                \
+    } while (0)
+
+#define BQ_RETURN_SUCCESS                                                                                              \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = BQ_ERROR_SUCCESS, .line = 0, .arg = 0 } };                        \
+        return ret;                                                                                                    \
+    } while (0)
+
+#define BQ_RETURN_ERROR(bq_error)                                                                                      \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = (bq_error), .line = __LINE__, .arg = 0 } };                       \
+        return ret;                                                                                                    \
+    } while (0)
+
+#define BQ_RETURN_ERROR_WITH_ARG(bq_error, arg_val)                                                                    \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = (bq_error), .line = __LINE__, .arg = (uint8_t) (arg_val) } };     \
+        return ret;                                                                                                    \
+    } while (0)
+
+static bq_error_t bq_check_status_successful(void) {
+    uint16_t batt_status;
+    I2CCHECK(bq_read_word(SBS_CMD_BATTERY_STATUS, &batt_status));
+    uint8_t err_code = (batt_status & SBS_BATTERY_STATUS_EC_MASK);
+    if (err_code) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_BATT_STATUS_ERROR, err_code);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
+static bq_error_t bq_read_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
+    size_t lenout = len;
+    I2CCHECK(bq_mfg_access_read(cmd, (uint8_t *) rxbuf, &lenout));
+    if (len != lenout) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_MAC_RESP_LEN, len);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
 // ========================================
-// BQ40 Convenience Wrappers
+// BQ40 Data Flash Read Functions
 // ========================================
 
-/**
- * @brief read bq40z80 manufactured date and name
- *
- * @param mfg_out
- */
-static bool bq40z80_read_mfg_info(bq_mfg_info_t *mfg_out) {
+typedef union bq_data_flash_int {
+    uint8_t u1;
+    uint16_t u2;
+    uint32_t u4;
+    int8_t i1;
+    int16_t i2;
+    int32_t i4;
+} bq_data_flash_int_t;
+
+static bq_error_t bq_read_data_flash_int(uint16_t flash_addr, bq_data_flash_int_t *data_out) {
+    uint8_t read_buf[32];
+    size_t len = sizeof(read_buf);
+    I2CCHECK(bq_mfg_access_read(flash_addr, read_buf, &len));
+    if (len < 4) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_MAC_RESP_LEN, len);
+    }
+    data_out->u4 = read_buf[0] | ((uint32_t) (read_buf[1]) << 8) | ((uint32_t) (read_buf[2]) << 16) |
+                   ((uint32_t) (read_buf[3]) << 24);
+    BQ_RETURN_SUCCESS;
+}
+
+// ========================================
+// BQ40 Refresh Routines
+// ========================================
+
+bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
+    // Device Type
+    BQERRCHECK(bq_read_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
+    // TODO: Assert it matches what we expect
+
+    // Serial Number
+    uint16_t serial;
+    I2CCHECK(bq_read_word(SBS_CMD_SERIAL_NUMBER, &serial));
+    if (serial == 0 || serial == 0xFFFF) {
+        // These are invalid serial numbers, and probably mean I2C communication issues (or an unprogrammed chip)
+        // Refuse to continue
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_SERIAL, serial);
+    }
+    mfg_out->serial = serial;
+
     // Date
     uint16_t raw_date;
-    I2CCHECK(bq_read_word(BQ_READ_CELL_DATE, &raw_date));
+    I2CCHECK(bq_read_word(SBS_CMD_MANUFACTURER_DATE, &raw_date));
     mfg_out->mfg_day = raw_date & 0x1f;
     mfg_out->mfg_mo = (raw_date >> 5) & 0xf;
     mfg_out->mfg_year = (raw_date >> 9) + 1980;
 
-    // Name
-    size_t len = sizeof(mfg_out->name) - 1;
-    I2CCHECK(bq_read_block(BQ_READ_CELL_NAME, (uint8_t *) mfg_out->name, &len));
-    mfg_out->name[len] = 0;
+    // Firmware Version
+    BQERRCHECK(
+        bq_read_block_fixedlen(MFG_CMD_FIRMWARE_VERSION, mfg_out->firmware_version, sizeof(mfg_out->firmware_version)));
 
-    return true;
+    // Current Scale Factor
+    bq_data_flash_int_t scale_factor;
+    BQERRCHECK(bq_read_data_flash_int(0x4AE8, &scale_factor));
+    LOG_INFO("Current Scale Factor: %d", scale_factor.u1);
+    mfg_out->scale_factor = scale_factor.u1;
+
+    // Manufacturing Status
+    I2CCHECK(bq_read_dword(SBS_CMD_MANUFACTURING_STATUS, &mfg_out->manufacturing_status));
+
+    BQ_RETURN_SUCCESS;
 }
 
-/**
- * @brief read bq40z80 SOC, average current, DSG/CHG mode and their respective voltage, current, and time
- *
- * @param bat_out
- */
-static bool bq40z80_read_battery_info(bq_battery_info_t *bat_out) {
+bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t *bat_out) {
     uint16_t data;
-    uint32_t safety_status;
+    int16_t sdata;
 
-    I2CCHECK(bq_read_word(BQ_READ_GPIO, &data));
-    bat_out->port_detected = (data & 0x8) != 0;
-    I2CCHECK(bq_read_word(BQ_READ_PACK_STAT, &data));
-    bat_out->dsg_mode = (data & 0x40) ? true : false;
-    I2CCHECK(bq_read_word(BQ_READ_PACK_VOLT, &bat_out->voltage));
-    // TODO: Fix current scaling!!
-    I2CCHECK(bq_read_sword(BQ_READ_PACK_CURR, &bat_out->current));
-    I2CCHECK(bq_read_word(BQ_READ_TIME_EMPT, &bat_out->time_to_empty));
-    I2CCHECK(bq_read_word(BQ_READ_CHG_VOLT, &bat_out->chg_voltage));
-    I2CCHECK(bq_read_word(BQ_READ_CHG_CURR, &bat_out->chg_current));
-    I2CCHECK(bq_read_word(BQ_READ_TIME_FULL, &bat_out->time_to_full));
-    I2CCHECK(bq_read_sword(BQ_READ_AVRG_CURR, &bat_out->avg_current));
-    I2CCHECK(bq_read_byte(BQ_READ_RELAT_SOC, &bat_out->soc));
-    // Checks for Battery Presense and Safety Status alarms
-    I2CCHECK(bq_read_dword(BQ_READ_OPER_STAT, &safety_status));
-    bat_out->battery_presence = (safety_status & 0x1) != 0;
-    if ((safety_status & 0x800) != 0) {
-        I2CCHECK(bq_read_dword(BQ_READ_SAFE_STAT, &safety_status));
-        safety_raise_fault_with_arg(FAULT_BQ40_SAFETY_STATUS, safety_status);
+    // Make sure the serial number matches the expected serial number
+    // Final sanity check to make sure comms are working properly
+    uint16_t serial;
+    I2CCHECK(bq_read_word(SBS_CMD_SERIAL_NUMBER, &serial));
+    if (serial != mfg_info->serial) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_SERIAL_CHANGED, serial);
     }
-    return true;
+
+    // Refresh all of the fields we care about
+    I2CCHECK(bq_read_dword(SBS_CMD_OPERATION_STATUS, &bat_out->operation_status));
+    BQERRCHECK(bq_read_block_fixedlen(SBS_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
+    I2CCHECK(bq_read_sword(SBS_CMD_CURRENT, &sdata));
+    bat_out->current = ((int32_t) sdata) * mfg_info->scale_factor;
+    I2CCHECK(bq_read_sword(SBS_CMD_AVERAGE_CURRENT, &sdata));
+    bat_out->avg_current = ((int32_t) sdata) * mfg_info->scale_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_TEMPERATURE, &bat_out->temperature));
+    I2CCHECK(bq_read_byte(SBS_CMD_MAX_ERROR, &bat_out->max_error));
+    I2CCHECK(bq_read_byte(SBS_CMD_RELATIVE_STATE_OF_CHARGE, &bat_out->relative_soc));
+    I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_EMPTY, &bat_out->time_to_empty));
+    I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_FULL, &bat_out->time_to_full));
+    I2CCHECK(bq_read_word(SBS_CMD_BATTERY_STATUS, &bat_out->battery_status));
+    I2CCHECK(bq_read_word(SBS_CMD_CHARGING_VOLTAGE, &bat_out->charging_voltage));
+    I2CCHECK(bq_read_sword(SBS_CMD_CHARGING_CURRENT, &sdata));
+    bat_out->charging_current = ((int32_t) sdata) * mfg_info->scale_factor;
+
+    I2CCHECK(bq_read_word(SBS_CMD_GPIO_READ, &data));
+    bat_out->port_detected = sbs_check_bit(data, SBS_GPIO_READ_RH1);
+
+    BQ_RETURN_SUCCESS;
 }
 
-void bq40z80_update_soc_leds(uint8_t soc) {
+// ========================================
+// BQ40 Init/IO Routines
+// ========================================
+
+void bq_update_soc_leds(uint8_t soc) {
     uint8_t state = 0;
     if (soc > WARN_SOC_THRESH) {
         state = 2;
@@ -271,7 +368,13 @@ void bq40z80_update_soc_leds(uint8_t soc) {
     }
 }
 
-void bq40z80_init() {
+void bq_pulse_wake(void) {
+    gpio_put(BMS_WAKE_PIN, 1);
+    sleep_ms(BATT_WAKE_PULSE_DURATION_MS);
+    gpio_put(BMS_WAKE_PIN, 0);
+}
+
+void bq_init() {
     // Init the wake pin, active high
     gpio_init(BMS_WAKE_PIN);
     gpio_set_dir(BMS_WAKE_PIN, GPIO_OUT);
@@ -284,109 +387,60 @@ void bq40z80_init() {
     }
 
     // init PIO I2C
-    pio_i2c_program = pio_add_program(BQ_PIO_INST, &i2c_program);
+    uint pio_i2c_program = pio_add_program(BQ_PIO_INST, &i2c_program);
     pio_sm_claim(BQ_PIO_INST, BQ_PIO_SM);
     i2c_program_init(BQ_PIO_INST, BQ_PIO_SM, pio_i2c_program, BMS_SDA_PIN, BMS_SCL_PIN);
-
-    battery_connected = false;
 }
 
-bool bq40z80_refresh_reg(uint8_t sbh_mcu_serial, bool read_once, bq_battery_info_t *bat_out, bq_mfg_info_t *mfg_out) {
-    uint16_t serial;
-    // Better handling between serial errors and connection faults
-    int ret = bq_read_word(BQ_READ_CELL_SERI, &serial);
-    if (ret || serial == 0xffff || serial == 0x0000) {
-        // handle refresh fail error
-        if (battery_connected) {
-            err_count++;
-            if (err_count >= 3) {
-                battery_connected = false;
-                safety_raise_fault_with_arg(FAULT_BQ40_NOT_CONNECTED, -ret);
-            }
-        }
-        else {
-            safety_raise_fault_with_arg(FAULT_BQ40_NOT_CONNECTED, -ret);
-            // wake up battery and wait for 1 second
-            gpio_put(BMS_WAKE_PIN, 1);
-            sleep_ms(1000);
-            gpio_put(BMS_WAKE_PIN, 0);
-        }
+// ========================================
+// BQ40 Commands
+// ========================================
 
-        return false;
-    }
-    else if (serial != sbh_mcu_serial) {
-        safety_raise_fault_with_arg(FAULT_BQ40_MISMATCHED_SERIAL, (sbh_mcu_serial << 16) | serial);
-        // TODO: Should this be fatal?
-        return false;
-    }
-    else {
-        err_count = 0;
-        if (!battery_connected) {
-            battery_connected = true;
-        }
-        if (!read_once) {
-            // TODO: read_once should probably be related to connection sequence
-            mfg_out->serial = serial;
-            bq40z80_read_mfg_info(mfg_out);
-        }
-        bq40z80_read_battery_info(bat_out);
-        return true;
-    }
+bq_error_t bq_emshut_enter(void) {
+    // TODO: Make sure that MFC_DISABLE won't rocket the MCU into undefined states
+
+    // Send the 2 command sequence to enable Manual FET Control Emergency Shutdown
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_ENABLE_A));
+    BQERRCHECK(bq_check_status_successful());
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_ENABLE_B));
+    BQERRCHECK(bq_check_status_successful());
+
+    BQ_RETURN_SUCCESS;
 }
 
-static bool bq_pack_discharging() {
-    // TODO: Better error handling
-    uint32_t oper_stat;
-    I2CCHECK(bq_read_dword(BQ_READ_OPER_STAT, &oper_stat));
-
-    // test the discharge bit (bit 1)
-    return !!(oper_stat & 0x2);
-}
-
-// WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the
-// watchdog during execution as to not time the system out. This must be done to maintain MAC synchronicity
-// with the BQ chip during manual fet control
-bool bq_open_dschg_temp(const int64_t open_time_ms) {
-    // test operation status to determine if output is not on
-    if (!bq_pack_discharging()) {
-        // bail, dont want to tun on the output manually
-        return false;
-    }
-
-    // send Emergency FET override command to take manual control
-    I2CCHECK(bq_mfg_access_cmd(BQ_MAC_EMG_FET_CTRL_CMD));
-
-    // send emergency fet off command
-    I2CCHECK(bq_mfg_access_cmd(BQ_MAC_EMG_FET_OFF_CMD));
-
-    absolute_time_t fet_off_command_end = make_timeout_time_ms(open_time_ms);
-    while (bq_pack_discharging() && !time_reached(fet_off_command_end)) {
-        sleep_ms(10);
-        // also feed the watchdog so we dont reset
-        safety_core1_checkin();
-    }
-
-    uint16_t pack_stat;
-    I2CCHECK(bq_read_word(BQ_READ_PACK_STAT, &pack_stat));
-    if (pack_stat & 0x7) {
-        uint32_t err_code = (pack_stat & 0x7);
-        safety_raise_fault_with_arg(FAULT_BQ40_COMMAND_FAIL, err_code);
-    }
-
-    // verify fet is actually open via operation status
-    if (bq_pack_discharging()) {
-        // this is a bad state. we requested fet open and it didnt happen
-        I2CCHECK(bq_mfg_access_cmd(BQ_MAC_RESET_CMD));
-        safety_raise_fault_with_arg(FAULT_BQ40_COMMAND_FAIL, 0);
-    }
-
+bq_error_t bq_emshut_exit(void) {
     // send a cleanup reset command
-    I2CCHECK(bq_mfg_access_cmd(BQ_MAC_EMG_FET_ON_CMD));
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_DISABLE));
+    BQERRCHECK(bq_check_status_successful());
 
-    return true;
+    BQ_RETURN_SUCCESS;
 }
 
-bool bq_cycle_count(uint16_t *cycles_out) {
-    I2CCHECK(bq_read_word(BQ_READ_CYCLE_COUNT, cycles_out));
-    return true;
+bq_error_t bq_cycle_count(uint16_t *cycles_out) {
+    I2CCHECK(bq_read_word(SBS_CMD_CYCLE_COUNT, cycles_out));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_side_detect(bool *side_det_high_out) {
+    uint16_t data;
+    I2CCHECK(bq_read_word(SBS_CMD_GPIO_READ, &data));
+    *side_det_high_out = sbs_check_bit(data, SBS_GPIO_READ_RH1);
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_state_of_health(uint8_t *soh_out) {
+    I2CCHECK(bq_read_byte(SBS_CMD_STATE_OF_HEALTH, soh_out));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, uint32_t *full_charge_capacity,
+                            uint32_t *remaining_capacity) {
+    uint16_t data;
+    I2CCHECK(bq_read_word(SBS_CMD_DESIGN_CAPACITY, &data));
+    *design_capacity = ((uint32_t) data) * scaling_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_FILTERED_CAPACITY, &data));
+    *full_charge_capacity = ((uint32_t) data) * scaling_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_REMAINING_CAPACITY, &data));
+    *remaining_capacity = ((uint32_t) data) * scaling_factor;
+    BQ_RETURN_SUCCESS;
 }

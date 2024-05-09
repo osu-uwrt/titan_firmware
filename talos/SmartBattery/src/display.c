@@ -4,6 +4,7 @@
 #include "uwrt_logo.h"
 
 #include "driver/ssd1306.h"
+#include "hardware/gpio.h"
 #include "pico/time.h"
 
 #include <stdbool.h>
@@ -14,7 +15,11 @@
 // How long to show splash screen on startup
 #define DISPLAY_SPLASH_TIME_MS 1000
 // How long to show an interactive screen
-#define DISPLAY_HOLD_MS 10000
+#define DISPLAY_HOLD_MS 15000
+// How long before the display fades out that the contrast should be dimmed
+#define DISPLAY_DIM_TIME_MS 5000
+// The contrast of the display when in the dim state
+#define DISPLAY_DIM_CONTRAST 0x10
 // How long to show a message on the screen
 #define DISPLAY_MESSAGE_TIME_MS 2000
 // Need to hold the reed switch for 2 seconds to register as a switch hold
@@ -94,15 +99,10 @@ struct display_state {
     bool last_switch_state;            // State of the button when it was last held down
     uint8_t selected_idx;              // Index for the currently selected menu button
     bool msg_pending;                  // Set to true by draw message function before calling tick, to enter msg state
+    uint8_t last_contrast;             // The last display contrast value
 };
 
-// Set initial state values
-static struct display_state state = { .cur_target = { .op = OP_STARTUP },
-                                      .next_state_time = { 0 },
-                                      .next_redraw = { 0 },
-                                      .btn_hold_timeout = { 0 },
-                                      .last_switch_state = false,  // Should be filled out in display init
-                                      .selected_idx = 0 };
+static struct display_state state = {};
 
 static void display_show_menu(const menu_definition_arr menu_def, uint selected_idx, uint circle_fill_deg) {
     // Clear screen and draw bar for the selected menu entry
@@ -187,15 +187,8 @@ static void display_show_main_screen(enum screen_type selected_screen) {
 
     // Draw bottom right details section
     if (selected_screen == SCREEN_SOC) {
-        bool dsg_mode = core1_dsg_mode();
-        uint16_t time_remaining;
-
-        if (dsg_mode) {
-            time_remaining = core1_time_to_empty();
-        }
-        else {
-            time_remaining = core1_time_to_full();
-        }
+        bool dsg_mode;
+        uint16_t time_remaining = core1_time_remaining(&dsg_mode);
 
         if (time_remaining != 65535) {
             // If we have a valid time reamining, render it
@@ -211,10 +204,10 @@ static void display_show_main_screen(enum screen_type selected_screen) {
 
             ssd1306_SetCursor(86, 22);
             if (dsg_mode) {
-                display_format_remaining_time(buf, sizeof(buf), core1_time_to_empty());
+                display_format_remaining_time(buf, sizeof(buf), time_remaining);
             }
             else {
-                display_format_remaining_time(buf, sizeof(buf), core1_time_to_full());
+                display_format_remaining_time(buf, sizeof(buf), time_remaining);
             }
             ssd1306_WriteString(buf, Font_7x10, White);
         }
@@ -250,7 +243,23 @@ void display_tick() {
     display_target_t target_state = state.cur_target;
     uint8_t new_selected_idx = state.selected_idx;
 
-    // Stage 1: Check if we got a switch tap/hold event
+    // Stage 1: Check current state
+
+    // Compute if the display should be dimmed (if we stay on the current state)
+    bool display_should_dim = false;
+    switch (state.cur_target.op) {
+    case OP_SHOW_MENU:
+    case OP_SHOW_SCREEN:
+        if (absolute_time_diff_us(delayed_by_ms(get_absolute_time(), DISPLAY_DIM_TIME_MS), state.next_state_time) < 0) {
+            display_should_dim = true;
+        }
+        break;
+    // All other states don't have dimming
+    default:
+        break;
+    }
+
+    // Compute Button Hold/Tap Events
     bool cur_switch_state = gpio_get(SWITCH_SIGNAL_PIN);
 
     bool switch_tap_fired = false;   // True if the switch was tapped
@@ -271,6 +280,19 @@ void display_tick() {
         state.btn_hold_timeout = nil_time;
     }
     state.last_switch_state = cur_switch_state;
+
+    // If the switch is tapped in interactive states, clear the display hold timeout
+    // This allows the screen to be kept alive by the user tapping the button
+    if (switch_tap_fired) {
+        switch (state.cur_target.op) {
+        case OP_SHOW_SCREEN:
+        case OP_SHOW_MENU:
+            state.next_state_time = make_timeout_time_ms(DISPLAY_HOLD_MS);
+            break;
+        default:
+            break;
+        }
+    }
 
     // Stage 2: Determine the next target state based on button presses and timers
     // This will write target_state depending on previous state and button state
@@ -306,8 +328,15 @@ void display_tick() {
             new_selected_idx %= NUM_MENU_ENTRIES;
             break;
         case OP_SHOW_SCREEN:
-            target_state.op = OP_SHOW_MENU;
-            target_state.op_data.menu_target = MENU_MAIN;
+            // If display is dimmed, just let the code in stage 1 brighten the screen
+            // But, if it's full brightness, show the menu
+            if (!display_should_dim) {
+                target_state.op = OP_SHOW_MENU;
+                target_state.op_data.menu_target = MENU_MAIN;
+            }
+            else {
+                display_should_dim = false;
+            }
             break;
         case OP_DISPLAY_OFF:
             target_state.op = OP_SHOW_SCREEN;
@@ -361,12 +390,24 @@ void display_tick() {
     bool redraw_needed =
         time_reached(state.next_redraw) || state_transitioned || (new_selected_idx != state.selected_idx);
 
+    // If the display is idle, dim the display after inactive for a while
+    uint8_t target_contrast = target_state.op == OP_DISPLAY_OFF ? 0 : 0xFF;
+    if (!state_transitioned && display_should_dim) {
+        target_contrast = DISPLAY_DIM_CONTRAST;
+    }
+
     // Stage 4: Update the display according to the new display state
     // Do not write target_state, state_transitioned or redraw_needed variables after this point
 
     // Need to send the display on command if we transitioned from display off
     if (state_transitioned && state.cur_target.op == OP_DISPLAY_OFF) {
         ssd1306_SetDisplayOn(1);
+    }
+
+    // Need to change the contrast if the current display contrast doesn't match what we expect
+    if (state.last_contrast != target_contrast) {
+        ssd1306_SetContrast(target_contrast);
+        state.last_contrast = target_contrast;
     }
 
     if (redraw_needed) {
@@ -411,8 +452,6 @@ void display_tick() {
             if (state_transitioned) {
                 // Need to reset the menu index to the top
                 new_selected_idx = 0;
-            }
-            if (state_transitioned || new_selected_idx != state.selected_idx) {
                 // Refresh state timeout if we changed index or we are on a new state
                 state.next_state_time = make_timeout_time_ms(DISPLAY_HOLD_MS);
             }
@@ -473,10 +512,16 @@ void display_tick() {
     state.selected_idx = new_selected_idx;
 }
 
-void display_show_msg(const char *msg) {
+void display_show_msg(const char *msg, const char *submsg) {
     ssd1306_Fill(Black);
-    ssd1306_SetCursor(0, 7);
-    ssd1306_WriteString(msg, Font_11x18, White);
+    if (msg && *msg) {
+        ssd1306_SetCursor(0, 0);
+        ssd1306_WriteString(msg, Font_11x18, White);
+    }
+    if (submsg && *submsg) {
+        ssd1306_SetCursor(0, 24);
+        ssd1306_WriteString(submsg, Font_6x8, White);
+    }
     ssd1306_UpdateScreen();
 
     state.msg_pending = true;

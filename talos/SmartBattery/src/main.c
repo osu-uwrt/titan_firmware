@@ -50,9 +50,10 @@ uint can_id;
  * @return true The timer has fired, any action which was waiting for this timer should occur
  * @return false The timer has not fired
  */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
+static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
+        bool is_first_fire = is_nil_time(time_tmp);
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0;
@@ -60,10 +61,12 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
-                     next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            if (!is_first_fire) {
+                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                         next_fire_ptr);
+                if (error_on_miss)
+                    safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            }
         }
         *next_fire_ptr = time_tmp;
         return true;
@@ -182,7 +185,7 @@ int main() {
     // Load the serial number
     uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
     if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
-        display_show_msg("No Ser# Err");
+        display_show_msg("No Ser# Err", "");
         panic("Unprogrammed serial number");
     }
 
@@ -192,19 +195,21 @@ int main() {
     uint8_t retry = 0;
     do {
         if (++retry > 5) {
-            display_show_msg("Init Failed");
+            display_show_msg("Init Failed", "");
             panic("BQ Init Failed");
         }
         if (retry > 1) {
             char msg[] = "BQ Con #X";
             msg[8] = retry + 48;
-            display_show_msg(msg);
+            char submsg[16];
+            snprintf(submsg, sizeof(submsg), "Err: 0x%08lX", safety_fault_data[FAULT_BQ40_NOT_CONNECTED].extra_data);
+            display_show_msg(msg, submsg);
         }
         sleep_ms(1000);
         safety_tick();
     } while (!core1_get_pack_mfg_info(&bq_mfg_info));
 
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_mfg_info.name, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
+    LOG_INFO("pack %d, mfg %d/%d/%d, SER# %d", bq_mfg_info.device_type, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
              bq_mfg_info.mfg_year, bq_mfg_info.serial);
 
     // Initialize ROS Transports
@@ -229,7 +234,7 @@ int main() {
         if (is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
-                display_show_msg("ROS Connect");
+                display_show_msg("ROS Connect", "");
 
                 // Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
@@ -255,7 +260,7 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
-            display_show_msg("ROS Lost");
+            display_show_msg("ROS Lost", "");
             ros_initialized = false;
         }
         else {

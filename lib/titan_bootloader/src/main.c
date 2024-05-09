@@ -89,6 +89,9 @@ int main(void) {
     // we can go back into the bootloader. Even if the main image is bootlooping, the boot delay allows recovery
     watchdog_enable(WATCHDOG_TIMEOUT_MS, true);
 
+    // Perform early bl interface initialization
+    bool early_init_successful = bl_interface_early_init();
+
     // Initialize Status LED
     status_led_init();
 
@@ -98,7 +101,7 @@ int main(void) {
     dbg_uart_puts(FULL_BUILD_TAG);
 
     // Initialize CAN Bus
-    if (!bl_interface_init()) {
+    if (!early_init_successful || !bl_interface_init()) {
         dbg_uart_puts("BL Interface Init Fail!");
 
         // If CAN fails to bring up, just abort (and change the LED to show that it messed up)

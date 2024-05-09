@@ -46,9 +46,10 @@ absolute_time_t next_auxswitch_publish = { 0 };
  * @return true The timer has fired, any action which was waiting for this timer should occur
  * @return false The timer has not fired
  */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
+static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
+        bool is_first_fire = is_nil_time(time_tmp);
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0;
@@ -56,10 +57,12 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
-                     next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            if (!is_first_fire) {
+                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                         next_fire_ptr);
+                if (error_on_miss)
+                    safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            }
         }
         *next_fire_ptr = time_tmp;
         return true;
