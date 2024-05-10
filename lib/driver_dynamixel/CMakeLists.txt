@@ -5,6 +5,7 @@ target_sources(driver_dynamixel INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/dynamixel.c
     ${CMAKE_CURRENT_LIST_DIR}/src/dxl_packet.c
     ${CMAKE_CURRENT_LIST_DIR}/src/dynamixel_comms.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/dynamixel_canmore_cmds.c
     ${CMAKE_CURRENT_LIST_DIR}/src/dynamixel_reg.c
     ${CMAKE_CURRENT_LIST_DIR}/src/dynamixel_schedule.c
 )

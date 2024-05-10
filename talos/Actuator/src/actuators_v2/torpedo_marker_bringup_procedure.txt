@@ -9,16 +9,15 @@ Procedure to bring up torpedo/markers:
   - Also ensure that there is a 3.3-5V level shifter between the RP2040 and the dynamixel. The communication is bidirectional
     and the dynamixel *will* respond at a 5V logic level
 3. Assign the Dynamixel ID from the default of 1 to the torpedo/marker id (2 at this time of writing)
-  - Call dynamixel_set_id(1, <new id here>) in the actuators_initialize function (after dynamixel_init is called)
-  - Make sure to remove this call and re-upload the firmware after the ID is successfully programmed
+  - Using canmore cli, issue the '@dynwrite 1 7 u8 2' command to write the ID register of dynamixel 1 to 2
   - If multiple servos are chained together, you MUST disconnect any unprogrammed servos, as there can only be one
-    servo with a given ID on the bus at any point in time. Note that dynamixels start with the ID of 1
-  - The torpedo/marker ID is not 1 to allow new dynamixels to be added into the chain, without needing to shuffle around
-    ids during the process.
+    servo with a given ID on the bus at any point in time. Note that dynamixels come from the factory with the ID of 1
+  - This is why the torpedo/marker ID is 2, rather than the default of 1, to allow new dynamixels to be added into the
+    chain, without needing to shuffle around ids during the process.
 4. Connect to actuator board over ROS, ensure the torpedo marker dynamixel is detected
   - The /<robot>/state/actuator/dynamixel topic reports all of the dynamixels known to firmware, ensure that a message
     with the ID assigned to the dynamixel is publishing
-5. Move the shaft until the cam is in the home position (pointing up at 12:00)
+5. Move the shaft until the cam is in the home position
 6. Set the dynamixel home position.
   - Dynamixels allow their "home" position to be set, which adds/subtracts the true dynamixel orientation by this amount
   - This allows the zero position to be specified for the servo, as this location changes for each torpedo marker

@@ -2,6 +2,7 @@
 #include "driver/dynamixel.h"
 
 #include "async_uart.h"
+#include "dynamixel_canmore_cmds.h"
 #include "dynamixel_comms.h"
 #include "dynamixel_controls.h"
 #include "dynamixel_schedule.h"
@@ -70,6 +71,9 @@ void dynamixel_init(PIO pio, uint sm, uint pin, const dynamixel_id *id_list, siz
 
     // Initialize the dynamixel command scheduler
     dynamixel_schedule_init(id_list, id_cnt, error_cb, event_cb);
+
+    // Register canmore commands for debug access
+    dynamixel_canmore_cmds_register();
 }
 
 void dynamixel_request_eeprom_rescan(dynamixel_id id) {

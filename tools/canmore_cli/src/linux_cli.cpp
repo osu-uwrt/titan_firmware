@@ -1,5 +1,6 @@
 #include "CLIBackends.hpp"
 #include "CLIInterface.hpp"
+#include "CameraSocketListener.hpp"
 #include "DeviceMap.hpp"
 #include "FileTransferTask.hpp"
 #include "RemoteTTYClientTask.hpp"
@@ -220,6 +221,37 @@ public:
     }
 };
 
+class LinuxCameraCommand : public CLICommandHandler<Canmore::LinuxClient> {
+public:
+    LinuxCameraCommand(): CLICommandHandler("camera_server") {}
+
+    std::string getArgList() const override { return "[optional port (defaults to 3005)]"; }
+    std::string getHelp() const override { return "Launches a camera server to receive images over CANmore"; }
+
+    void callback(CLIInterface<Canmore::LinuxClient> &interface, std::vector<std::string> const &args) override {
+        (void) args;
+        auto canClient = std::dynamic_pointer_cast<Canmore::RegMappedCANClient>(interface.handle->client);
+        if (canClient) {
+            uint32_t port = 3005;
+            if (args.size() > 0) {
+                if (!decodeU32(args.at(0), port, UINT16_MAX - 1)) {
+                    interface.writeLine("Invalid port number");
+                    return;
+                }
+            }
+
+            interface.writeLine(COLOR_NAME "Listening for connections on port " + std::to_string(port) + COLOR_RESET);
+            CameraSocketListener listener(port, canClient->ifIndex, canClient->clientId);
+            listener.run();
+            interface.writeLine(COLOR_NAME "Server Stopped" COLOR_RESET);
+        }
+        else {
+            interface.writeLine(COLOR_ERROR
+                                "Current interface is not CAN bus, cannot create camera listener" COLOR_RESET);
+        }
+    }
+};
+
 class LinuxSystemCmdPrefix : public CLICommandPrefixHandler<Canmore::LinuxClient> {
 public:
     LinuxSystemCmdPrefix(): CLICommandPrefixHandler('!') {}
@@ -334,6 +366,7 @@ LinuxCLI::LinuxCLI(std::shared_ptr<Canmore::LinuxClient> handle): CLIInterface(h
     registerCommand(std::make_shared<LinuxLsCommand>());
     registerCommand(std::make_shared<LinuxPwdCommand>());
     registerCommand(std::make_shared<LinuxRemoteTTYCommand>());
+    registerCommand(std::make_shared<LinuxCameraCommand>());
     registerCommandPrefix(std::make_shared<LinuxSystemCmdPrefix>());
     registerCommandPrefix(std::make_shared<LinuxRemoteCmdPrefix>());
     setBackgroundTask(std::make_shared<LinuxKeepaliveTask>());

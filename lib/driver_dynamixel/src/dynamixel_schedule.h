@@ -1,6 +1,9 @@
 #ifndef DYNAMIXEL_SCHEDULER_H
 #define DYNAMIXEL_SCHEDULER_H
 
+#include "dxl_packet.h"
+#include "dynamixel_comms.h"
+
 #include "driver/dynamixel.h"
 
 struct dynamixel_state {
@@ -50,5 +53,46 @@ void dynamixel_schedule_eeprom_read(dynamixel_id id);
  * @return struct dynamixel_state* Pointer to the dynamixel state, or NULL if the ID is not tracked
  */
 struct dynamixel_state *dynamixel_schedule_get_state_ptr(dynamixel_id id);
+
+/**
+ * @brief Returns pointer to the dynamixel state array, and writes the number of servos in the array.
+ *
+ * @param num_servos_out Pointer to write the number of servos in the state array
+ * @return struct dynamixel_state* Pointer to the state array, or NULL if no servos are available
+ */
+struct dynamixel_state *dynamixel_schedule_get_state_array(size_t *num_servos_out);
+
+// ========================================
+// Low Level Queueing
+// ========================================
+// These functions are to queue custom packets into the buffer
+
+/**
+ * @brief Function to perform all the common steps after a transfer is done and ready to release the trasnfer lock.
+ *
+ * @attention This function should only be called at the end of your callback function for
+ *
+ * @attention This function must be called with transfer lock held dynamixel_schedule_raw_packet
+ */
+void dynamixel_schedule_next_transfer_or_release(void);
+
+/**
+ * @brief Schedule a raw dynamixel packet to be sent.
+ *
+ * @note This should only be used for low-level debug systems (like canmore commands). This directly calls the callback
+ * function, and requires that the callback handle all error conditions. If you are writing code to interact with the
+ * dynamixel, you should instead use the functions defined above, which will properly call the error_cb set during
+ * initialization. Only use this if you know what you're doing!
+ *
+ * @attention The callback MUST call dynamixel_schedule_next_transfer_or_release() at the end of the callback. Failure
+ * to do so will stall the dynamixel driver, preventing any future transfers from firing.
+ *
+ * @param packet The dynamixel packet info to transmit (created by dynamixel create packet calls)
+ * @param callback The callback to fire when the transfer completes (called on both success and failure)
+ * @return true The packet was successfully scheduled
+ * @return false The packet failed to schedule (packet buffer was larger than DYNAMIXEL_PACKET_BUFFER_SIZE, or the queue
+ * was full)
+ */
+bool dynamixel_schedule_raw_packet(InfoToMakeDXLPacket_t *packet, dynamixel_request_cb callback);
 
 #endif

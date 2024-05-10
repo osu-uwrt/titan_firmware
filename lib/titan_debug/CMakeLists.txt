@@ -10,6 +10,8 @@ target_include_directories(titan_debug INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
+target_compile_definitions(titan_debug INTERFACE TITAN_DEBUG_PRESENT=1)
+
 target_link_libraries(titan_debug INTERFACE
     canmore
     hardware_watchdog

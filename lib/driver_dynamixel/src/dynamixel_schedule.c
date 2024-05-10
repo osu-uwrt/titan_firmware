@@ -95,8 +95,6 @@ static void initial_eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_r
 static void initial_ram_read_cb(dynamixel_error_t err, struct dynamixel_req_result *result);
 static void initial_torque_disable_cb(dynamixel_error_t err, struct dynamixel_req_result *result);
 
-static void process_next_transfer_or_release(void);
-
 // ========================================
 // Synchronization Primitives
 // ========================================
@@ -230,13 +228,13 @@ static void trigger_next_refresh(void) {
     if (!QUEUE_EMPTY(&inst->cmd_queue)) {
         inst->refresh_active = false;
         inst->refresh_pending = true;
-        process_next_transfer_or_release();
+        dynamixel_schedule_next_transfer_or_release();
         return;
     }
 
     if (inst->next_index_to_refresh >= inst->servo_count) {
         inst->refresh_active = false;
-        process_next_transfer_or_release();
+        dynamixel_schedule_next_transfer_or_release();
         return;
     }
 
@@ -273,24 +271,12 @@ static void handle_refresh_transfer_done(void) {
 
 static bool check_refresh_response_valid(dynamixel_error_t err, struct dynamixel_req_result *result) {
     struct dynamixel_state *servo = &inst->servo_states[inst->next_index_to_refresh];
+    (void) servo;
+    (void) result;
 
     // Check that a driver error wasn't reported
     if (err.fields.error != DYNAMIXEL_ERROR_NONE) {
         LOG_DEBUG("[ID: %d, INSTR: %d] Error during refresh: 0x%08lx", servo->id, result->instr, err.data);
-        return false;
-    }
-
-    // Make sure the device we want is the one that responded
-    assert(servo->id == result->request_id);  // Ensure the state didn't get desynchronized
-    if (result->packet->id != servo->id) {
-        LOG_DEBUG("[ID: %d, INSTR: %d] Unexpected device %d responded", servo->id, result->instr, result->packet->id);
-        return false;
-    }
-
-    // Check that the packet didn't report an error (alert bit is separate)
-    if (result->packet->err_idx & 0x7F) {
-        LOG_DEBUG("[ID: %d, INSTR: %d] Error field set in response: %d", servo->id, result->instr,
-                  result->packet->err_idx);
         return false;
     }
 
@@ -319,7 +305,7 @@ static void periodic_ram_read_cb(dynamixel_error_t err, struct dynamixel_req_res
     if (!QUEUE_EMPTY(&inst->cmd_queue)) {
         inst->refresh_active = false;
         inst->refresh_pending = true;
-        process_next_transfer_or_release();
+        dynamixel_schedule_next_transfer_or_release();
         return;
     }
 
@@ -422,13 +408,45 @@ static void initial_torque_disable_cb(dynamixel_error_t err, struct dynamixel_re
 // Command Queue
 // ========================================
 
+bool dynamixel_schedule_raw_packet(InfoToMakeDXLPacket_t *packet, dynamixel_request_cb callback) {
+    // Don't allow packets greater than max buffer size to be queued
+    if (packet->generated_packet_length > DYNAMIXEL_PACKET_BUFFER_SIZE) {
+        return false;
+    }
+
+    // Add in command in critical section
+    uint32_t prev_interrupts = save_and_disable_interrupts();
+
+    if (QUEUE_FULL(&inst->cmd_queue)) {
+        restore_interrupts(prev_interrupts);
+        return false;
+    }
+
+    struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&inst->cmd_queue);
+    memcpy(&entry->packet, packet, sizeof(*packet));
+    memcpy(entry->packet_buf, packet->p_packet_buf, packet->generated_packet_length);
+    // Fix up the packet buffer pointer
+    entry->packet.p_packet_buf = entry->packet_buf;
+    entry->callback = callback;
+    QUEUE_MARK_WRITE_DONE(&inst->cmd_queue);
+
+    restore_interrupts(prev_interrupts);
+
+    // If we can get the lock, begin the transfer
+    // If we couldn't then whoever has it will queue us when its ready
+    if (try_get_transfer_lock()) {
+        dynamixel_schedule_next_transfer_or_release();
+    }
+    return true;
+}
+
 /**
  * @brief Utility function to perform all the common steps after a transfer is done and ready to release the trasnfer
  * lock.
  *
  * @attention This function must be called with transfer lock held
  */
-static void process_next_transfer_or_release() {
+void dynamixel_schedule_next_transfer_or_release(void) {
     assert(inst->transfer_active);
 
     // Pending commands get highest priority
@@ -464,31 +482,23 @@ static void process_next_transfer_or_release() {
  * @param result The transfer result,
  */
 static void write_cmd_cb(dynamixel_error_t err, struct dynamixel_req_result *result) {
-    // Check that a driver error wasn't reported
+    (void) result;
+
+    // Report if error occurred
     if (err.fields.error != DYNAMIXEL_ERROR_NONE) {
         LOG_DEBUG("Error executing queued command: 0x%08lx", err.data);
         inst->error_cb(err);
     }
 
-    // Check that the packet didn't report an error
-    else if (result->packet->err_idx & 0x7F) {
-        LOG_DEBUG("Error response set in queued command: %d", result->packet->err_idx);
-        dynamixel_report_error_with_arg(DYNAMIXEL_HARDWARE_ERROR, result->packet->err_idx);
-    }
-
-    else if (result->request_id != result->packet->id) {
-        LOG_DEBUG("Mismatched ID: %d expected, %d received", result->request_id, result->packet->id);
-        dynamixel_report_error_with_arg(DYNAMIXEL_INVALID_ID, result->packet->id);
-    }
-
-    process_next_transfer_or_release();
+    dynamixel_schedule_next_transfer_or_release();
 }
 
 void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, uint8_t *data, size_t data_len) {
-    size_t max_pkt_len = 13 + (4 * ((data_len) / 3));  // Worst case calculations for packet write with byte stuffing
-    // Address shouldn't trigger byte stuffing since we should never write address 0xFFFx
+    size_t max_pkt_len = dynamixel_calc_packet_worst_case_len(dynamixel_write_packet_param_hdr_len + data_len);
 
     // Limit max length to the buffer size in queue
+    // This isn't fatal, since we calculated worst case
+    // If the packet can't fit into this, then the create packet call will fail
     if (max_pkt_len > DYNAMIXEL_PACKET_BUFFER_SIZE) {
         max_pkt_len = DYNAMIXEL_PACKET_BUFFER_SIZE;
     }
@@ -505,30 +515,11 @@ void dynamixel_schedule_write_packet(dynamixel_id id, uint16_t start_address, ui
         return;
     }
 
-    // Add in command in critical section
-    uint32_t prev_interrupts = save_and_disable_interrupts();
-
-    if (QUEUE_FULL(&inst->cmd_queue)) {
-        restore_interrupts(prev_interrupts);
+    // Schedule the packet
+    // Report error if we failed to schedule (it won't be a length failure since we already checked that)
+    if (!dynamixel_schedule_raw_packet(&packet, &write_cmd_cb)) {
         LOG_DEBUG("Failed to queue write command into full queue");
         dynamixel_report_error(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
-        return;
-    }
-
-    struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&inst->cmd_queue);
-    memcpy(&entry->packet, &packet, sizeof(packet));
-    memcpy(entry->packet_buf, packet_buf, sizeof(packet_buf));
-    // Fix up the packet buffer pointer
-    entry->packet.p_packet_buf = entry->packet_buf;
-    entry->callback = write_cmd_cb;
-    QUEUE_MARK_WRITE_DONE(&inst->cmd_queue);
-
-    restore_interrupts(prev_interrupts);
-
-    // If we can get the lock, begin the transfer
-    // If we couldn't then whoever has it will queue us when its ready
-    if (try_get_transfer_lock()) {
-        process_next_transfer_or_release();
     }
 }
 
@@ -544,18 +535,6 @@ static void eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_result *r
         LOG_DEBUG("Error executing queued command: 0x%08lx", err.data);
         inst->error_cb(err);
     }
-
-    // Check that the packet didn't report an error
-    else if (result->packet->err_idx & 0x7F) {
-        LOG_DEBUG("Error response set in queued command: %d", result->packet->err_idx);
-        dynamixel_report_error_with_arg(DYNAMIXEL_HARDWARE_ERROR, result->packet->err_idx);
-    }
-
-    else if (result->request_id != result->packet->id) {
-        LOG_DEBUG("Mismatched ID: %d expected, %d received", result->request_id, result->packet->id);
-        dynamixel_report_error_with_arg(DYNAMIXEL_INVALID_ID, result->packet->id);
-    }
-
     else {
         struct dynamixel_state *servo = dynamixel_schedule_get_state_ptr(result->request_id);
 
@@ -572,14 +551,15 @@ static void eeprom_read_cb(dynamixel_error_t err, struct dynamixel_req_result *r
         }
     }
 
-    process_next_transfer_or_release();
+    dynamixel_schedule_next_transfer_or_release();
 }
 
 void dynamixel_schedule_eeprom_read(dynamixel_id id) {
-    size_t max_pkt_len = 16;  // Worst case calculations for packet read
-    // Address shouldn't trigger byte stuffing since we should never write address 0xFFFx
+    size_t max_pkt_len = dynamixel_calc_packet_worst_case_len(dynamixel_read_paket_param_len);
 
     // Limit max length to the buffer size in queue
+    // This isn't fatal, since we calculated worst case
+    // If the packet can't fit into this, then the create packet call will fail
     if (max_pkt_len > DYNAMIXEL_PACKET_BUFFER_SIZE) {
         max_pkt_len = DYNAMIXEL_PACKET_BUFFER_SIZE;
     }
@@ -595,30 +575,11 @@ void dynamixel_schedule_eeprom_read(dynamixel_id id) {
         return;
     }
 
-    // Add in command in critical section
-    uint32_t prev_interrupts = save_and_disable_interrupts();
-
-    if (QUEUE_FULL(&inst->cmd_queue)) {
-        restore_interrupts(prev_interrupts);
+    // Schedule the packet
+    // Report error if we failed to schedule (it won't be a length failure since we already checked that)
+    if (!dynamixel_schedule_raw_packet(&packet, &eeprom_read_cb)) {
         LOG_DEBUG("Failed to queue write command into full queue");
         dynamixel_report_error(DYNAMIXEL_CMD_QUEUE_FULL_ERROR);
-        return;
-    }
-
-    struct internal_cmd *entry = QUEUE_CUR_WRITE_ENTRY(&inst->cmd_queue);
-    memcpy(&entry->packet, &packet, sizeof(packet));
-    memcpy(entry->packet_buf, packet_buf, sizeof(packet_buf));
-    // Fix up the packet buffer pointer
-    entry->packet.p_packet_buf = entry->packet_buf;
-    entry->callback = eeprom_read_cb;
-    QUEUE_MARK_WRITE_DONE(&inst->cmd_queue);
-
-    restore_interrupts(prev_interrupts);
-
-    // If we can get the lock, begin the transfer
-    // If we couldn't then whoever has it will queue us when its ready
-    if (try_get_transfer_lock()) {
-        process_next_transfer_or_release();
     }
 }
 
@@ -630,4 +591,14 @@ struct dynamixel_state *dynamixel_schedule_get_state_ptr(dynamixel_id id) {
     }
 
     return NULL;
+}
+
+struct dynamixel_state *dynamixel_schedule_get_state_array(size_t *num_servos_out) {
+    *num_servos_out = inst->servo_count;
+    if (inst->servo_count == 0) {
+        return NULL;
+    }
+    else {
+        return inst->servo_states;
+    }
 }
