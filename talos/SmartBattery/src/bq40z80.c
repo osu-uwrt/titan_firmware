@@ -317,7 +317,6 @@ bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
 }
 
 bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t *bat_out) {
-    uint16_t data;
     int16_t sdata;
 
     // Make sure the serial number matches the expected serial number
@@ -341,12 +340,26 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
     I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_EMPTY, &bat_out->time_to_empty));
     I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_FULL, &bat_out->time_to_full));
     I2CCHECK(bq_read_word(SBS_CMD_BATTERY_STATUS, &bat_out->battery_status));
+    I2CCHECK(bq_read_word(SBS_CMD_CELL_VOLTAGE_5, &bat_out->cell5_voltage));
     I2CCHECK(bq_read_word(SBS_CMD_CHARGING_VOLTAGE, &bat_out->charging_voltage));
     I2CCHECK(bq_read_sword(SBS_CMD_CHARGING_CURRENT, &sdata));
     bat_out->charging_current = ((int32_t) sdata) * mfg_info->scale_factor;
 
-    I2CCHECK(bq_read_word(SBS_CMD_GPIO_READ, &data));
-    bat_out->port_detected = sbs_check_bit(data, SBS_GPIO_READ_RH1);
+    // Read the safety status/pf status if needed (operationstatus has logical or of these fields)
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_SS)) {
+        I2CCHECK(bq_read_dword(SBS_CMD_SAFETY_STATUS, &bat_out->safety_status));
+    }
+    else {
+        // Safety status is 0 since the logical or of the field is 0
+        bat_out->safety_status = 0;
+    }
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_PF)) {
+        I2CCHECK(bq_read_dword(SBS_CMD_SAFETY_STATUS, &bat_out->pf_status));
+    }
+    else {
+        // PF status is 0 since the logical or of the field is 0
+        bat_out->pf_status = 0;
+    }
 
     BQ_RETURN_SUCCESS;
 }
@@ -354,6 +367,12 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
 // ========================================
 // BQ40 Init/IO Routines
 // ========================================
+
+void bq_clear_soc_leds(void) {
+    for (uint8_t led = 0; led < sizeof(BQ_LEDS); led++) {
+        gpio_put(BQ_LEDS[led], false);
+    }
+}
 
 void bq_update_soc_leds(uint8_t soc) {
     uint8_t state = 0;
@@ -397,8 +416,6 @@ void bq_init() {
 // ========================================
 
 bq_error_t bq_emshut_enter(void) {
-    // TODO: Make sure that MFC_DISABLE won't rocket the MCU into undefined states
-
     // Send the 2 command sequence to enable Manual FET Control Emergency Shutdown
     I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_ENABLE_A));
     BQERRCHECK(bq_check_status_successful());
@@ -409,6 +426,8 @@ bq_error_t bq_emshut_enter(void) {
 }
 
 bq_error_t bq_emshut_exit(void) {
+    // TODO: Make sure that MFC_DISABLE won't rocket the BQ40 into undefined states if discharging is disabled
+
     // send a cleanup reset command
     I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_DISABLE));
     BQERRCHECK(bq_check_status_successful());

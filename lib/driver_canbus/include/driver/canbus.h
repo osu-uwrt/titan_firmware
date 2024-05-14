@@ -72,6 +72,13 @@ typedef void (*canbus_internal_error_cb_t)(canbus_error_data_t error_data);
 bool canbus_init(unsigned int client_id);
 
 /**
+ * @brief Deinitializes the CAN bus hardware on the chip.
+ *
+ * This disables all CAN communications
+ */
+void canbus_deinit(void);
+
+/**
  * @brief Return if a valid CAN bus is detected (Heartbeat messages are receiving ACKs).
  */
 bool canbus_check_online(void);
@@ -89,9 +96,14 @@ void canbus_set_device_in_error(bool device_in_error_state);
 void canbus_tick(void);
 
 /**
- * @brief Boolean if `canbus_init` has been called.
+ * @brief Boolean if `canbus_init` and the chip hasn't been turned off with `canbus_disable`
  */
 extern bool canbus_initialized;
+
+/**
+ * @brief Boolean if `canbus_init` has been called.
+ */
+extern bool canbus_setup;
 
 #define CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN MCP2517FD_INT_PIN
 #define CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS GPIO_IRQ_LEVEL_LOW

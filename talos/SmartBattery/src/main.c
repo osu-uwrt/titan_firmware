@@ -20,8 +20,6 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define BATTERY_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define PRESENCE_CHECK_INTERVAL_MS 1000
-#define PRESENCE_TIMEOUT_COUNT 10
 #define PWRCYCL_CHECK_INTERVAL_MS 250
 
 // Initialize all to nil time
@@ -31,11 +29,7 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
-absolute_time_t next_pack_present_update = { 0 };
 absolute_time_t next_battery_status_update = { 0 };
-absolute_time_t next_pwrcycl_update = { 0 };
-
-uint8_t presence_fail_count = 0;
 
 bq_mfg_info_t bq_mfg_info;
 uint can_id;
@@ -102,21 +96,20 @@ static void tick_ros_tasks() {
     // that only 1 timeout occurs per safety tick.
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
-    uint8_t client_id = can_id;
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
-        RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
+        RCSOFTRETVCHECK(ros_heartbeat_pulse(can_id));
     }
 
     // send the firmware status updates
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+        RCSOFTRETVCHECK(ros_update_firmware_status(can_id));
     }
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info, can_id));
     }
 
     if (sht41_temp_rh_set_on_read) {
@@ -133,23 +126,72 @@ static void tick_background_tasks() {
         led_network_online_set(canbus_check_online());
     }
 
+    // Update from battery state
+    batt_state_t batt_state = core1_get_batt_state();
+
     // Update LCD if reed switch held and we are in time for a display update
-    display_tick();
+    display_tick(batt_state);
 
-    if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
-        // check if we need to update the presence counter
-        if (!(canbus_check_online() || core1_check_present())) {
-            presence_fail_count++;
+    // Handle CAN Bus initialization/deinitialization based on battery state
+    bool can_bus_should_be_on = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
+    static bool side_has_called = false;  // Ensures that the first call doesn't return true (if so, the data's stale)
+
+    if (can_bus_should_be_on) {
+        if (!canbus_initialized) {
+            // Need to get the side detect pin status to see what side we're on
+            bool side_detect_high;
+            bool read_okay = core1_get_side_detect(&side_detect_high);
+            if (read_okay || !side_has_called) {
+                // Don't allow the first call to succeed, as the first call must always fail when queuing new cmds
+                // If it returned true, then that means that there was stale data in there
+                // This will ignore the first reading
+                read_okay = false;
+            }
+            // We've called it once now, its okay to read it again
+            side_has_called = true;
+
+            // TODO: Negotiate CAN Bus ID conflicts if the fuse is blown
+
+            // At this point we know that we should be connected to the battery
+            // Fetch the manufacturing info so ROS will have it
+            // If this fails, it'll try again next iteration (but it shouldn't since we were just told we're connected)
+            if (read_okay) {
+                read_okay = core1_get_pack_mfg_info(&bq_mfg_info);
+            }
+
+            if (read_okay) {
+                // TODO: Validate this
+                // We got the side, now set the CAN Bus ID
+                can_id = (side_detect_high ? CAN_BUS_PORT_CLIENT_ID : CAN_BUS_STBD_CLIENT_ID);
+
+                if (!transport_can_init(can_id)) {
+                    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
+                }
+                else {
+                    led_network_enabled_set(true);
+                }
+            }
         }
-        else {
-            presence_fail_count = 0;
+    }
+    else {
+        // Deinitialize CAN Bus if we don't have a valid cable attached
+        if (canbus_initialized) {
+            canbus_deinit();
+            led_network_enabled_set(false);
         }
 
-        // if the presence counter times out and the display is off, shut down
-        if (presence_fail_count > PRESENCE_TIMEOUT_COUNT && !display_check_on()) {
-            LOG_WARN("Pack not detected after %ds. Powering down!", PRESENCE_TIMEOUT_COUNT);
-            gpio_put(PWR_CTRL_PIN, 0);
+        // Make sure that side detect will refresh (and not run stale data)
+        side_has_called = false;
+    }
+
+    // Handle auto-poweroff
+    // We only want to keep firmware online if we are using CAN bus or if the display is on
+    if (!can_bus_should_be_on && !display_check_on()) {
+        if (gpio_get_out_level(PWR_CTRL_PIN)) {
+            // Check out level to prevent log spam if the switch is held for whatever reason
+            LOG_INFO("Both display is off and CAN Bus is offline - shutting off MCU to save power");
         }
+        gpio_put(PWR_CTRL_PIN, 0);
     }
 }
 
@@ -192,33 +234,6 @@ int main() {
     // Initialize the BQ40
     core1_init(sbh_mcu_serial_num);
 
-    uint8_t retry = 0;
-    do {
-        if (++retry > 5) {
-            display_show_msg("Init Failed", "");
-            panic("BQ Init Failed");
-        }
-        if (retry > 1) {
-            char msg[] = "BQ Con #X";
-            msg[8] = retry + 48;
-            char submsg[16];
-            snprintf(submsg, sizeof(submsg), "Err: 0x%08lX", safety_fault_data[FAULT_BQ40_NOT_CONNECTED].extra_data);
-            display_show_msg(msg, submsg);
-        }
-        sleep_ms(1000);
-        safety_tick();
-    } while (!core1_get_pack_mfg_info(&bq_mfg_info));
-
-    LOG_INFO("pack %d, mfg %d/%d/%d, SER# %d", bq_mfg_info.device_type, bq_mfg_info.mfg_mo, bq_mfg_info.mfg_day,
-             bq_mfg_info.mfg_year, bq_mfg_info.serial);
-
-    // Initialize ROS Transports
-    can_id = sbh_mcu_serial_num;
-    if (!transport_can_init(can_id)) {
-        // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
-        panic("Failed to initialize CAN bus hardware!");
-    }
-
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
@@ -231,7 +246,8 @@ int main() {
         tick_background_tasks();
 
         // Handle ROS state logic
-        if (is_ros_connected()) {
+        // Also makes sure to handle if canbus gets deinitialized, ROS gets cleaned up properly
+        if (canbus_initialized && is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
                 display_show_msg("ROS Connect", "");
@@ -264,7 +280,7 @@ int main() {
             ros_initialized = false;
         }
         else {
-            if (time_reached(next_connect_ping)) {
+            if (canbus_initialized && time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }

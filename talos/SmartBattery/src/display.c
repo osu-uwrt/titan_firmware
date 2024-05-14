@@ -47,7 +47,21 @@ enum menu_operation {
 // These are the valid menus that can be displayed
 enum menu_type { MENU_MAIN, MENU_MORE };
 // These are the valid screens that can be displayed
-enum screen_type { SCREEN_SOC, SCREEN_CURRENT, SCREEN_PACK_STATUS, SCREEN_LIFE_STATS, SCREEN_CELL_VOLTAGES };
+enum screen_type {
+    SCREEN_SOC,
+    SCREEN_CURRENT,
+    SCREEN_PACK_STATUS,  // TODO: Implement screen
+    SCREEN_LIFE_STATS,   // TODO: Implement screen
+    SCREEN_CELL_VOLTAGES,
+
+    // Static screens
+    SCREEN_BQ_MISSING,
+    SCREEN_BQ_INITIALIZING,
+    SCREEN_BQ_PERM_FAIL,
+    SCREEN_BQ_SHUTDOWN,
+    SCREEN_BQ_PWR_CYCLE,
+    SCREEN_BQ_XDSG
+};
 // These are the valid actions that can be executed on the battery
 enum action_type { ACTION_POWER_CYCLE };
 
@@ -91,6 +105,7 @@ const menu_entry_t *const menu_definitions[] = { [MENU_MAIN] = menu_def_main, [M
 // ========================================
 
 struct display_state {
+    batt_state_t last_batt_state;      // The last battery state when display_tick was called
     display_target_t cur_target;       // The target state for the display to go to
     absolute_time_t next_state_time;   // Timeout to tell the state machine to advance to its next default state (should
                                        // all lead to display off)
@@ -104,6 +119,31 @@ struct display_state {
 
 static struct display_state state = {};
 
+enum display_msg_icon { MSG_ICON_NONE, MSG_ICON_INFO, MSG_ICON_ALERT };
+
+static void display_draw_message(enum display_msg_icon icon, const char *msg, const char *submsg) {
+    ssd1306_Fill(Black);
+    switch (icon) {
+    case MSG_ICON_INFO:
+        ssd1306_DrawBitmap(4, 4, info_large_bin, info_large_bin_width, info_large_bin_height, White);
+        break;
+    case MSG_ICON_ALERT:
+        ssd1306_DrawBitmap(3, 3, alert_large_bin, alert_large_bin_width, alert_large_bin_height, White);
+        break;
+    default:
+        break;
+    }
+    if (msg && *msg) {
+        ssd1306_SetCursor(38, 0);
+        ssd1306_WriteString(msg, Font_11x18, White);
+    }
+    if (submsg && *submsg) {
+        ssd1306_SetCursor(38, 23);
+        ssd1306_WriteString(submsg, Font_6x8, White);
+    }
+    ssd1306_UpdateScreen();
+}
+
 static void display_show_menu(const menu_definition_arr menu_def, uint selected_idx, uint circle_fill_deg) {
     // Clear screen and draw bar for the selected menu entry
     ssd1306_Fill(Black);
@@ -111,7 +151,7 @@ static void display_show_menu(const menu_definition_arr menu_def, uint selected_
 
     // Progress circle indicate the presence of input
     if (circle_fill_deg > 30) {
-        ssd1306_DrawArcWithRadiusLine(122, 4 + (8 * selected_idx), 5, 0, circle_fill_deg, Black);
+        ssd1306_DrawArcWithRadiusLine(122, 4 + (8 * selected_idx), 4, 0, circle_fill_deg, Black);
     }
 
     // Render the menu entry text
@@ -153,6 +193,24 @@ static void display_show_splash_screen(void) {
     ssd1306_UpdateScreen();
 }
 
+static void display_show_cell_voltage_screen(void) {
+    ssd1306_Fill(Black);
+
+    char buf[16];
+    uint16_t cell_voltages[5];
+    core1_cell_voltages(cell_voltages);
+
+    for (int i = 0; i < 5; i++) {
+        // Set cursor for the correct position for this cell
+        ssd1306_SetCursor(i > 2 ? 66 : 0, (i % 3) * 10);
+        // Render this cell's voltage
+        snprintf(buf, sizeof(buf), "C%d: %d.%dV", i + 1, cell_voltages[i] / 1000, cell_voltages[i] % 1000);
+        ssd1306_WriteString(buf, Font_6x8, White);
+    }
+
+    ssd1306_UpdateScreen();
+}
+
 static void display_show_main_screen(enum screen_type selected_screen) {
     bq_mfg_info_t mfg_info;
     core1_get_pack_mfg_info(&mfg_info);
@@ -174,6 +232,28 @@ static void display_show_main_screen(enum screen_type selected_screen) {
     ssd1306_WriteString(buf, Font_6x8, White);
     ssd1306_DrawRectangle(118, 0, 127, 11, White);
 
+    // Draw status bar icons
+    batt_state_t batt_state = core1_get_batt_state();  // TODO: Switch this to can_initialized variable
+    bool can_online = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
+    if (can_online) {
+        ssd1306_DrawBitmap(85, 0, can_online_bin, can_online_bin_width, can_online_bin_height, White);
+    }
+    else {
+        ssd1306_DrawBitmap(85, 0, can_offline_bin, can_offline_bin_width, can_offline_bin_height, White);
+    }
+
+    ssd1306_DrawBitmap(100, 0, battery_missing_bin, battery_missing_bin_width, battery_missing_bin_height, White);
+
+    // TODO: Selective alert blinking
+    static bool alert_blink = false;
+    if (!alert_blink) {
+        alert_blink = true;
+        ssd1306_DrawBitmap(70, 0, alert_small_bin, alert_small_bin_width, alert_small_bin_height, White);
+    }
+    else {
+        alert_blink = false;
+    }
+
     // Draw large filled box for SOC/current screens
     if (selected_screen == SCREEN_SOC || selected_screen == SCREEN_CURRENT) {
         ssd1306_FillRectangle(0, 11, 79, 32, White);
@@ -187,28 +267,23 @@ static void display_show_main_screen(enum screen_type selected_screen) {
 
     // Draw bottom right details section
     if (selected_screen == SCREEN_SOC) {
-        bool dsg_mode;
-        uint16_t time_remaining = core1_time_remaining(&dsg_mode);
+        bool chg_mode;
+        uint16_t time_remaining = core1_time_remaining(&chg_mode);
 
         if (time_remaining != 65535) {
             // If we have a valid time reamining, render it
 
-            ssd1306_SetCursor(86, 12);
-            if (dsg_mode) {
-                snprintf(buf, sizeof(buf), "ETtE:");  // Estimated time to empty
-            }
-            else {
+            ssd1306_SetCursor(86, 13);
+            if (chg_mode) {
                 snprintf(buf, sizeof(buf), "ETtF:");  // Estimated time to full
             }
-            ssd1306_WriteString(buf, Font_7x10, White);
+            else {
+                snprintf(buf, sizeof(buf), "ETtE:");  // Estimated time to empty
+            }
+            ssd1306_WriteString(buf, Font_6x8, White);
 
             ssd1306_SetCursor(86, 22);
-            if (dsg_mode) {
-                display_format_remaining_time(buf, sizeof(buf), time_remaining);
-            }
-            else {
-                display_format_remaining_time(buf, sizeof(buf), time_remaining);
-            }
+            display_format_remaining_time(buf, sizeof(buf), time_remaining);
             ssd1306_WriteString(buf, Font_7x10, White);
         }
         else {
@@ -236,10 +311,11 @@ void display_init(void) {
     state.last_switch_state = gpio_get(SWITCH_SIGNAL_PIN);
 
     // Tick the display once to show the splash screen
-    display_tick();
+    state.last_batt_state = BATT_STATE_UNINITIALIZED + 1;  // Force screen to refresh
+    display_tick(BATT_STATE_UNINITIALIZED);
 }
 
-void display_tick() {
+void display_tick(batt_state_t battery_state) {
     display_target_t target_state = state.cur_target;
     uint8_t new_selected_idx = state.selected_idx;
 
@@ -294,6 +370,14 @@ void display_tick() {
         }
     }
 
+    // Compute if we need to switch the display state because the battery state changed
+    bool show_default_screen_for_batt_state = (state.last_batt_state != battery_state);
+    if (state.cur_target.op == OP_SHOW_SPLASH && !time_reached(state.next_state_time)) {
+        // If we're showing the splash screen right now, let it stay on the screen for a bit
+        show_default_screen_for_batt_state = false;
+        battery_state = state.last_batt_state;
+    }
+
     // Stage 2: Determine the next target state based on button presses and timers
     // This will write target_state depending on previous state and button state
 
@@ -305,11 +389,10 @@ void display_tick() {
         case OP_STARTUP:
             target_state.op = OP_SHOW_SPLASH;
             break;
-        // After a message or splash screen
+        // After splash screen or a message goes away, go to default state for the screen
         case OP_SHOW_SPLASH:
         case OP_SHOW_MESSAGE:
-            target_state.op = OP_SHOW_SCREEN;
-            target_state.op_data.screen_target = SCREEN_SOC;
+            show_default_screen_for_batt_state = true;
             break;
         case OP_SHOW_SCREEN:
         case OP_SHOW_MENU:
@@ -331,16 +414,41 @@ void display_tick() {
             // If display is dimmed, just let the code in stage 1 brighten the screen
             // But, if it's full brightness, show the menu
             if (!display_should_dim) {
-                target_state.op = OP_SHOW_MENU;
-                target_state.op_data.menu_target = MENU_MAIN;
+                // Set the menu depending on which screen we're showing
+                switch (state.cur_target.op_data.screen_target) {
+                case SCREEN_BQ_INITIALIZING:
+                case SCREEN_BQ_MISSING:
+                case SCREEN_BQ_PERM_FAIL:
+                    // TODO: Enable debug menu
+                    // right now just fall through
+                case SCREEN_BQ_SHUTDOWN:
+                case SCREEN_BQ_PWR_CYCLE:
+                    // No debug menu access
+                    break;
+                case SCREEN_BQ_XDSG:
+                    // XDSG alert will just show the normal menu when clicked
+                case SCREEN_SOC:
+                case SCREEN_CURRENT:
+                case SCREEN_PACK_STATUS:
+                    // Default menu
+                    target_state.op = OP_SHOW_MENU;
+                    target_state.op_data.menu_target = MENU_MAIN;
+                    break;
+                case SCREEN_LIFE_STATS:
+                case SCREEN_CELL_VOLTAGES:
+                    // Advanced menu
+                    target_state.op = OP_SHOW_MENU;
+                    target_state.op_data.menu_target = MENU_MORE;
+                    break;
+                }
             }
             else {
                 display_should_dim = false;
             }
             break;
         case OP_DISPLAY_OFF:
-            target_state.op = OP_SHOW_SCREEN;
-            target_state.op_data.screen_target = SCREEN_SOC;
+            // If the display is off, and woken up, go to the default screen for that battery state
+            show_default_screen_for_batt_state = true;
             break;
         default:
             break;
@@ -353,10 +461,52 @@ void display_tick() {
             target_state = menu_definitions[state.cur_target.op_data.menu_target][state.selected_idx].target;
             break;
         case OP_DISPLAY_OFF:
-            target_state.op = OP_SHOW_SCREEN;
-            target_state.op_data.screen_target = SCREEN_SOC;
+            // If the display is off, and woken up, go to the default screen for that battery state
+            show_default_screen_for_batt_state = true;
             break;
         default:
+            break;
+        }
+    }
+
+    // Set the default screen for whenever the battery state changes
+    if (show_default_screen_for_batt_state) {
+        switch (battery_state) {
+        case BATT_STATE_UNINITIALIZED:
+            target_state.op = OP_SHOW_SPLASH;
+            break;
+        case BATT_STATE_DISCONNECTED:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_MISSING;
+            break;
+        case BATT_STATE_NEEDS_SHUTDOWN:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_SHUTDOWN;
+            break;
+        case BATT_STATE_INITIALIZING:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_INITIALIZING;
+            break;
+        case BATT_STATE_PERMENANT_FAIL:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_PERM_FAIL;
+            break;
+        case BATT_STATE_POWER_CYCLE:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_PWR_CYCLE;
+            break;
+        case BATT_STATE_XDSG:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_BQ_XDSG;
+            break;
+        case BATT_STATE_LATCH_OFF:
+            // TODO: To be implemented
+
+        case BATT_STATE_REMOVED:
+        case BATT_STATE_DISCHARGING:
+        case BATT_STATE_CHARGING:
+            target_state.op = OP_SHOW_SCREEN;
+            target_state.op_data.screen_target = SCREEN_SOC;
             break;
         }
     }
@@ -433,12 +583,47 @@ void display_tick() {
             if (state_transitioned) {
                 state.next_state_time = make_timeout_time_ms(DISPLAY_HOLD_MS);
             }
+
+            uint32_t pf_flags = 1;       // TODO: Actually fill in with real pf flags
+            uint32_t i2c_error = 0x412;  // TODO: Actually fill in with i2c error
+            char err_msg[16];
+
             switch (target_state.op_data.screen_target) {
             case SCREEN_SOC:
             case SCREEN_CURRENT:
             case SCREEN_PACK_STATUS:
                 display_show_main_screen(target_state.op_data.screen_target);
                 break;
+
+            case SCREEN_CELL_VOLTAGES:
+                display_show_cell_voltage_screen();
+                break;
+
+            // Static screens
+            case SCREEN_BQ_MISSING:
+                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX", i2c_error);
+                err_msg[sizeof(err_msg) - 1] = 0;
+                display_draw_message(MSG_ICON_ALERT, "No BQ40", err_msg);
+                break;
+            case SCREEN_BQ_PERM_FAIL:
+                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX", pf_flags);
+                err_msg[sizeof(err_msg) - 1] = 0;
+                display_draw_message(MSG_ICON_ALERT, "Pack PF", err_msg);
+                break;
+            case SCREEN_BQ_INITIALIZING:
+                display_draw_message(MSG_ICON_INFO, "Booting", "BQ40 in Init");
+                break;
+            case SCREEN_BQ_SHUTDOWN:
+                display_draw_message(MSG_ICON_INFO, "Shutdown", "In Progress...");
+                break;
+            case SCREEN_BQ_PWR_CYCLE:
+                display_draw_message(MSG_ICON_INFO, "MFC Req", "Cycling Power");
+                break;
+            case SCREEN_BQ_XDSG:
+                display_draw_message(MSG_ICON_ALERT, "Dsg Dis.", "Tap for Menu");
+                break;
+
+            // Default case where we don't know how to render this screen, better than nothing
             default:
                 ssd1306_Fill(Black);
                 ssd1306_SetCursor(0, 0);
@@ -510,6 +695,7 @@ void display_tick() {
     // Stage 5: Update saved state to reflect the new state
     state.cur_target = target_state;
     state.selected_idx = new_selected_idx;
+    state.last_batt_state = battery_state;
 }
 
 void display_show_msg(const char *msg, const char *submsg) {
@@ -525,7 +711,7 @@ void display_show_msg(const char *msg, const char *submsg) {
     ssd1306_UpdateScreen();
 
     state.msg_pending = true;
-    display_tick();
+    display_tick(core1_get_batt_state());
     state.msg_pending = false;
 }
 

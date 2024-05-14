@@ -30,8 +30,13 @@ target_include_directories(titan_bootloader PUBLIC include)
 target_compile_options(titan_bootloader PUBLIC -Os)
 target_compile_options(canmore PUBLIC -Os)  # Needs to also be marked as -Os since it's a static library
 
+# Definitions to optimize the binary size
 # Disable arg in canmore reg mapped to save a decent amount of space
 target_compile_definitions(titan_bootloader PUBLIC CANMORE_CONFIG_DISABLE_REG_MAPPED_ARG=1)
+# Disable CRC16 table, it's slower but saves 512 bytes
+target_compile_definitions(titan_bootloader PUBLIC CRC16CMS_NOTABLE=1)
+# Disable bitrate statistics, saves >512 bytes and we don't use it (but will be linked in because it depends on a param)
+target_compile_definitions(titan_bootloader PUBLIC MCP251X_DISABLE_BITRATE_STATS=1)
 
 # Define linking and targets
 target_link_libraries(titan_bootloader PUBLIC

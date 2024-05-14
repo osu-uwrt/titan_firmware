@@ -19,6 +19,9 @@
 #define BQ_ADDR 0x0B
 #define BQ_MAX_ERRORS_BEFORE_DISCONNECT 3
 
+#define ROBOT_POWER_CYCLE_TIME_MS 10000
+// Timeout to wait for an MFC command to trigger EMSHUT - must be greater than BQ40 Manual FET Control Delay parameter
+#define EMSHUT_STATE_TIMEOUT 5000
 #define BATT_WAKE_PULSE_DURATION_MS 500
 #define WARN_SOC_THRESH 60
 #define STOP_SOC_THRESH 30
@@ -80,9 +83,11 @@ typedef struct bq_battery_info_t {
     uint16_t time_to_empty;
     uint16_t time_to_full;
     uint16_t battery_status;
+    uint16_t cell5_voltage;
     uint16_t charging_voltage;
     uint32_t charging_current;
-    bool port_detected;
+    uint32_t safety_status;
+    uint32_t pf_status;
 } bq_battery_info_t;
 
 /**
@@ -90,6 +95,7 @@ typedef struct bq_battery_info_t {
  */
 void bq_init(void);
 
+void bq_clear_soc_leds(void);
 void bq_update_soc_leds(uint8_t soc);
 
 void bq_pulse_wake(void);
