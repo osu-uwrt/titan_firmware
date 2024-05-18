@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.12)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+set(NO_AMENT 1)
 add_subdirectory(${REPO_DIR}/lib/titan_canmore titan_canmore)
 
 # Define sources
