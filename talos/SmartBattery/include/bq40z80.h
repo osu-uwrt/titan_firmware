@@ -37,7 +37,7 @@ typedef struct bq_mfg_info_t {
     uint16_t device_type;
     uint8_t firmware_version[11];
     uint8_t scale_factor;
-    uint32_t manufacturing_status;
+    uint16_t manufacturing_status;
 } bq_mfg_info_t;
 
 // ========================================
@@ -47,15 +47,17 @@ typedef struct bq_mfg_info_t {
 // Negative error codes are PIO_SMBUS errors
 // Returned on successful operation
 #define BQ_ERROR_SUCCESS 0
+// The reported device type does not match the BQ40Z80
+#define BQ_ERROR_INVALID_DEVICE_TYPE 1
 // An invalid serial number was read from the device (either all 0s or all 1s)
-#define BQ_ERROR_INVALID_SERIAL 1
+#define BQ_ERROR_INVALID_SERIAL 2
 // Reported if the read serial number does not match the serial number read on first connect
 // Either a different BQ40 was connected, or data flash got corrupted
-#define BQ_ERROR_SERIAL_CHANGED 2
+#define BQ_ERROR_SERIAL_CHANGED 3
 // Raised if command was issued while the bq40 was in an invalid state
-#define BQ_ERROR_INVALID_STATE 3
-#define BQ_ERROR_INVALID_MAC_RESP_LEN 4
-#define BQ_ERROR_BATT_STATUS_ERROR 5
+#define BQ_ERROR_INVALID_STATE 4
+#define BQ_ERROR_INVALID_MAC_RESP_LEN 5
+#define BQ_ERROR_BATT_STATUS_ERROR 6
 #define BQ_CHECK_SUCCESSFUL(err) (err.fields.error_code == BQ_ERROR_SUCCESS)
 
 typedef union bq_error {

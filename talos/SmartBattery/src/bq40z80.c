@@ -5,7 +5,6 @@
 
 #include "hardware/gpio.h"
 #include "pico/time.h"
-#include "titan/logger.h"  // TODO: Remove me
 
 #include <stdio.h>
 #include <string.h>
@@ -193,6 +192,20 @@ static int bq_read_byte(uint8_t cmd, uint8_t *byte_out) {
     }
 }
 
+static int bq_read_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
+    size_t lenout = len;
+    int ret = bq_mfg_access_read(cmd, (uint8_t *) rxbuf, &lenout);
+    if (ret) {
+        return ret;
+    }
+    if (len != lenout) {
+        return PIO_SMBUS_ERR_INVALID_RESP;
+    }
+    else {
+        return PIO_SMBUS_SUCCESS;
+    }
+}
+
 // Add checks into all code, and make sure this check is valid
 #define I2CCHECK(func)                                                                                                 \
     do {                                                                                                               \
@@ -239,16 +252,6 @@ static bq_error_t bq_check_status_successful(void) {
     BQ_RETURN_SUCCESS;
 }
 
-static bq_error_t bq_read_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
-    size_t lenout = len;
-    I2CCHECK(bq_mfg_access_read(cmd, (uint8_t *) rxbuf, &lenout));
-    if (len != lenout) {
-        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_MAC_RESP_LEN, len);
-    }
-
-    BQ_RETURN_SUCCESS;
-}
-
 // ========================================
 // BQ40 Data Flash Read Functions
 // ========================================
@@ -280,8 +283,10 @@ static bq_error_t bq_read_data_flash_int(uint16_t flash_addr, bq_data_flash_int_
 
 bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
     // Device Type
-    BQERRCHECK(bq_read_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
-    // TODO: Assert it matches what we expect
+    I2CCHECK(bq_read_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
+    if (mfg_out->device_type != 0x4800) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_DEVICE_TYPE, mfg_out->device_type);
+    }
 
     // Serial Number
     uint16_t serial;
@@ -301,17 +306,18 @@ bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
     mfg_out->mfg_year = (raw_date >> 9) + 1980;
 
     // Firmware Version
-    BQERRCHECK(
+    I2CCHECK(
         bq_read_block_fixedlen(MFG_CMD_FIRMWARE_VERSION, mfg_out->firmware_version, sizeof(mfg_out->firmware_version)));
 
     // Current Scale Factor
     bq_data_flash_int_t scale_factor;
     BQERRCHECK(bq_read_data_flash_int(0x4AE8, &scale_factor));
-    LOG_INFO("Current Scale Factor: %d", scale_factor.u1);
     mfg_out->scale_factor = scale_factor.u1;
 
     // Manufacturing Status
-    I2CCHECK(bq_read_dword(SBS_CMD_MANUFACTURING_STATUS, &mfg_out->manufacturing_status));
+    // TI is weird- made manufacturing a block read but only 2 bytes long
+    I2CCHECK(bq_read_block_fixedlen(SBS_CMD_MANUFACTURING_STATUS, (uint8_t *) &mfg_out->manufacturing_status,
+                                    sizeof(mfg_out->manufacturing_status)));
 
     BQ_RETURN_SUCCESS;
 }
@@ -329,7 +335,7 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
 
     // Refresh all of the fields we care about
     I2CCHECK(bq_read_dword(SBS_CMD_OPERATION_STATUS, &bat_out->operation_status));
-    BQERRCHECK(bq_read_block_fixedlen(SBS_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
+    I2CCHECK(bq_read_block_fixedlen(SBS_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
     I2CCHECK(bq_read_sword(SBS_CMD_CURRENT, &sdata));
     bat_out->current = ((int32_t) sdata) * mfg_info->scale_factor;
     I2CCHECK(bq_read_sword(SBS_CMD_AVERAGE_CURRENT, &sdata));

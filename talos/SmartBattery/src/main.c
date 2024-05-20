@@ -141,7 +141,7 @@ static void tick_background_tasks() {
             // Need to get the side detect pin status to see what side we're on
             bool side_detect_high;
             bool read_okay = core1_get_side_detect(&side_detect_high);
-            if (read_okay || !side_has_called) {
+            if (read_okay && !side_has_called) {
                 // Don't allow the first call to succeed, as the first call must always fail when queuing new cmds
                 // If it returned true, then that means that there was stale data in there
                 // This will ignore the first reading
@@ -169,6 +169,7 @@ static void tick_background_tasks() {
                 }
                 else {
                     led_network_enabled_set(true);
+                    LOG_INFO("Enabled CAN Bus on Cable Connect");
                 }
             }
         }
@@ -178,6 +179,7 @@ static void tick_background_tasks() {
         if (canbus_initialized) {
             canbus_deinit();
             led_network_enabled_set(false);
+            LOG_INFO("Disabled CAN Bus on Cable Removal");
         }
 
         // Make sure that side detect will refresh (and not run stale data)

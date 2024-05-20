@@ -1,8 +1,10 @@
 #include "display.h"
 
 #include "core1.h"
+#include "safety_interface.h"
 #include "uwrt_logo.h"
 
+#include "driver/canbus.h"
 #include "driver/ssd1306.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
@@ -233,9 +235,8 @@ static void display_show_main_screen(enum screen_type selected_screen) {
     ssd1306_DrawRectangle(118, 0, 127, 11, White);
 
     // Draw status bar icons
-    batt_state_t batt_state = core1_get_batt_state();  // TODO: Switch this to can_initialized variable
-    bool can_online = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
-    if (can_online) {
+    // TODO: Add more icon support to this
+    if (canbus_initialized) {
         ssd1306_DrawBitmap(85, 0, can_online_bin, can_online_bin_width, can_online_bin_height, White);
     }
     else {
@@ -584,8 +585,6 @@ void display_tick(batt_state_t battery_state) {
                 state.next_state_time = make_timeout_time_ms(DISPLAY_HOLD_MS);
             }
 
-            uint32_t pf_flags = 1;       // TODO: Actually fill in with real pf flags
-            uint32_t i2c_error = 0x412;  // TODO: Actually fill in with i2c error
             char err_msg[16];
 
             switch (target_state.op_data.screen_target) {
@@ -601,12 +600,13 @@ void display_tick(batt_state_t battery_state) {
 
             // Static screens
             case SCREEN_BQ_MISSING:
-                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX", i2c_error);
+                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX",
+                         safety_fault_data[FAULT_BQ40_NOT_CONNECTED].extra_data);
                 err_msg[sizeof(err_msg) - 1] = 0;
                 display_draw_message(MSG_ICON_ALERT, "No BQ40", err_msg);
                 break;
             case SCREEN_BQ_PERM_FAIL:
-                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX", pf_flags);
+                snprintf(err_msg, sizeof(err_msg), "Err: 0x%08lX", safety_fault_data[FAULT_BQ40_PF_STATUS].extra_data);
                 err_msg[sizeof(err_msg) - 1] = 0;
                 display_draw_message(MSG_ICON_ALERT, "Pack PF", err_msg);
                 break;

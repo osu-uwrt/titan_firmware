@@ -5,7 +5,6 @@
 #include "safety_interface.h"
 
 #include "pico/multicore.h"
-#include "titan/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -107,12 +106,15 @@ static void __time_critical_func(core1_main)(void) {
                 // If we aren't connected, we need to first start by scanning the mfg info
                 err = bq_read_mfg_info(&mfg_info);
 
-                // Report error if this PCB's burned serial number doesn't match the BMS's serial/
-                if (mfg_info.serial != sbh_mcu_serial) {
-                    safety_raise_fault_with_arg(FAULT_BQ40_MISMATCHED_SERIAL, (sbh_mcu_serial << 16) | mfg_info.serial);
-                }
-                else {
-                    safety_lower_fault(FAULT_BQ40_MISMATCHED_SERIAL);
+                // Report error if this PCB's burned serial number doesn't match the BMS's serial
+                if (BQ_CHECK_SUCCESSFUL(err)) {
+                    if (mfg_info.serial != sbh_mcu_serial) {
+                        safety_raise_fault_with_arg(FAULT_BQ40_MISMATCHED_SERIAL,
+                                                    (sbh_mcu_serial << 16) | mfg_info.serial);
+                    }
+                    else {
+                        safety_lower_fault(FAULT_BQ40_MISMATCHED_SERIAL);
+                    }
                 }
             }
 
@@ -145,10 +147,10 @@ static void __time_critical_func(core1_main)(void) {
                     safety_lower_fault(FAULT_BQ40_SAFETY_STATUS);
                 }
                 if (batt_info.pf_status) {
-                    safety_raise_fault_with_arg(FAULT_BQ40_SAFETY_STATUS, batt_info.pf_status);
+                    safety_raise_fault_with_arg(FAULT_BQ40_PF_STATUS, batt_info.pf_status);
                 }
                 else {
-                    safety_lower_fault(FAULT_BQ40_SAFETY_STATUS);
+                    safety_lower_fault(FAULT_BQ40_PF_STATUS);
                 }
 
                 // Update the SOC LEDs
@@ -412,7 +414,7 @@ uint16_t core1_time_remaining(bool *is_charging) {
 }
 
 uint16_t core1_voltage(void) {
-    return shared_status.batt_info.da_status1.pack_voltage;
+    return shared_status.batt_info.da_status1.batt_voltage;
 }
 
 int32_t core1_current(void) {
