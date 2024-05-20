@@ -34,6 +34,7 @@
 #define ARM_SERVICE_NAME "command/actuator/arm"
 #define TORPEDO_MARKER_MOVE_HOME_SERVICE_NAME "command/actuator/torpedo_marker/go_home"
 #define TORPEDO_MARKER_SET_HOME_SERVICE_NAME "command/actuator/torpedo_marker/set_home"
+#define CLAW_SET_CLOSED_POS_SERVICE_NAME "command/actuator/claw/set_closed_pos"
 
 // ========================================
 // Internal Functions

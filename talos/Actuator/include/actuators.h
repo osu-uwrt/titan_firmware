@@ -238,6 +238,25 @@ bool torpedo_marker_set_home(const char **errMsgOut);
  */
 bool torpedo_marker_move_home(const char **errMsgOut);
 
+/**
+ * @brief Attempts to set the current claw servo position as its closed position.
+ * This is useful if the claw ever loses its continuous rotation offset and will re-zero it.
+ *
+ * @param errMsgOut Optional return for error message why the request failed
+ * @return bool Result for the attempted command (true on success)
+ */
+bool claw_set_closed_position(const char **errMsgOut);
+
+/**
+ * @brief Attempts to move the claw by a given delta. This is useful for moving the claw to a good close position if
+ * the home position is ever lost.
+ *
+ * @param errMsgOut Optional return for error message why the request failed
+ * @param move_delta The number of ticks to add/subtract from the current dynamixel position
+ * @return bool Result for the attempted command (true on success)
+ */
+bool claw_creep_delta(const char **errMsgOut, int32_t move_delta);
+
 #endif
 
 #endif
