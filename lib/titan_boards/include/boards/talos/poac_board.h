@@ -23,6 +23,9 @@
 #define PORT_STAT_PIN 10
 #define STBD_STAT_PIN 11
 
+#define DYNAMIXEL_CHECK_PIN 26
+#define DYNAMIXEL_PWM_PIN 27
+
 #define FAN_SWITCH_PIN 28
 #define FAN_TACH_PIN 29
 

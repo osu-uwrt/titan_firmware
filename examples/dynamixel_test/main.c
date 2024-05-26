@@ -9,8 +9,8 @@
 
 #include <stdio.h>
 
-const uint LED_PIN = PICO_DEFAULT_LED_PIN;
-const uint DYNAMIXEL_PIN = 4;
+const uint LED_PIN = 0;
+const uint DYNAMIXEL_PIN = DYNAMIXEL_PWM_PIN;
 
 bool __no_inline_not_in_flash_func(get_bootsel_button)() {
     const uint CS_PIN_INDEX = 1;
