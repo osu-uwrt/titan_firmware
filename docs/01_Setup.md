@@ -74,7 +74,6 @@ Clone the repository by running:
 
     git clone https://github.com/osu-uwrt/titan_firmware
     cd titan_firmware
-    git checkout dev
 
 You should now be in the titan firmware repository checked out to the git branch. You now need to clone the submodules.
 Both `titan_firmware` and the `pico-sdk` submodule need to have their submodules cloned.
