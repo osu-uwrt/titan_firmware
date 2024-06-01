@@ -16,8 +16,10 @@
     DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
     /* Raised if an actuator command could not successfully due to a hardware/firmware issue */                        \
     DEF(FAULT_ACTUATOR_FAILURE, 5)                                                                                     \
+    /* Raised if the dynamixel reports that it has a hardware error */                                                 \
+    DEF(FAULT_ACTUATOR_HW_FAULT, 6)                                                                                    \
     /* Raised if an actuator is unplugged, cleared when all actuators are plugged in */                                \
-    DEF(FAULT_ACTUATOR_UNPLUGGED, 6)
+    DEF(FAULT_ACTUATOR_UNPLUGGED, 7)
 
 // ===== Kill Switch Definitions =====
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0

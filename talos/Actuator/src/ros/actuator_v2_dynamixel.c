@@ -19,6 +19,10 @@ static rcl_service_t set_home_service;
 static std_srvs__srv__Trigger_Request set_home_req;
 static std_srvs__srv__Trigger_Response set_home_res;
 
+static rcl_service_t set_closed_pos_service;
+static std_srvs__srv__Trigger_Request set_closed_pos_req;
+static std_srvs__srv__Trigger_Response set_closed_pos_res;
+
 rcl_ret_t actuator_v2_dynamixel_update_status(void) {
     riptide_msgs2__msg__DynamixelStatus status;
     actuator_dxlitr_t itr;
@@ -58,7 +62,20 @@ static void set_home_service_callback(__unused const void *req, void *res) {
     res_in->message.capacity = msg_len + 1;  // Add null terminated byte
 }
 
-const size_t actuator_v2_dynamixel_num_executor_handles = 2;
+static void set_closed_pos_service_callback(__unused const void *req, void *res) {
+    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
+
+    const char *message = "";
+
+    res_in->success = claw_set_closed_position(&message);
+
+    size_t msg_len = strlen(message);
+    res_in->message.data = (char *) message;
+    res_in->message.size = msg_len;
+    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+}
+
+const size_t actuator_v2_dynamixel_num_executor_handles = 3;
 
 rcl_ret_t actuator_v2_dynamixel_init(rcl_node_t *node, rclc_executor_t *executor) {
     RCRETCHECK(rclc_publisher_init_best_effort(&dynamixel_status_publisher, node,
@@ -75,9 +92,18 @@ rcl_ret_t actuator_v2_dynamixel_init(rcl_node_t *node, rclc_executor_t *executor
     RCRETCHECK(rclc_executor_add_service(executor, &set_home_service, &set_home_req, &set_home_res,
                                          set_home_service_callback));
 
+    RCRETCHECK(rclc_service_init_default(&set_closed_pos_service, node,
+                                         ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
+                                         CLAW_SET_CLOSED_POS_SERVICE_NAME));
+    RCRETCHECK(rclc_executor_add_service(executor, &set_closed_pos_service, &set_closed_pos_req, &set_closed_pos_res,
+                                         set_closed_pos_service_callback));
+
     return RCL_RET_OK;
 }
 
 void actuator_v2_dynamixel_fini(rcl_node_t *node) {
     RCSOFTCHECK(rcl_publisher_fini(&dynamixel_status_publisher, node));
+    RCSOFTCHECK(rcl_service_fini(&move_home_service, node));
+    RCSOFTCHECK(rcl_service_fini(&set_home_service, node));
+    RCSOFTCHECK(rcl_service_fini(&set_closed_pos_service, node));
 }
