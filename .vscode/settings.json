@@ -1,9 +1,8 @@
 {
     "cmake.sourceDirectory": [
-        "${workspaceFolder}/talos/Actuator/",
         "${workspaceFolder}/talos/CameraCageBB/",
         "${workspaceFolder}/talos/ESCBoard/",
-        "${workspaceFolder}/talos/PowerBoard/",
+        "${workspaceFolder}/talos/PoacBoard/",
         "${workspaceFolder}/talos/SmartBattery/",
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",

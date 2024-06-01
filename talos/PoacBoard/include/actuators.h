@@ -2,8 +2,10 @@
 #define ACTUATORS_H
 
 #include <riptide_msgs2/msg/actuator_status.h>
+#include <riptide_msgs2/msg/dynamixel_status.h>
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // PICO_CONFIG: PARAM_ASSERTIONS_ENABLED_ACTUATORS, Enable/disable assertions for the actuators module, type=bool, default=0, group=talos/actuators
@@ -151,53 +153,8 @@ bool torpedo_fire(const char **errMsgOut);
 bool torpedo_notify_reload(const char **errMsgOut);
 
 // ========================================
-// Actuator Configuration
+// Actuator v2 Configuration
 // ========================================
-
-#ifdef ACTUATOR_V1_SUPPORT
-// Only mark 1 actuators have timing configuration
-
-enum torpedo_timing_type {
-    ACTUATOR_TORPEDO_TIMING_COIL1_ON_TIME = 0,
-    ACTUATOR_TORPEDO_TIMING_COIL1_2_DELAY_TIME = 1,
-    ACTUATOR_TORPEDO_TIMING_COIL2_ON_TIME = 2,
-    ACTUATOR_TORPEDO_TIMING_COIL2_3_DELAY_TIME = 3,
-    ACTUATOR_TORPEDO_TIMING_COIL3_ON_TIME = 4,
-
-    ACTUATOR_NUM_TORPEDO_TIMINGS
-};
-
-/**
- * @brief Attempts to set the claw timings
- *
- * @param timings Message struct containing claw timings
- * @return bool Result on setting the claw timings (true on success)
- */
-bool claw_set_timings(uint16_t open_time_ms, uint16_t close_time_ms);
-
-/**
- * @brief Attempts to set the marker dropper timings
- *
- * @param uint16_t active_time_ms dropper timings
- * @return bool Result of setting the dropper timings
- */
-bool dropper_set_timings(uint16_t active_time_ms);
-
-/**
- * @brief Attempts to set the torpedo timings
- *
- * @param timings Message struct containing torpedo timings
- * @return bool Result on setting the torpedo timings (true on success)
- */
-bool torpedo_set_timings(uint8_t torpedo_num, enum torpedo_timing_type timing_type, uint16_t time_us);
-
-#endif
-
-#if ACTUATOR_V2_SUPPORT
-
-#include <riptide_msgs2/msg/dynamixel_status.h>
-
-#include <stddef.h>
 
 typedef size_t actuator_dxlitr_t;
 
@@ -256,7 +213,5 @@ bool claw_set_closed_position(const char **errMsgOut);
  * @return bool Result for the attempted command (true on success)
  */
 bool claw_creep_delta(const char **errMsgOut, int32_t move_delta);
-
-#endif
 
 #endif

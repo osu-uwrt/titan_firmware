@@ -1,4 +1,4 @@
-#include "analog_io.h"
+#include "actuators.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -24,6 +24,7 @@
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define ELECTRICAL_READINGS_INTERVAL 1000
 #define AUXSWITCH_INTERVAL 1000
+#define ACTUATOR_STATUS_TIME_MS 500
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -35,6 +36,7 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_auxswitch_publish = { 0 };
+absolute_time_t next_actuator_status = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -81,6 +83,7 @@ static void start_ros_timers() {
     next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
     next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
     next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
+    next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
 }
 
 /**
@@ -121,6 +124,10 @@ static void tick_ros_tasks() {
 
     if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
+    }
+
+    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_actuators_update_status());
     }
 
     if (sht41_temp_rh_set_on_read) {
@@ -176,7 +183,7 @@ int main() {
     gpio_disable_pulls(STBD_STAT_PIN);
     gpio_disable_pulls(PORT_STAT_PIN);
 
-    analog_io_init();
+    actuators_initialize();
 
     // Initialize I2C
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));

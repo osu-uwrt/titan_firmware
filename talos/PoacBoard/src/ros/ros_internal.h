@@ -19,10 +19,15 @@
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define KILLSWITCH_SUBCRIBER_NAME "state/kill"
-#define LED_SUBSCRIBER_NAME "command/led"
-#define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
+#define KILLSWITCH_PUBLISHER_NAME "state/kill"
+#define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
+#define ELECTRICAL_READING_NAME "state/electrical"
+#define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
+#define TEMP_STATUS_PUBLISHER_NAME "state/temp/poacboard"
+#define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/poacboard"
+#define AUX_SWITCH_PUBLISHER_NAME "state/aux"
+#define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
 #define BUSY_TOPIC_NAME "state/actuator/busy"
 #define STATUS_TOPIC_NAME "state/actuator/status"
@@ -44,17 +49,9 @@ extern const size_t ros_actuators_num_executor_handles;
 rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node);
 void ros_actuators_fini(rcl_node_t *node);
 
-#if ACTUATOR_V1_SUPPORT
-extern const size_t actuator_v1_parameters_num_executor_handles;
-rcl_ret_t actuator_v1_parameters_init(rcl_node_t *node, rclc_executor_t *executor);
-void actuator_v1_parameters_fini(rcl_node_t *node);
-#endif
-
-#if ACTUATOR_V2_SUPPORT
 extern const size_t actuator_v2_dynamixel_num_executor_handles;
 rcl_ret_t actuator_v2_dynamixel_update_status(void);
 rcl_ret_t actuator_v2_dynamixel_init(rcl_node_t *node, rclc_executor_t *executor);
 void actuator_v2_dynamixel_fini(rcl_node_t *node);
-#endif
 
 #endif

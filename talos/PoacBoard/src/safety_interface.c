@@ -1,5 +1,7 @@
 #include "safety_interface.h"
 
+#include "actuators.h"
+
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "hardware/gpio.h"
@@ -56,6 +58,7 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
+    actuators_disarm();
     led_killswitch_set(false);
     gpio_put(SOFT_KILLSWITCH_PIN, SOFTKILL_STATE_KILL);
 

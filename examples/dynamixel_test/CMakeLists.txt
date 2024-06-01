@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 # The Target Board
-# These can be found in lib/uwrt_boards/include/boards or be set to pico
+# These can be found in lib/titan_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD talos/poac_board)

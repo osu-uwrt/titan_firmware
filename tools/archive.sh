@@ -91,7 +91,7 @@ fi
 
 set -e
 
-images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery puddles/Backplane"
+images="talos/CameraCageBB talos/ESCBoard talos/PoacBoard talos/SmartBattery puddles/Backplane"
 image_types=".elf _ota.uf2 _with_bl.uf2"
 
 for target in $images; do
@@ -173,11 +173,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo
-        echo "Flashing Power Board"
-        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/power_board_ota.uf2
-        echo
-        echo "Flashing Actuator Board"
-        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/actuator_mk2_ota.uf2
+        echo "Flashing Poac Board"
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/poac_board_ota.uf2
         echo
         echo "Flashing Camera Cage"
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/camera_cage_bb_ota.uf2

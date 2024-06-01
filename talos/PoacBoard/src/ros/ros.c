@@ -1,6 +1,6 @@
 #include "ros.h"
 
-#include "analog_io.h"
+#include "ros_internal.h"
 
 #include "driver/mcp3426.h"
 #include "driver/sht41.h"
@@ -29,21 +29,6 @@
 // ========================================
 // Global Definitions
 // ========================================
-
-#define MAX_MISSSED_HEARTBEATS 7
-#define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
-#define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define KILLSWITCH_PUBLISHER_NAME "state/kill"
-#define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
-#define ELECTRICAL_READING_NAME "state/electrical"
-#define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
-#define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
-#define TEMP_STATUS_PUBLISHER_NAME "state/temp/powerboard"
-#define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/powerboard"
-
-#define AUX_SWITCH_PUBLISHER_NAME "state/aux"
-
-#define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
 bool ros_connected = false;
 
@@ -150,8 +135,8 @@ static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
 rcl_ret_t ros_publish_electrical_readings() {
     bool stbd_pwring = gpio_get(STBD_STAT_PIN);
     bool port_pwring = gpio_get(PORT_STAT_PIN);
-    electrical_reading_msg.port_voltage = analog_io_read_port_meas();
-    electrical_reading_msg.stbd_voltage = analog_io_read_stbd_meas();
+    electrical_reading_msg.port_voltage = 0;
+    electrical_reading_msg.stbd_voltage = 0;
     electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
     electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
     electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
@@ -322,12 +307,18 @@ rcl_ret_t ros_init() {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_local_handles = 2;
+    const int executor_num_handles =
+        ros_actuators_num_executor_handles + actuator_v2_dynamixel_num_executor_handles + executor_num_local_handles;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
                                               &elec_command_subscription_callback, ON_NEW_DATA));
+
+    // Initialize other files
+    RCRETCHECK(ros_actuators_init(&executor, &node));
+    RCRETCHECK(actuator_v2_dynamixel_init(&node, &executor));
 
     // Populate messages
     software_kill_msg.sender_id.data = software_kill_frame_str;
@@ -345,6 +336,9 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
+    actuator_v2_dynamixel_fini(&node);
+    ros_actuators_fini(&node);
+
     RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));

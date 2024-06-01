@@ -1,5 +1,5 @@
-#ifndef BOARDS__MK2__POWER_BOARD_H_
-#define BOARDS__MK2__POWER_BOARD_H_
+#ifndef BOARDS__MK2__POAC_BOARD_H_
+#define BOARDS__MK2__POAC_BOARD_H_
 
 #include "boards/mk2/blocks/rp2040_can_block.h"
 

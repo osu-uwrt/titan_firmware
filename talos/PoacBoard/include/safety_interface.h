@@ -16,7 +16,13 @@
     DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
     DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
     DEF(FAULT_ADC_ERROR, 6)                                                                                            \
-    DEF(FAULT_SHT41_ERROR, 7)
+    DEF(FAULT_SHT41_ERROR, 7)                                                                                          \
+    /* Raised if an actuator command could not successfully due to a hardware/firmware issue */                        \
+    DEF(FAULT_ACTUATOR_FAILURE, 8)                                                                                     \
+    /* Raised if the dynamixel reports that it has a hardware error */                                                 \
+    DEF(FAULT_ACTUATOR_HW_FAULT, 9)                                                                                    \
+    /* Raised if an actuator is unplugged, cleared when all actuators are plugged in */                                \
+    DEF(FAULT_ACTUATOR_UNPLUGGED, 10)
 
 /**
  * @brief The state of the physical kill switch (true if asserting kill)
