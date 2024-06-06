@@ -6,7 +6,8 @@
         "${workspaceFolder}/talos/SmartBattery/",
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",
-        "${workspaceFolder}/tools/canmore_cli/"
+        "${workspaceFolder}/tools/canmore_cli/",
+        "${workspaceFolder}/SBCBoard",
     ],
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
