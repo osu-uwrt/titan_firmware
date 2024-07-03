@@ -4,10 +4,11 @@
         "${workspaceFolder}/talos/ESCBoard/",
         "${workspaceFolder}/talos/PoacBoard/",
         "${workspaceFolder}/talos/SmartBattery/",
+        "${workspaceFolder}/talos/LEDBoard/",
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",
         "${workspaceFolder}/tools/canmore_cli/",
-        "${workspaceFolder}/SBCBoard",
+        "${workspaceFolder}/SBCBoard"
     ],
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",

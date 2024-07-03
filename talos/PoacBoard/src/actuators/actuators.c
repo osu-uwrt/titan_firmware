@@ -117,6 +117,7 @@ static const char *const torpedo_states[] = { "ERROR", "DISARMED", "CHARGING", "
 static int actuators_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     if (argc < 2) {
         fprintf(fout, "Usage: @actuator [cmd]\n");
+        return 2;
     }
 
     const char *cmd = argv[1];
