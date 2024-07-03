@@ -1,5 +1,7 @@
 #include "titan_debug_internal.h"
 
+#include <stdlib.h>
+
 #if TITAN_SAFETY
 
 // ========================================
@@ -50,8 +52,14 @@ reg_mapped_server_inst_t debug_server_inst = {
 #include "hardware/watchdog.h"
 #include "titan/safety.h"
 
-void debug_init(reg_mapped_server_tx_func tx_func) {
+void debug_init(reg_mapped_server_tx_func tx_func, size_t multiword_buffer_len) {
     debug_server_inst.tx_func = tx_func;
+
+    if (multiword_buffer_len > 0) {
+        debug_server_inst.multiword_resp_buffer = (reg_mapped_response_t *) malloc(multiword_buffer_len);
+        debug_server_inst.multiword_resp_buffer_max_count =
+            REG_MAPPED_COMPUTE_MAX_RESP_WORD_COUNT(multiword_buffer_len);
+    }
 
     // Run any other initialization routines
     mcu_control_bindings_init();

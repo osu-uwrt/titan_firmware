@@ -68,11 +68,18 @@ if (BOOTLOADER_INTERFACE MATCHES "can")
         driver_mcp251Xfd_ll_driver
     )
 
+    target_compile_definitions(titan_bootloader PUBLIC TITAN_BOOTLOADER_CAN_INTERFACE=1)
+
+    # We can't take advantage of multiword for standard CAN, disable it to save space
+    target_compile_definitions(canmore PUBLIC CANMORE_CONFIG_DISABLE_MULTIWORD=1)
+
 elseif (BOOTLOADER_INTERFACE MATCHES "eth")
     # Ethernet bootloader variant
     target_sources(titan_bootloader PUBLIC
         src/eth_bl_interface.c
     )
+
+    target_compile_definitions(titan_bootloader PUBLIC TITAN_BOOTLOADER_ETH_INTERFACE=1)
 
     target_link_libraries(titan_bootloader PUBLIC
         driver_wiznet

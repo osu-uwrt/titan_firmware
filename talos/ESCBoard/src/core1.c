@@ -113,8 +113,6 @@ static thruster_controller_state_t controller_state[NUM_THRUSTERS] = { 0 };
  * @brief Main loop for the thruster control loop. Entry point for core 1.
  */
 static void __time_critical_func(core1_main)() {
-    // TODO: Add in crash handling logic to core 1
-
     dshot_init();
 
     // ========================================
@@ -381,10 +379,11 @@ static void __time_critical_func(core1_main)() {
                         rpm_valid[i] = true;
                         // If the decode was successful, tick the controller
                         // Store the resulting commthrottle_commands[i]and to be executed for next tick
-                        int16_t new_cmd = thruster_controller_tick(&controller_state[i], target_rpm_cached[i],
-                                                                        rpm[i], time_difference);
+                        int16_t new_cmd = thruster_controller_tick(&controller_state[i], target_rpm_cached[i], rpm[i],
+                                                                   time_difference);
 
-                        bool sign_changed = (new_cmd > 0 && throttle_commands[i] < 0) || (new_cmd < 0 && throttle_commands[i] > 0);
+                        bool sign_changed =
+                            (new_cmd > 0 && throttle_commands[i] < 0) || (new_cmd < 0 && throttle_commands[i] > 0);
 
                         if (!time_reached(controller_state[i].directionChangeTimeout)) {
                             thruster_controller_zero(&controller_state[i]);

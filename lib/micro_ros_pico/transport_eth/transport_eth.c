@@ -207,7 +207,7 @@ bool transport_eth_init() {
                                   transport_eth_read);
 
 #if TITAN_SAFETY
-    debug_init(&ethernet_control_interface_transmit);
+    debug_init(&ethernet_control_interface_transmit, CANMORE_ETH_UDP_MAX_LEN);
 #endif
 
     return true;
@@ -224,7 +224,7 @@ bool ethernet_check_online() {
 #if TITAN_SAFETY
 
 absolute_time_t ethernet_next_heartbeat = { 0 };
-static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
+static uint8_t msg_buffer[CANMORE_ETH_UDP_MAX_LEN];
 
 void ethernet_control_interface_transmit(uint8_t *msg, size_t len, __unused void *arg) {
     // This will respond to the last parsed packet
