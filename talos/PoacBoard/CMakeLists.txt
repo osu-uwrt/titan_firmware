@@ -39,7 +39,7 @@ titan_generate_version_tag(poac_board 1 0)
 pico_enable_stdio_uart(poac_board 1)
 pico_set_program_name(poac_board "Poac Board FW")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(poac_board)
 titan_enable_bootloader(poac_board can)
 

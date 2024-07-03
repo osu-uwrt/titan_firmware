@@ -40,7 +40,7 @@ pico_set_program_name(backplane_firmware "Puddles Backplane Firmware")
 # Wait for 2 seconds for serial to connect
 target_compile_definitions(backplane_firmware PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(backplane_firmware)
 titan_enable_bootloader(backplane_firmware eth)
 

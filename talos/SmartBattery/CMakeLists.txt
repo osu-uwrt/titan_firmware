@@ -37,7 +37,7 @@ titan_generate_version_tag(smart_battery 1 0)
 pico_enable_stdio_uart(smart_battery 1)
 pico_set_program_name(smart_battery "Smart Battery Firmware")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(smart_battery)
 titan_enable_bootloader(smart_battery can)
 

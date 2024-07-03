@@ -32,7 +32,7 @@ pico_enable_stdio_usb(dynamixel_test 0)
 pico_enable_stdio_uart(dynamixel_test 1)
 pico_set_program_name(dynamixel_test "Dynamixel Test")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(dynamixel_test)
 #titan_enable_bootloader(dynamixel_test can)
 

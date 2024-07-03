@@ -39,7 +39,7 @@ pico_enable_stdio_uart(template_project 1)  # TODO: Disable if running on board 
 #pico_enable_stdio_usb(template_project 1)  # TODO: Enable if you don't have hardware uart
 pico_set_program_name(template_project "Template Project")  # TODO: Set the project name
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(template_project)
 #titan_enable_bootloader(template_project can)  # TODO: Enable and select transport if using bootloader
 

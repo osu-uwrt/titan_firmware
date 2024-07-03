@@ -36,7 +36,7 @@ titan_generate_version_tag(camera_cage_bb 1 0)
 pico_enable_stdio_uart(camera_cage_bb 1)
 pico_set_program_name(camera_cage_bb "Camera Cage BB Firmware")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(camera_cage_bb)
 titan_enable_bootloader(camera_cage_bb can)
 
