@@ -118,9 +118,9 @@ installed, this step should have already been performed. If not, run:
 
 Restart your computer (or run `wsl --shutdown` if using WSL) to ensure that the changes apply.
 
-If you want to monitor debug output over the serial port, be sure to install minicom by running:
+If you want to monitor debug output over the serial port, be sure to install screen by running:
 
-    sudo apt install minicom
+    sudo apt install screen
 
 ### Connection Setup
 
@@ -184,11 +184,11 @@ some number. To view the list of usb serial ports on your computer, run:
     ls /dev/ttyACM*
 
 If the RP2040 is connected as a USB serial device, you should see at least one entry in this list. To connect to a
-device, launch minicom with the following arguments (where `ttyACMx` is replaced with a device found above)
+device, launch screen with the following arguments (where `ttyACMx` is replaced with a device found above)
 
-    minicom -D /dev/ttyACMx
+    screen /dev/ttyACMx
 
-To exit minicom, press `Ctrl+A`, then `X`. Select `Yes` to confirm.
+To exit screen, press `Ctrl+A` (the magic escape sequence), then `k` (to kill), then press 'y' (to confirm).
 
 Note that because USB serial comes up with the device, you will loose any logs which are sent out before you connect
 to the serial port. This may cause you to lose early boot logs. If you would like to see these, use the SWD/TagConnect
@@ -209,7 +209,7 @@ interface.
     +--------+             +--Tag Connect Cable--+     +--------------+         |                     +---------+ |
     |        |  <==SWD==>  |  <======SWD======>  | <=> | Pico running |         | <====CMSIS-DAP====> | OpenOCD | |
     | RP2040 |             |  <=====POWER======  |     |  Picoprobe   | <=USB=> |                     +---------+ |
-    |        |  ==UART==>  |  ======UART======>  | ==> |  Firmware    |         | ==USB Serial Port=> | Minicom | |
+    |        |  ==UART==>  |  ======UART======>  | ==> |  Firmware    |         | ==USB Serial Port=> | Screen  | |
     +--------+             +---------------------+     +--------------+         |                     +---------+ |
                                                                                 +---------------------------------+
 
@@ -295,20 +295,20 @@ tool with the environment variable `UPLOADTOOL_OPENOCD_EN_STDERR=1`
 
 The picoprobe presents a USB to serial adapter which allows viewing of all debug prints in firmware (so long as stdio
 uart is enabled in your project's CMakeLists). The UART TX is sent over the TagConnect cable, allowing for easy access
-to this debug terminal. Note that this only supports UART TX, not RX, so minicom cannot send data back to the RP2040.
+to this debug terminal. Note that this only supports UART TX, not RX, so screen cannot send data back to the RP2040.
 
 To open this debug terminal, you must first find the serial port for the picoprobe. Run:
 
     ls /dev/ttyACM*
 
 If you have the picoprobe connected, and only one entry appears, then that is your serial port. If multiple items
-appear, you may need to try several items on this list to find the correct one. To connect to a device, launch minicom
+appear, you may need to try several items on this list to find the correct one. To connect to a device, launch screen
 with the following arguments (where `ttyACMx` is replaced with a device found above). By default, stdio uart is at
 115200 baud unless otherwise configured in the project CMakeLists.
 
-    minicom -D /dev/ttyACMx -b 115200
+    screen /dev/ttyACMx 115200
 
-To exit minicom, press `Ctrl+A`, then `X`. Select `Yes` to confirm.
+To exit screen, press `Ctrl+A` (the magic escape sequence), then `k` (to kill), then press 'y' (to confirm).
 
 ### Debugging with VSCode
 
