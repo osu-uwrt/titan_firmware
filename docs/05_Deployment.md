@@ -4,7 +4,7 @@
 
 Before any pool test which needs new firmware, it is recommended you tag the commit to easily track the code that ran
 at the pool test. This allows you to easily track changes between pool tests, making it easier to chase down bugs that
-appear at a later test.
+appear at a later test. The archive script will walk you through the process for tagging the commit.
 
 Before tagging, ensure you have committed all changes:
 
@@ -32,14 +32,20 @@ In the same folder that you cloned `titan_firmware/`, create a `firmware_archive
 
 ### Using the script
 
-This archive script will build all of the projects for you and export them into the folder passed as an argument.
-Note its recommended to use the tag, but will also work with any arbitrary name, such as needing to quickly recompile
-and patch firmware at the pool test. (I typically just append `-patch` to the tag for that folder)
+This archive script will build all of the projects for you and export them into the requested folder. If you create
+a tag, it will name the folder after that tag. If not, it will prompt you for the name instead.
+
+This script also allows you to deploy firmware directly to the vehicle and flash all of the microcontrollers onboard.
+If you do that, you must be on the same network as the orin, have the orin added to your system hosts file (should be
+done as part of riptide setup), the ~/firmware_deploy/bin folder should have upload tool inside it, and it is
+recommended to have ssh keys exchanged so you don't have to enter the password 10 times.
 
     # Run this in the firmware_archive/ directory
-    # If you tagged the commit as pool-test-2023-08-25, you would pass that as the argument
+    # It is recommended that you tag the commit if it is being deployed for the vehicle for a test
 
     ./archive.sh
+
+    # Answer the questions. For the tag, it should be in the format: pool-test-YYYY-MM-DD
 
 After the script runs, you should now have a directory which looks like:
 
@@ -88,13 +94,15 @@ It is now safe to remove the `tools_build.sh` script:
 
 ### Uploading Firmware on the Robot Computer
 
+If you did not have the archive script deploy the firmware to the boards, you can do so manually.
+
 To make copying of firmware to the computer easier, a `full_ota.tar` file is created. This contains all of the firmware
 OTA images for deployment. Upload this into the `firmware_deploy` directory
 
     $ sftp ros@orin
     sftp> cd firmware_deploy
-    sftp> mkdir ota
-    sftp> cd ota
+    sftp> mkdir pool-test-YYYY-MM-DD
+    sftp> cd pool-test-YYYY-MM-DD
     sftp> put full_ota.tar
     sftp> exit
 
