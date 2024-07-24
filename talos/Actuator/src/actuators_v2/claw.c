@@ -7,7 +7,7 @@
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "claw"
 
-#define CLAW_OPEN_POSITION 14336
+#define CLAW_OPEN_POSITION 12288
 #define CLAW_CLOSE_POSITION 6144
 // Minimum position, below this point we consider home is lost (it shouldn't be possible for the claw to go below this)
 #define CLAW_MIN_POSITION 4608
@@ -48,7 +48,7 @@ static bool claw_move_done_handler(dxlact_state_t *state, int32_t *next_target) 
     // After we stop moving we're always done (we don't have complex mvoements we need to do)
     (void) state;
     (void) next_target;
-    return true;
+    return false;
 }
 
 // ========================================
