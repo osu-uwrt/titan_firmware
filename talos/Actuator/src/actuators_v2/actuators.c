@@ -18,9 +18,35 @@
 bool actuators_initialized = false;
 volatile bool actuators_armed = false;
 
+// Dynamixel Driver Configuration
+#define countof(arr) (sizeof(arr) / sizeof(*(arr)))
 #define MARKER_TORPEDO_ID 2
-const dynamixel_id dynamixel_servo_list[] = { MARKER_TORPEDO_ID };
-const size_t dynamixel_servo_count = sizeof(dynamixel_servo_list) / sizeof(*dynamixel_servo_list);
+#define CLAW_ID 3
+static const dynamixel_id dynamixel_servo_list[] = { MARKER_TORPEDO_ID, CLAW_ID };
+
+// DXL Actuator Base State Storage
+// Note these assume actuator IDs set above are sequential
+#define DYNAMIXEL_FIRST_ID MARKER_TORPEDO_ID
+static dxlact_state_t dynamixel_states[countof(dynamixel_servo_list)];
+
+static dxlact_state_t *get_state_ptr(dynamixel_id id) {
+    if (id < DYNAMIXEL_FIRST_ID)
+        return NULL;
+    id -= DYNAMIXEL_FIRST_ID;
+    if (id >= countof(dynamixel_states))
+        return NULL;
+    return &dynamixel_states[id];
+}
+
+static dxlact_state_t *get_state_ptr_assert(dynamixel_id id) {
+    dxlact_state_t *state = get_state_ptr(id);
+    hard_assert(state != NULL);
+    return state;
+}
+
+// ========================================
+// Callbacks for Dynamixel Driver
+// ========================================
 
 static void actuators_dynamixel_error_cb(dynamixel_error_t error) {
     LOG_ERROR("Dynamixel Driver Error: %d (arg: %d) - %s line %d", error.fields.error, error.fields.wrapped_error_code,
@@ -30,7 +56,7 @@ static void actuators_dynamixel_error_cb(dynamixel_error_t error) {
 }
 
 static void check_lower_actuator_unplugged_fault(void) {
-    for (size_t i = 0; i < dynamixel_servo_count; i++) {
+    for (size_t i = 0; i < countof(dynamixel_servo_list); i++) {
         if (!dynamixel_check_connected(dynamixel_servo_list[i])) {
             return;
         }
@@ -39,33 +65,35 @@ static void check_lower_actuator_unplugged_fault(void) {
 }
 
 static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_id id) {
+    dxlact_state_t *state = get_state_ptr(id);
     volatile struct dynamixel_ram *ram;
+
     switch (event) {
     case DYNAMIXEL_EVENT_CONNECTED:
         check_lower_actuator_unplugged_fault();
-        if (id == MARKER_TORPEDO_ID) {
-            torpedo_marker_report_connect();
+        if (state) {
+            dxlact_base_report_connect(state);
         }
         break;
 
     case DYNAMIXEL_EVENT_DISCONNECTED:
-        safety_raise_fault(FAULT_ACTUATOR_UNPLUGGED);
-        if (id == MARKER_TORPEDO_ID) {
-            torpedo_marker_report_disconnect();
+        safety_raise_fault_with_arg(FAULT_ACTUATOR_UNPLUGGED, id);
+        if (state) {
+            dxlact_base_report_disconnect(state);
         }
         break;
 
     case DYNAMIXEL_EVENT_RAM_READ:
-        ram = dynamixel_get_ram(id);
-        if (id == MARKER_TORPEDO_ID) {
-            torpedo_marker_report_state(ram->torque_enable, ram->moving, ram->goal_position, ram->present_position,
-                                        ram->hardware_error_status);
+        if (state) {
+            volatile struct dynamixel_ram *ram = dynamixel_get_ram(id);
+            dxlact_base_report_state(state, ram->torque_enable, ram->moving, ram->goal_position, ram->present_position,
+                                     ram->hardware_error_status);
         }
         break;
 
     case DYNAMIXEL_EVENT_ALERT:
         ram = dynamixel_get_ram(id);
-        safety_raise_fault_with_arg(FAULT_ACTUATOR_FAILURE, (((uint32_t) id) << 24) | (ram->hardware_error_status));
+        safety_raise_fault_with_arg(FAULT_ACTUATOR_HW_FAULT, (((uint32_t) id) << 24) | (ram->hardware_error_status));
         LOG_WARN("Dynamixel (ID: %d) reporting hardware error 0x%02x", id, ram->hardware_error_status);
         break;
 
@@ -75,6 +103,10 @@ static void actuators_dynamixel_event_cb(enum dynamixel_event event, dynamixel_i
     }
 }
 
+// ========================================
+// CANmore CLI Command Bindings
+// ========================================
+
 #define str_table_lookup(table, idx) ((idx) < (sizeof(table) / sizeof(*table)) ? table[idx] : "Unknown")
 #define bool_lookup(val) ((val) ? "Yes" : "No")
 static const char *const claw_states[] = { "ERROR",  "DISARMED", "UNKNOWN_POSITION", "OPENED",
@@ -83,7 +115,7 @@ static const char *const dropper_states[] = { "ERROR", "DISARMED", "READY", "DRO
 static const char *const torpedo_states[] = { "ERROR", "DISARMED", "CHARGING", "CHARGED", "FIRING", "FIRED" };
 
 static int actuators_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
-    if (argc != 2) {
+    if (argc < 2) {
         fprintf(fout, "Usage: @actuator [cmd]\n");
     }
 
@@ -128,6 +160,29 @@ static int actuators_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     else if (!strcmp(cmd, "clawclose")) {
         successful = claw_close(&err);
     }
+    else if (!strcmp(cmd, "setclosedpos")) {
+        successful = claw_set_closed_position(&err);
+    }
+    else if (!strcmp(cmd, "clawmove")) {
+        if (argc < 3) {
+            fprintf(fout, "Usage: @actuator clawmove [delta]\n");
+            return 2;
+        }
+
+        // Parse the provided delta value
+        char *end;
+        long long val = strtoll(argv[2], &end, 10);
+        if (*end != 0 || end == argv[2]) {
+            fprintf(fout, "Invalid number provided for delta\n");
+            return 2;
+        }
+        if (val > INT32_MAX || val < INT32_MIN) {
+            fprintf(fout, "Number provided for delta does not fit into int32\n");
+            return 2;
+        }
+
+        successful = claw_creep_delta(&err, (int32_t) val);
+    }
     else {
         fprintf(fout, "Unknown Command: '%s'\n", cmd);
         return 2;
@@ -143,18 +198,23 @@ static int actuators_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     }
 }
 
+// ========================================
 // Public Functions
+// ========================================
+
 void actuators_initialize(void) {
     hard_assert_if(ACTUATORS, actuators_initialized);
     bi_decl_if_func_used(bi_program_feature("Actuators V2"));
 
-    bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal")) gpio_disable_pulls(CLAW_CHECK_PIN);
+    bi_decl_if_func_used(bi_1pin_with_name(CLAW_CHECK_PIN, "Dynamixel TTL Signal"));
+    gpio_disable_pulls(CLAW_CHECK_PIN);
     gpio_disable_pulls(CLAW_PWM_PIN);
 
-    dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, dynamixel_servo_count, actuators_dynamixel_error_cb,
-                   actuators_dynamixel_event_cb);
+    torpedo_marker_initialize(get_state_ptr_assert(MARKER_TORPEDO_ID), MARKER_TORPEDO_ID);
+    claw_initialize(get_state_ptr_assert(CLAW_ID), CLAW_ID);
 
-    torpedo_marker_initialize(MARKER_TORPEDO_ID);
+    dynamixel_init(pio0, 1, CLAW_CHECK_PIN, dynamixel_servo_list, countof(dynamixel_servo_list),
+                   actuators_dynamixel_error_cb, actuators_dynamixel_event_cb);
 
     debug_remote_cmd_register("actuator", "[cmd]",
                               "Issues the requested actuator command\n"
@@ -171,7 +231,9 @@ void actuators_initialize(void) {
                               "  sethome:\tSets the torpedo/marker to the home position to the current position\n"
                               "Claw Commands:\n"
                               "  clawopen:\tOpen the claw\n"
-                              "  clawclose:\tClose the claw",
+                              "  clawclose:\tClose the claw\n"
+                              "  setclosedpos\tSets the claw closed position to the current position\n"
+                              "  clawmove [d]:\tMoves the claw by [d] ticks",
                               actuators_cmd_cb);
 
     actuators_initialized = true;
@@ -203,16 +265,35 @@ bool actuators_arm(const char **errMsgOut) {
 
     LOG_INFO("Arming Actuators");
 
-    return torpedo_marker_arm(errMsgOut);
+    // Arm all of the subsystems
+    for (size_t i = 0; i < countof(dynamixel_states); i++) {
+        if (!dxlact_base_arm(&dynamixel_states[i], errMsgOut)) {
+            // Failed, disarm all and report error
+            actuators_disarm();
+            return false;
+        }
+    }
+
+    // Reset the torpedo/dropper count when we re-arm
+    torpedo_marker_reset_count();
+
+    return true;
 }
 
 void actuators_disarm(void) {
     actuators_armed = false;
-    torpedo_marker_safety_disable();
+    for (size_t i = 0; i < countof(dynamixel_states); i++) {
+        dxlact_base_safety_disable(&dynamixel_states[i]);
+    }
 }
 
 bool actuators_get_busy(void) {
-    return torpedo_marker_get_busy();
+    for (size_t i = 0; i < countof(dynamixel_states); i++) {
+        if (dxlact_base_get_busy(&dynamixel_states[i])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void actuator_dxlitr_init(actuator_dxlitr_t *itr) {
@@ -224,7 +305,7 @@ bool actuator_dxlitr_next(actuator_dxlitr_t *itr, riptide_msgs2__msg__DynamixelS
     volatile struct dynamixel_ram *ram = NULL;
 
     // Iterate until match found or iterator reached the end
-    while (*itr < dynamixel_servo_count && (eeprom == NULL || ram == NULL)) {
+    while (*itr < countof(dynamixel_servo_list) && (eeprom == NULL || ram == NULL)) {
         eeprom = dynamixel_get_eeprom(dynamixel_servo_list[*itr]);
         ram = dynamixel_get_ram(dynamixel_servo_list[*itr]);
         (*itr)++;

@@ -66,8 +66,9 @@ if (USE_V2_ACTUATORS)
     # List of sources files in mark 1 directory
     set(ACTUATORS_V2_SPECIFIC_FILES
         actuators.c
+        dxl_actuator_base.c
         torpedo_marker.c
-        claw_disabled.c
+        claw.c
     )
 
     # Append actuators v1 and target all the sources
