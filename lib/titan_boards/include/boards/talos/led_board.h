@@ -14,7 +14,7 @@
 // This defines the client ID for this board on that bus
 // These are defined in the titan_canmore/.../client_ids.h header file (and implicity included by titan_boards.cmake)
 // Ensure that the bus that the client id below belongs to matches the bus selected above
-#define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_ACTUATOR_BOARD
+#define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_LED_BOARD
 
 #define LEDC_DIN2_PIN 0
 #define LEDC_DIN1_PIN 1
