@@ -1,10 +1,17 @@
 {
     // Contains map of flash chip JEDEC IDs to flash chip names and capacities
+    // If you want a nice place to look these up for unknown ones, see:
+    // https://github.com/u-boot/u-boot/blob/master/drivers/mtd/spi/spi-nor-ids.c
     "jedecIdMap": [
         {
             "name": "Winbond W25Q16JV",
             "id": "EF4015",
             "capacity": 2097152 // 2 MB
+        },
+        {
+            "name": "Winbond W25Q128",
+            "id": "EF4018",
+            "capacity": 16777216 // 16 MB
         },
         {
             "name": "Winbond W25Q128JV",
@@ -16,12 +23,22 @@
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
         // ========================================
-        // 2023-2024 Boards
+        // 2023-2024 (Talos) Boards
         // ========================================
         {
             "name": "Downwards Facing Camera",
             "boardType": "downwards_facing_camera",
             "serial": "4E4DD83ADD9FB46D"
+        },
+        {
+            "name": "Talos Poactuator Board",
+            "boardType": "talos/poac_board",
+            "serial": "E461BC98932C3B2E"
+        },
+        {
+            "name": "Talos LED Board",
+            "boardType": "talos/led_board",
+            "serial": "E461BC98932C232E"
         },
         // ========================================
         // Mark 2 Era Boards
@@ -64,6 +81,7 @@
             "boardType": "mk2/power_board",
             "serial": "E662145507404F27"
         },
+        // Smart Battery Housings
         {
             "name": "Smart Battery Housing #1",
             "boardType": "mk2/sbh_mcu",

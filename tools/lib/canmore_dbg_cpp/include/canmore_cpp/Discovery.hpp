@@ -44,7 +44,8 @@ public:
     // RP2040Device overrides
     virtual std::string getMode() const { return "Unknown (" + std::to_string(mode) + ")"; }
     std::string getInterface() const override { return interfaceName + " - Client " + std::to_string(clientId); }
-    uint64_t getFlashId() override { return 0; }  // Just return null flash ID unless its supported
+    uint64_t getFlashId() override { return 0; }      // Just return null flash ID unless its supported
+    virtual bool supportsFlashId() { return false; }  // Flash ID not supported unless implemented
     bool supportsFlashInterface() const override {
         return false;
     }  // Unknown mode, don't know how to get it into bootloader
@@ -77,6 +78,7 @@ public:
 
     virtual std::string getAppVersion() = 0;
     virtual uint64_t getFlashId() = 0;
+    bool supportsFlashId() override { return true; }
     virtual std::shared_ptr<BootloaderClient> switchToBootloaderMode() = 0;
     virtual std::shared_ptr<DebugClient> getClient() = 0;
 
@@ -115,6 +117,7 @@ public:
 
     virtual std::string getBLVersion() = 0;
     virtual uint64_t getFlashId() = 0;
+    bool supportsFlashId() override { return true; }
     virtual std::shared_ptr<BootloaderClient> getClient() = 0;
 
     void getAdditionalInfo(std::vector<std::pair<std::string, std::string>> &infoOut) override {
@@ -137,6 +140,7 @@ public:
     using Device::Device;
 
     virtual uint64_t getFlashId() = 0;
+    bool supportsFlashId() override { return true; }
     virtual std::shared_ptr<LinuxClient> getClient() = 0;
 
     // RP2040Device overrides

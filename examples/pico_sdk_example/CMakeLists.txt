@@ -39,7 +39,7 @@ pico_set_program_name(pico_sdk_example "Pico SDK Example")
 # Wait for 2 seconds for serial to connect
 target_compile_definitions(pico_sdk_example PUBLIC PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=2000)
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(pico_sdk_example)
 #titan_enable_bootloader(pico_sdk_example can)
 

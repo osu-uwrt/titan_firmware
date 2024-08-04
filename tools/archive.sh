@@ -91,7 +91,7 @@ fi
 
 set -e
 
-images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery puddles/Backplane"
+images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery talos/LEDBoard"
 image_types=".elf _ota.uf2 _with_bl.uf2"
 
 for target in $images; do
@@ -187,5 +187,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo
         echo "Flashing ESC Board 1"
         ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/esc_board_ota.uf2 "'Mark 2 ESC Board 1'"
+        echo
+        echo "Flashing LED Board"
+        ssh ros@orin $remote_firmware_deploy_path/bin/upload_tool $remote_firmware_deploy_path/$dest_dir_name/led_board_ota.uf2
     fi
 fi

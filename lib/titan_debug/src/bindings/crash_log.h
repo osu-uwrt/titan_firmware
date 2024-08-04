@@ -144,8 +144,11 @@ static bool prev_index_cb(__unused const struct reg_mapped_server_register_defin
         case CLEAN_RESET_TYPE_BOOTLOADER:
             selected_prev_scratch_1 = CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTLOADER_VALUE;
             break;
+        case CLEAN_RESET_TYPE_BOOTROM:
+            selected_prev_scratch_1 = CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTROM_VALUE;
+            break;
         default:
-            selected_prev_scratch_1 = entry->reset_reason;  // If it's not in this list, fallback to the raw value
+            selected_prev_scratch_1 = entry->scratch_1;  // If it's not in this list, fallback to the raw value
         }
     }
     else {

@@ -341,7 +341,7 @@ static void display_show_main_screen(enum screen_type selected_screen) {
     else if (selected_screen == SCREEN_PACK_STATUS) {
         if ((*fault_list_reg) & (1 << FAULT_BQ40_PF_STATUS) || (*fault_list_reg) & (1 << FAULT_BQ40_SAFETY_STATUS)) {
             // Static variable so we can slowly rotate through all present faults
-            static absolute_time_t nextFaultIncrement = {};
+            static absolute_time_t nextFaultIncrement;
             static int targetFaultIdx = 0;
 
             const char *faultTitle;

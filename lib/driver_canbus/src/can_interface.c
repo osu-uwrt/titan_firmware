@@ -384,7 +384,7 @@ bool canbus_init(unsigned int client_id) {
 #if TITAN_SAFETY
         // Debug interface only works if safety is compiled in
         // If not, we don't have any way to control the chip's watchdog/query chip status
-        debug_init(&canbus_control_interface_transmit);
+        debug_init(&canbus_control_interface_transmit, 0);
         canbus_utility_frame_register_cb(CANMORE_CHAN_CONTROL_INTERFACE, &canbus_control_interface_cb);
 
         debug_remote_cmd_register("candbg", "[action]",
