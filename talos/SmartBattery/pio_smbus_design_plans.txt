@@ -1,0 +1,162 @@
+SMBUS Plans
+
+Ways of interacting with PIO:
+
+Two types of instructions to execute:
+ - Ones that should never error
+ - Ones that can error
+
+So, we really have 3 types of operations we'll do on PIO:
+ - Transmit byte we expect to match
+ - Receive byte
+ - Raw execute instructions
+
+Transmit Byte Procedure:
+ - [Assumption: SM is idle right now]
+ - Write data to transmit fifo
+ - Wait for either:
+   - Data to be pushed into the rx fifo
+     - Continue in this algorithm
+   - Unexpected NAK interrupt
+     - Clear the interrupt to unstick the SM
+     - Return NAK error
+   - Timeout to occur (see SMBus specification for this value)
+     - Need to perform timeout recovery procedure to fix the SM (more complex)
+     - Return Timeout Error (NEEDS SPECIAL RECOVERY, PROBABLY SHOULD BE IN STOP LOGIC)
+ - Check if data in RX FIFO matches
+   - If not, return an ABTIRATION error
+   - If so, continue
+ - [If we get here, the SM should be parked and ready to receive the next byte]
+ - Return SUCCESS
+
+Receive Byte Procedure:
+ - [Assumption: SM is idle right now]
+ - Write 0xFFs to transmit FIFO, changing depending on if we need to ACK the reception
+ - Wait for either:
+   - Data to be pushed into the rx fifo
+     - Continue in this algorithm
+   - Unexpected NAK interrupt
+     - This is a HARDWARE ERROR (we control whether this should happen)
+     - If our logic is solid, then that means that we sent an ACK, but we saw a NACK on the other side
+   - Timeout to occur
+     - Need to perform timeout recovery procedure to fix the SM
+     - Return Timeout Error
+ - Return data in the RX fifo
+
+Honestly those two functions above are pretty similar, you can probably strip the core out of both of them, make a common
+wait for xfer function, then make inline wrappers to handle the differences between TX and RX
+
+Pin Set Instruction Execute Procedure:
+ - [Assumption: SM is idle right now]
+ - MUST execute instruction which cannot stall (Verify in RP2040 datasheet section 3.2.4)
+ - Execute instruction
+ - Busy wait (inline) for the amount needed by SMBus protocol
+
+Wait for clock to go high:
+ - [Assumption: SM is idle right now]
+ - Execute stalling wait instruction to wait for clock to go high (waiting for clock stretching)
+ - Wait until either:
+   - Instruction stops stalling
+   - Timeout is reached (Note this will probably need to be special for stop when recovering from a previous timeout)
+
+Sanity Check on Startup (before start instruction):
+ - Before executing start instruction, verify that both SDA and SCL are high
+   - If not, report BUS STUCK LOW ERROR
+
+== Past this point, all primitive functions assume that the SM is idle at startup, so we can assume we can call at any time below here ===
+
+Send Start:
+ - Sanity Check Startup
+ - Pin Set SC1 SD0
+ - Pin Set SC0 SD0
+
+Send RepStart
+ - Pin Set SC0 SD1
+ - Pin Set SC1 SD1
+ - Wait for clock to go high
+ - Pin Set SC1 SD0
+ - Pin Set SC0 SD0
+
+Send Stop
+ - Pin Set SC0 SD0
+ - Pin Set SC1 SD0
+ - Wait for clock to go high
+ - Pin Set SC1 SD1
+
+=== SMBus Write Word ===
+ - Send Start
+ - Transmit Addr/RW
+ - Transmit Byte 1
+ - Transmit Byte 2
+ - Send Stop
+
+=== SMBus Write Word PEC ===
+ - Send Start
+ - Transmit Addr/RW
+ - Transmit Byte 1
+ - Transmit Byte 2
+ - Transmit Computed Checksum
+
+
+==== Everything Below Here is Old ====
+
+Ultimately, executing PIO instructions should never error out, assuming
+that the PIO machine was idle before beginning instruction execution
+ - Two types of auxiliary instructions:
+   - Ones that'll execute immediately
+   - The wait ones that'll block
+     - This we'll call, and then we need to handle timeout
+     - If timeout occurs, we need to be able to fix it and get it back to park
+
+The other type, sending bytes over the wire, CAN fail if:
+ - We expected a NAK and never got one
+   - Easy to fix, just jump to the entry_point
+ - We get stuck waiting for clock streching to finish up
+   - This one is a bit trickier to resolve
+   - We need to jump back to entry_point, and clear the wait condition
+   - And we'd also need to clear the OSR back to 0
+     - Honestly just a good ol' fashioned reset should do the trick
+   - Disable sm, set address, send restart, enable sm would probably work
+
+The challenge with doing transfers is managing the buffering
+ - Can't have super generic function since that'll need buffers and won't work well
+ - But we need to have something to read individual bytes out
+   - When will we want to read
+    - Reading back length of xfer
+    - Reading back transferred word (this is okay to do serially, since we don't have to worry about the buffer much)
+    - Reading back transferred block
+    - Reading back the CRC
+    - Read back any transmitted data to make sure it was sent over the bus correctly
+      - Honestly, might be best to run this shit in a time critical function and just let it fucking scream
+        - We're gonna be running at least 300x faster than the i2c clock rate, so 2400x faster than we need to feed the
+          PIO buffer, so we can honestly JIT it, since so much of this needs to be JITed anyways
+   - We'd probably want timeouts to be between consecutive receives
+
+... Fuck it, do we actually want to do this?
+ - I mean, it would be wise to have it for error detection (for stuck SDA lines)
+ - So, this would NOT support multiple master mode (but you know what, fuck it, we won't ever need that, as much as I'd like)
+
+What features would we want to implement?
+ - Transmit data (+ NAK)
+ - Handle ACK/NAK detection
+ - Respond back
+
+
+Procedure for SMBUS:
+ - Ensure that PIO SM hasn't fucked off (check idle)
+  - If it has, panic, since we should've parked it from the last call
+  - This involves the following cases
+    - PIO SM should be idle
+    - PIO SM should not be in an error state
+    - There shouldn't be any data in the FIFOs
+ - Configure TX/RX accordingly
+ - Issue Start
+  - Execute PIO Instructions
+    - Wait for line to be idle (both SDA and SCL high? IDK)
+    - Drive START1
+    - Wait for clock to go high (Important)
+    - Drive START2
+ - Issue Command Byte
+ - Issue Length Byte
+ - Synchronize
+

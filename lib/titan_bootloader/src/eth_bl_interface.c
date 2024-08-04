@@ -34,6 +34,10 @@ static w5k_data_t eth_device;
 static udp_socket_t heartbeat_socket;
 static udp_socket_t control_socket;
 
+bool bl_interface_early_init(void) {
+    return true;
+}
+
 bool bl_interface_init(void) {
     // Initialize MAC address with lower values in Flash ID to *randomize* it sort of
     uint8_t uniqueId[8];

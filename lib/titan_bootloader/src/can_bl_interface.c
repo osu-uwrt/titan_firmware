@@ -255,6 +255,12 @@ static bool bl_board_get_client_id(int *client_id) {
 
 #endif
 
+#ifndef CUSTOM_CLIENT_IMPLEMENTED_EARLY_INIT
+bool bl_interface_early_init() {
+    return true;
+}
+#endif
+
 bool bl_interface_init(void) {
     // Attempt to get client id
     // This allows for the client to be determined at runtime

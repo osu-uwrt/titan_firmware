@@ -55,11 +55,10 @@ absolute_time_t next_adc = { 0 };
  * @return true The timer has fired, any action which was waiting for this timer should occur
  * @return false The timer has not fired
  */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
+static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
-        bool supress_error = (SUPRESS_BOOTUP_TIMER_MISS && to_us_since_boot(time_tmp) == 0);
-
+        bool is_first_fire = is_nil_time(time_tmp);
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0;
@@ -67,7 +66,7 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            if (!supress_error) {
+            if (!is_first_fire) {
                 LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
                          next_fire_ptr);
                 if (error_on_miss)

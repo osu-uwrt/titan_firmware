@@ -7,7 +7,8 @@
         "${workspaceFolder}/talos/SmartBattery/",
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",
-        "${workspaceFolder}/tools/canmore_cli/"
+        "${workspaceFolder}/tools/canmore_cli/",
+        "${workspaceFolder}/scratch_projects/sbh_display_test/"
     ],
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
@@ -35,5 +36,11 @@
     "git.autofetch": true,
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.formatting": "clangFormat",
-    "C_Cpp.autoAddFileAssociations": false
+    "C_Cpp.autoAddFileAssociations": false,
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "lib/pico-sdk/": true,
+        "**/build/**": true
+    }
 }

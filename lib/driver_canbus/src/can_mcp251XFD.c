@@ -796,7 +796,36 @@ bool can_mcp251xfd_configure(unsigned int client_id) {
     return can_mcp251xfd_configure_chip();
 }
 
+void can_mcp251xfd_disable_chip(void) {
+    // Disable interrupt pins
+    gpio_set_irq_enabled(CAN_MCP251XFD_EXTERNAL_INTERRUPT_PIN, CAN_MCP251XFD_EXTERNAL_INTERRUPT_EVENTS, false);
+
+    // Reset the MCP251XFD. This is a best effort thing, worst case this doesn't go through and the chip is still
+    // waiting on the bus (but shouldn't hurt anything). When we re-enable it we'll reset it again
+    MCP251XFD_ResetDevice(&mcp251xfd_device);
+}
+
 static bool reset_now = false;
+
+void can_mcp251xfd_reenable_chip(uint8_t client_id) {
+    saved_client_id = client_id;
+
+    //--- Recompute Compute Filter Values ---
+    mcp251xfd_msg_rx_filter.AcceptanceID = CANMORE_CALC_MSG_ID_A2C(client_id, 0);
+    mcp251xfd_msg_rx_crc_filter.AcceptanceID = CANMORE_CALC_MSG_EXT_ID_A2C(client_id, 0, 0);
+    mcp251xfd_utility_rx_filter.AcceptanceID = CANMORE_CALC_UTIL_ID_A2C(client_id, 0);
+
+    // Reconfigure the CAN chip
+    if (can_mcp251xfd_configure_chip()) {
+        reset_now = false;
+        heartbeat_transmit_timeout = get_absolute_time();
+    }
+    else {
+        // If we fail to configure the chip, make sure the offline reset will force it to reconfigure immediately
+        reset_now = true;
+        heartbeat_transmit_timeout = nil_time;
+    }
+}
 
 void can_mcp251xfd_check_offline_reset(void) {
     // Check if we need to reset the chip after being offline for too long

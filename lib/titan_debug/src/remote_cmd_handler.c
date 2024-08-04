@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if TITAN_SAFETY
+
 // ========================================
 // Binary Tree Code
 // ========================================
@@ -292,3 +294,5 @@ int debug_remote_cmd_handle(const char *args, size_t resp_size, char *resp) {
     // Return the return code
     return returncode;
 }
+
+#endif

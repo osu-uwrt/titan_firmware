@@ -22,6 +22,15 @@
 #define BL_INTERFACE_MAX_PACKET_LEN 8
 
 /**
+ * @brief Performs early initialization on the bootloader interface. Called as early as possible in bootloader
+ * initialization.
+ *
+ * @return true The CAN bus was successfully initialized
+ * @return false CAN bus failed to initialize
+ */
+bool bl_interface_early_init(void);
+
+/**
  * @brief Initialize the communication channel for bootloader communication.
  *
  * @return true The CAN bus was successfully initialized

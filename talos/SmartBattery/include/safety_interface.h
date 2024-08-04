@@ -14,8 +14,12 @@
     DEF(FAULT_CAN_INTERNAL_ERROR, 2)                                                                                   \
     DEF(FAULT_ROS_ERROR, 3)                                                                                            \
     DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
-    DEF(FAULT_BQ40_ERROR, 5)                                                                                           \
-    DEF(FAULT_SHT41_ERROR, 6)
+    DEF(FAULT_SHT41_ERROR, 5)                                                                                          \
+    DEF(FAULT_BQ40_NOT_CONNECTED, 6)                                                                                   \
+    DEF(FAULT_BQ40_SAFETY_STATUS, 7)                                                                                   \
+    DEF(FAULT_BQ40_PF_STATUS, 8)                                                                                       \
+    DEF(FAULT_BQ40_MISMATCHED_SERIAL, 9)                                                                               \
+    DEF(FAULT_BQ40_COMMAND_FAIL, 10)
 
 // ===== Kill Switch Definitions =====
 // If no kill switches defined, set NUM_KILL_SWITCHES = 0

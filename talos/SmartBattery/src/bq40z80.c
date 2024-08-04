@@ -1,86 +1,410 @@
+#define RUNNING_ON_CORE1
 #include "bq40z80.h"
 
-#include "pio_i2c.h"
+#include "pio_smbus.h"
 
 #include "hardware/gpio.h"
-#include "hardware/watchdog.h"
-#include "titan/logger.h"
+#include "pico/time.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "bq40z80"
 
-#define RETRANSMIT_COUNT 4
+const uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
 
-uint8_t BQ_LEDS[3] = { LED_R_PIN, LED_Y_PIN, LED_G_PIN };
-uint pio_12c_program;
+// ========================================
+// BQ40 SMBus Interface
+// All direct calls to pio_smbus must live here!
+// ========================================
 
-static uint8_t bq_handle_i2c_transfer(uint8_t *bq_reg, uint8_t *rx_buf, uint len) {
-    int ret_code = -1;  // if you set this to zero, the compiler *will delete* this function
-    uint retries = 0;
+// Throttles bq40 smbus transfers since if you send faster than 150 us it'll sometimes NAK
+#define BQ_THROTTLE_TIME_US 150
+static absolute_time_t bq_transfer_throttle;
 
-    // slow down the transfers, smbus and pio no likey :/
-    sleep_ms(1);
-
-    while (ret_code && retries < RETRANSMIT_COUNT) {
-        // this is a bug in the SM
-        i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
-
-        // send the request to the chip
-        ret_code = 0;
-        ret_code |= pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, bq_reg, 1);
-        ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, rx_buf, len);
-
-        if (ret_code) {
-            // let i2c relax a sec, something with smbus and the chip being busy
-            sleep_ms(3);
-            retries++;
-        }
+/**
+ * @brief Performs an SMBus word read for the specific command code on the bq40
+ *
+ * @param cmd The SMBus command to perform the word read on
+ * @param word_out Pointer to write the received word to
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error
+ */
+static int bq_read_word(uint8_t cmd, uint16_t *word_out) {
+    // Throttle transfers if needed
+    if (!time_reached(bq_transfer_throttle)) {
+        sleep_until(bq_transfer_throttle);
     }
 
-    if (ret_code) {
-        // something bad happened to the i2c, panic
-        LOG_FATAL("I2C transfer error: %d", ret_code);
-        panic("PIO I2C NACK during transfer %d times", RETRANSMIT_COUNT);
+    int ret = pio_smbus_word_read_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, cmd);
+    bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
+    if (ret < 0) {
+        return ret;
     }
-
-    return retries;
+    else {
+        *word_out = (uint16_t) ret;
+        return PIO_SMBUS_SUCCESS;
+    }
 }
 
-uint8_t bq_write_only_transfer(uint8_t *tx_buf, uint len) {
-    int ret_code = -1;  // if you set this to zero, the compiler *will delete* this function
-    uint retries = 0;
-
-    // slow down the transfers, smbus and pio no likey :/
-    sleep_ms(1);
-
-    while (ret_code && retries < RETRANSMIT_COUNT) {
-        // this is a bug in the SM
-        i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
-
-        // send the request to the chip
-        ret_code = pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, tx_buf, len);
-
-        if (ret_code) {
-            // let i2c relax a sec, something with smbus and the chip being busy
-            sleep_ms(3);
-            retries++;
-        }
+/**
+ * @brief Performs an SMBus block read for the specific command code on the bq40
+ *
+ * @param cmd The SMBus command to perform the block read on
+ * @param rxbuf Buffer to store response from device
+ * @param len Pointer containing the capacity of rxbuf. This will be updated to the number of bytes written to rxbuf
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error. On error, len is not updated
+ */
+static int bq_read_block(uint8_t cmd, uint8_t *rxbuf, size_t *len) {
+    // Throttle if needed
+    if (!time_reached(bq_transfer_throttle)) {
+        sleep_until(bq_transfer_throttle);
     }
 
-    if (ret_code) {
-        // something bad happened to the i2c, panic
-        LOG_FATAL("I2C write error: %d", ret_code);
-        panic("PIO I2C NACK during MAC_WRITE %d times", RETRANSMIT_COUNT);
-    }
+    // Do the transfer
+    int ret = pio_smbus_block_read_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, cmd, rxbuf, *len);
+    bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
 
-    return retries;
+    // Handle result
+    if (ret < 0) {
+        return ret;
+    }
+    else {
+        *len = ret;
+        return PIO_SMBUS_SUCCESS;
+    }
 }
 
-uint8_t bq_init() {
-    uint8_t retries = 0;
+/**
+ * @brief Reads the requested 16-bit Manufacturer Access Block
+ * This will perform an SMBus read, up to max_len bytes
+ * If max_len is smaller than the reported number of bytes, an error will occur
+ *
+ * @param mac_cmd The Manufacturer Access Command to execute
+ * @param rxbuf Buffer to store response from device
+ * @param len Pointer containing the capacity of rxbuf. This will be updated to the number of bytes written to rxbuf
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error. On error, len is not updated
+ */
+static int bq_mfg_access_read(uint16_t mac_cmd, uint8_t *rxbuf, size_t *len) {
+    if (*len > UINT8_MAX - 2) {
+        return PIO_SMBUS_ERR_BUF_TOO_LARGE;
+    }
 
+    // Throttle if needed
+    if (!time_reached(bq_transfer_throttle)) {
+        sleep_until(bq_transfer_throttle);
+    }
+
+    // Issue the MAC cmd
+    uint8_t mac_cmd_buf[] = { mac_cmd & 0xFF, mac_cmd >> 8 };
+    int ret = pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_cmd_buf,
+                                        sizeof(mac_cmd_buf));
+    if (ret != PIO_SMBUS_SUCCESS) {
+        bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
+        return ret;
+    }
+
+    // Receive response
+    // No need to throttle here it seems
+    uint8_t mac_resp[*len + 2];
+    ret = pio_smbus_block_read_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_resp,
+                                   sizeof(mac_resp));
+    bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
+    if (ret < 0)
+        return ret;
+
+    // The command must at least contain the command we just sent
+    if (ret < 2 || mac_resp[0] != mac_cmd_buf[0] || mac_resp[1] != mac_cmd_buf[1]) {
+        return PIO_SMBUS_ERR_INVALID_RESP;
+    }
+
+    // Now copy the data that the caller cares about out
+    size_t resp_len = ret - 2;
+    memcpy(rxbuf, &mac_resp[2], resp_len);
+    *len = resp_len;
+    return PIO_SMBUS_SUCCESS;
+}
+
+/**
+ * @brief Sends the requested 16-bit Manufacturer Access Command
+ * This only send the command, with no data, and does not receive a response
+ *
+ * @param mac_cmd The Manufacturer Access Command to execute
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error
+ */
+static int bq_mfg_access_cmd(uint16_t mac_cmd) {
+    // Throttle if needed
+    if (!time_reached(bq_transfer_throttle)) {
+        sleep_until(bq_transfer_throttle);
+    }
+
+    // Issue the MAC cmd
+    uint8_t mac_cmd_buf[] = { mac_cmd & 0xFF, mac_cmd >> 8 };
+    int ret = pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_cmd_buf,
+                                        sizeof(mac_cmd_buf));
+    bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
+    return ret;
+}
+
+static int bq_read_dword(uint8_t cmd, uint32_t *dword_out) {
+    uint32_t word;
+    size_t len = sizeof(word);
+    int ret = bq_read_block(cmd, (uint8_t *) (&word), &len);
+    if (ret) {
+        return ret;
+    }
+    else if (len != sizeof(word)) {
+        return PIO_SMBUS_ERR_INVALID_RESP;
+    }
+    else {
+        *dword_out = word;
+        return PIO_SMBUS_SUCCESS;
+    }
+}
+
+// ========================================
+// BQ40 Convenience I/O Wrapper
+// ========================================
+
+static int bq_read_sword(uint8_t cmd, int16_t *sword_out) {
+    return bq_read_word(cmd, (uint16_t *) sword_out);
+}
+
+/**
+ * @brief Performs an SMBus word read for the specific command code on the bq40, but enforces only 8 bits
+ *
+ * @param cmd The SMBus command to perform the word read on
+ * @param byte_out Pointer to write the received byte to
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error
+ */
+static int bq_read_byte(uint8_t cmd, uint8_t *byte_out) {
+    uint16_t word;
+    int ret = bq_read_word(cmd, &word);
+    if (ret) {
+        return ret;
+    }
+    if (word > UINT8_MAX) {
+        return PIO_SMBUS_ERR_INVALID_RESP;
+    }
+    else {
+        *byte_out = (uint8_t) word;
+        return PIO_SMBUS_SUCCESS;
+    }
+}
+
+static int bq_read_mfg_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
+    size_t lenout = len;
+    int ret = bq_mfg_access_read(cmd, (uint8_t *) rxbuf, &lenout);
+    if (ret) {
+        return ret;
+    }
+    if (len != lenout) {
+        return PIO_SMBUS_ERR_INVALID_RESP;
+    }
+    else {
+        return PIO_SMBUS_SUCCESS;
+    }
+}
+
+// Add checks into all code, and make sure this check is valid
+#define I2CCHECK(func)                                                                                                 \
+    do {                                                                                                               \
+        int rc = (func);                                                                                               \
+        if (rc) {                                                                                                      \
+            bq_error_t ret = { .fields = { .error_code = rc, .line = __LINE__ } };                                     \
+            return ret;                                                                                                \
+        }                                                                                                              \
+    } while (0)
+
+#define BQERRCHECK(func)                                                                                               \
+    do {                                                                                                               \
+        bq_error_t ret = (func);                                                                                       \
+        if (!BQ_CHECK_SUCCESSFUL(ret))                                                                                 \
+            return ret;                                                                                                \
+    } while (0)
+
+#define BQ_RETURN_SUCCESS                                                                                              \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = BQ_ERROR_SUCCESS, .line = 0, .arg = 0 } };                        \
+        return ret;                                                                                                    \
+    } while (0)
+
+#define BQ_RETURN_ERROR(bq_error)                                                                                      \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = (bq_error), .line = __LINE__, .arg = 0 } };                       \
+        return ret;                                                                                                    \
+    } while (0)
+
+#define BQ_RETURN_ERROR_WITH_ARG(bq_error, arg_val)                                                                    \
+    do {                                                                                                               \
+        bq_error_t ret = { .fields = { .error_code = (bq_error), .line = __LINE__, .arg = (uint8_t) (arg_val) } };     \
+        return ret;                                                                                                    \
+    } while (0)
+
+static bq_error_t bq_check_status_successful(void) {
+    uint16_t batt_status;
+    I2CCHECK(bq_read_word(SBS_CMD_BATTERY_STATUS, &batt_status));
+    uint8_t err_code = (batt_status & SBS_BATTERY_STATUS_EC_MASK);
+    if (err_code) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_BATT_STATUS_ERROR, err_code);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
+// ========================================
+// BQ40 Data Flash Read Functions
+// ========================================
+
+typedef union bq_data_flash_int {
+    uint8_t u1;
+    uint16_t u2;
+    uint32_t u4;
+    int8_t i1;
+    int16_t i2;
+    int32_t i4;
+} bq_data_flash_int_t;
+
+static bq_error_t bq_read_data_flash_int(uint16_t flash_addr, bq_data_flash_int_t *data_out) {
+    uint8_t read_buf[32];
+    size_t len = sizeof(read_buf);
+    I2CCHECK(bq_mfg_access_read(flash_addr, read_buf, &len));
+    if (len < 4) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_MAC_RESP_LEN, len);
+    }
+    data_out->u4 = read_buf[0] | ((uint32_t) (read_buf[1]) << 8) | ((uint32_t) (read_buf[2]) << 16) |
+                   ((uint32_t) (read_buf[3]) << 24);
+    BQ_RETURN_SUCCESS;
+}
+
+// ========================================
+// BQ40 Refresh Routines
+// ========================================
+
+bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
+    // Device Type
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
+    if (mfg_out->device_type != 0x4800) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_DEVICE_TYPE, mfg_out->device_type);
+    }
+
+    // Serial Number
+    uint16_t serial;
+    I2CCHECK(bq_read_word(SBS_CMD_SERIAL_NUMBER, &serial));
+    if (serial == 0 || serial == 0xFFFF) {
+        // These are invalid serial numbers, and probably mean I2C communication issues (or an unprogrammed chip)
+        // Refuse to continue
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_SERIAL, serial);
+    }
+    mfg_out->serial = serial;
+
+    // Date
+    uint16_t raw_date;
+    I2CCHECK(bq_read_word(SBS_CMD_MANUFACTURER_DATE, &raw_date));
+    mfg_out->mfg_day = raw_date & 0x1f;
+    mfg_out->mfg_mo = (raw_date >> 5) & 0xf;
+    mfg_out->mfg_year = (raw_date >> 9) + 1980;
+
+    // Firmware Version
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_FIRMWARE_VERSION, mfg_out->firmware_version,
+                                        sizeof(mfg_out->firmware_version)));
+
+    // Current Scale Factor
+    bq_data_flash_int_t scale_factor;
+    BQERRCHECK(bq_read_data_flash_int(0x4AE8, &scale_factor));
+    mfg_out->scale_factor = scale_factor.u1;
+
+    // Manufacturing Status
+    // TI is weird- made manufacturing a block read but only 2 bytes long
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_MANUFACTURING_STATUS, (uint8_t *) &mfg_out->manufacturing_status,
+                                        sizeof(mfg_out->manufacturing_status)));
+
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t *bat_out) {
+    int16_t sdata;
+
+    // Make sure the serial number matches the expected serial number
+    // Final sanity check to make sure comms are working properly
+    uint16_t serial;
+    I2CCHECK(bq_read_word(SBS_CMD_SERIAL_NUMBER, &serial));
+    if (serial != mfg_info->serial) {
+        BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_SERIAL_CHANGED, serial);
+    }
+
+    // Refresh all of the fields we care about
+    I2CCHECK(bq_read_dword(SBS_CMD_OPERATION_STATUS, &bat_out->operation_status));
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_INIT)) {
+        // Can't read anything else while initializing
+        BQ_RETURN_SUCCESS;
+    }
+
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
+    I2CCHECK(bq_read_sword(SBS_CMD_CURRENT, &sdata));
+    bat_out->current = ((int32_t) sdata) * mfg_info->scale_factor;
+    I2CCHECK(bq_read_sword(SBS_CMD_AVERAGE_CURRENT, &sdata));
+    bat_out->avg_current = ((int32_t) sdata) * mfg_info->scale_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_TEMPERATURE, &bat_out->temperature));
+    I2CCHECK(bq_read_byte(SBS_CMD_MAX_ERROR, &bat_out->max_error));
+    I2CCHECK(bq_read_byte(SBS_CMD_RELATIVE_STATE_OF_CHARGE, &bat_out->relative_soc));
+    I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_EMPTY, &bat_out->time_to_empty));
+    I2CCHECK(bq_read_word(SBS_CMD_AVERAGE_TIME_TO_FULL, &bat_out->time_to_full));
+    I2CCHECK(bq_read_word(SBS_CMD_BATTERY_STATUS, &bat_out->battery_status));
+    I2CCHECK(bq_read_word(SBS_CMD_CELL_VOLTAGE_5, &bat_out->cell5_voltage));
+    I2CCHECK(bq_read_word(SBS_CMD_CHARGING_VOLTAGE, &bat_out->charging_voltage));
+    I2CCHECK(bq_read_sword(SBS_CMD_CHARGING_CURRENT, &sdata));
+    bat_out->charging_current = ((int32_t) sdata) * mfg_info->scale_factor;
+
+    // Read the safety status/pf status if needed (operationstatus has logical or of these fields)
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_SS)) {
+        I2CCHECK(bq_read_dword(SBS_CMD_SAFETY_STATUS, &bat_out->safety_status));
+    }
+    else {
+        // Safety status is 0 since the logical or of the field is 0
+        bat_out->safety_status = 0;
+    }
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_PF)) {
+        I2CCHECK(bq_read_dword(SBS_CMD_SAFETY_STATUS, &bat_out->pf_status));
+    }
+    else {
+        // PF status is 0 since the logical or of the field is 0
+        bat_out->pf_status = 0;
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
+// ========================================
+// BQ40 Init/IO Routines
+// ========================================
+
+void bq_clear_soc_leds(void) {
+    for (uint8_t led = 0; led < sizeof(BQ_LEDS); led++) {
+        gpio_put(BQ_LEDS[led], false);
+    }
+}
+
+void bq_update_soc_leds(uint8_t soc) {
+    uint8_t state = 0;
+    if (soc > WARN_SOC_THRESH) {
+        state = 2;
+    }
+    else if (soc > STOP_SOC_THRESH) {
+        state = 1;
+    }
+    for (uint8_t led = 0; led < 3; led++) {
+        gpio_put(BQ_LEDS[led], led == state);
+    }
+}
+
+void bq_pulse_wake(void) {
+    gpio_put(BMS_WAKE_PIN, 1);
+    sleep_ms(BATT_WAKE_PULSE_DURATION_MS);
+    gpio_put(BMS_WAKE_PIN, 0);
+}
+
+void bq_init() {
     // Init the wake pin, active high
     gpio_init(BMS_WAKE_PIN);
     gpio_set_dir(BMS_WAKE_PIN, GPIO_OUT);
@@ -93,223 +417,100 @@ uint8_t bq_init() {
     }
 
     // init PIO I2C
-    pio_12c_program = pio_add_program(pio0, &i2c_program);
-    pio_sm_claim(pio0, PIO_SM);
-    i2c_program_init(pio0, PIO_SM, pio_12c_program, BMS_SDA_PIN, BMS_SCL_PIN);
-
-    // make the request for the serial #
-    uint8_t data[2] = { BQ_READ_CELL_SERI, 0x00 };
-
-    // Start the I2C to the chip
-    while ((data[1] == 0x00 || data[1] == 0xFF) && retries < 3) {
-        int ret_code = 0;
-
-        // send the request to the chip
-        ret_code |= pio_i2c_write_blocking(pio0, PIO_SM, BQ_ADDR, data, 1);
-        ret_code |= pio_i2c_read_blocking(pio0, PIO_SM, BQ_ADDR, data, 2);
-
-        // Check for valid data
-        if (ret_code != 0 || data[0] == 0x00 || data[0] == 0xFF) {
-            gpio_put(BMS_WAKE_PIN, 1);
-            sleep_ms(1000);
-            gpio_put(BMS_WAKE_PIN, 0);
-            retries++;
-        }
-        else {
-            // if we get here, we found a valid bq40z80
-            break;
-        }
-    }
-    if (retries == 3)
-        return retries;
-
-    return 0;
+    uint pio_i2c_program = pio_add_program(BQ_PIO_INST, &i2c_program);
+    pio_sm_claim(BQ_PIO_INST, BQ_PIO_SM);
+    i2c_program_init(BQ_PIO_INST, BQ_PIO_SM, pio_i2c_program, BMS_SDA_PIN, BMS_SCL_PIN);
 }
 
-uint8_t bq_pack_present() {
-    // read the operationstatus register (1-byte length + 4-byte data)
-    uint8_t data[5] = { 0, 0, 0, 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_OPER_STAT };
-    bq_handle_i2c_transfer(reg_addr, data, 5);
+// ========================================
+// BQ40 Commands
+// ========================================
 
-    // the zeroth byte is the length of the field for some reason...
-    // test the presence bit (bit 0 of byte 1)
-    return (uint8_t) (data[1] & 0b00000001);
+bq_error_t bq_emshut_enter(void) {
+    // Send the 2 command sequence to enable Manual FET Control Emergency Shutdown
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_ENABLE_A));
+    BQERRCHECK(bq_check_status_successful());
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_ENABLE_B));
+    BQERRCHECK(bq_check_status_successful());
+
+    BQ_RETURN_SUCCESS;
 }
 
-bool bq_pack_side_det_port() {
-    // read the GPIO register (16 bits)
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_GPIO };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    // Only byte 0 contains GPIO data - Read RH1 (bit 3)
-    return (data[0] & 0b00001000) != 0;
-}
-
-uint8_t bq_pack_discharging() {
-    // read the operationstatus register (32 bits)
-    uint8_t data[5] = { 0, 0, 0, 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_OPER_STAT };
-    bq_handle_i2c_transfer(reg_addr, data, 5);
-
-    // the zeroth byte is the length of the field for some reason...
-    // test the discharge bit (bit 1)
-    return (uint8_t) (data[1] & 0b00000010);
-}
-
-uint8_t bq_pack_soc() {
-    // read the SOC from the pack
-    uint8_t data[1] = { 0 };
-    uint8_t reg_addr[1] = { BQ_READ_RELAT_SOC };
-    bq_handle_i2c_transfer(reg_addr, data, 1);
-
-    return data[0];
-}
-
-void bq_update_soc_leds() {
-    uint8_t data = bq_pack_soc();
-
-    uint8_t state = 0;
-    if (data > WARN_SOC_THRESH) {
-        state = 2;
-    }
-    else if (data > STOP_SOC_THRESH) {
-        state = 1;
-    }
-
-    for (uint8_t led = 0; led < 3; led++) {
-        gpio_put(BQ_LEDS[led], led == state);
-    }
-}
-
-uint16_t bq_pack_voltage() {
-    // read the SOC from the pack
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_PACK_VOLT };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    uint16_t millivolts = data[0] | data[1] << 8;
-    return millivolts;
-}
-
-int16_t bq_pack_current() {
-    // read the SOC from the pack
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_PACK_CURR };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    int16_t current_ma = data[0] | data[1] << 8;
-    return current_ma * 4;  // mutliply by 4 to true reading
-}
-
-int16_t bq_avg_current() {
-    // read the SOC from the pack
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_AVRG_CURR };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    int16_t current_ma = data[0] | data[1] << 8;
-    return current_ma * 4;  // have to * 4 to get true value
-}
-
-uint16_t bq_time_to_empty() {
-    // read the SOC from the pack
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_TIME_EMPT };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    uint16_t runtime_mins = data[0] | data[1] << 8;
-    return runtime_mins;
-}
-
-struct bq_pack_info_t bq_pack_mfg_info() {
-    struct bq_pack_info_t pack_info;
-
-    // read the mfg serial #
-    uint8_t data[21] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    uint8_t reg_addr[1] = { BQ_READ_CELL_DATE };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    // capture the manufacture date and make it more usable
-    uint16_t cell_date_raw = data[0] | data[1] << 8;
-    pack_info.mfg_day = cell_date_raw & 0x1F;
-    pack_info.mfg_mo = (cell_date_raw >> 5) & 0x0F;
-    pack_info.mfg_year = (cell_date_raw >> 9) + 1980;
-
-    // read the SOC from the pack
-    reg_addr[0] = BQ_READ_CELL_SERI;
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-
-    pack_info.serial = data[0] | data[1] << 8;
-
-    // read the SOC from the pack
-    reg_addr[0] = BQ_READ_CELL_NAME;
-    bq_handle_i2c_transfer(reg_addr, data, 21);
-
-    // move the info from the pack read back into the mfg data
-    for (uint8_t i = 1; i < data[0] + 1; i++) {
-        pack_info.name[i - 1] = data[i];
-    }
-    pack_info.name[data[0] + 1] = 0;
-
-    // now kick it all out
-    return pack_info;
-}
-
-void bq_send_mac_command(const uint16_t command) {
-    // pack the MAC command
-    uint8_t data[3] = {
-        0x00,                        // MAC register address (actually 1 byte not 2 so cut off the upper byte)
-        (uint8_t) (command >> 8),    // the high byte of the command
-        (uint8_t) (command & 0xFF),  // the low byte of the command
-    };
-
-    // send the MAC register command
-    bq_write_only_transfer(data, 3);
-}
-
-// WARNING! This is a blocking call. It should block for around 10s. It will continue to feed the
-// watchdog during execution as to not time the system out. This must be done to maintain MAC synchronicity
-// with the BQ chip during manual fet control
-void bq_open_dschg_temp(const int64_t open_time_ms) {
-    // test operation status to determine if output is not on
-    if (!bq_pack_discharging()) {
-        // bail, dont want to tun on the output manually
-        return;
-    }
-
-    // send Emergency FET override command to take manual control
-    bq_send_mac_command(BQ_MAC_EMG_FET_CTRL_CMD);
-
-    // send emergency fet off command
-    bq_send_mac_command(BQ_MAC_EMG_FET_OFF_CMD);
-
-    absolute_time_t fet_off_command_end = make_timeout_time_ms(open_time_ms);
-    while (bq_pack_discharging() && !time_reached(fet_off_command_end)) {
-        sleep_us(100);
-        // also feed the watchdog so we dont reset
-        watchdog_update();
-    }
-
-    uint8_t data[2] = { 0, 0 };
-    uint8_t reg_addr[1] = { 0x16 };
-    bq_handle_i2c_transfer(reg_addr, data, 2);
-    if (data[0] & 0x7) {
-        char err[9] = "ERROR:#|#";
-        itoa(data[0] & 0x7, err + 6, 10);
-        *(err + 7) = '|';
-        itoa(data[1] & 0x7, err + 8, 10);
-        panic(err);
-    }
-
-    // verify fet is actually open via operation status
-    if (bq_pack_discharging()) {
-        // this is a bad state. we requested fet open and it didnt happen
-        bq_send_mac_command(BQ_MAC_RESET_CMD);
-        panic("Failed to open DSCHG FET during power cycle cmd");
-    }
+bq_error_t bq_emshut_exit(void) {
+    // TODO: Make sure that MFC_DISABLE won't rocket the BQ40 into undefined states if discharging is disabled
 
     // send a cleanup reset command
-    bq_send_mac_command(BQ_MAC_EMG_FET_ON_CMD);
+    I2CCHECK(bq_mfg_access_cmd(MFG_CMD_MFC_DISABLE));
+    BQERRCHECK(bq_check_status_successful());
+
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_cycle_count(uint16_t *cycles_out) {
+    I2CCHECK(bq_read_word(SBS_CMD_CYCLE_COUNT, cycles_out));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_side_detect(bool *side_det_high_out) {
+    uint16_t data;
+    I2CCHECK(bq_read_word(SBS_CMD_GPIO_READ, &data));
+    *side_det_high_out = sbs_check_bit(data, SBS_GPIO_READ_RH1);
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_state_of_health(uint8_t *soh_out) {
+    I2CCHECK(bq_read_byte(SBS_CMD_STATE_OF_HEALTH, soh_out));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, uint32_t *full_charge_capacity,
+                            uint32_t *remaining_capacity) {
+    uint16_t data;
+    I2CCHECK(bq_read_word(SBS_CMD_DESIGN_CAPACITY, &data));
+    *design_capacity = ((uint32_t) data) * scaling_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_FILTERED_CAPACITY, &data));
+    *full_charge_capacity = ((uint32_t) data) * scaling_factor;
+    I2CCHECK(bq_read_word(SBS_CMD_REMAINING_CAPACITY, &data));
+    *remaining_capacity = ((uint32_t) data) * scaling_factor;
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_sbs_int(uint8_t cmd, enum read_width width, uint32_t *out) {
+    uint8_t data8;
+    uint16_t data16;
+
+    switch (width) {
+    case READ_WIDTH_8:
+        I2CCHECK(bq_read_byte(cmd, &data8));
+        *out = data8;
+        break;
+    case READ_WIDTH_16:
+        I2CCHECK(bq_read_word(cmd, &data16));
+        *out = data16;
+        break;
+    case READ_WIDTH_32:
+        I2CCHECK(bq_read_dword(cmd, out));
+        break;
+    default:
+        BQ_RETURN_ERROR(BQ_ERROR_BAD_DBG_COMMAND);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_sbs_block(uint8_t cmd, uint8_t *block_out, size_t *len) {
+    I2CCHECK(bq_read_block(cmd, block_out, len));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_mfg_block(uint16_t mfg_cmd, uint8_t *block_out, size_t *len) {
+    I2CCHECK(bq_mfg_access_read(mfg_cmd, block_out, len));
+    BQERRCHECK(bq_check_status_successful());
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_mfg_cmd(uint16_t mfg_cmd) {
+    I2CCHECK(bq_mfg_access_cmd(mfg_cmd));
+    BQERRCHECK(bq_check_status_successful());
+    BQ_RETURN_SUCCESS;
 }

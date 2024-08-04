@@ -31,6 +31,13 @@ void led_update_pins();
 void led_fault_set(bool value);
 
 /**
+ * @brief Set LED to reflect if the network is enabled (CAN, eth, etc.)
+ *
+ * @param value True if network is online
+ */
+void led_network_enabled_set(bool value);
+
+/**
  * @brief Set LED to reflect if the network is online (CAN, eth, etc.)
  *
  * @param value True if network is online

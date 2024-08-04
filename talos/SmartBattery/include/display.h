@@ -1,6 +1,10 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#include "core1.h"
+
+#include <stdbool.h>
+
 /**
  * @brief Initialize LCD screen
  *
@@ -8,27 +12,17 @@
 void display_init(void);
 
 /**
- * @brief Show battery stats on the display
+ * @brief Tick screen update which need to occur within display
  *
- * @param serial Battery serial number
- * @param soc Battery current SOC
- * @param voltage Battery current voltage
+ * @param battery_state
  */
-void display_show_stats(unsigned int serial, unsigned int soc, float voltage);
+void display_tick(batt_state_t battery_state);
 
 /**
- * @brief Show ROS connections screen
+ * @brief Show status message to screen
  */
-void display_show_ros_connect(void);
+void display_show_msg(const char *msg, const char *submsg);
 
-/**
- * @brief Show ROS disconnect screen
- */
-void display_show_ros_disconnect(void);
-
-/**
- * @brief Check if display needs to be powered off after set timeout, and powers off if so.
- */
-void display_check_poweroff(void);
+bool display_check_on(void);
 
 #endif

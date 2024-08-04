@@ -29,6 +29,8 @@
 #define MESSAGE_SEQ_UTILITY_HEARTBEAT 2
 
 bool can_mcp251xfd_configure(unsigned int client_id);
+void can_mcp251xfd_disable_chip(void);
+void can_mcp251xfd_reenable_chip(uint8_t client_id);
 void can_mcp251xfd_check_offline_reset(void);
 
 void can_mcp251xfd_report_msg_tx_fifo_ready(void);

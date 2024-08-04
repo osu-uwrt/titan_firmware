@@ -4109,6 +4109,7 @@ eERRORRESULT MCP251XFD_SetGPIOPinsOutputLevel(MCP251XFD *pComp, uint8_t pinsLeve
 eERRORRESULT MCP251XFD_CalculateBitTimeConfiguration(const uint32_t fsysclk, const uint32_t desiredNominalBitrate, const uint32_t desiredDataBitrate, MCP251XFD_BitTimeConfig *pConf);
 
 
+#ifndef MCP251X_DISABLE_BITRATE_STATS
 
 /*! @brief Calculate Bitrate Statistics of a Bit Time configuration
  *
@@ -4120,6 +4121,7 @@ eERRORRESULT MCP251XFD_CalculateBitTimeConfiguration(const uint32_t fsysclk, con
  */
 eERRORRESULT MCP251XFD_CalculateBitrateStatistics(const uint32_t fsysclk, MCP251XFD_BitTimeConfig *pConf, bool can20only);
 
+#endif
 
 
 /*! @brief Set Bit Time Configuration to the MCP251XFD device

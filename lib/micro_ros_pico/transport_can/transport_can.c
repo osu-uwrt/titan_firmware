@@ -28,7 +28,7 @@ size_t transport_can_write(__unused struct uxrCustomTransport *transport, const 
     absolute_time_t timeout = make_timeout_time_ms(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT);
 
     while (!canbus_msg_write_available()) {
-        if (time_reached(timeout) || last_write_timed_out) {
+        if (time_reached(timeout) || last_write_timed_out || !canbus_initialized) {
             last_write_timed_out = true;
             *errcode = 1;
             return 0;
@@ -51,7 +51,7 @@ size_t transport_can_read(__unused struct uxrCustomTransport *transport, uint8_t
                           __unused uint8_t *errcode) {
     absolute_time_t timeout_time = make_timeout_time_ms(timeout);
     while (!canbus_msg_read_available()) {
-        if (time_reached(timeout_time)) {
+        if (time_reached(timeout_time) || !canbus_initialized) {
             *errcode = 1;
             return 0;
         }

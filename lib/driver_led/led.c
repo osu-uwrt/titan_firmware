@@ -23,12 +23,18 @@
 static struct led_status {
     bool initialized;  // If this is false, the PWM hardware hasn't been setup yet
     bool fault;
+    bool network_enabled;
     bool network_online;
     bool ros_connected;
     bool killswitch;
 } status = { .initialized = false };
 
 void led_init() {
+#if !defined(TITAN_LED_START_NETWORK_DISABLED) || !TITAN_LED_START_NETWORK_DISABLED
+    // By default assume that network is enabled (unless disabled by preprocessor directive)
+    status.network_enabled = true;
+#endif
+
     pwm_config config = pwm_get_default_config();
 
     // Set clkdiv to tick once per millisecond (assert clock is disible cleanly into ms)
@@ -117,9 +123,10 @@ void led_update_pins() {
                 r = LED_LVL_ON;
                 g = LED_LVL_YELLOW;
             }
-            else {
+            else if (status.network_enabled) {
                 r = LED_LVL_ON;
             }
+            // If network disabled, LED is off
 
             set_led_pin(STATUS_LEDR_PIN, r);
             set_led_pin(STATUS_LEDG_PIN, g);
@@ -152,6 +159,13 @@ void led_ros_connected_set(bool value) {
 
 void led_killswitch_set(bool value) {
     status.killswitch = value;
+
+    if (status.initialized)
+        led_update_pins();
+}
+
+void led_network_enabled_set(bool value) {
+    status.network_enabled = value;
 
     if (status.initialized)
         led_update_pins();
