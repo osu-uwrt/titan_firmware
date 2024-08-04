@@ -134,8 +134,14 @@ static void tick_background_tasks() {
     display_tick(batt_state);
 
     // Read out BQ manufacturing info (if we ever disconnected, report error)
-    if (!mfg_readout_okay) {
-        mfg_readout_okay = core1_get_pack_mfg_info(&bq_mfg_info);
+    bool pack_ready =
+        (batt_state == BATT_STATE_REMOVED || batt_state == BATT_STATE_DISCHARGING || batt_state == BATT_STATE_CHARGING);
+    if (pack_ready) {
+        if (!mfg_readout_okay)
+            mfg_readout_okay = core1_get_pack_mfg_info(&bq_mfg_info);
+    }
+    else {
+        mfg_readout_okay = false;
     }
 
     // Handle auto-poweroff
@@ -209,7 +215,7 @@ int main() {
 
         // Handle ROS state logic
         // Also makes sure to handle if canbus gets deinitialized, ROS gets cleaned up properly
-        if (canbus_initialized && is_ros_connected()) {
+        if (mfg_readout_okay && is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
                 display_show_msg("ROS Connect", "");
@@ -242,7 +248,7 @@ int main() {
             ros_initialized = false;
         }
         else {
-            if (canbus_initialized && time_reached(next_connect_ping)) {
+            if (mfg_readout_okay && time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }

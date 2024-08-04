@@ -273,16 +273,14 @@ static void display_show_main_screen(enum screen_type selected_screen) {
     ssd1306_DrawRectangle(118, 0, 127, 11, White);
 
     // Draw status bar icons
-    // TODO: Add more icon support to this
-    if (canbus_initialized) {
+    // Show online icon if we have micro ros agent online
+    extern bool mfg_readout_okay;
+    if (mfg_readout_okay) {
         ssd1306_DrawBitmap(85, 0, can_online_bin, can_online_bin_width, can_online_bin_height, White);
     }
     else {
         ssd1306_DrawBitmap(85, 0, can_offline_bin, can_offline_bin_width, can_offline_bin_height, White);
     }
-
-    // TODO: We don't have this right now...
-    // ssd1306_DrawBitmap(100, 0, battery_missing_bin, battery_missing_bin_width, battery_missing_bin_height, White);
 
     // Show blinking alert on battery safety alerts
     uint32_t alert_faults = (*fault_list_reg) & ((1 << FAULT_BQ40_SAFETY_STATUS) | (1 << FAULT_BQ40_PF_STATUS));

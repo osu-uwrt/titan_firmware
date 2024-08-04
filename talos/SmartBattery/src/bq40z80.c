@@ -335,6 +335,11 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
 
     // Refresh all of the fields we care about
     I2CCHECK(bq_read_dword(SBS_CMD_OPERATION_STATUS, &bat_out->operation_status));
+    if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_INIT)) {
+        // Can't read anything else while initializing
+        BQ_RETURN_SUCCESS;
+    }
+
     I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
     I2CCHECK(bq_read_sword(SBS_CMD_CURRENT, &sdata));
     bat_out->current = ((int32_t) sdata) * mfg_info->scale_factor;

@@ -821,7 +821,7 @@ static int bq40_mfg_runcmd_cb(size_t argc, const char *const *argv, FILE *fout) 
     cmd = ret;
 
     // Set command type
-    debug_cmd_status.cmd_type = DBG_CMD_MFG_READBLOCK;
+    debug_cmd_status.cmd_type = DBG_CMD_MFG_CMD;
     debug_cmd_status.cmd = cmd;
 
     ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_CMD_OK);
