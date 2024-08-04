@@ -52,8 +52,8 @@ enum menu_type { MENU_MAIN, MENU_MORE };
 enum screen_type {
     SCREEN_SOC,
     SCREEN_CURRENT,
-    SCREEN_PACK_STATUS,  // TODO: Implement screen
-    SCREEN_LIFE_STATS,   // TODO: Implement screen
+    SCREEN_PACK_STATUS,
+    SCREEN_LIFE_STATS,  // TODO: Implement screen
     SCREEN_CELL_VOLTAGES,
 
     // Static screens
@@ -101,6 +101,44 @@ const menu_definition_arr menu_def_more = {
 };
 
 const menu_entry_t *const menu_definitions[] = { [MENU_MAIN] = menu_def_main, [MENU_MORE] = menu_def_more };
+
+static const char *const protection_names[] = {
+    [0] = "Cell Undervolt",  [1] = "Cell Overvolt",   [2] = "Overcur. Chg1",
+    [3] = "Overcur. Chg2",   [4] = "Overcur. Dsg1",   [5] = "Overcur. Dsg2",
+    [6] = "Overld. Dsg",     [7] = "OvrldDsg Latch",  [8] = "ASCC",
+    [9] = "ASCCL",           [10] = "ASCD",           [11] = "ASCDL",
+    [12] = "OverTemp Chg",   [13] = "OverTemp Dsg",   [14] = "CUVC",
+    [16] = "OverTemp FET",   [18] = "PreChg Timeout", [20] = "Charge Timeout",
+    [22] = "Overcharge",     [23] = "Overcharge Cur", [24] = "Overcharge Volt",
+    [25] = "OverPreChg Cur", [26] = "UnderTemp Chg",  [27] = "UnderTemp Dsg",
+    [28] = "OverVolt Latch", [29] = "OverCur. Dsg",
+};
+
+static const char *const pf_names[] = {
+    [0] = "Cell Undervolt", [1] = "Cell Overvolt",  [2] = "Overcur. Chg",   [3] = "Overcur. Dsg",
+    [4] = "OverTemp Cell",  [5] = "OverVolt Latch", [6] = "OverTemp FET",   [7] = "QMax Imbal",
+    [8] = "Cell Bal Fail",  [9] = "Impedance Fail", [10] = "Capacity Deg.", [11] = "VoltImbal@Rest",
+    [12] = "VoltImbal@Act", [13] = "Ovrld. Dsg",    [14] = "ASCCL",         [15] = "ASCDL",
+    [16] = "Chg FET Fail",  [17] = "Dsg FET Fail",  [18] = "Overcur. Dsg",  [19] = "ChemFUSE Fail",
+    [20] = "AFE Reg Fail",  [21] = "AFE Comm Fail", [22] = "2ndLvl Prot",   [23] = "PTC Fail",
+    [24] = "Instr. Flash",  [26] = "Data Flash",    [28] = "Thermistor1",   [29] = "Thermistor2",
+    [30] = "Thermistor3",   [31] = "Thermistor4",
+};
+
+static const char *const batt_state_names[] = {
+    [BATT_STATE_UNINITIALIZED] = "Uninitialized",
+    [BATT_STATE_DISCONNECTED] = "Disconnected",
+    [BATT_STATE_REMOVED] = "Removed",
+    [BATT_STATE_NEEDS_SHUTDOWN] = "Shutting Off",
+    [BATT_STATE_INITIALIZING] = "Initializing",
+    [BATT_STATE_XDSG] = "Dsg Inhibited",
+    [BATT_STATE_DISCHARGING] = "Discharging",
+    [BATT_STATE_CHARGING] = "Charging",
+    [BATT_STATE_PERMENANT_FAIL] = "Permanent Fail",
+    [BATT_STATE_POWER_CYCLE] = "Power Cycling",
+    [BATT_STATE_LATCH_OFF] = "Latched Off",
+};
+static const size_t batt_state_name_count = (sizeof(batt_state_names) / sizeof(*batt_state_names));
 
 // ========================================
 // Screen State Storage
@@ -243,11 +281,13 @@ static void display_show_main_screen(enum screen_type selected_screen) {
         ssd1306_DrawBitmap(85, 0, can_offline_bin, can_offline_bin_width, can_offline_bin_height, White);
     }
 
-    ssd1306_DrawBitmap(100, 0, battery_missing_bin, battery_missing_bin_width, battery_missing_bin_height, White);
+    // TODO: We don't have this right now...
+    // ssd1306_DrawBitmap(100, 0, battery_missing_bin, battery_missing_bin_width, battery_missing_bin_height, White);
 
-    // TODO: Selective alert blinking
+    // Show blinking alert on battery safety alerts
+    uint32_t alert_faults = (*fault_list_reg) & ((1 << FAULT_BQ40_SAFETY_STATUS) | (1 << FAULT_BQ40_PF_STATUS));
     static bool alert_blink = false;
-    if (!alert_blink) {
+    if (!alert_blink && alert_faults) {
         alert_blink = true;
         ssd1306_DrawBitmap(70, 0, alert_small_bin, alert_small_bin_width, alert_small_bin_height, White);
     }
@@ -299,6 +339,104 @@ static void display_show_main_screen(enum screen_type selected_screen) {
         ssd1306_SetCursor(86, 22);
         snprintf(buf, sizeof(buf), "%.2fV", (float) core1_voltage() / 1000.0);
         ssd1306_WriteString(buf, Font_7x10, White);
+    }
+    else if (selected_screen == SCREEN_PACK_STATUS) {
+        if ((*fault_list_reg) & (1 << FAULT_BQ40_PF_STATUS) || (*fault_list_reg) & (1 << FAULT_BQ40_SAFETY_STATUS)) {
+            // Static variable so we can slowly rotate through all present faults
+            static absolute_time_t nextFaultIncrement = {};
+            static int targetFaultIdx = 0;
+
+            const char *faultTitle;
+            const char *const *faultNameMap;
+
+            int displayedFault = -1;
+            int curFault = 0;
+            int faultBitNum = 0;
+            uint32_t faultReg;
+
+            if ((*fault_list_reg) & (1 << FAULT_BQ40_PF_STATUS)) {
+                faultReg = safety_fault_data[FAULT_BQ40_PF_STATUS].extra_data;
+                faultTitle = "Permanent Fail:";
+                faultNameMap = pf_names;
+            }
+            else {
+                faultReg = safety_fault_data[FAULT_BQ40_SAFETY_STATUS].extra_data;
+                faultTitle = "Safety Fault:";
+                faultNameMap = protection_names;
+            }
+
+            while (faultReg) {
+                // Current check if current fault bit fet
+                if (faultReg & 1) {
+                    if (curFault == 0) {
+                        // Always set to first so we can roll over
+                        displayedFault = faultBitNum;
+                    }
+                    if (curFault == targetFaultIdx) {
+                        // This is the fault to be displayed in the rotation
+                        displayedFault = faultBitNum;
+                        break;
+                    }
+                    curFault++;
+                }
+
+                faultBitNum++;
+                faultReg >>= 1;
+            }
+
+            // If we didn't break out of the loop, then we must have rolled over
+            // Show the fault
+            if (curFault != targetFaultIdx)
+                targetFaultIdx = 0;
+
+            const char *faultName = "Unknown?";
+            if (displayedFault >= 0 && faultNameMap[displayedFault]) {
+                faultName = faultNameMap[displayedFault];
+            }
+
+            ssd1306_SetCursor(2, 13);
+            ssd1306_WriteString(faultTitle, Font_6x8, White);
+            ssd1306_SetCursor(2, 22);
+            ssd1306_WriteString(faultName, Font_6x8, White);
+
+            // Increment so next refresh we show it
+            if (is_nil_time(nextFaultIncrement)) {
+                nextFaultIncrement = make_timeout_time_ms(1000);
+            }
+            else if (time_reached(nextFaultIncrement)) {
+                targetFaultIdx++;
+                nextFaultIncrement = make_timeout_time_ms(1000);
+            }
+        }
+        else {
+            // If no faults, just show the global pack state
+
+            const char *pack_state = "Unknown?";
+            batt_state_t state = core1_get_batt_state();
+
+            if (state < batt_state_name_count && batt_state_names[state]) {
+                pack_state = batt_state_names[state];
+            }
+
+            ssd1306_SetCursor(2, 13);
+            ssd1306_WriteString("Pack State:", Font_6x8, White);
+            ssd1306_SetCursor(2, 22);
+            ssd1306_WriteString(pack_state, Font_6x8, White);
+        }
+
+        // Render Temperature
+        ssd1306_SetCursor(97, 15);
+        ssd1306_WriteString("Temp:", Font_6x8, White);
+        char temp_msg[7] = {};
+        int16_t temp = core1_batt_temp() - 2731;  // Convert 0.1K to 0.1C
+        int16_t temp_decimal = temp % 10;
+        temp /= 10;
+        if (temp < 0) {
+            temp_decimal = 10 - temp_decimal;
+        }
+        int val = snprintf(temp_msg, sizeof(temp_msg), "%d.%dC", temp, temp_decimal);
+        ssd1306_SetCursor((val == 5 ? 97 : val == 4 ? 103 : 91), 23);
+        ssd1306_WriteString(temp_msg, Font_6x8, White);
     }
 
     ssd1306_UpdateScreen();
@@ -353,7 +491,8 @@ void display_tick(batt_state_t battery_state) {
         if (cur_switch_state) {
             switch_hold_fired = true;
         }
-        // Set hold timeout to nil time to make sure we don't fire the hold event again until the button gets held down
+        // Set hold timeout to nil time to make sure we don't fire the hold event again until the button gets
+        // held down
         state.btn_hold_timeout = nil_time;
     }
     state.last_switch_state = cur_switch_state;
@@ -507,7 +646,8 @@ void display_tick(batt_state_t battery_state) {
         case BATT_STATE_DISCHARGING:
         case BATT_STATE_CHARGING:
             target_state.op = OP_SHOW_SCREEN;
-            target_state.op_data.screen_target = SCREEN_SOC;
+            target_state.op_data.screen_target =
+                (*fault_list_reg & (1 << FAULT_BQ40_SAFETY_STATUS) ? SCREEN_PACK_STATUS : SCREEN_SOC);
             break;
         }
     }

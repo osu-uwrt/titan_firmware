@@ -192,7 +192,7 @@ static int bq_read_byte(uint8_t cmd, uint8_t *byte_out) {
     }
 }
 
-static int bq_read_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
+static int bq_read_mfg_block_fixedlen(uint8_t cmd, void *rxbuf, size_t len) {
     size_t lenout = len;
     int ret = bq_mfg_access_read(cmd, (uint8_t *) rxbuf, &lenout);
     if (ret) {
@@ -283,7 +283,7 @@ static bq_error_t bq_read_data_flash_int(uint16_t flash_addr, bq_data_flash_int_
 
 bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
     // Device Type
-    I2CCHECK(bq_read_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_DEVICE_TYPE, &mfg_out->device_type, sizeof(mfg_out->device_type)));
     if (mfg_out->device_type != 0x4800) {
         BQ_RETURN_ERROR_WITH_ARG(BQ_ERROR_INVALID_DEVICE_TYPE, mfg_out->device_type);
     }
@@ -306,8 +306,8 @@ bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
     mfg_out->mfg_year = (raw_date >> 9) + 1980;
 
     // Firmware Version
-    I2CCHECK(
-        bq_read_block_fixedlen(MFG_CMD_FIRMWARE_VERSION, mfg_out->firmware_version, sizeof(mfg_out->firmware_version)));
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_FIRMWARE_VERSION, mfg_out->firmware_version,
+                                        sizeof(mfg_out->firmware_version)));
 
     // Current Scale Factor
     bq_data_flash_int_t scale_factor;
@@ -316,8 +316,8 @@ bq_error_t bq_read_mfg_info(bq_mfg_info_t *mfg_out) {
 
     // Manufacturing Status
     // TI is weird- made manufacturing a block read but only 2 bytes long
-    I2CCHECK(bq_read_block_fixedlen(SBS_CMD_MANUFACTURING_STATUS, (uint8_t *) &mfg_out->manufacturing_status,
-                                    sizeof(mfg_out->manufacturing_status)));
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_MANUFACTURING_STATUS, (uint8_t *) &mfg_out->manufacturing_status,
+                                        sizeof(mfg_out->manufacturing_status)));
 
     BQ_RETURN_SUCCESS;
 }
@@ -335,7 +335,7 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
 
     // Refresh all of the fields we care about
     I2CCHECK(bq_read_dword(SBS_CMD_OPERATION_STATUS, &bat_out->operation_status));
-    I2CCHECK(bq_read_block_fixedlen(SBS_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
+    I2CCHECK(bq_read_mfg_block_fixedlen(MFG_CMD_DA_STATUS1, &bat_out->da_status1, sizeof(bat_out->da_status1)));
     I2CCHECK(bq_read_sword(SBS_CMD_CURRENT, &sdata));
     bat_out->current = ((int32_t) sdata) * mfg_info->scale_factor;
     I2CCHECK(bq_read_sword(SBS_CMD_AVERAGE_CURRENT, &sdata));
@@ -467,5 +467,45 @@ bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, u
     *full_charge_capacity = ((uint32_t) data) * scaling_factor;
     I2CCHECK(bq_read_word(SBS_CMD_REMAINING_CAPACITY, &data));
     *remaining_capacity = ((uint32_t) data) * scaling_factor;
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_sbs_int(uint8_t cmd, enum read_width width, uint32_t *out) {
+    uint8_t data8;
+    uint16_t data16;
+
+    switch (width) {
+    case READ_WIDTH_8:
+        I2CCHECK(bq_read_byte(cmd, &data8));
+        *out = data8;
+        break;
+    case READ_WIDTH_16:
+        I2CCHECK(bq_read_word(cmd, &data16));
+        *out = data16;
+        break;
+    case READ_WIDTH_32:
+        I2CCHECK(bq_read_dword(cmd, out));
+        break;
+    default:
+        BQ_RETURN_ERROR(BQ_ERROR_BAD_DBG_COMMAND);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_sbs_block(uint8_t cmd, uint8_t *block_out, size_t *len) {
+    I2CCHECK(bq_read_block(cmd, block_out, len));
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_read_mfg_block(uint16_t mfg_cmd, uint8_t *block_out, size_t *len) {
+    I2CCHECK(bq_mfg_access_read(mfg_cmd, block_out, len));
+    BQERRCHECK(bq_check_status_successful());
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_mfg_cmd(uint16_t mfg_cmd) {
+    I2CCHECK(bq_mfg_access_cmd(mfg_cmd));
+    BQERRCHECK(bq_check_status_successful());
     BQ_RETURN_SUCCESS;
 }

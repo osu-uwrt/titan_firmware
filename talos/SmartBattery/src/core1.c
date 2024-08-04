@@ -2,11 +2,14 @@
 #include "core1.h"
 
 #include "bq40z80.h"
+#include "pio_smbus.h"
 #include "safety_interface.h"
 
 #include "pico/multicore.h"
+#include "titan/debug.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define BQ40Z80_REFRESH_TIME_MS 200
@@ -22,7 +25,8 @@ typedef union sio_fifo_req {
             FIFO_CMD_READ_CYCLE_COUNT,
             FIFO_CMD_READ_STATE_OF_HEALTH,
             FIFO_CMD_READ_CAPACITY,
-            FIFO_CMD_READ_SIDE_DETECT
+            FIFO_CMD_READ_SIDE_DETECT,
+            FIFO_CMD_DBG_COMMAND
         } type;
         uint32_t arg : FIFO_REQ_VALUE_WIDTH;
     };
@@ -61,6 +65,23 @@ static volatile struct core1_status_shared_mem {
     } req_results;
 
 } shared_status = { .state = BATT_STATE_UNINITIALIZED };
+
+enum dbg_cmd_type { DBG_CMD_SBS_READINT, DBG_CMD_SBS_READBLOCK, DBG_CMD_MFG_READBLOCK, DBG_CMD_MFG_CMD };
+enum dbg_result_type { DBG_RESULT_INT, DBG_RESULT_ERR, DBG_RESULT_BLOCK, DBG_RESULT_CMD_OK };
+
+static volatile struct core1_dbg_cmd {
+    bool in_progress;
+    uint16_t cmd;
+    enum dbg_cmd_type cmd_type;
+    enum read_width int_read_width;
+    enum dbg_result_type result_type;
+    union {
+        uint32_t int_result;
+        bq_error_t err_result;
+        uint8_t block_read_count;
+    } result;
+    uint8_t block_out[32];
+} debug_cmd_status;
 
 #define shared_status_is_connected                                                                                     \
     (shared_status.state != BATT_STATE_DISCONNECTED && shared_status.state != BATT_STATE_UNINITIALIZED)
@@ -346,6 +367,95 @@ static void __time_critical_func(core1_main)(void) {
                     safety_raise_fault_with_arg(FAULT_BQ40_COMMAND_FAIL, (state << 16) | emshut_state);
                 }
             }
+            else if (req.type == FIFO_CMD_DBG_COMMAND) {
+                uint32_t irq = spin_lock_blocking(shared_status.lock);
+                if (!debug_cmd_status.in_progress) {
+                    // Command got aborted before we got to it, don't process it
+                    spin_unlock(shared_status.lock, irq);
+                }
+                else {
+                    enum dbg_cmd_type cmd_type = debug_cmd_status.cmd_type;
+                    uint16_t cmd = debug_cmd_status.cmd;
+                    enum read_width width = debug_cmd_status.int_read_width;
+                    spin_unlock(shared_status.lock, irq);
+
+                    bq_error_t err = { .fields = { .error_code = BQ_ERROR_BAD_DBG_COMMAND, .arg = 0, .line = 0 } };
+
+                    if (cmd_type == DBG_CMD_SBS_READINT) {
+                        uint32_t out;
+                        err = bq_dbg_read_sbs_int(cmd, width, &out);
+
+                        // Return result on success
+                        if (BQ_CHECK_SUCCESSFUL(err)) {
+                            irq = spin_lock_blocking(shared_status.lock);
+                            if (debug_cmd_status.in_progress) {
+                                // Only write if command didn't get aborted
+                                debug_cmd_status.result_type = DBG_RESULT_INT;
+                                debug_cmd_status.result.int_result = out;
+                                debug_cmd_status.in_progress = false;
+                            }
+                            spin_unlock(shared_status.lock, irq);
+                        }
+                    }
+                    else if (cmd_type == DBG_CMD_SBS_READBLOCK) {
+                        size_t len = sizeof(debug_cmd_status.block_out);
+                        err = bq_dbg_read_sbs_block(cmd, (uint8_t *) debug_cmd_status.block_out, &len);
+
+                        // Return result on success
+                        if (BQ_CHECK_SUCCESSFUL(err)) {
+                            irq = spin_lock_blocking(shared_status.lock);
+                            if (debug_cmd_status.in_progress) {
+                                // Only write if command didn't get aborted
+                                debug_cmd_status.result_type = DBG_RESULT_BLOCK;
+                                debug_cmd_status.result.block_read_count = len;
+                                debug_cmd_status.in_progress = false;
+                            }
+                            spin_unlock(shared_status.lock, irq);
+                        }
+                    }
+                    else if (cmd_type == DBG_CMD_MFG_READBLOCK) {
+                        size_t len = sizeof(debug_cmd_status.block_out);
+                        err = bq_dbg_read_mfg_block(cmd, (uint8_t *) debug_cmd_status.block_out, &len);
+
+                        // Return result on success
+                        if (BQ_CHECK_SUCCESSFUL(err)) {
+                            irq = spin_lock_blocking(shared_status.lock);
+                            if (debug_cmd_status.in_progress) {
+                                // Only write if command didn't get aborted
+                                debug_cmd_status.result_type = DBG_RESULT_BLOCK;
+                                debug_cmd_status.result.block_read_count = len;
+                                debug_cmd_status.in_progress = false;
+                            }
+                            spin_unlock(shared_status.lock, irq);
+                        }
+                    }
+                    else if (cmd_type == DBG_CMD_MFG_CMD) {
+                        err = bq_dbg_mfg_cmd(cmd);
+
+                        // Return result on success
+                        if (BQ_CHECK_SUCCESSFUL(err)) {
+                            irq = spin_lock_blocking(shared_status.lock);
+                            if (debug_cmd_status.in_progress) {
+                                // Only write if command didn't get aborted
+                                debug_cmd_status.result_type = DBG_RESULT_CMD_OK;
+                                debug_cmd_status.in_progress = false;
+                            }
+                            spin_unlock(shared_status.lock, irq);
+                        }
+                    }
+
+                    if (!BQ_CHECK_SUCCESSFUL(err)) {
+                        irq = spin_lock_blocking(shared_status.lock);
+                        if (debug_cmd_status.in_progress) {
+                            // Only write if command didn't get aborted
+                            debug_cmd_status.result_type = DBG_RESULT_ERR;
+                            debug_cmd_status.result.err_result = err;
+                            debug_cmd_status.in_progress = false;
+                        }
+                        spin_unlock(shared_status.lock, irq);
+                    }
+                }
+            }
             else {
                 // Unrecognized command, report error
                 safety_raise_fault_with_arg(FAULT_BQ40_COMMAND_FAIL, req.raw);
@@ -355,12 +465,472 @@ static void __time_critical_func(core1_main)(void) {
 }
 
 // ============================================
+// Canmore CLI Debug Commands
+// ============================================
+
+static void bq40_decode_err(bq_error_t err, FILE *fout) {
+    fprintf(fout, "Error Executing Command: [bq40z80.c:%d] ", err.fields.line);
+    const char *nested_error;
+
+    switch (err.fields.error_code) {
+    case BQ_ERROR_SUCCESS:
+        fprintf(fout, "BQ_ERROR_SUCCESS\n");
+        break;
+    case BQ_ERROR_INVALID_DEVICE_TYPE:
+        fprintf(fout, "BQ_ERROR_INVALID_DEVICE_TYPE (Found 0x%04X instead)\n", err.fields.arg);
+        break;
+    case BQ_ERROR_INVALID_SERIAL:
+        fprintf(fout, "BQ_ERROR_SERIAL_CHANGED (Was %d, Now %d)\n", shared_status.mfg_info.serial, err.fields.arg);
+        break;
+    case BQ_ERROR_INVALID_STATE:
+        fprintf(fout, "BQ_ERROR_INVALID_STATE\n");
+        break;
+    case BQ_ERROR_INVALID_MAC_RESP_LEN:
+        fprintf(fout, "BQ_ERROR_INVALID_MAC_RESP_LEN (got %d instead)\n", err.fields.arg);
+        break;
+    case BQ_ERROR_BATT_STATUS_ERROR:
+        switch (err.fields.arg) {
+        case 0x00:
+            nested_error = "Ok";
+            break;
+        case 0x01:
+            nested_error = "Busy";
+            break;
+        case 0x02:
+            nested_error = "Reserved Command";
+            break;
+        case 0x03:
+            nested_error = "Unsupported Command";
+            break;
+        case 0x04:
+            nested_error = "Access Denied";
+            break;
+        case 0x05:
+            nested_error = "Overflow/Underflow";
+            break;
+        case 0x06:
+            nested_error = "Bad Size";
+            break;
+        case 0x07:
+            nested_error = "Unknown Error";
+            break;
+        default:
+            nested_error = "Invalid Error";
+            break;
+        }
+        fprintf(fout, "BQ_ERROR_BATT_STATUS_ERROR (BQ40 returned error: %s)\n", nested_error);
+        break;
+    case PIO_SMBUS_ERR_ADDR_NAK:
+        fprintf(fout, "PIO_SMBUS_ERR_ADDR_NAK\n");
+        break;
+    case PIO_SMBUS_ERR_ADDR_RESTART_NAK:
+        fprintf(fout, "PIO_SMBUS_ERR_ADDR_RESTART_NAK\n");
+        break;
+    case PIO_SMBUS_ERR_NAK:
+        fprintf(fout, "PIO_SMBUS_ERR_NAK\n");
+        break;
+    case PIO_SMBUS_ERR_TIMEOUT:
+        fprintf(fout, "PIO_SMBUS_ERR_TIMEOUT\n");
+        break;
+    case PIO_SMBUS_ERR_BUS_STUCK_LOW:
+        fprintf(fout, "PIO_SMBUS_ERR_BUS_STUCK_LOW\n");
+        break;
+    case PIO_SMBUS_ERR_ABRITRATION_LOST:
+        fprintf(fout, "PIO_SMBUS_ERR_ABRITRATION_LOST\n");
+        break;
+    case PIO_SMBUS_ERR_BAD_CHECKSUM:
+        fprintf(fout, "PIO_SMBUS_ERR_BAD_CHECKSUM\n");
+        break;
+    case PIO_SMBUS_ERR_BUF_TOO_SMALL:
+        fprintf(fout, "PIO_SMBUS_ERR_BUF_TOO_SMALL\n");
+        break;
+    case PIO_SMBUS_ERR_BUF_TOO_LARGE:
+        fprintf(fout, "PIO_SMBUS_ERR_BUF_TOO_LARGE\n");
+        break;
+    case PIO_SMBUS_ERR_INVALID_RESP:
+        fprintf(fout, "PIO_SMBUS_ERR_INVALID_RESP\n");
+        break;
+    default:
+        fprintf(fout, "Unknown Error (%d, arg: %d)\n", err.fields.error_code, err.fields.arg);
+        break;
+    };
+}
+
+static int dbg_cmd_xfer_and_wait(FILE *fout, absolute_time_t cmd_timeout, enum dbg_result_type expected_result) {
+    // Make sure that there isn't already a command in progress
+
+    uint32_t irq = spin_lock_blocking(shared_status.lock);
+    hard_assert(!debug_cmd_status.in_progress);
+    debug_cmd_status.in_progress = true;
+    spin_unlock(shared_status.lock, irq);
+
+    // Send command to core 1
+    sio_fifo_req_t req = { .type = FIFO_CMD_DBG_COMMAND };
+    multicore_fifo_push_blocking(req.raw);
+
+    // Wait for response
+    while (debug_cmd_status.in_progress) {
+        if (time_reached(cmd_timeout)) {
+            fprintf(fout, "Timed out waiting for response from core 1!\n");
+
+            // Need to set in progress to false under lock to prevent race condition
+            // Shouldn't be too bad if we didn't, but best not to add in race conditions
+            uint32_t irq = spin_lock_blocking(shared_status.lock);
+            debug_cmd_status.in_progress = false;
+            spin_unlock(shared_status.lock, irq);
+
+            return 1;
+        }
+        sleep_ms(1);
+    }
+
+    if (debug_cmd_status.result_type == DBG_RESULT_ERR) {
+        bq40_decode_err(debug_cmd_status.result.err_result, fout);
+        return 2;
+    }
+    else if (debug_cmd_status.result_type != expected_result) {
+        fprintf(fout, "Invalid Result Type from Core 1: %d\n", debug_cmd_status.result_type);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int dbg_cmd_get_int_type(FILE *fout, const char *type, enum read_width *width_out, bool *is_signed_out) {
+    if (!strcmp(type, "u8")) {
+        *width_out = READ_WIDTH_8;
+        *is_signed_out = false;
+    }
+    else if (!strcmp(type, "s8")) {
+        *width_out = READ_WIDTH_8;
+        *is_signed_out = true;
+    }
+    else if (!strcmp(type, "u16")) {
+        *width_out = READ_WIDTH_16;
+        *is_signed_out = false;
+    }
+    else if (!strcmp(type, "s16")) {
+        *width_out = READ_WIDTH_16;
+        *is_signed_out = true;
+    }
+    else if (!strcmp(type, "u32")) {
+        *width_out = READ_WIDTH_32;
+        *is_signed_out = false;
+    }
+    else if (!strcmp(type, "s32")) {
+        *width_out = READ_WIDTH_32;
+        *is_signed_out = true;
+    }
+    else {
+        fprintf(fout, "Invalid Integer Type: '%s'\n", type);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int dbg_cmd_get_uint(FILE *fout, const char *int_str, long max_val) {
+    // Decode cmd parameter
+    char *end;
+    long val;
+    if (int_str[0] == '0' && int_str[1] == 'x') {
+        val = strtol(int_str + 2, &end, 16);
+    }
+    else {
+        val = strtol(int_str, &end, 10);
+    }
+    if (*end != 0 || end == int_str) {
+        fprintf(fout, "Invalid Number: '%s'\n", int_str);
+        return -1;
+    }
+    if (val < 0x00 || val > max_val) {
+        fprintf(fout, "Integer '%ld' out of range\n", val);
+        return -1;
+    }
+    return val;
+}
+
+static int dbg_cmd_show_int_result(FILE *fout, uint32_t val, enum read_width width, bool is_signed) {
+    // Process result
+    if (is_signed) {
+        long result;
+        int field_width;
+
+        switch (width) {
+        case READ_WIDTH_8:
+            result = (int8_t) (val);
+            field_width = 2;
+            break;
+        case READ_WIDTH_16:
+            result = (int16_t) (val);
+            field_width = 4;
+            break;
+        case READ_WIDTH_32:
+            result = (int32_t) (val);
+            field_width = 8;
+            break;
+        default:
+            return 1;
+        };
+
+        fprintf(fout, "0x%0*lX (%ld)\n", field_width, result, result);
+    }
+    else {
+        unsigned long result;
+        int field_width;
+
+        switch (width) {
+        case READ_WIDTH_8:
+            result = (uint8_t) (val);
+            field_width = 2;
+            break;
+        case READ_WIDTH_16:
+            result = (uint16_t) (val);
+            field_width = 4;
+            break;
+        case READ_WIDTH_32:
+            result = (uint32_t) (val);
+            field_width = 8;
+            break;
+        default:
+            return 1;
+        };
+
+        fprintf(fout, "0x%0*lX (%lu)\n", field_width, result, result);
+    }
+    return 0;
+}
+
+static int bq40_sbs_readint_cb(size_t argc, const char *const *argv, FILE *fout) {
+    uint8_t cmd;
+    enum read_width width;
+    bool is_signed;
+    int ret;
+
+    if (argc != 3) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    ret = dbg_cmd_get_uint(fout, argv[1], UINT8_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Decode int type
+    ret = dbg_cmd_get_int_type(fout, argv[2], &width, &is_signed);
+    if (ret)
+        return ret;
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_SBS_READINT;
+    debug_cmd_status.cmd = cmd;
+    debug_cmd_status.int_read_width = width;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_INT);
+    if (ret)
+        return ret;
+
+    fprintf(fout, "SBS Reg[0x%02X]: ", cmd);
+    ret = dbg_cmd_show_int_result(fout, debug_cmd_status.result.int_result, width, is_signed);
+
+    return 0;
+}
+
+static int bq40_sbs_readblock_cb(size_t argc, const char *const *argv, FILE *fout) {
+    int ret;
+    uint8_t cmd;
+
+    if (argc != 2) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    // Decode cmd parameter
+    ret = dbg_cmd_get_uint(fout, argv[1], UINT8_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_SBS_READBLOCK;
+    debug_cmd_status.cmd = cmd;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_BLOCK);
+    if (ret)
+        return ret;
+
+    // Process result
+    size_t read_len = debug_cmd_status.result.block_read_count;
+    fprintf(fout, "SBS Reg[0x%02X] (Len: %d): ", cmd, read_len);
+    for (size_t i = 0; i < read_len; i++) {
+        fprintf(fout, "%02X", debug_cmd_status.block_out[i]);
+    }
+    fprintf(fout, "\n");
+
+    return 0;
+}
+
+static int bq40_mfg_readblock_cb(size_t argc, const char *const *argv, FILE *fout) {
+    int ret;
+    uint16_t cmd;
+
+    if (argc != 2) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    // Decode cmd parameter
+    ret = dbg_cmd_get_uint(fout, argv[1], UINT16_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_MFG_READBLOCK;
+    debug_cmd_status.cmd = cmd;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_BLOCK);
+    if (ret)
+        return ret;
+
+    // Process result
+    size_t read_len = debug_cmd_status.result.block_read_count;
+    fprintf(fout, "MFG Reg[0x%04X] (Len: %d): ", cmd, read_len);
+    for (size_t i = 0; i < read_len; i++) {
+        fprintf(fout, "%02X", debug_cmd_status.block_out[i]);
+    }
+    fprintf(fout, "\n");
+
+    return 0;
+}
+
+static int bq40_mfg_runcmd_cb(size_t argc, const char *const *argv, FILE *fout) {
+    uint16_t cmd;
+    int ret;
+
+    if (argc != 2) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    // Decode cmd parameter
+    ret = dbg_cmd_get_uint(fout, argv[1], UINT16_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_MFG_READBLOCK;
+    debug_cmd_status.cmd = cmd;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_CMD_OK);
+    if (ret)
+        return ret;
+
+    fprintf(fout, "OK\n");
+
+    return 0;
+}
+
+static int bq40_df_readint_cb(size_t argc, const char *const *argv, FILE *fout) {
+    uint16_t cmd;
+    enum read_width width;
+    bool is_signed;
+    int ret;
+
+    if (argc != 3) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    ret = dbg_cmd_get_uint(fout, argv[1], UINT16_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Decode int type
+    ret = dbg_cmd_get_int_type(fout, argv[2], &width, &is_signed);
+    if (ret)
+        return ret;
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_MFG_READBLOCK;
+    debug_cmd_status.cmd = cmd;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_BLOCK);
+    if (ret)
+        return ret;
+
+    uint32_t data;
+    switch (width) {
+    case READ_WIDTH_8:
+        if (debug_cmd_status.result.block_read_count < 1) {
+            fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
+            return 1;
+        }
+        data = debug_cmd_status.block_out[0];
+        break;
+    case READ_WIDTH_16:
+        if (debug_cmd_status.result.block_read_count < 2) {
+            fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
+            return 1;
+        }
+        data = debug_cmd_status.block_out[0] | (debug_cmd_status.block_out[1] << 8);
+        break;
+    case READ_WIDTH_32:
+        if (debug_cmd_status.result.block_read_count < 4) {
+            fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
+            return 1;
+        }
+        data = debug_cmd_status.block_out[0] | (debug_cmd_status.block_out[1] << 8) |
+               (debug_cmd_status.block_out[2] << 16) | (debug_cmd_status.block_out[3] << 24);
+        break;
+    default:
+        return 1;
+    }
+
+    fprintf(fout, "Data Flash [0x%02X]: ", cmd);
+    ret = dbg_cmd_show_int_result(fout, data, width, is_signed);
+
+    return 0;
+}
+
+static void core1_register_canmore_cmds(void) {
+    debug_remote_cmd_register("bq40_sbsreadint", "[cmd] [type]",
+                              "Sends the requested sbs command to the bq40 to read that int\n"
+                              "  See the bq40 reference manual sections 18.2 through 18.84 for list of commands\n"
+                              "  [type] can be of: u8, s8, u16, s16, u32, or s32",
+                              bq40_sbs_readint_cb);
+    debug_remote_cmd_register("bq40_sbsreadblock", "[cmd]",
+                              "Sends the requested sbs command to the bq40 to read that block\n"
+                              "  See the bq40 reference manual sections 18.2 through 18.84 for list of commands",
+                              bq40_sbs_readblock_cb);
+    debug_remote_cmd_register("bq40_mfgreadblock", "[cmd]",
+                              "Sends the requested manufacturing command to the bq40 to read that block\n"
+                              "  See the bq40 reference manual section 18.1 for list of commands",
+                              bq40_mfg_readblock_cb);
+    debug_remote_cmd_register("bq40_dfreadint", "[addr] [type]",
+                              "Reads an integer from bq40 dataflash\n"
+                              "  See the bq40 reference manual sections 19.17 for list of dataflash addresses\n"
+                              "  [type] can be of: u8, s8, u16, s16, u32, or s32",
+                              bq40_df_readint_cb);
+    debug_remote_cmd_register(
+        "bq40_mfgruncmd", "[cmd]",
+        "Sends the requested manufacturing command to the bq40 to run that command (no readback)\n"
+        "  See the bq40 reference manual section 18.1 for list of commands",
+        bq40_mfg_runcmd_cb);
+}
+
+// ============================================
 // Exported Function for core0
 // ============================================
 
 void core1_init(uint8_t expected_serial) {
     shared_status.lock = spin_lock_init(spin_lock_claim_unused(true));
     shared_status.lock = spin_lock_init(spin_lock_claim_unused(true));
+
+    core1_register_canmore_cmds();
 
     sbh_mcu_serial = expected_serial;
     safety_launch_core1(core1_main);
@@ -429,6 +999,10 @@ void core1_cell_voltages(uint16_t *cell_voltages_out) {
     cell_voltages_out[3] = shared_status.batt_info.da_status1.cell4_voltage;
     cell_voltages_out[4] = shared_status.batt_info.cell5_voltage;
     spin_unlock(shared_status.lock, irq);
+}
+
+uint16_t core1_batt_temp(void) {
+    return shared_status.batt_info.temperature;
 }
 
 // ============================================

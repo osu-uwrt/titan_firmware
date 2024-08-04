@@ -58,6 +58,8 @@ typedef struct bq_mfg_info_t {
 #define BQ_ERROR_INVALID_STATE 4
 #define BQ_ERROR_INVALID_MAC_RESP_LEN 5
 #define BQ_ERROR_BATT_STATUS_ERROR 6
+// Send when a debug command had a bad parameter
+#define BQ_ERROR_BAD_DBG_COMMAND 7
 #define BQ_CHECK_SUCCESSFUL(err) (err.fields.error_code == BQ_ERROR_SUCCESS)
 
 typedef union bq_error {
@@ -92,6 +94,9 @@ typedef struct bq_battery_info_t {
     uint32_t pf_status;
 } bq_battery_info_t;
 
+// Read width for the
+enum read_width { READ_WIDTH_8, READ_WIDTH_16, READ_WIDTH_32 };
+
 /**
  * @brief initialize PIO hardware for i2c usage, GPIO for BQ_LEDS_CORE1, and BMS_WAKE_PIN
  */
@@ -118,6 +123,14 @@ bq_error_t bq_read_state_of_health(uint8_t *soh_out);
 
 bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, uint32_t *full_charge_capacity,
                             uint32_t *remaining_capacity);
+
+bq_error_t bq_dbg_read_sbs_int(uint8_t cmd, enum read_width width, uint32_t *out);
+
+bq_error_t bq_dbg_read_sbs_block(uint8_t cmd, uint8_t *block_out, size_t *len);
+
+bq_error_t bq_dbg_read_mfg_block(uint16_t mfg_cmd, uint8_t *block_out, size_t *len);
+
+bq_error_t bq_dbg_mfg_cmd(uint16_t mfg_cmd);
 
 #endif
 

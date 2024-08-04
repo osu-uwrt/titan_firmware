@@ -34,6 +34,7 @@ uint8_t core1_soc(void);
 uint16_t core1_time_remaining(bool *is_charging);
 uint16_t core1_voltage(void);
 int32_t core1_current(void);
+uint16_t core1_batt_temp(void);  // Temp is in units of 0.1K
 void core1_cell_voltages(uint16_t *cell_voltages_out);
 
 // ========================================
