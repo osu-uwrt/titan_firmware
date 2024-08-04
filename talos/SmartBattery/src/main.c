@@ -31,6 +31,7 @@ absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_battery_status_update = { 0 };
 
+bool mfg_readout_okay = false;
 bq_mfg_info_t bq_mfg_info;
 uint can_id;
 
@@ -109,7 +110,7 @@ static void tick_ros_tasks() {
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info, can_id));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info));
     }
 
     if (sht41_temp_rh_set_on_read) {
@@ -132,63 +133,16 @@ static void tick_background_tasks() {
     // Update LCD if reed switch held and we are in time for a display update
     display_tick(batt_state);
 
-    // Handle CAN Bus initialization/deinitialization based on battery state
-    bool can_bus_should_be_on = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
-    static bool side_has_called = false;  // Ensures that the first call doesn't return true (if so, the data's stale)
-
-    if (can_bus_should_be_on) {
-        if (!canbus_initialized) {
-            // Need to get the side detect pin status to see what side we're on
-            bool side_detect_high;
-            bool read_okay = core1_get_side_detect(&side_detect_high);
-            if (read_okay && !side_has_called) {
-                // Don't allow the first call to succeed, as the first call must always fail when queuing new cmds
-                // If it returned true, then that means that there was stale data in there
-                // This will ignore the first reading
-                read_okay = false;
-            }
-            // We've called it once now, its okay to read it again
-            side_has_called = true;
-
-            // TODO: Negotiate CAN Bus ID conflicts if the fuse is blown
-
-            // At this point we know that we should be connected to the battery
-            // Fetch the manufacturing info so ROS will have it
-            // If this fails, it'll try again next iteration (but it shouldn't since we were just told we're connected)
-            if (read_okay) {
-                read_okay = core1_get_pack_mfg_info(&bq_mfg_info);
-            }
-
-            if (read_okay) {
-                // TODO: Validate this
-                // We got the side, now set the CAN Bus ID
-                can_id = (side_detect_high ? CAN_BUS_PORT_CLIENT_ID : CAN_BUS_STBD_CLIENT_ID);
-
-                if (!transport_can_init(can_id)) {
-                    safety_raise_fault(FAULT_CAN_INTERNAL_ERROR);
-                }
-                else {
-                    led_network_enabled_set(true);
-                    LOG_INFO("Enabled CAN Bus on Cable Connect");
-                }
-            }
-        }
-    }
-    else {
-        // Deinitialize CAN Bus if we don't have a valid cable attached
-        if (canbus_initialized) {
-            canbus_deinit();
-            led_network_enabled_set(false);
-            LOG_INFO("Disabled CAN Bus on Cable Removal");
-        }
-
-        // Make sure that side detect will refresh (and not run stale data)
-        side_has_called = false;
+    // Read out BQ manufacturing info (if we ever disconnected, report error)
+    if (!mfg_readout_okay) {
+        mfg_readout_okay = core1_get_pack_mfg_info(&bq_mfg_info);
     }
 
     // Handle auto-poweroff
+    bool pack_in_use = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
+
     // We only want to keep firmware online if we are using CAN bus or if the display is on
-    if (!can_bus_should_be_on && !display_check_on()) {
+    if (!pack_in_use && !display_check_on()) {
         if (gpio_get_out_level(PWR_CTRL_PIN)) {
             // Check out level to prevent log spam if the switch is held for whatever reason
             LOG_INFO("Both display is off and CAN Bus is offline - shutting off MCU to save power");
@@ -235,6 +189,12 @@ int main() {
 
     // Initialize the BQ40
     core1_init(sbh_mcu_serial_num);
+
+    // Initialize CAN bus
+    can_id = sbh_mcu_serial_num;
+    if (!transport_can_init(can_id)) {
+        panic("Failed to initialize CAN bus!\n");
+    }
 
     // Enter main loop
     // This is split into two sections of timers

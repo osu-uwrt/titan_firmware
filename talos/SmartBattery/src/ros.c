@@ -141,7 +141,7 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info, uint8_t client_id) {
+rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     riptide_msgs2__msg__BatteryStatus status;
 
     // push in the common cell info
@@ -150,11 +150,11 @@ rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info, uint8_t client_i
     status.serial = bq_pack_info.serial;
 
     // test for port and stbd
-    if (client_id == CAN_BUS_PORT_CLIENT_ID) {
-        status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
-    }
-    else if (client_id == CAN_BUS_STBD_CLIENT_ID) {
-        status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_STBD;
+
+    bool side_det_is_high;
+    if (core1_get_side_detect(&side_det_is_high)) {
+        status.detect = (side_det_is_high ? riptide_msgs2__msg__BatteryStatus__DETECT_PORT :
+                                            riptide_msgs2__msg__BatteryStatus__DETECT_STBD);
     }
     else {
         status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
