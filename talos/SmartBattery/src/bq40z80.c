@@ -475,6 +475,29 @@ bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, u
     BQ_RETURN_SUCCESS;
 }
 
+bq_error_t bq_read_gauging_status(uint32_t *status_out) {
+    *status_out = 0;
+
+    size_t len = sizeof(*status_out);
+    I2CCHECK(bq_read_block(SBS_CMD_GAUGING_STATUS, (uint8_t *) status_out, &len));
+    if (len != 3) {
+        I2CCHECK(PIO_SMBUS_ERR_INVALID_RESP);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+bq_error_t bq_read_charging_status(uint32_t *status_out) {
+    *status_out = 0;
+
+    size_t len = sizeof(*status_out);
+    I2CCHECK(bq_read_block(SBS_CMD_CHARGING_STATUS, (uint8_t *) status_out, &len));
+    if (len != 3) {
+        I2CCHECK(PIO_SMBUS_ERR_INVALID_RESP);
+    }
+
+    BQ_RETURN_SUCCESS;
+}
+
 bq_error_t bq_dbg_read_sbs_int(uint8_t cmd, enum read_width width, uint32_t *out) {
     uint8_t data8;
     uint16_t data16;

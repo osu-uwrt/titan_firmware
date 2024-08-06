@@ -60,6 +60,24 @@ void core1_cell_voltages(uint16_t *cell_voltages_out);
 bool core1_get_side_detect(bool *side_det_is_high);
 
 /**
+ * @brief Reads the GaugingStatus() register from the bq40
+ *
+ * @param status_out Pointer to store the result of the read
+ * @return true The register was successfully read and written to status_out
+ * @return false The register failed to read
+ */
+bool core1_get_gauging_status(uint32_t *status_out);
+
+/**
+ * @brief Reads the ChargingStatus() register from the bq40
+ *
+ * @param status_out Pointer to store the result of the read
+ * @return true The register was successfully read and written to status_out
+ * @return false The register failed to read
+ */
+bool core1_get_charging_status(uint32_t *status_out);
+
+/**
  * @brief Sends command to power cycle the robot
  */
 void core1_power_cycle_robot(void);

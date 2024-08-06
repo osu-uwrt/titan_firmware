@@ -119,6 +119,9 @@ bq_error_t bq_cycle_count(uint16_t *cycles_out);
 
 bq_error_t bq_read_side_detect(bool *side_det_high_out);
 
+bq_error_t bq_read_gauging_status(uint32_t *status_out);
+bq_error_t bq_read_charging_status(uint32_t *status_out);
+
 bq_error_t bq_read_state_of_health(uint8_t *soh_out);
 
 bq_error_t bq_read_capacity(uint8_t scaling_factor, uint32_t *design_capacity, uint32_t *full_charge_capacity,
