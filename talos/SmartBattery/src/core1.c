@@ -71,21 +71,34 @@ static volatile struct core1_status_shared_mem {
 
 } shared_status = { .state = BATT_STATE_UNINITIALIZED };
 
-enum dbg_cmd_type { DBG_CMD_SBS_READINT, DBG_CMD_SBS_READBLOCK, DBG_CMD_MFG_READBLOCK, DBG_CMD_MFG_CMD };
-enum dbg_result_type { DBG_RESULT_INT, DBG_RESULT_ERR, DBG_RESULT_BLOCK, DBG_RESULT_CMD_OK };
+// Objects to exchange data between core 0 and core 1 for canmore cli debug commands
+enum dbg_cmd_type {
+    DBG_CMD_SBS_READINT,    // Expects DBG_RESULT_INT
+    DBG_CMD_SBS_READBLOCK,  // Expects DBG_RESULT_BLOCK
+    DBG_CMD_MFG_READBLOCK,  // Expects DBG_RESULT_BLOCK
+    DBG_CMD_MFG_CMD,        // Expects DBG_RESULT_CMD_OK
+    DBG_CMD_DF_WRITE        // Expects DBG_RESULT_CMD_OK
+};
+enum dbg_result_type { DBG_RESULT_ERR, DBG_RESULT_INT, DBG_RESULT_BLOCK, DBG_RESULT_CMD_OK };
 
 static volatile struct core1_dbg_cmd {
-    bool in_progress;
-    uint16_t cmd;
-    enum dbg_cmd_type cmd_type;
-    enum read_width int_read_width;
+    bool in_progress;            // Set by core 0 before req, cleared by core 1 when ready (or core 0 on timeout)
+    uint16_t cmd;                // The smbus cmd register value (either mfg or sbs depending on the data)
+    enum dbg_cmd_type cmd_type;  // The command to execute on core 1
+    union {
+        enum read_width int_read_width;  // The read width for the DBG_CMD_SBS_READINT
+        uint8_t block_write_count;       // The number of bytes to write with the DBG_CMD_DF_WRITE
+    } req_data;
     enum dbg_result_type result_type;
     union {
+        // Result depending on result_type value
+        // Set by core 1 before clearing in_progress
         uint32_t int_result;
         bq_error_t err_result;
         uint8_t block_read_count;
     } result;
-    uint8_t block_out[32];
+    // Holds contents of blck data to read/write
+    uint8_t block_data[32];
 } debug_cmd_status;
 
 #define shared_status_is_connected                                                                                     \
@@ -409,7 +422,7 @@ static void __time_critical_func(core1_main)(void) {
                 else {
                     enum dbg_cmd_type cmd_type = debug_cmd_status.cmd_type;
                     uint16_t cmd = debug_cmd_status.cmd;
-                    enum read_width width = debug_cmd_status.int_read_width;
+                    enum read_width width = debug_cmd_status.req_data.int_read_width;
                     spin_unlock(shared_status.lock, irq);
 
                     bq_error_t err = { .fields = { .error_code = BQ_ERROR_BAD_DBG_COMMAND, .arg = 0, .line = 0 } };
@@ -431,8 +444,8 @@ static void __time_critical_func(core1_main)(void) {
                         }
                     }
                     else if (cmd_type == DBG_CMD_SBS_READBLOCK) {
-                        size_t len = sizeof(debug_cmd_status.block_out);
-                        err = bq_dbg_read_sbs_block(cmd, (uint8_t *) debug_cmd_status.block_out, &len);
+                        size_t len = sizeof(debug_cmd_status.block_data);
+                        err = bq_dbg_read_sbs_block(cmd, (uint8_t *) debug_cmd_status.block_data, &len);
 
                         // Return result on success
                         if (BQ_CHECK_SUCCESSFUL(err)) {
@@ -447,8 +460,8 @@ static void __time_critical_func(core1_main)(void) {
                         }
                     }
                     else if (cmd_type == DBG_CMD_MFG_READBLOCK) {
-                        size_t len = sizeof(debug_cmd_status.block_out);
-                        err = bq_dbg_read_mfg_block(cmd, (uint8_t *) debug_cmd_status.block_out, &len);
+                        size_t len = sizeof(debug_cmd_status.block_data);
+                        err = bq_dbg_read_mfg_block(cmd, (uint8_t *) debug_cmd_status.block_data, &len);
 
                         // Return result on success
                         if (BQ_CHECK_SUCCESSFUL(err)) {
@@ -464,6 +477,21 @@ static void __time_critical_func(core1_main)(void) {
                     }
                     else if (cmd_type == DBG_CMD_MFG_CMD) {
                         err = bq_dbg_mfg_cmd(cmd);
+
+                        // Return result on success
+                        if (BQ_CHECK_SUCCESSFUL(err)) {
+                            irq = spin_lock_blocking(shared_status.lock);
+                            if (debug_cmd_status.in_progress) {
+                                // Only write if command didn't get aborted
+                                debug_cmd_status.result_type = DBG_RESULT_CMD_OK;
+                                debug_cmd_status.in_progress = false;
+                            }
+                            spin_unlock(shared_status.lock, irq);
+                        }
+                    }
+                    else if (cmd_type == DBG_CMD_DF_WRITE) {
+                        err = bq_dbg_df_write(cmd, (uint8_t *) debug_cmd_status.block_data,
+                                              debug_cmd_status.req_data.block_write_count);
 
                         // Return result on success
                         if (BQ_CHECK_SUCCESSFUL(err)) {

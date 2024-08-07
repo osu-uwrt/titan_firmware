@@ -135,6 +135,8 @@ bq_error_t bq_dbg_read_mfg_block(uint16_t mfg_cmd, uint8_t *block_out, size_t *l
 
 bq_error_t bq_dbg_mfg_cmd(uint16_t mfg_cmd);
 
+bq_error_t bq_dbg_df_write(uint16_t addr, const uint8_t *write_buf, size_t len);
+
 #endif
 
 #endif

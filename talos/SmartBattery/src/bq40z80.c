@@ -146,6 +146,38 @@ static int bq_mfg_access_cmd(uint16_t mac_cmd) {
     return ret;
 }
 
+/**
+ * @brief Writes the requested manufacturer access block
+ * This only sends the command, and data, not response is read
+ *
+ * @param mac_cmd The Manufacturer Access Command command to write
+ * @param txbuf The buffer to write to the manufacturer access command
+ * @param len The length of the buffer to write
+ * @return int PIO_SMBUS_SUCCESS on success, or a negative error code on error
+ */
+static int bq_mfg_access_write(uint16_t mac_cmd, const uint8_t *txbuf, size_t len) {
+    // Throttle if needed
+    if (!time_reached(bq_transfer_throttle)) {
+        sleep_until(bq_transfer_throttle);
+    }
+
+    if (len > 32 || len == 0) {
+        return PIO_SMBUS_ERR_BUF_TOO_LARGE;
+    }
+
+    // Generate the MAC command
+    uint8_t mac_cmd_buf[2 + len];
+    mac_cmd_buf[0] = mac_cmd & 0xFF;
+    mac_cmd_buf[1] = mac_cmd >> 8;
+    memcpy(mac_cmd_buf + 2, txbuf, len);
+
+    // Issue the MAC command
+    int ret = pio_smbus_block_write_pec(BQ_PIO_INST, BQ_PIO_SM, BQ_ADDR, SBS_CMD_MANUFACTURER_BLOCK_ACCESS, mac_cmd_buf,
+                                        sizeof(mac_cmd_buf));
+    bq_transfer_throttle = make_timeout_time_us(BQ_THROTTLE_TIME_US);
+    return ret;
+}
+
 static int bq_read_dword(uint8_t cmd, uint32_t *dword_out) {
     uint32_t word;
     size_t len = sizeof(word);
@@ -534,6 +566,13 @@ bq_error_t bq_dbg_read_mfg_block(uint16_t mfg_cmd, uint8_t *block_out, size_t *l
 
 bq_error_t bq_dbg_mfg_cmd(uint16_t mfg_cmd) {
     I2CCHECK(bq_mfg_access_cmd(mfg_cmd));
+    BQERRCHECK(bq_check_status_successful());
+    BQ_RETURN_SUCCESS;
+}
+
+bq_error_t bq_dbg_df_write(uint16_t addr, const uint8_t *write_buf, size_t len) {
+    I2CCHECK(bq_mfg_access_write(addr, write_buf, len));
+    sleep_ms(150);
     BQERRCHECK(bq_check_status_successful());
     BQ_RETURN_SUCCESS;
 }

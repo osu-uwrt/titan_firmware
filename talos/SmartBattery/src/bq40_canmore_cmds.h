@@ -491,7 +491,7 @@ static int bq40_sbs_readint_cb(size_t argc, const char *const *argv, FILE *fout)
     // Set command type
     debug_cmd_status.cmd_type = DBG_CMD_SBS_READINT;
     debug_cmd_status.cmd = cmd;
-    debug_cmd_status.int_read_width = width;
+    debug_cmd_status.req_data.int_read_width = width;
 
     ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_INT);
     if (ret)
@@ -530,7 +530,7 @@ static int bq40_sbs_readblock_cb(size_t argc, const char *const *argv, FILE *fou
     size_t read_len = debug_cmd_status.result.block_read_count;
     fprintf(fout, "SBS Reg[0x%02X] (Len: %d): ", cmd, read_len);
     for (size_t i = 0; i < read_len; i++) {
-        fprintf(fout, "%02X", debug_cmd_status.block_out[i]);
+        fprintf(fout, "%02X", debug_cmd_status.block_data[i]);
     }
     fprintf(fout, "\n");
 
@@ -564,7 +564,7 @@ static int bq40_mfg_readblock_cb(size_t argc, const char *const *argv, FILE *fou
     size_t read_len = debug_cmd_status.result.block_read_count;
     fprintf(fout, "MFG Reg[0x%04X] (Len: %d): ", cmd, read_len);
     for (size_t i = 0; i < read_len; i++) {
-        fprintf(fout, "%02X", debug_cmd_status.block_out[i]);
+        fprintf(fout, "%02X", debug_cmd_status.block_data[i]);
     }
     fprintf(fout, "\n");
 
@@ -635,22 +635,22 @@ static int bq40_df_readint_cb(size_t argc, const char *const *argv, FILE *fout) 
             fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
             return 1;
         }
-        data = debug_cmd_status.block_out[0];
+        data = debug_cmd_status.block_data[0];
         break;
     case READ_WIDTH_16:
         if (debug_cmd_status.result.block_read_count < 2) {
             fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
             return 1;
         }
-        data = debug_cmd_status.block_out[0] | (debug_cmd_status.block_out[1] << 8);
+        data = debug_cmd_status.block_data[0] | (debug_cmd_status.block_data[1] << 8);
         break;
     case READ_WIDTH_32:
         if (debug_cmd_status.result.block_read_count < 4) {
             fprintf(fout, "Block read didn't return enough bytes: %d\n", debug_cmd_status.result.block_read_count);
             return 1;
         }
-        data = debug_cmd_status.block_out[0] | (debug_cmd_status.block_out[1] << 8) |
-               (debug_cmd_status.block_out[2] << 16) | (debug_cmd_status.block_out[3] << 24);
+        data = debug_cmd_status.block_data[0] | (debug_cmd_status.block_data[1] << 8) |
+               (debug_cmd_status.block_data[2] << 16) | (debug_cmd_status.block_data[3] << 24);
         break;
     default:
         return 1;
@@ -658,6 +658,84 @@ static int bq40_df_readint_cb(size_t argc, const char *const *argv, FILE *fout) 
 
     fprintf(fout, "Data Flash [0x%02X]: ", cmd);
     ret = dbg_cmd_show_int_result(fout, data, width, is_signed);
+
+    return 0;
+}
+
+static int bq40_df_write_cb(size_t argc, const char *const *argv, FILE *fout) {
+    uint16_t cmd;
+    int ret;
+
+    if (argc < 3) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "--iknowwhatimdoingiswear")) {
+        fprintf(fout, "Missing Guard Flag! Refusing to execute!\n");
+        return 1;
+    }
+
+    if (argc < 4) {
+        fprintf(fout, "Invalid Syntax!\n");
+        return 1;
+    }
+
+    // Decode cmd parameter
+    ret = dbg_cmd_get_uint(fout, argv[2], UINT16_MAX);
+    if (ret < 0)
+        return ret;
+    cmd = ret;
+
+    // Decode data parameter
+    size_t hex_len = strlen(argv[3]);
+    if (hex_len % 2 != 0 || hex_len == 0) {
+        fprintf(fout, "Invalid hex string\n");
+        return 1;
+    }
+    size_t byte_len = hex_len / 2;
+    if (byte_len > 32) {
+        fprintf(fout, "Can only write up to 32 bytes at a time\n");
+        return 1;
+    }
+
+    static_assert(sizeof(debug_cmd_status.block_data) >= 32, "Expected 32 byte block data buffer");
+    for (size_t i = 0; i < hex_len; i++) {
+        unsigned char nibble = 0;
+        // Invalid device nibble
+        char hexchar = argv[3][i];
+        if (hexchar >= '0' && hexchar <= '9') {
+            nibble = hexchar - '0';
+        }
+        else if (hexchar >= 'A' && hexchar <= 'F') {
+            nibble = hexchar - 'A' + 0xA;
+        }
+        else if (hexchar >= 'a' && hexchar <= 'f') {
+            nibble = hexchar - 'a' + 0xA;
+        }
+        else {
+            fprintf(fout, "Invalid hex string\n");
+            return 1;
+        }
+
+        if (i % 2 == 0) {
+            debug_cmd_status.block_data[i / 2] = nibble << 4;
+        }
+        else {
+            debug_cmd_status.block_data[i / 2] |= nibble;
+        }
+    }
+
+    // Set command type
+    debug_cmd_status.cmd_type = DBG_CMD_DF_WRITE;
+    debug_cmd_status.cmd = cmd;
+    debug_cmd_status.req_data.block_write_count = byte_len;
+
+    ret = dbg_cmd_xfer_and_wait(fout, make_timeout_time_ms(200), DBG_RESULT_CMD_OK);
+    if (ret)
+        return ret;
+
+    fprintf(fout, "OK\n");
 
     return 0;
 }
@@ -774,14 +852,10 @@ static int bq40_cell_state_cb(size_t argc, const char *const *argv, FILE *fout) 
     fprintf(fout, "  5: %d.%dV\n", voltage / 1000, voltage % 1000);
 
     fprintf(fout, "Cell Currents:\n");
-    fprintf(fout, "  1: %.3fA\n",
-            (shared_status.batt_info.da_status1.cell1_current / 1000.0) * shared_status.mfg_info.scale_factor);
-    fprintf(fout, "  2: %.3fA\n",
-            (shared_status.batt_info.da_status1.cell2_current / 1000.0) * shared_status.mfg_info.scale_factor);
-    fprintf(fout, "  3: %.3fA\n",
-            (shared_status.batt_info.da_status1.cell3_current / 1000.0) * shared_status.mfg_info.scale_factor);
-    fprintf(fout, "  4: %.3fA\n",
-            (shared_status.batt_info.da_status1.cell4_current / 1000.0) * shared_status.mfg_info.scale_factor);
+    fprintf(fout, "  1: %.3fA\n", (shared_status.batt_info.da_status1.cell1_current / 1000.0));
+    fprintf(fout, "  2: %.3fA\n", (shared_status.batt_info.da_status1.cell2_current / 1000.0));
+    fprintf(fout, "  3: %.3fA\n", (shared_status.batt_info.da_status1.cell3_current / 1000.0));
+    fprintf(fout, "  4: %.3fA\n", (shared_status.batt_info.da_status1.cell4_current / 1000.0));
     fprintf(fout, "  5: Not Monitored\n");
 
     return 0;
@@ -877,4 +951,14 @@ static void core1_register_canmore_cmds(void) {
                               " - gauging: Reports the state of gas gauging system\n"
                               " - charging: Reports the state of advanced charge algorithm system",
                               bq40_status_flags_cb);
+    debug_remote_cmd_register(
+        "bq40_dfwrite", "[--iknowwhatimdoingiswear] [flash addr] [hex data...]",
+        "[DEBUG CMD] Writes the requested data to the bq40 dataflash at the requested address\n"
+        "!!! WARNING !!! This command can modify behavior of the battery charge chip!\n"
+        "THIS MAY PUT IT IN AN UNSAFE STATE! DO NOT USE THIS COMMAND UNLESS YOU KNOW WHAT YOU\n"
+        "ARE DOING! This command can be used in place of disassembling the battery to connect\n"
+        "it to bq studio. DO NOT USE IF YOU HAVEN'T THOROUGHLY READ THE BQ40 REFERENCE MANUAL!\n"
+        "  [flash addr]: The starting flash address to write (in decimal, or prefixed with 0x hex)\n"
+        "  [hex data...]: String of hex characters to write to dataflash (up to 32 bytes, 64 chars, no spaces or 0x)",
+        bq40_df_write_cb);
 }
