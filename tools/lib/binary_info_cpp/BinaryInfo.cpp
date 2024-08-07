@@ -703,6 +703,9 @@ void extractAppInfo(memory_access &raw_access, AppInfo &appData, uint32_t base) 
                     return;
                 }
 
+                if (tag == BINARY_INFO_TAG_UWRT && id == BINARY_INFO_ID_UW_MESSAGE)
+                    appData.message = value;
+
                 if (tag != BINARY_INFO_TAG_RASPBERRY_PI)
                     return;
                 if (id == BINARY_INFO_ID_RP_PROGRAM_NAME)

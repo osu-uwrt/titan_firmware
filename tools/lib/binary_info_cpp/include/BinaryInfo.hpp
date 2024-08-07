@@ -28,7 +28,7 @@ struct AppInfo {
     std::map<std::pair<int, uint32_t>, std::pair<std::string, uint>> namedFeatureGroups;
     std::map<std::string, std::vector<std::string>> namedFeatureGroupValues;
     std::string programName, programBuildDate, programVersion, programUrl, programDescription;
-    std::string boardType, sdkVersion, boot2Name, deviceIpAddress, agentIpAddress;
+    std::string boardType, sdkVersion, boot2Name, deviceIpAddress, agentIpAddress, message;
     std::vector<std::string> programFeatures, buildAttributes;
     uint32_t binaryStart, binaryEnd, agentPort;
 };

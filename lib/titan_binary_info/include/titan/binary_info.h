@@ -18,6 +18,8 @@
 #define BINARY_INFO_ID_UW_AGENT_IP_ADDRESS 0x851b754e
 #define BINARY_INFO_ID_UW_AGENT_PORT 0xb7e0a019
 #define BINARY_INFO_ID_UW_VERSION_DATA 0x41370cbc
+#define BINARY_INFO_ID_UW_MESSAGE 0xcecaa2aa
+#define BINARY_INFO_ID_UW_FLAG 0xc2caac84
 
 #define bi_client_id(id) bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_CLIENT_ID, id)
 #define bi_ip_address_array(address) (address[0] | (address[1] << 8) | (address[2] << 16) | (address[3] << 24))
