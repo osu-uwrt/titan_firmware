@@ -20,7 +20,7 @@
 #if !PICO_NO_FLASH
 #ifndef PICO_NO_BI_BINARY_SIZE
 extern char __flash_binary_end;
-bi_decl_with_attr(bi_binary_end((intptr_t) &__flash_binary_end), reset_section_attr)
+bi_decl_with_attr(bi_binary_end((intptr_t) &__flash_binary_end), reset_section_attr);
 #endif
 #endif
 
@@ -28,7 +28,7 @@ bi_decl_with_attr(bi_binary_end((intptr_t) &__flash_binary_end), reset_section_a
 #ifndef PICO_PROGRAM_BUILD_DATE
 #define PICO_PROGRAM_BUILD_DATE __DATE__
 #endif
-    bi_decl(bi_program_build_date_string(PICO_PROGRAM_BUILD_DATE));
+bi_decl(bi_program_build_date_string(PICO_PROGRAM_BUILD_DATE));
 #endif
 
 #if !PICO_NO_BI_PROGRAM_NAME
@@ -36,66 +36,65 @@ bi_decl_with_attr(bi_binary_end((intptr_t) &__flash_binary_end), reset_section_a
 #define PICO_PROGRAM_NAME PICO_TARGET_NAME
 #endif
 #ifdef PICO_PROGRAM_NAME
-bi_decl_with_attr(bi_program_name(PICO_PROGRAM_NAME), reset_section_attr)
+bi_decl_with_attr(bi_program_name(PICO_PROGRAM_NAME), reset_section_attr);
 #endif
 #endif
 
 #if !PICO_NO_BI_PICO_BOARD
 #ifdef PICO_BOARD
-    bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_PICO_BOARD, PICO_BOARD))
+bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_PICO_BOARD, PICO_BOARD));
 #endif
 #endif
 
 #if !PICO_NO_BI_SDK_VERSION
 #ifdef PICO_SDK_VERSION_STRING
-        bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_SDK_VERSION, PICO_SDK_VERSION_STRING))
+bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_SDK_VERSION, PICO_SDK_VERSION_STRING));
 #endif
 #endif
 
 #if !PICO_NO_BI_PROGRAM_VERSION_STRING
 #ifdef PICO_PROGRAM_VERSION_STRING
-            bi_decl(bi_program_version_string(PICO_PROGRAM_VERSION_STRING))
+bi_decl(bi_program_version_string(PICO_PROGRAM_VERSION_STRING));
 #endif
 #endif
 
 #if !PICO_NO_BI_PROGRAM_DESCRIPTION
 #ifdef PICO_PROGRAM_DESCRIPTION
-                bi_decl(bi_program_description(PICO_PROGRAM_DESCRIPTION))
+bi_decl(bi_program_description(PICO_PROGRAM_DESCRIPTION));
 #endif
 #endif
 
 #if !PICO_NO_BI_PROGRAM_URL
 #ifdef PICO_PROGRAM_URL
-                    bi_decl(bi_program_url(PICO_PROGRAM_URL))
+bi_decl(bi_program_url(PICO_PROGRAM_URL));
 #endif
 #endif
 
 #if !PICO_NO_BI_BOOT_STAGE2_NAME
 #ifdef PICO_BOOT_STAGE2_NAME
-                        bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_BOOT2_NAME,
-                                          PICO_BOOT_STAGE2_NAME))
+bi_decl(bi_string(BINARY_INFO_TAG_RASPBERRY_PI, BINARY_INFO_ID_RP_BOOT2_NAME, PICO_BOOT_STAGE2_NAME));
 #endif
 #endif
 
 #if !PICO_NO_BI_BUILD_TYPE
 #ifdef PICO_CMAKE_BUILD_TYPE
-                            bi_decl(bi_program_build_attribute(PICO_CMAKE_BUILD_TYPE))
+bi_decl(bi_program_build_attribute(PICO_CMAKE_BUILD_TYPE));
 #else
 #ifndef NDEBUG
-bi_decl(bi_program_build_attribute("Debug"))
+bi_decl(bi_program_build_attribute("Debug"));
 #else
-bi_decl(bi_program_build_attribute("Release"))
+bi_decl(bi_program_build_attribute("Release"));
 #endif
 #endif
 
 #if PICO_DEOPTIMIZED_DEBUG
-                                bi_decl(bi_program_build_attribute("All optimization disabled"))
+bi_decl(bi_program_build_attribute("All optimization disabled"));
 #endif
 #endif
 
-    // Report that this is a bootloader and where the base is (so OTAs can be flashed)
-    bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_BOOTLOADER_ENABLED, 1));
+// Report that this is a bootloader and where the base is (so OTAs can be flashed)
+bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_BOOTLOADER_ENABLED, 1));
 extern char __flash_app;
-bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_APPLICATION_BASE, (intptr_t) &__flash_app))
+bi_decl(bi_int(BINARY_INFO_TAG_UWRT, BINARY_INFO_ID_UW_APPLICATION_BASE, (intptr_t) &__flash_app));
 
 #endif
