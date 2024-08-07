@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.13)
 
 # The Target Board
-# These can be found in lib/uwrt_boards/include/boards or be set to pico
+# These can be found in lib/titan_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD mk2/esc_board)
 
 # The Target Robot
-# These can be found in lib/uwrt_boards/include/robots
+# These can be found in lib/titan_boards/include/robots
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
 
@@ -38,7 +38,7 @@ titan_generate_version_tag(esc_board 1 0)
 pico_enable_stdio_uart(esc_board 1)
 pico_set_program_name(esc_board "ESC Board Firmware")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(esc_board)
 titan_enable_bootloader(esc_board can)
 

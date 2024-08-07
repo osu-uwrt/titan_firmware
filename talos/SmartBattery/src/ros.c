@@ -1,5 +1,7 @@
 #include "ros.h"
 
+#include "core1.h"
+
 #include "driver/sht41.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
@@ -35,7 +37,6 @@
 #define HUMIDITY_STATUS_PUBLISHER_NAME "status/humidity/smartbattery"
 
 bool ros_connected = false;
-bool request_powercycle = false;
 
 // Core Variables
 rcl_node_t node;
@@ -50,7 +51,6 @@ rcl_publisher_t firmware_status_publisher, battery_status_publisher, temp_status
 rcl_subscription_t killswtich_subscriber, electrical_command_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 riptide_msgs2__msg__ElectricalCommand electrical_command_msg;
-// TODO: Add node specific items here
 
 // ========================================
 // Executor Callbacks
@@ -65,14 +65,15 @@ static void electrical_command_callback(const void *msgin) {
     const riptide_msgs2__msg__ElectricalCommand *msg = (const riptide_msgs2__msg__ElectricalCommand *) msgin;
 
     // check if the command was a power cycle
-    if (msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER) {
-        request_powercycle = true;
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT) {
+        LOG_INFO("ROS Command requested robot power cycle... Issuing temporary Emergency FET Shutdown");
+        core1_power_cycle_robot();
     }
 
     // also check for a reset
-    if (msg->command == riptide_msgs2__msg__ElectricalCommand__CYCLE_ROBOT) {
-        LOG_INFO("Commanded robot reset, Engaging intentional WDR");
-        watchdog_reboot(0, 0, 0);
+    if (msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER) {
+        LOG_INFO("ROS Command requested kill robot power... Issuing latched Emergency FET Shutdown");
+        core1_kill_robot_power();
     }
 }
 
@@ -140,31 +141,32 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_update_battery_status(bq_pack_info_t bq_pack_info) {
+rcl_ret_t ros_update_battery_status(bq_mfg_info_t bq_pack_info) {
     riptide_msgs2__msg__BatteryStatus status;
 
     // push in the common cell info
-    status.cell_name.data = bq_pack_info.name;
-    status.cell_name.size = strlen(bq_pack_info.name);
+    status.cell_name.data = "";
+    status.cell_name.size = 0;
     status.serial = bq_pack_info.serial;
 
     // test for port and stbd
-    status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
-    if (bq_pack_present()) {
-        if (bq_pack_side_det_port()) {
-            status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_PORT;
-        }
-        else {
-            status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_STBD;
-        }
+
+    bool side_det_is_high;
+    if (core1_get_side_detect(&side_det_is_high)) {
+        status.detect = (side_det_is_high ? riptide_msgs2__msg__BatteryStatus__DETECT_PORT :
+                                            riptide_msgs2__msg__BatteryStatus__DETECT_STBD);
+    }
+    else {
+        status.detect = riptide_msgs2__msg__BatteryStatus__DETECT_NONE;
     }
 
     // read cell info
-    status.pack_voltage = ((float) bq_pack_voltage()) / 1000.0;
-    status.pack_current = ((float) bq_pack_current()) / 1000.0;
-    status.average_current = ((float) bq_avg_current()) / 1000.0;
-    status.time_to_dischg = bq_time_to_empty();
-    status.soc = bq_pack_soc();
+    status.pack_voltage = ((float) core1_voltage()) / 1000.0;
+    status.pack_current = ((float) core1_current()) / 1000.0;
+    status.average_current = ((float) core1_avg_current()) / 1000.0;
+    bool dsg;
+    status.time_to_dischg = core1_time_remaining(&dsg);
+    status.soc = core1_soc();
 
     // send out the ros message
     rcl_ret_t ret = rcl_publish(&battery_status_publisher, &status, NULL);
@@ -248,11 +250,11 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&electrical_command_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&battery_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
@@ -269,14 +271,4 @@ bool is_ros_connected(void) {
 bool ros_ping(void) {
     ros_connected = rmw_uros_ping_agent(RMW_UXRCE_PUBLISH_RELIABLE_TIMEOUT, 1) == RCL_RET_OK;
     return ros_connected;
-}
-
-bool power_cycle_requested(void) {
-    // clear the request as we are going to service it
-    if (request_powercycle) {
-        request_powercycle = false;
-        return true;
-    }
-
-    return false;
 }

@@ -3,6 +3,8 @@
 #include <malloc.h>
 #include <string.h>
 
+#if TITAN_SAFETY
+
 extern char __StackLimit;
 extern char __StackTop;
 extern char __StackBottom;
@@ -64,3 +66,5 @@ void debug_register_global_remote_cmds(void) {
     // Register all the global commands
     debug_remote_cmd_register("memstats", "", "Shows memory usage statistics", debug_global_cmd_memstats);
 }
+
+#endif

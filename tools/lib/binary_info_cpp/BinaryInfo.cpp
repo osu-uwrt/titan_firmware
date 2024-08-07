@@ -23,6 +23,12 @@
 #include <set>
 #include <vector>
 
+#undef assert
+#define assert(cond)                                                                                                   \
+    if (!cond) {                                                                                                       \
+        throw std::logic_error("Assert failed");                                                                       \
+    }
+
 namespace BinaryInfo {
 using std::map;
 using std::pair;
@@ -696,6 +702,9 @@ void extractAppInfo(memory_access &raw_access, AppInfo &appData, uint32_t base) 
                     appData.namedFeatureGroupValues[nfg->second.first].push_back(value);
                     return;
                 }
+
+                if (tag == BINARY_INFO_TAG_UWRT && id == BINARY_INFO_ID_UW_MESSAGE)
+                    appData.message = value;
 
                 if (tag != BINARY_INFO_TAG_RASPBERRY_PI)
                     return;

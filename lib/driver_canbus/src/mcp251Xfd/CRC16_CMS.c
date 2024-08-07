@@ -108,12 +108,13 @@ uint16_t ComputeCRC16CMS(const uint8_t* data, size_t size)
   uint16_t bit = 0;
   while (size-- != 0)
   {
-    crc ^= *data++;
-    for (int i = 8; --i >= 0; )
-    {
-      bit = (crc & 0x0001);
-      crc >>= 1;
-      if (bit != 0) crc ^= Polynome;
+    uint8_t byte = *data++;
+    crc = crc ^ ((uint16_t)byte << 8);
+    for (bit = 0; bit < 8; bit++) {
+      if (crc & 0x8000)
+        crc = (crc << 1) ^ Polynome;
+      else
+        crc <<= 1;
     }
   }
 

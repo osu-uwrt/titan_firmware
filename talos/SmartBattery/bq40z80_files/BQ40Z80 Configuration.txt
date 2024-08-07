@@ -1,77 +1,20 @@
 Chemsitry ID: 1356
 Max Voltage to Charge (per cell): 4.15V
+Minimum Voltage to Discharge To (per cell): 3.2V
+Designed for MaxAmps 8000 mAh 5S2P 18.5V LiPo battery pack
 
 Things to go through:
- - Setttings
-  - Manufacturing Status Init
-    - LED_EN
-      - No leds
-    - FUSE_EN
-      - No fuse right now (and probably for a little bit)
-    - BBR_EN
-      - No black box recorder right now
-    - PF_EN
-      - No permanent fail right now
-    - LF_EN
-      - 1 Enable lifetime logging on this cell
-    - FET_EN
-      - 1 Enable the FETs (we want poewr control)
-    - GAUGE_EN
-      - 1 Enable gas gauge (we're calibrated)
- - Permanent Fail
- - Gas Gauging
-   - Current Thresholds
-     - Discharge Current Threshold: 100 mA
-     - Charge Current Threshold: 48 mA
-     - Quit Current: 12 mA (below this current for relax time it enters relax mode)
-     - Discharge relax time: 1s (default)
-     - Charge relax time: 60s (default)
-   - Design
-     - Design Capacity: 8000 mAh
-     - Design Capacity: 148 Wh
-     - Design Voltage: 18.5V
-   - Cycle
-     - Cycle Count Percentage 90% (leave at default)
-   - Fully Discharged
-   - Fully Charged
-   - Terminate Discharge
-   - Terminate Charge
-   - State
-     - Don't modify
-   - Turbo Cfg
-     - Not Used
-   - IT Cfg
-   - Smoothing
-   - Condition Flag
-   - Max Error
-   - SoH
- - Advanced Charge Algorithm
-   - Charge term taper current
-
-Things to verify:
- - The precharge fet works
- - Measure idle, sleep, and shutdown current
- - All other IOs on the board
-
-Pre pool test setup:
- - Settings
-   - Enabled Permanent Failure
-   - Permanent Failure Fuse
- - Enable all the systems (Manufacturing Status Init)
-
-Investigate for Gas Gauging/Balancing:
- - Configuration -> FET Options -> CHGFET
-   - Check which mode we want
+ - Once we know that PF won't accidentally fire on us (give it a few months after robosub 2024)
+   Set the FUSE_EN in Manufacturing Status Init to enable the fuse
+     ALSO MAKE SURE THAT THE RESISTOR IS SOLDERED TO ALL THE BMB BOARDS
+     You'll have to take them apart anyways to program them, good to check that as well
+ - Validate the Battery Charge Configuration once Smart Battery Charger Ready for integration
+  - Set CHGFET once we get smart battery charger ready and that works best (it'll close fets when BQ thinks its done charging)
       - Should be set if we're fine with the battery charger freaking out when we get full charge and it disables charging
       - Shouldn't be set if we're confident the charger will know when to charge
- - Configuration -> SOC Flag Config
- - Configuration -> Balancing Configuration
- - Configuration -> IT Gauging Configuration [No TDELTAV]
- - Configuration -> IT Gauging Ext
- - Settings -> AFE -> ZVCHG Exit Threshold
-   - Voltage at which below this the battery won't be able to be charged
- - Enable overcharge protection
- - Enable overvoltage/overcurrent/overprecharge request protection
+  - Enable overvoltage/overcurrent/overprecharge request protection to fault if the charger doesn't obey the BQ40
+    - These will need to be configured and tuned so they don't trip during normal operation, but will
+      trip if they stray too far from the target
 
 Investigate for Advanced Charge Altorithms:
  - Settings
@@ -80,8 +23,6 @@ Investigate for Advanced Charge Altorithms:
        - To be done after enabling advanced charging algorithms
     - FET Options
        - CHGFET: Set after it's smart enough to know to terminate charge
-       - CHGIN: Set after we've configured the charge inhibit mode
-       - CHGSU: Set after we've configured charge suspend mode
 
 Done:
 - Settings
@@ -96,6 +37,43 @@ Done:
         - Should be 0 unless charger will shut down during copper deposition check thinking charging isn't needed
     - Enabled Protections
      - See protections
+  - Permanent Failure:
+    - PF A:
+      - SUV: 1
+        - If battery gets discharged to an unsafe level we shouldn't let them charge it back up again
+      - SOV: 1
+        - If a battery is overcharged above safe levels, don't let the battery be used anymore
+      - SOCD: 0
+      - SOCC: 0
+        - Don't have Safety Overcurrent in charge or discharge, we've got fuses for that, and we don't have to worry about hurting the pack
+      - SOT: 1
+        - Don't let the battery be used anymore if it gets heated above safe levels
+      - COVL: 0:
+        - Don't PF on overvoltage latch
+      - SOTF: 0:
+        - We don't have FET temp, so we can't use this
+      - QIM: 1
+        - PF if the pack gets too out of balance, means it's at EOL
+    - PF B:
+      - We don't want any of these, see the PF section of this doc for more info
+    - PF C:
+      - CFETF: 1
+        - PF the pack if the charge FET stops working
+      - DFETF: 1
+        - PF the pack if discharge FET stops working
+      - OCDL: 0
+        - Again, no overcurrent PF
+      - FUSE: 1
+        - PF if chem fuse doesn't blow when we expect it to
+      - AFER: 1
+        - PF if chip starts acting up
+      - AFEC: 1
+        - PF if chip starts acting up
+      - 2LVL: 0
+        - No second level protectors in use
+    - PF D:
+      - No open thermistors since we open the housing up too much
+      - If we unplug thermistor w/o shutting down the BQ40, we'll accidentally PF the pack
   - Configuration
     - Temperature Enable (02)
       - We only have TS1 actually giving protection data
@@ -131,9 +109,9 @@ Done:
         - Should be set if we're fine with the battery charger freaking out when we get full charge and it disables charging
         - Shouldn't be set if we're confident the charger will know when to charge
       - CHGIN
-        - Not set right now, as we haven't configured advanced charging yet
+        - Set so we can't start charging if we're out of nominal temperature range
       - CHGSU
-        - Not set right now, as we haven't configured advanced charging yet
+        - Set so we suspend charging if we go out of okay temperature range
       -  OTFET
         - Don't care, fet not configured
       - PARALLEL_FETS
@@ -207,9 +185,9 @@ Done:
       - No interrupts required
     - LED Configuration (00d0)
       - We don't use LEDs, don't care/leave at default
-    - Balancing Configuration (01)
+    - Balancing Configuration (21)
       - CBS
-        - 0 for now, but we'll investigate this during sleep
+        - 1: Let the battery balancing while in sleep to try to fix any long term drift
       - CB_RLX_DOD0EW
         - ??? Figure out when we do balancing
       - CB_CHG_DOD0EW
@@ -220,30 +198,101 @@ Done:
         - 0, we have internal cell balancing
       - CB
         - 1 Enable cell balancing during charge
+    - SOC Flag Config A
+      - TCSETVCT: 1
+        - Set Terminate Charge [TC] when we reach a valid taper current to notify charger
+        - This is useful when paired with FET Options to shut off charge fet after taper, to stop charger from charging
+      - FCSETVCT: 1
+        - Set Fully Charge [FC] we we reach valid taper current to notify charger it's done
+      - TCCLEARRSOC: 1
+        - Use RSOC to drop below threshold when we can resume charging
+      - TCSETRSOC: 0
+        - Don't use RSOC to set TC (we're using VCT above)
+      - TCCLEARV: 0
+        - Don't clear TC by voltage (we're using RSOC above)
+      - TCSETV: 0
+        - Don't stop charge via voltage (we're using VCT)
+      - TDCLEARSOC: 0
+        - Don't clear terminate discharge based on SOC (we're gonna use voltage)
+      - TDSETRSOC: 0
+        - Don't set terminate discharged based on SOC (we're gonna use voltage)
+      - TDCLEARV: 1
+        - Clear terminate discharge after we rise above the target voltage
+      - TDSETV: 1
+        - Set terminate discharge once we drop below target voltage
+    - SOC Flag Config B:
+      - FCCLEARSOC: 1
+        - Clear fully charged after we drop below target voltage
+      - FCSETRSOC: 0
+        - Don't set fully charged on soc (using VCT above)
+      - FCSETV: 0
+        - Don't set fully charged on voltage (using VCT above)
+      - FDCLEARRSOC: 0
+        - Don't clear fully discharged on SOC (we're using voltage)
+      - FDSETRSOC: 0
+        - Don't set fully discharged based on SOC (we're using voltage)
+      - FDCLEARV: 1
+        - We'll clear fully discharged once we rise above target voltage
+      - FDSETV: 1
+        - We'll set fully discharge once we drop below maxamps landing voltage
   - Configuration
     - IT Gauging Configuration
+      - Setting CELL_TERM to 1 to ensure we don't undervolt cells during discharge, we stop when the lowest cells hits term
+      - Leaving the rest as default: I trust TI to make the IT work
     - IT Gauging Ext
+      - I do not know enough about this to tune these, trusting TI for this
   - AFE
     - AFE Protection Control (73)
       - SCDDx2
         - Double SCD delay times (we're running near max of AFE)
       - RSNS
         - Normal thresholds (we're running near max of the AFE)
-    - ZVCHG Exit Threshold (2200 mV)
-      - Right now left at 0 of 2200 mV
+    - ZVCHG Exit Threshold (2900 mV)
+      - Below 2.9V, we won't let the battery charge anymore
+  - FUSE:
+    - PF Fuse *:
+      - We only want the following fuses to be enabled
+      - To be qualified to blow the fuse, that means that the pack is in IMMEDIATE DANGER if it continues to work in
+        this condition
+      - The only things that qualify for this are:
+        - Discharge/Charge FET Failure
+          - The primary control method (the mosfets) are no longer working
+            The last resort is to blow the fuse to cut power
+          - Instruction Flash Corrupted
+            - The instruction memory is corrupted in the BQ40, kill the pack since we don't know what'll happen
+    - Min Fuse Blow Voltage: 3.2V
+      - We can't blow the fuse if it gets too low, don't try below the min of 3.2V
+    - Fuse Blow Timeout: 30s
+      - Hold for 30s (see datasheet for more info)
+  - BTP
+    - We're not using battery trip point, leave all at default
   - SMBus Address
     - Using defaults
   - Current Scaling
     - We want to express currents up to 80A, so we need at least 3x scaling
     - To make our lives easier, just divide by 4 rather than 3
-  - BTP
-    - We're not using battery trip point, leave all at default
+  - Manufacturing Status Init
+    - LED_EN
+      - 0 No leds
+    - FUSE_EN
+      - 0 No fuse right now (keeping off until we're done with robosub at least)
+    - BBR_EN
+      - 1 Enable Black Box Recorder
+    - PF_EN
+      - 1 Enable Permenant Failure (now that it's configured)
+    - LF_EN
+      - 1 Enable lifetime logging on this cell
+    - FET_EN
+      - 1 Enable the FETs (we want poewr control)
+    - GAUGE_EN
+      - 1 Enable gas gauge (we're calibrated)
  - Protections
    - Cell Undervoltage [Enabled]
-     - Hard stop discharge at 3.0V for 2 seconds (according to battery datasheet)
-     - Charge up past 3.5V to clear the fault
+     - Hard stop discharge at 3.2V for 2 seconds
+       - This is at the charge cutoff at 3.2V/cell, which is the 16V charge cutoff recommended by maxamps
+     - Charge up past 3.5V to clear the fault (Battery @17V.5)
    - Cell Undervoltage Compensated [Enabled]
-     - Compensate an extra 0.1V (default that TI used)
+     - Compensate an extra 0.1V (default that TI used): 3.1V
      - Same recovery and delay as undervoltage
    - Cell Overvoltage [Enabled]
      - Above 4.2V we'll overvoltage (according to battery datasheet)
@@ -296,6 +345,124 @@ Done:
    - Over Requested Precharging Current [Enabled]
     - 60 mA over requested charging current for 2 seconds
     - 12 mA recovery for 2 seconds
+ - Advanced Charge Algorithm
+   - Using the temperature ranges set by Tyson (but they make sense)
+   - For low/high temp, derate the pack to charge to limit wear/tear on batteries, we should never be charging in this config
+   - For all others, slow down charge at low voltages (between 3.2V cutoff and 3.6V when we start to reach medium levels)
+   - At medium/high voltages, let full current go
+   - Charge term taper current
+   - For precharge, run at 250 mA (precharge should be around C/30 charge rates)
+   - Keep maintenance charge low (but we should never be doing it)
+   - No degrade modes (we don't do cell degrading)
+   - Charge Term Taper Current (Current when we say we can stop)
+     - Set to 150 mA (I think that's what the old charger did, it works well but if charging too slow increase this)
+     - Charge Term Voltage (Charging shouldn't stop until all cells within 75 mV of each other)
+    - Leaving all other at default, I'm not a TI engineer so I don't know how to do it
+ - Gas Gauging
+   - Current Thresholds
+     - Discharge Current Threshold: 100 mA
+     - Charge Current Threshold: 48 mA
+     - Quit Current: 12 mA (below this current for relax time it enters relax mode)
+     - Discharge relax time: 1s (default)
+     - Charge relax time: 60s (default)
+   - Design
+     - Design Capacity: 8000 mAh
+     - Design Capacity: 148 Wh
+     - Design Voltage: 18.5V
+   - Cycle
+     - Cycle Count Percentage 90% (leave at default)
+   - Fully Discharged
+     - We are using voltage based for discharge, ignore ROSC thresholds
+     - We want the battery to be fully discharged once we hit 3.2V/cell, this should open charge fets
+       - This comes from maxamps saying the recommended cutoff voltage as 16V
+     - Battery leaves fully discharged state once we go above 3.5V/cell
+   - Fully Charged:
+     - Don't care about set thresholds (not used for fully charged, we use VCT)
+     - Don't care about clear voltage, not used for fully charged
+     - Clear % RSOC Threshold: 95%
+       - Once we drop below 95% RSOC, we'll allow charging again
+   - Terminate Discharge
+     - We want the terminate discharge alarm to go off below 3.5V/cell
+       - Maxamps recommends landing voltage of 17.5V, so we'll set the alert for software to swap battery
+     - We'll restore at 3.6V, gives a bit of a buffer after charging when we say we're good to keep using
+   - Terminate Charge
+     - Don't care about set thresholds (not used for terminate charge, we use VCT)
+     - Don't care about clear voltage, not used for terminate charge
+     - Clear % RSOC Threshold: 95%
+       - Once we drop below 95% RSOC, we'll say we can charge again
+   - State
+     - Don't modify, this is tracked by the bq chip
+   - Turbo Cfg
+     - Not Used, our pack chemistry config doesn't support TURBO Mode 2.0 (Sadge)
+   - IT Cfg
+     - TERM Voltage:
+       - 16V (according to maxamps recommended cutoff voltage)
+     - Term Min Cell V:
+       - 3.2V (the 16V / 5 cells)
+     - All other ones I'm not sure about, you can probably tune a lot of this stuff to get more precise SOC and more
+       energy out of the pack, but for us the default is fine. Feel free to tune if you like though
+   - Smoothing
+     - This is to add smoothing to make remaining capacity a bit smoother during abrupt charge term (I think)
+     - Not important for our case, we don't need it that precise
+   - Condition Flag
+     - Max Error Limit: 100% (Default)
+       - Controls Condition Flag in Gauging Status to notify the host that we need to condition the cells
+       - This is the point when maxerror reports that the battery needs to be conditioned
+       - Not really important for us since nobody will probably look at that flag...
+   - Max Error
+     - Leaving Time Cycle Equivalent and Cycle Delta at default
+     - This increase the SOC reported max error to the host, I'm trusting TI and leaving them as is
+   - SoH
+     - Used for State of Health calculations, leaving as default, something to do with simulating how hardware works
+ - Permanent Fail
+   - SUV
+     - Threshold: 3.0V (Absolute minimum according to maxamps spec sheet)
+     - Delay: 10s (Increased to give more headroom for undervolt protection to fire before triggering PF)
+       - We want this protection to be more for a battery that has sat on a shelf for too long, rather than someone overdischarging it
+       - It won't explode if we take a bit longer to kill it, it's the charging up a dead battery that's the problem
+   - SOV
+     - Threshold: 4.3V
+       - We don't want to go above this, overvolt protection should fire before this, if we stay above here something went horribly wrong
+     - Delay: 5s (Kept at default)
+   - SOCC
+     - Threshold: Don't care, not used
+     - Delay:
+   - SOCD
+     - Threshold: Don't care, not used (We will catch the the board on fire before we have to worry about permanently damaging the cell from current)
+     - Delay:
+   - SOT
+     - Threshold: 70 C (+10C above max operating conditions, if the battery gets this hot then something is wrong, we should've pulled it out)
+     - Delay: 5s (Kept at default)
+   - SOTF
+     - Threshold: Don't care, not used since we don't have fet sensors
+     - Delay:
+   - Open Thermistor: Don't care, not used, since we take the pack apart so if we don't shut down the BQ we might PF the pack
+   - QIM:
+     - Threshold: 20% max qmax imbalance
+       - If this gets too big then the cells got really out of wack and the pack probably isn't good anymore
+     - Delay: 2 full battery cycles where we see this 20% qmax imbalance
+   - CD: Cell Degredation (Don't care, we'll run the pack till we get annoyed with it's low capacity)
+   - VIMR: Voltage Imbalance At Rest (Not enabling, we unplug the battery and don't want to PF the pack)
+   - VIMA: Voltage Imbalance Active (Again, not enabling since we unplug the battery while active)
+     - This imbalance and cell balancing things are mainly for long term deployments like laptops
+     - We will notice that our packs keep overvoltage faulting and don't want erronious errors due to these PFs
+   - IMP: Cell Impedance, Again, not used, see notes above, not using
+   - CB: Cell Balancing: Don't care, again, see notes above
+   - Charge FET:
+     - OFF Threshold: 5 mA
+       - If we see over 20 mA going INTO the battery while charge FET closed, something is wrong
+       - We'll want to PF the pack, since we've had this before when we blew a fuse and didn't know the FETs were also blown
+       - Ideally this will be tied into chem fuse once we verify this doesn't trip accidentally
+     - OFF Delay: 5s (If it's over 20 mA for at least 5 seconds, then we trip)
+   - Discharge FET
+     - Same thresholds and delays as above (but current negative)
+     - This is okay since even though we have the RP2040, that is behind the current sense resistor so it won't see it
+   - FUSE PF
+     - Same currents and resonings as above
+     - Increase delay to 10s (see the chem fuse datasheet for how long fuse takes to blow)
+   - AFER, keep defaults, just have on so we can see if the analog stuff breaks
+   - AFEC, keep defaults, just have on so we can see if the analog stuff breaks
+   - 2LVL: Don't care, we don't have 2nd level protections
  - Power
    - Valid Update Voltage (3500 mV)
      - Leave at TI default

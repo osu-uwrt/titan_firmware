@@ -15,11 +15,29 @@
  * or the communication timer time out and exit the bootloader.
  */
 
+#include "canmore/ethernet_defs.h"
+#include "canmore/protocol.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#define BL_INTERFACE_MAX_PACKET_LEN 8
+#if TITAN_BOOTLOADER_CAN_INTERFACE
+#define BL_INTERFACE_MAX_PACKET_LEN CANMORE_MAX_FRAME_SIZE
+#elif TITAN_BOOTLOADER_ETH_INTERFACE
+#define BL_INTERFACE_MAX_PACKET_LEN CANMORE_ETH_UDP_MAX_LEN
+#else
+#error Unknown interface used, cannot set that protocols max packet length
+#endif
+
+/**
+ * @brief Performs early initialization on the bootloader interface. Called as early as possible in bootloader
+ * initialization.
+ *
+ * @return true The CAN bus was successfully initialized
+ * @return false CAN bus failed to initialize
+ */
+bool bl_interface_early_init(void);
 
 /**
  * @brief Initialize the communication channel for bootloader communication.

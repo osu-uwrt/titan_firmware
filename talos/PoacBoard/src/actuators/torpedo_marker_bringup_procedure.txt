@@ -1,0 +1,43 @@
+Procedure to bring up torpedo/markers:
+1. Have mechanical team make a torpedo marker device with a dynamixel inserted
+  - Note it does not need to be fully assembled, just enough to have the cam attached for setting home
+  - It is recommened that it not be fully assmebled so that the cam can be removed and flipped 180 if required
+2. Connect the dynamixel to the actuator board
+  - WARNING! ENSURE WIRING/POLARITY IS CORRECT!!! LIKE ACTUALLY DOUBLE CHECK IT!
+    The team killed 2 dynamixels during the first bringup as the first one had reverse polarity, and the second received
+    12V into the data pin. They are *very* sensitive to incorrect wiring
+  - Also ensure that there is a 3.3-5V level shifter between the RP2040 and the dynamixel. The communication is bidirectional
+    and the dynamixel *will* respond at a 5V logic level
+3. Assign the Dynamixel ID from the default of 1 to the torpedo/marker id (2 at this time of writing)
+  - Using canmore cli, issue the '@dynwrite 1 7 u8 2' command to write the ID register of dynamixel 1 to 2
+  - If multiple servos are chained together, you MUST disconnect any unprogrammed servos, as there can only be one
+    servo with a given ID on the bus at any point in time. Note that dynamixels come from the factory with the ID of 1
+  - This is why the torpedo/marker ID is 2, rather than the default of 1, to allow new dynamixels to be added into the
+    chain, without needing to shuffle around ids during the process.
+4. Connect to actuator board over ROS, ensure the torpedo marker dynamixel is detected
+  - The /<robot>/state/actuator/dynamixel topic reports all of the dynamixels known to firmware, ensure that a message
+    with the ID assigned to the dynamixel is publishing
+5. Move the shaft until the cam is in the home position
+6. Set the dynamixel home position.
+  - Dynamixels allow their "home" position to be set, which adds/subtracts the true dynamixel orientation by this amount
+  - This allows the zero position to be specified for the servo, as this location changes for each torpedo marker
+  - However, this offset can only be changed by +/- 90 degrees. This means that each torpedo/marker actuator has
+    one valid position that the cam can be homed, and the other cam orientation will be out of range for homing
+  - When homing the actuator, if an error of "Homing offset too large" is sent, this means that the offset is out of the
+    allowed +/- 90 degree offset allowed by the servo. The cam will need to be removed and rotated 180 degrees, and the
+    homed at that orientation. One of these two orientations should succeed.
+  - The torpedo can be homed by calling the /<robot>/command/actuator/torpedo_marker/set_home service. Note the actuator must
+    be disarmed when calling this (and should probably be disarmed while moving it so it won't try to hold position)
+7. Verify the home position
+  - Rotate the cam into a position not near the home position
+  - Arm the torpedo marker with the /<robot>/command/actuator/arm service call, setting the boolean to true
+  - Call the /<robot>/command/actuator/torpedo_marker/go_home service. This will move the cam back to its home position
+  - This service call is also useful if the servo lost power during a torpedo command, as the normal drop/torpedo services
+    will not move the servo unless it is in its home position.
+  - Ensure that when calling this service, no torpedoes/droppers are loaded, as it is not gaurenteed the direction the
+    cam will move
+8. Test the torpedo/marker dropper
+  - Ensure the actuator is armed and in the home position
+  - Call the /<robot>/command/actuator/dropper service to drop a marker dropper
+  - Call the /<robot>/command/actuator/torpedo service to fire a torpedo
+  - To disarm, call the /<robot>/command/actuator/arm service with the boolean set to false

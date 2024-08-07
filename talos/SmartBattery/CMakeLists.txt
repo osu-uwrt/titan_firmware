@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.13)
 
 # The Target Board
-# These can be found in lib/uwrt_boards/include/boards or be set to pico
+# These can be found in lib/titan_boards/include/boards or be set to pico
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
 set(PICO_BOARD mk2/sbh_mcu)
 
 # The Target Robot
-# These can be found in lib/uwrt_boards/include/robots
+# These can be found in lib/titan_boards/include/robots
 # Store any robot dependent configuration values in these files
 set(UWRT_ROBOT talos)
 
@@ -30,6 +30,10 @@ add_executable(smart_battery
 target_include_directories(smart_battery PUBLIC include)
 pico_generate_pio_header(smart_battery ${CMAKE_CURRENT_LIST_DIR}/src/i2c.pio)
 
+# Extend Core 1 checkin interval that it's okay to not check in within 1 second
+# There are some long running operations that we don't want to choke too much (like bq wake pulse)
+target_compile_definitions(smart_battery PUBLIC SAFETY_CORE1_CHECKIN_INTERVAL_MS=1000)
+
 # Set version: major minor (see titan/version.h for more info)
 titan_generate_version_tag(smart_battery 1 0)
 
@@ -37,7 +41,7 @@ titan_generate_version_tag(smart_battery 1 0)
 pico_enable_stdio_uart(smart_battery 1)
 pico_set_program_name(smart_battery "Smart Battery Firmware")
 
-# Enable the 'make upload' and 'make serial' commands for project
+# Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(smart_battery)
 titan_enable_bootloader(smart_battery can)
 
@@ -54,5 +58,6 @@ target_link_libraries(smart_battery PUBLIC
     hardware_pio
     hardware_i2c
     pico_stdlib       # Pico SDK Standard Library
+    pico_multicore
 )
 

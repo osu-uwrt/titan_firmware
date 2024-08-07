@@ -171,9 +171,9 @@ void mcp3426_init(uint8_t i2c_num, uint8_t addr, mcp3426_error_cb error_cb) {
         set_channel_cmds[i] = mcp3426_config_reg(MCP3426_START_READ, i, adc_mode, rate, gain);
     }
 
-    static_assert(sizeof(mode) <= sizeof(general_call_reset_req.user_data));
+    static_assert(sizeof(adc_mode) <= sizeof(general_call_reset_req.user_data));
     general_call_reset_req.completed_callback = &mcp3426_on_setup_complete;
-    general_call_reset_req.user_data = (void *) mode;
+    general_call_reset_req.user_data = (void *) adc_mode;
 
     mode = MCP3426_MODE_INITIALIZING;
     async_i2c_enqueue(&general_call_reset_req, &msg_in_progress);

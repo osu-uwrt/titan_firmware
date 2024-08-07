@@ -26,8 +26,9 @@
  * @brief Initialize new CANmore Debug Interface
  *
  * @param tx_func Transmit function to use during CAN transmissions
+ * @param multiword_buffer_len The length in bytes of the multiword response buffer to allocate (0 to disable multiword)
  */
-void debug_init(reg_mapped_server_tx_func tx_func);
+void debug_init(reg_mapped_server_tx_func tx_func, size_t multiword_buffer_len);
 
 /**
  * @brief Process a new message for the CANmore debug interface

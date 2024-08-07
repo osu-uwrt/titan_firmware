@@ -108,6 +108,10 @@ void dumpAppInfo(AppInfo &app) {
     printRow("Build Attrs", app.buildAttributes);
     printRow("Features", app.programFeatures);
     printRow("Pins", app.pins);
+
+    if (!app.message.empty()) {
+        printRow("Message", app.message.c_str());
+    }
 }
 
 };  // namespace BinaryInfo

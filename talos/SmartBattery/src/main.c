@@ -1,4 +1,4 @@
-#include "bq40z80.h"
+#include "core1.h"
 #include "display.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -20,11 +20,7 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define BATTERY_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define PRESENCE_CHECK_INTERVAL_MS 1000
-#define PRESENCE_TIMEOUT_COUNT 10
 #define PWRCYCL_CHECK_INTERVAL_MS 250
-#define PWR_CYCLE_DURATION_MS 10000
-#define DISPLAY_UPDATE_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -33,16 +29,10 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
-absolute_time_t next_pack_present_update = { 0 };
 absolute_time_t next_battery_status_update = { 0 };
-absolute_time_t next_pwrcycl_update = { 0 };
-absolute_time_t next_display_update = { 0 };
 
-// Forces lcd to draw for the first bit of power on, prevents needing to hold the magnet near the pack
-absolute_time_t lcd_poweron_delay = { 0 };
-
-uint8_t presence_fail_count = 0;
-bq_pack_info_t bq_pack_info;
+bool mfg_readout_okay = false;
+bq_mfg_info_t bq_mfg_info;
 uint can_id;
 
 /**
@@ -55,9 +45,10 @@ uint can_id;
  * @return true The timer has fired, any action which was waiting for this timer should occur
  * @return false The timer has not fired
  */
-static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
+static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bool error_on_miss) {
     absolute_time_t time_tmp = *next_fire_ptr;
     if (time_reached(time_tmp)) {
+        bool is_first_fire = is_nil_time(time_tmp);
         time_tmp = delayed_by_ms(time_tmp, interval_ms);
         if (time_reached(time_tmp)) {
             unsigned int i = 0;
@@ -65,10 +56,12 @@ static inline bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval
                 time_tmp = delayed_by_ms(time_tmp, interval_ms);
                 i++;
             }
-            LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
-                     next_fire_ptr);
-            if (error_on_miss)
-                safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            if (!is_first_fire) {
+                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                         next_fire_ptr);
+                if (error_on_miss)
+                    safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
+            }
         }
         *next_fire_ptr = time_tmp;
         return true;
@@ -104,21 +97,20 @@ static void tick_ros_tasks() {
     // that only 1 timeout occurs per safety tick.
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
-    uint8_t client_id = can_id;
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
-        RCSOFTRETVCHECK(ros_heartbeat_pulse(client_id));
+        RCSOFTRETVCHECK(ros_heartbeat_pulse(can_id));
     }
 
     // send the firmware status updates
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
+        RCSOFTRETVCHECK(ros_update_firmware_status(can_id));
     }
 
     // send the battery status updates
     if (timer_ready(&next_battery_status_update, BATTERY_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_battery_status(bq_pack_info));
+        RCSOFTRETVCHECK(ros_update_battery_status(bq_mfg_info));
     }
 
     if (sht41_temp_rh_set_on_read) {
@@ -133,36 +125,36 @@ static void tick_background_tasks() {
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         // update the RGB led
         led_network_online_set(canbus_check_online());
-
-        // update the battery status leds
-        bq_update_soc_leds();
     }
+
+    // Update from battery state
+    batt_state_t batt_state = core1_get_batt_state();
 
     // Update LCD if reed switch held and we are in time for a display update
-    if (time_reached(next_display_update) && (gpio_get(SWITCH_SIGNAL_PIN) || !time_reached(lcd_poweron_delay))) {
-        next_display_update = make_timeout_time_ms(DISPLAY_UPDATE_INTERVAL_MS);
+    display_tick(batt_state);
 
-        // Show pack info
-        display_show_stats(bq_pack_info.serial, bq_pack_soc(), bq_pack_voltage() / 1000.0);
+    // Read out BQ manufacturing info (if we ever disconnected, report error)
+    bool pack_ready =
+        (batt_state == BATT_STATE_REMOVED || batt_state == BATT_STATE_DISCHARGING || batt_state == BATT_STATE_CHARGING);
+    if (pack_ready) {
+        if (!mfg_readout_okay)
+            mfg_readout_okay = core1_get_pack_mfg_info(&bq_mfg_info);
+    }
+    else {
+        mfg_readout_okay = false;
     }
 
-    if (timer_ready(&next_pack_present_update, PRESENCE_CHECK_INTERVAL_MS, false)) {
-        // check if we need to update the presence counter
-        if (!(canbus_check_online() || bq_pack_present())) {
-            presence_fail_count++;
-        }
-        else {
-            presence_fail_count = 0;
-        }
+    // Handle auto-poweroff
+    bool pack_in_use = (batt_state == BATT_STATE_CHARGING || batt_state == BATT_STATE_DISCHARGING);
 
-        // if the presence counter times out, shut down
-        if (presence_fail_count > PRESENCE_TIMEOUT_COUNT) {
-            LOG_WARN("Pack not detected after %ds. Powering down!", PRESENCE_TIMEOUT_COUNT);
-            gpio_put(PWR_CTRL_PIN, 0);
+    // We only want to keep firmware online if we are using CAN bus or if the display is on
+    if (!pack_in_use && !display_check_on()) {
+        if (gpio_get_out_level(PWR_CTRL_PIN)) {
+            // Check out level to prevent log spam if the switch is held for whatever reason
+            LOG_INFO("Both display is off and CAN Bus is offline - shutting off MCU to save power");
         }
+        gpio_put(PWR_CTRL_PIN, 0);
     }
-
-    display_check_poweroff();
 }
 
 static void sht41_sensor_error_cb(const sht41_error_code error_type) {
@@ -170,13 +162,6 @@ static void sht41_sensor_error_cb(const sht41_error_code error_type) {
 }
 
 int main() {
-    // Latch RP2040 power to on
-    gpio_init(PWR_CTRL_PIN);
-    gpio_set_dir(PWR_CTRL_PIN, GPIO_OUT);
-    gpio_put(PWR_CTRL_PIN, 1);
-
-    gpio_init(SWITCH_SIGNAL_PIN);
-
     // Initialize stdio
     stdio_init_all();
     LOG_INFO("%s", FULL_BUILD_TAG);
@@ -186,45 +171,36 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+
+    // Latch RP2040 power to on
+    // Don't call gpio_init as this will disable our pad override we set in preinit before writing 1 to GPIO
+    gpio_set_dir(PWR_CTRL_PIN, GPIO_OUT);
+    gpio_put(PWR_CTRL_PIN, 1);
+    gpio_set_function(PWR_CTRL_PIN, GPIO_FUNC_SIO);
+
+    // Enable signal pin for reading reed switch
+    gpio_init(SWITCH_SIGNAL_PIN);
+
+    // Initialize all I2C Peripherals
     async_i2c_init(PERIPH_SDA_PIN, PERIPH_SCL_PIN, -1, -1, 400000, 20);
     display_init();
     sht41_init(&sht41_sensor_error_cb, PERIPH_I2C);
 
-    sleep_ms(1000);
-    safety_tick();
-
-    // start the bq40z80
-    int err = bq_init();
-    if (err > 0) {
-        LOG_ERROR("Failed to initialize the bq40z80 after %d attempts", err);
-        panic("BQ40Z80 Init failed!");
-    }
-
-    // grab the pack info from the bq40z80
-    bq_pack_info = bq_pack_mfg_info();
-    LOG_INFO("pack %s, mfg %d/%d/%d, SER# %d", bq_pack_info.name, bq_pack_info.mfg_mo, bq_pack_info.mfg_day,
-             bq_pack_info.mfg_year, bq_pack_info.serial);
-
-    // Initialize ROS Transports
+    // Load the serial number
     uint8_t sbh_mcu_serial_num = *(uint8_t *) (0x101FF000);
     if (sbh_mcu_serial_num == 0 || sbh_mcu_serial_num == 0xFF) {
+        display_show_msg("No Ser# Err", "");
         panic("Unprogrammed serial number");
     }
 
-    if (bq_pack_info.serial != sbh_mcu_serial_num) {
-        LOG_ERROR("BQ serial number (%d) does not match programmed serial (%d)", bq_pack_info.serial,
-                  sbh_mcu_serial_num);
-        safety_raise_fault(FAULT_BQ40_ERROR);
-    }
+    // Initialize the BQ40
+    core1_init(sbh_mcu_serial_num);
 
+    // Initialize CAN bus
     can_id = sbh_mcu_serial_num;
     if (!transport_can_init(can_id)) {
-        // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
-        panic("Failed to initialize CAN bus hardware!");
+        panic("Failed to initialize CAN bus!\n");
     }
-
-    // Force display to refresh for the first 5s of poweron
-    lcd_poweron_delay = make_timeout_time_ms(5000);
 
     // Enter main loop
     // This is split into two sections of timers
@@ -238,10 +214,11 @@ int main() {
         tick_background_tasks();
 
         // Handle ROS state logic
-        if (is_ros_connected()) {
+        // Also makes sure to handle if canbus gets deinitialized, ROS gets cleaned up properly
+        if (mfg_readout_okay && is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
-                display_show_ros_connect();
+                display_show_msg("ROS Connect", "");
 
                 // Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
@@ -267,20 +244,14 @@ int main() {
             ros_fini();
             safety_deinit();
             led_ros_connected_set(false);
-            display_show_ros_disconnect();
+            display_show_msg("ROS Lost", "");
             ros_initialized = false;
         }
         else {
-            if (time_reached(next_connect_ping)) {
+            if (mfg_readout_okay && time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
             }
-        }
-
-        // handle the power cycle outside of the timer environment as its a bit sensitive
-        // this will block but also feed the watchdog. this will skew timing when called
-        if (power_cycle_requested()) {
-            bq_open_dschg_temp(PWR_CYCLE_DURATION_MS);
         }
 
         // Tick safety

@@ -38,6 +38,7 @@ static int parse_int(const char *str, long long *val_out) {
         if (val_tmp > (max_bounds) || val_tmp < (min_bounds)) {                                                        \
             fprintf(fout, "Provided number '%s' out of bounds! Must be between %lld - %lld\n", str,                    \
                     (long long) (min_bounds), (long long) (max_bounds));                                               \
+            return 1;                                                                                                  \
         }                                                                                                              \
         (var_out) = val_tmp;                                                                                           \
     } while (0)

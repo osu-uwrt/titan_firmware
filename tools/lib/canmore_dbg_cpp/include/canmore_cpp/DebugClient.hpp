@@ -158,6 +158,9 @@ struct CrashLogEntry {
             else if (scratch1 == CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTLOADER_VALUE) {
                 reasonStream << "Bootloader";
             }
+            else if (scratch1 == CANMORE_DBG_CRASH_LOG_PREV_SCRATCH_1_CLEAN_RESET_BOOTROM_VALUE) {
+                reasonStream << "Bootrom USB Upload";
+            }
             else {
                 reasonStream << "Unknown Clean Boot Type (0x" << scratch1 << ")";
             }
@@ -230,8 +233,7 @@ struct FaultData {
 
     FaultData(uint32_t faultId, const std::string &name, bool sticky, bool multipleFires, uint32_t timestampLower,
               uint32_t timestampUpper, uint32_t extraData, const std::string &filename, uint16_t line):
-        faultId(faultId),
-        name(name), sticky(sticky), multipleFires(multipleFires),
+        faultId(faultId), name(name), sticky(sticky), multipleFires(multipleFires),
         timestamp((((uint64_t) timestampUpper) << 32) + timestampLower), extraData(extraData), filename(filename),
         line(line) {}
 

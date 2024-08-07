@@ -325,8 +325,7 @@ private:
 class MenuDeviceEntry : public MenuItem {
 public:
     MenuDeviceEntry(const DeviceMap &devMap, std::unordered_map<Device, uint64_t, canmore_device_hasher> &flashIdCache,
-                    std::shared_ptr<Device> dev):
-        dev(dev) {
+                    std::shared_ptr<Device> dev): dev(dev) {
         // Lookup device attributes
         auto itr = flashIdCache.find(*dev);
         uint64_t flashId;
@@ -348,6 +347,8 @@ public:
             fields.emplace_back("Board Type", devDescr.boardType);
         else if (flashId != 0)
             fields.emplace_back("Unique ID", devDescr.hexSerialNum());
+        else if (!dev->supportsFlashId())
+            fields.emplace_back("Unique ID", "<ID Retrieval Not Supported>");
         else
             fields.emplace_back("Unique ID", "<Error Retrieving ID>");
         fields.emplace_back("Interface", dev->getInterface());

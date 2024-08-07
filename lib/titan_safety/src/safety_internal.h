@@ -44,7 +44,7 @@
 
 // PICO_CONFIG: SAFETY_WATCHDOG_SETUP_FAULT_LESS_THAN_MS, Remaining time before watchdog reset when a fault should be raised warning of close to reset when safety initialized in milliseconds. Useful for long-running initialization code, type=int, default=100, group=titan_safety
 #ifndef SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS
-#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 160
+#define SAFETY_WATCHDOG_ACTIVE_FAULT_LESS_THAN_MS 50
 #endif
 
 // PICO_CONFIG: SAFETY_CORE1_CHECKIN_INTERVAL_MS, Maximum time interval in milliseconds between core1 calling safety_core1_checkin to ensure the core is still alive. The program will panic if core1 does not check in within this time, type=int, default=250, group=titan_safety

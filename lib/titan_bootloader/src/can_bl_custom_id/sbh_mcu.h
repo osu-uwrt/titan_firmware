@@ -47,7 +47,11 @@ static void schedule_alarm(void) {
     timer_hw->alarm[SHUTOFF_ALARM_ID] = time_us_32() + (SHUTOFF_ALARM_TIMEOUT_MS * 1000);
 }
 
-static bool bl_board_get_client_id(int *client_id) {
+#define CUSTOM_CLIENT_IMPLEMENTED_EARLY_INIT
+bool bl_interface_early_init(void) {
+    // Override the early interface initialization to turn on the FET as soon as the board turns on
+    // Needs to be done super early since the UART takes a bit of time, and can cause a tap to be missed
+
     // To make the smart battery more convenient, we will keep the power on the POWER_CTRL pin, so they can just wave
     // the switch near the battery to wake it up
     // Note we ONLY want to do this if we were woken up from a fresh start
@@ -63,7 +67,10 @@ static bool bl_board_get_client_id(int *client_id) {
         // this will act as a final protection from the MCU getting stuck on
         schedule_alarm();
     }
+    return true;
+}
 
+static bool bl_board_get_client_id(int *client_id) {
     // Read the last sector of flash to get the programmed board id
     uint8_t data[256];
     flash_read(0x1FF000, data, sizeof(data));

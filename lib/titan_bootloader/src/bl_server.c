@@ -328,18 +328,29 @@ static reg_mapped_server_page_def_t bl_server_pages[] = {
     DEFINE_PAGE_MEMMAPPED_BYTE_ARRAY(CANMORE_BL_FLASH_BUFFER_PAGE_NUM, flash_buffer, REGISTER_PERM_READ_WRITE),
 };
 
+#if !CANMORE_CONFIG_DISABLE_MULTIWORD
+// Buffer for multiword responses
+static uint8_t multiword_resp_buffer[BL_INTERFACE_MAX_PACKET_LEN];
+#endif
+
 reg_mapped_server_inst_t bl_server_inst = {
     .tx_func = &bl_interface_transmit,
     .page_array = bl_server_pages,
     .num_pages = sizeof(bl_server_pages) / sizeof(*bl_server_pages),
     .control_interface_mode = CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
+
+#if !CANMORE_CONFIG_DISABLE_MULTIWORD
+    // If we have multiword, provide our allocated buffer above
+    .multiword_resp_buffer = (reg_mapped_response_t *) multiword_resp_buffer,
+    .multiword_resp_buffer_max_count = REG_MAPPED_COMPUTE_MAX_RESP_WORD_COUNT(BL_INTERFACE_MAX_PACKET_LEN),
+#endif
 };
 
 // ========================================
 // Exported Functions
 // ========================================
 
-static uint8_t msg_buffer[REG_MAPPED_MAX_REQUEST_SIZE];
+static uint8_t msg_buffer[BL_INTERFACE_MAX_PACKET_LEN];
 
 void bl_server_init(void) {
     // Fill out version
