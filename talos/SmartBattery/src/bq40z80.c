@@ -397,7 +397,7 @@ bq_error_t bq_read_battery_info(const bq_mfg_info_t *mfg_info, bq_battery_info_t
         bat_out->safety_status = 0;
     }
     if (sbs_check_bit(bat_out->operation_status, SBS_OPERATION_STATUS_PF)) {
-        I2CCHECK(bq_read_dword(SBS_CMD_SAFETY_STATUS, &bat_out->pf_status));
+        I2CCHECK(bq_read_dword(SBS_CMD_PF_STATUS, &bat_out->pf_status));
     }
     else {
         // PF status is 0 since the logical or of the field is 0
