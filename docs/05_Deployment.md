@@ -116,6 +116,11 @@ ESC board, this requires that you reflash both board 0 and board 1, as well as e
     # Run this for every microcontroller
     ros@orin:~/firmware_deploy/ota$ ../bin/upload_tool [replace with image name]_ota.uf2
 
+### Figuring out what old firmware on orin means
+
+If you ever forget what a random piece of uf2 firmware is, you can identify it using upload tool.
+
+Run `./upload_tool -i my_firmware.uf2` to dump the binary info contained in the file and see when it was built.
 
 ## Creating a GitHub Release
 
