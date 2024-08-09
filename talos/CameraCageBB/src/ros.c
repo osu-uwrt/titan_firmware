@@ -34,6 +34,7 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/cameracage"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/cameracage"
+#define LEAK_SENSE_PUBLISHER_NAME "state/leak"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
 #define WATER_TEMP_PUBLISHER_NAME "state/depth/temp"
@@ -57,6 +58,7 @@ rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
+rcl_publisher_t leak_sense_publisher;
 
 // Electrical System
 rcl_subscription_t led_subscriber;
@@ -286,6 +288,14 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_update_leak_sense_publisher() {
+    std_msgs__msg__Bool leak_sense_msg;
+    leak_sense_msg.data = gpio_get(LEAK_SENSOR_PIN);
+    RCSOFTRETCHECK(rcl_publish(&leak_sense_publisher, &leak_sense_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -320,6 +330,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(
+        &leak_sense_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), LEAK_SENSE_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(
         &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));
@@ -364,6 +377,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&leak_sense_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
