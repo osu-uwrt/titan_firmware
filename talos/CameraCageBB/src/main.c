@@ -187,9 +187,9 @@ int main() {
     gpio_set_dir(ORIN_SW_PIN, true);
 
     // Initialize leak sensor pin
-    bi_decl_if_func_used(bi_1pin_with_name(LEAK_SENSOR_PIN, "Leak Sensor"));
-    gpio_init(LEAK_SENSOR_PIN);
-    gpio_set_dir(LEAK_SENSOR_PIN, false);  // input
+    bi_decl_if_func_used(bi_1pin_with_name(TACH2_PIN, "Leak Sensor"));
+    gpio_init(TACH2_PIN);
+    gpio_set_dir(TACH2_PIN, false);  // input
 
     // Enter main loop
     bool ros_initialized = false;

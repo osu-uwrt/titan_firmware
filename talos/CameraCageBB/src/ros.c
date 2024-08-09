@@ -290,7 +290,7 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
 
 rcl_ret_t ros_update_leak_sense_publisher() {
     std_msgs__msg__Bool leak_sense_msg;
-    leak_sense_msg.data = gpio_get(LEAK_SENSOR_PIN);
+    leak_sense_msg.data = gpio_get(TACH2_PIN);
     RCSOFTRETCHECK(rcl_publish(&leak_sense_publisher, &leak_sense_msg, NULL));
 
     return RCL_RET_OK;

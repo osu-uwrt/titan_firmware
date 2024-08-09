@@ -19,7 +19,7 @@
 #define FAN_SW_PIN 0
 #define TACH4_PIN 1
 #define TACH3_PIN 2
-#define LEAK_SENSOR_PIN 3
+#define TACH2_PIN 3
 #define TACH1_PIN 4
 #define PELT_SW_PIN 5
 #define ORIN_SW_PIN 6
