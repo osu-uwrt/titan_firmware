@@ -33,11 +33,17 @@
 #define THERMISTOR_B_25_85 3730.0
 #define THERMISTOR_NOMINAL_TEMP 298.15
 
+#define PULSE_PERIOD 50
+
 repeating_timer_t watchdog_timer;
 uint8_t watchdog_state = false;
 uint32_t called_count = 0;
 uint32_t write_fail = 0;
 uint32_t previous_val = 0;
+
+repeating_timer_t pulse_end_timer;
+uint8_t pulsing = false;
+
 
 
 static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
@@ -514,6 +520,45 @@ static int setdin_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
+static int start_pulse_cb(){
+    led_pulse_start();
+
+    return 0;
+}
+
+void led_pulse_end(){
+    if(pulsing == 2){
+        //turn off leds and increment state
+        gpio_put(LEDC_DIN1_PIN, 0);
+
+
+        pulsing = 1;
+        return;
+    } else{
+        //end cycle 
+
+        pulsing = 0;   
+        cancel_repeating_timer(&pulse_end_timer);
+
+        return;
+    }
+
+
+    return;
+}
+
+void led_pulse_start(){
+    add_repeating_timer_ms(PULSE_PERIOD, led_pulse_end, NULL, &pulse_end_timer);
+    
+    if(!(pulsing)){
+        //turn on leds and start pulsing sequence
+        gpio_put(LEDC_DIN1_PIN, 1);
+        pulsing = 2;
+    }
+
+    return;
+}
+
 void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -599,5 +644,9 @@ void ledc_init(void) {
 
     debug_remote_cmd_register("setdin", "[target] [output]",
                               "Set the satus of the DIN\n",
-                              setdin_cb);           
+                              setdin_cb);  
+
+    debug_remote_cmd_register("pulse", "[target] [output]",
+                              "Pulse the LEDS\n",
+                              setdin_cb);              
 }
