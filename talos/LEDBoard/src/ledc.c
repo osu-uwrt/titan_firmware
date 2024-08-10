@@ -1,13 +1,22 @@
 #include "ledc.h"
+#include <math.h>
 
+#include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
 #include "hardware/timer.h"
+#include "hardware/pwm.h"
+#include "hardware/clocks.h"
+
 #include "pico/binary_info.h"
+#include "pico/stdlib.h"
+#include "pico/time.h"
+
 #include "titan/debug.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define LEDC_SPI_INST __CONCAT(spi, LEDC_SPI)
 
@@ -17,6 +26,19 @@
 #define OPCODE_READ 0b01
 #define OPCODE_READ_CLR 0b10
 #define OPCODE_READ_ROM 0b11
+
+#define THERMISTOR_SERIES_RESISTANCE 10000.0
+#define THERMISTOR_V_REF 3.3
+#define THERMISTOR_R_25 22000.0
+#define THERMISTOR_B_25_85 3730.0
+#define THERMISTOR_NOMINAL_TEMP 298.15
+
+repeating_timer_t watchdog_timer;
+uint8_t watchdog_state = false;
+uint32_t called_count = 0;
+uint32_t write_fail = 0;
+uint32_t previous_val = 0;
+
 
 static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
     uint8_t tx_packet[] = { (data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF };
@@ -107,6 +129,37 @@ static int parse_int(const char *str, long long *val_out) {
         (var_out) = val_tmp;                                                                                           \
     } while (0)
 
+uint32_t correct_parity_bit(uint32_t val, bool odd_parity){
+    //ensure the parity bit at the end of the 24 bit spi is correctly computed
+    //ODD parity bit check
+
+    uint32_t val_count = val;
+
+    //count the number of ones in the 24 bit int
+    int ones_count = 0;
+    for(int n = 23; n>=1; n = n - 1)
+    {
+        if(val_count - pow(2,n) >= 0){
+            ones_count++;
+            val_count = val_count - pow(2,n);
+        }
+    }
+
+    if(odd_parity){
+        if(!(ones_count % 2)){
+            return (val | (1<<0));
+        }
+
+        return (val & 4294967294);
+    }
+
+    if((ones_count % 2)){
+        return (val | (1<<0));
+    }
+    return (val & 4294967294);
+
+}
+
 static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     if (argc < 4) {
         fprintf(fout, "Usage: @ledc [cmd] [target] [addr] [data (if write)]\n");
@@ -171,6 +224,296 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
+static int read_temp_cb(size_t argc, const char *const *argv, FILE *fout){
+    adc_select_input(0);
+    const float convert_to_voltage_factor = 3.3f / (1 << 12);
+    float voltage = adc_read()  * convert_to_voltage_factor;
+
+    //calculate thermistor resistance
+    float resistance = THERMISTOR_SERIES_RESISTANCE * (THERMISTOR_V_REF * voltage) / (THERMISTOR_V_REF + voltage);
+
+    float temperature = 1 / (log(resistance / THERMISTOR_R_25) / THERMISTOR_B_25_85 + 1 / THERMISTOR_NOMINAL_TEMP) - 273.0;
+
+    fprintf(fout, "Raw voltage: %f \n", voltage);
+    fprintf(fout, "Raw resistance: %f \n", resistance);
+    fprintf(fout, "Temperature: %f \n", temperature);
+
+
+    return 0;
+}
+
+static int get_controller_status(size_t argc, const char *const *argv, FILE *fout){
+
+    uint8_t gs;
+
+    uint val1_1 = spi_read(1, 0x01, &gs);
+    uint val2_1 = spi_read(1, 0x02, &gs);
+    uint val6_1 = spi_read(1, 0x06, &gs);
+    for(int count = 0; count < 100000; count++){}
+    uint val1_2 = spi_read(2, 0x01, &gs);
+    uint val2_2 = spi_read(2, 0x02, &gs);
+    uint val6_2 = spi_read(2, 0x06, &gs);
+
+
+    fprintf(fout, "\nController 1 Status \n");
+
+    if(val1_1 & (1 << 1)){
+        fprintf(fout, "Unlocked - UNLOCK: 1 \n");
+    } else {
+        fprintf(fout, "Locked - UNLOCK: 0 \n");
+    }
+
+    if(val2_1 & (1 << 3)){
+        fprintf(fout, "In Standby - GOSTBY: 1 \n");
+    } else {
+        fprintf(fout, "Woke Up, Not in Standby  -  GOSTBY: 0 \n");
+    }
+
+    if(val2_1 & (1 << 2)){
+        fprintf(fout, "Enabled - EN: 1 \n");
+    } else {
+        fprintf(fout, "Not Enabled / Limp Home -  EN: 0 \n");
+    }
+
+    if((val6_1 & (1 << 16)) && (val6_1 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .75+ \n");
+    } else if ((val6_1 & (1 << 16)) && !(val6_1 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .50+ \n");
+    } else if(!(val6_1 & (1 << 16)) && (val6_1 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .25+ \n");
+    } else{
+        fprintf(fout, "Watchdog Timer .0+ \n");
+    }
+
+    fprintf(fout, "\nController 2 Status \n");
+
+    if(val1_2 & (1 << 1)){
+        fprintf(fout, "Unlocked - UNLOCK: 1 \n");
+    } else {
+        fprintf(fout, "Locked - UNLOCK: 0 \n");
+    }
+
+    if(val2_2 & (1 << 3)){
+        fprintf(fout, "In Standby - GOSTBY: 1 \n");
+    } else {
+        fprintf(fout, "Woke Up, Not in Standby  -  GOSTBY: 0 \n");
+    }
+
+    if(val2_2 & (1 << 2)){
+        fprintf(fout, "Enabled - EN: 1 \n");
+    } else {
+        fprintf(fout, "Not Enabled / Limp Home -  EN: 0 \n");
+    }
+
+    if((val6_2 & (1 << 16)) && (val6_2 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .75+ \n");
+    } else if ((val6_2 & (1 << 16)) && !(val6_2 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .50+ \n");
+    } else if(!(val6_2 & (1 << 16)) && (val6_2 & (1 << 15))){
+        fprintf(fout, "Watchdog Timer .25+ \n");
+    } else{
+        fprintf(fout, "Watchdog Timer .0+ \n");
+    }
+
+    fprintf(fout, "Sysclk Freq: %ld Hz\n", clock_get_hz(clk_sys));
+
+    return 0;
+
+}
+
+static bool satisfy_watchdog(struct repeating_timer *t){
+    uint8_t gs;
+    
+    uint32_t val = 45;
+
+    if(watchdog_state){
+        spi_write(1,0x04,0,&gs);
+        spi_write(2,0x04,0,&gs);
+
+        val = spi_read(1, 0x04, &gs);
+
+    } else {
+        spi_write(1,0x04,8388609, &gs);
+        spi_write(2,0x04,8388609, &gs);
+
+        val = spi_read(1, 0x04, &gs);
+
+    }
+
+    if(val == previous_val){
+        write_fail++;
+    }
+
+    previous_val = val;
+
+    watchdog_state = !watchdog_state;
+
+    called_count++;
+
+    return true;
+}
+
+static int enable_controllers(size_t argc, const char *const *argv, FILE *fout){
+    uint8_t gs;
+
+    //set control regisiter 1
+
+    //unlocked
+    sleep_ms(1);
+    uint32_t val = spi_read(1,0x01, &gs);
+    val = val | (1 << 3);
+    val = val | (1 << 2);
+    val = correct_parity_bit(val | (1 << 1), false);
+    sleep_ms(1);
+    spi_write(1, 0x01, val, &gs);
+    sleep_ms(1);
+    uint32_t val_read = spi_read(1,0x01, &gs);
+    fprintf(fout, "Controller 1 Register 1: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
+
+    sleep_ms(1);
+    val = spi_read(2,0x01, &gs);
+    val = val | (1 << 3);
+    val = val | (1 << 2);
+    val = correct_parity_bit(val | (1 << 1), true);
+    sleep_ms(1);
+    spi_write(2, 0x01, val, &gs);
+
+    //set control regisiter 2
+
+    //enabled and gostby
+    sleep_ms(1);
+    val = spi_read(1,0x02, &gs);
+    val = val | (1 << 3);
+    val = correct_parity_bit(val | (1 << 2), false);
+    sleep_ms(1);
+    spi_write(1, 0x02, val, &gs);
+    sleep_ms(1);
+    val_read = spi_read(1,0x02, &gs);
+    fprintf(fout, "Controller 1 Register 2: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
+
+    sleep_ms(1);
+    val = spi_read(2,0x02, &gs);
+    val = val | (1 << 3);
+    val = correct_parity_bit(val | (1 << 2), true);
+    sleep_ms(1);
+    spi_write(2, 0x02, val, &gs);
+    sleep_ms(1);
+
+    //set control regisiter 3
+
+    //enabled and gostby
+    sleep_ms(1);
+    val = spi_read(1,0x03, &gs);
+    val = val | (1 << 15);
+    val = val & 4294950911;
+    val = val | (1 << 13);
+    val = val & 4294963199;
+    val = correct_parity_bit(val, true);
+    sleep_ms(1);
+    spi_write(1, 0x03, val, &gs);
+    sleep_ms(1);
+    val_read = spi_read(1,0x03, &gs);
+    fprintf(fout, "Controller 1 Register 3: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
+
+
+    sleep_ms(1);
+    val = spi_read(2,0x03, &gs);
+    val = val | (1 << 3);
+    val = correct_parity_bit(val | (1 << 2), true);
+    sleep_ms(1);
+    spi_write(2, 0x03, val, &gs);
+    sleep_ms(1);
+
+    watchdog_state = !watchdog_state;
+
+    // val = spi_read(1,0x04,&gs);
+    // uint8_t flipped = true;
+
+    // while(flipped){
+    //     sleep_ms(1);
+    //     if(val != spi_read(1,0x04,&gs)){
+    //         flipped = false;
+
+    //     }
+
+    // }
+    
+    // uint8_t count = 0;
+    // flipped = true;
+    
+    // for(int x = 0; x<20; x++){
+    //     count++;
+    //     sleep_ms(1);
+
+    //     uint32_t temp = spi_read(1,0x04,&gs);
+
+    //     fprintf(fout, "Period: %d Six: 0x%06X \n", count, temp);
+
+    //     if(val == temp){
+    //         flipped = false;
+    //     }
+    // }
+
+    fprintf(fout, "Calls: %d \n", called_count);
+    fprintf(fout, "Write Fails: %d \n", write_fail);
+
+    return 0;
+}
+
+
+
+static int setdin_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if(argc < 2){
+        fprintf(fout, "Not Enought Arguments - Please enter target and value \n");
+    }
+
+    const char *target_str = argv[1];
+    uint target;
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        target = 1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        target = 2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    const char *value_str = argv[2];
+    uint value;
+    if (value_str[0] == '0' && value_str[1] == '\0') {
+        value = 0;
+    }
+    else if (value_str[0] == '1' && value_str[1] == '\0') {
+        value = 1;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    if(target == 1){
+        if(value == 1){
+            fprintf(fout, "Setting DIN 1 High \n");
+            gpio_put(LEDC_DIN1_PIN, 1);
+        }else{
+            fprintf(fout, "Setting DIN 1 Low \n");
+            gpio_put(LEDC_DIN1_PIN, 0);
+        }
+    }else{
+        if(value == 1){
+            fprintf(fout, "Setting DIN 2 High \n");
+            gpio_put(LEDC_DIN2_PIN, 1);
+        }else{
+            fprintf(fout, "Setting DIN 2 Low \n");
+            gpio_put(LEDC_DIN2_PIN, 0);
+        }
+    }
+
+    return 0;
+}
+
 void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -194,6 +537,34 @@ void ledc_init(void) {
     gpio_put(LEDC_NCS2_PIN, 1);
     gpio_set_dir(LEDC_NCS2_PIN, GPIO_OUT);
 
+    //provide pwm clock
+    gpio_set_function(LEDC_PWM_CLK, GPIO_FUNC_PWM);
+
+    // Find out which PWM slice is connected to GPIO 0 (it's slice 0)
+    uint slice_num = pwm_gpio_to_slice_num(LEDC_PWM_CLK);
+    uint chan = pwm_gpio_to_channel(LEDC_PWM_CLK);
+
+    // Want PWMCLK to be a square wave at 204,800 Hz
+    // Set period of 4 cycles (0 to 3 inclusive)
+    pwm_set_wrap(slice_num, 3);
+    // Set channel A output high for two cycles before dropping (50% duty cycle)
+    pwm_set_chan_level(slice_num, chan, 2);
+    // This means that we need the slice to be clocked at 819,200 Hz
+    // Compute fractioanl divider to get our target frequency
+    pwm_set_clkdiv(slice_num, clock_get_hz(clk_sys) / 819200.0f);
+    // Set the PWM running
+    pwm_set_enabled(slice_num, true);
+
+
+    gpio_init(LEDC_DIN1_PIN);
+    gpio_set_dir(LEDC_DIN1_PIN, GPIO_OUT);
+
+    gpio_init(LEDC_DIN2_PIN);
+    gpio_set_dir(LEDC_DIN2_PIN, GPIO_OUT);
+    gpio_put(LEDC_DIN2_PIN, 1);
+
+
+
     // TODO: Sam what frequency do you want for PWM_CLK?
 
     debug_remote_cmd_register("ledc", "[cmd] [target] [addr] [data (if write)]",
@@ -205,4 +576,28 @@ void ledc_init(void) {
                               "  rdclr\tReads/clears the specified register\n"
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
+
+    //init adc - for read thermistor
+    adc_init();
+    adc_gpio_init(26);
+
+    //repeating timer to make watchdog happy
+    add_repeating_timer_ms(3, satisfy_watchdog, NULL, &watchdog_timer);
+
+
+    debug_remote_cmd_register("temp", "",
+                              "Read Temperature on LEDS.\n",
+                              read_temp_cb);
+
+    debug_remote_cmd_register("leds", "",
+                              "Read and decode status of led controllers.\n",
+                              get_controller_status);
+
+    debug_remote_cmd_register("lede", "",
+                              "Move led controller into active mode.\n",
+                              enable_controllers);  
+
+    debug_remote_cmd_register("setdin", "[target] [output]",
+                              "Set the satus of the DIN\n",
+                              setdin_cb);           
 }
