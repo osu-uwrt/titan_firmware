@@ -32,6 +32,7 @@
 #define THERMISTOR_R_25 22000.0
 #define THERMISTOR_B_25_85 3730.0
 #define THERMISTOR_NOMINAL_TEMP 298.15
+#define OPERATING_TEMPERATURE_MAX 50 //celcius
 
 #define PULSE_PERIOD 50
 
@@ -45,11 +46,11 @@ repeating_timer_t pulse_end_timer;
 uint8_t pulsing = false;
 
 
-
 static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
     uint8_t tx_packet[] = { (data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF };
     uint8_t rx_packet[sizeof(tx_packet)];
     uint cs_pin = target == LEDC1 ? LEDC_NCS1_PIN : LEDC_NCS2_PIN;
+
 
     gpio_put(cs_pin, 0);
     busy_wait_us(1);
@@ -230,7 +231,9 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
-static int read_temp_cb(size_t argc, const char *const *argv, FILE *fout){
+float read_temp(){
+    //read led al board thermistor
+
     adc_select_input(0);
     const float convert_to_voltage_factor = 3.3f / (1 << 12);
     float voltage = adc_read()  * convert_to_voltage_factor;
@@ -240,10 +243,13 @@ static int read_temp_cb(size_t argc, const char *const *argv, FILE *fout){
 
     float temperature = 1 / (log(resistance / THERMISTOR_R_25) / THERMISTOR_B_25_85 + 1 / THERMISTOR_NOMINAL_TEMP) - 273.0;
 
-    fprintf(fout, "Raw voltage: %f \n", voltage);
-    fprintf(fout, "Raw resistance: %f \n", resistance);
-    fprintf(fout, "Temperature: %f \n", temperature);
+    return temperature;
+}
 
+static int read_temp_cb(size_t argc, const char *const *argv, FILE *fout){
+    float temperature = read_temp();
+
+    fprintf(fout, "Temperature: %f \n", temperature);
 
     return 0;
 }
@@ -259,7 +265,6 @@ static int get_controller_status(size_t argc, const char *const *argv, FILE *fou
     uint val1_2 = spi_read(2, 0x01, &gs);
     uint val2_2 = spi_read(2, 0x02, &gs);
     uint val6_2 = spi_read(2, 0x06, &gs);
-
 
     fprintf(fout, "\nController 1 Status \n");
 
@@ -466,7 +471,26 @@ static int enable_controllers(size_t argc, const char *const *argv, FILE *fout){
     return 0;
 }
 
+bool set_din(int target, int value){
+    //set din with temperature protection
+    if(read_temp() < OPERATING_TEMPERATURE_MAX){
+        
+        if(target == 1){
+            gpio_put(LEDC_DIN1_PIN, value);
+        }else{
+            gpio_put(LEDC_DIN2_PIN, value);
+        }
 
+        return 1;
+    }
+
+    gpio_put(LEDC_DIN1_PIN, 0);
+    gpio_put(LEDC_DIN2_PIN, 0);
+
+
+    //return false if din was set low due to temperature
+    return 0;
+}
 
 static int setdin_cb(size_t argc, const char *const *argv, FILE *fout) {
     if(argc < 2){
@@ -499,28 +523,17 @@ static int setdin_cb(size_t argc, const char *const *argv, FILE *fout) {
         return 1;
     }
 
-    if(target == 1){
-        if(value == 1){
-            fprintf(fout, "Setting DIN 1 High \n");
-            gpio_put(LEDC_DIN1_PIN, 1);
-        }else{
-            fprintf(fout, "Setting DIN 1 Low \n");
-            gpio_put(LEDC_DIN1_PIN, 0);
-        }
-    }else{
-        if(value == 1){
-            fprintf(fout, "Setting DIN 2 High \n");
-            gpio_put(LEDC_DIN2_PIN, 1);
-        }else{
-            fprintf(fout, "Setting DIN 2 Low \n");
-            gpio_put(LEDC_DIN2_PIN, 0);
-        }
+    fprintf(fout, "Setting DIN %d to: %d \n", target, value);
+
+
+    if(!set_din(target, value)){
+        fprintf(fout, "Setting DIN low, overheating!\n");
     }
 
     return 0;
 }
 
-static int start_pulse_cb(){
+static int start_pulse_cb(size_t argc, const char *const *argv, FILE *fout){
     led_pulse_start();
 
     return 0;
@@ -547,7 +560,7 @@ void led_pulse_end(){
     return;
 }
 
-void led_pulse_start(){
+void led_pulse_start(void){
     add_repeating_timer_ms(PULSE_PERIOD, led_pulse_end, NULL, &pulse_end_timer);
     
     if(!(pulsing)){
@@ -608,8 +621,6 @@ void ledc_init(void) {
     gpio_set_dir(LEDC_DIN2_PIN, GPIO_OUT);
     gpio_put(LEDC_DIN2_PIN, 1);
 
-
-
     // TODO: Sam what frequency do you want for PWM_CLK?
 
     debug_remote_cmd_register("ledc", "[cmd] [target] [addr] [data (if write)]",
@@ -646,7 +657,7 @@ void ledc_init(void) {
                               "Set the satus of the DIN\n",
                               setdin_cb);  
 
-    debug_remote_cmd_register("pulse", "[target] [output]",
+    debug_remote_cmd_register("pulse", "",
                               "Pulse the LEDS\n",
-                              setdin_cb);              
+                              start_pulse_cb);              
 }

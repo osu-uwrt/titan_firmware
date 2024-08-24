@@ -236,6 +236,7 @@ int main() {
 
         // Tick safety
         safety_tick();
+
     }
 
     return 0;
