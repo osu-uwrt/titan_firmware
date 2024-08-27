@@ -674,6 +674,40 @@ static int setbuck_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
+void reset_controller(int controller){
+
+    //ensure controller is a valid value
+    if(controller == 0 || controller == 1){
+        uint8_t gs;
+
+        spi_read_clr(controller, 0x06, &gs);
+    }
+}
+
+void reset_cb(size_t argc, const char *const *argv, FILE *fout){
+    //callback for reset controller canmore command
+    if (argc < 2) {
+        fprintf(fout, "Not Enought Arguments - Please enter target number\n");
+    }
+
+    const char *target_str = argv[1];
+    uint target;
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        target = LEDC1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        target = LEDC2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    reset_controller(target);
+
+    return 0;
+}
+
 void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -752,6 +786,8 @@ void ledc_init(void) {
     debug_remote_cmd_register("setdin", "[target] [output]", "Set the satus of the DIN\n", setdin_cb);
 
     debug_remote_cmd_register("pulse", "", "Pulse the LEDS\n", start_pulse_cb);
+
+    debug_remote_cmd_register("reset_controller", "[target]", "Reset all warnings on target LED controller\n", reset_cb);
 
     debug_remote_cmd_register("setbuck", "[target] [buck] [state]", "Select the buck converter color channel",
                               setbuck_cb);
