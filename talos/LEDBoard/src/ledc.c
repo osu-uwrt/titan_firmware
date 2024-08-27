@@ -641,51 +641,35 @@ static int setbuck_cb(size_t argc, const char *const *argv, FILE *fout) {
 
     fprintf(fout, "Setting buck %d on controller %d\n", buck, target + 1);
 
-    uint32_t spi_val = spi_read(LEDC1, 0x03, &gs);
+    uint32_t spi_val = spi_read(target, 0x03, &gs);
 
     if (value & 1)
-        spi_val &= 1 << (buck == 1 ? 14 : 12);
+        spi_val |= 1 << (buck == 1 ? 14 : 12);
     else
         spi_val &= ~(1 << (buck == 1 ? 14 : 12));
 
     if (value & (1 << 1))
-        spi_val &= 1 << (buck == 1 ? 15 : 13);
+        spi_val |= 1 << (buck == 1 ? 15 : 13);
     else
         spi_val &= ~(1 << (buck == 1 ? 15 : 13));
 
-    // if (buck == 1) {
-    //     spi_val &= ~(1 << 12);
-    //     spi_val &= ~(1 << 13);
-
-    //     spi_val |= (1 << 14);
-    //     spi_val |= (1 << 15);
-    // }
-    // else {
-    //     spi_val &= ~(1 << 14);
-    //     spi_val &= ~(1 << 15);
-
-    //     spi_val |= (1 << 12);
-    //     spi_val |= (1 << 13);
-    // }
-
-    spi_write(target, 0x03, spi_val, gs);
     fprintf(fout, "Register 3 write: %x\n", spi_val);
+    spi_write(target, 0x03, correct_parity_bit(spi_val, true), &gs);
     fprintf(fout, "Register 3 read: %x\n", spi_read(target, 0x03, &gs));
     return 0;
 }
 
-void reset_controller(int controller){
-
-    //ensure controller is a valid value
-    if(controller == 0 || controller == 1){
+void reset_controller(int controller) {
+    // ensure controller is a valid value
+    if (controller == 0 || controller == 1) {
         uint8_t gs;
 
         spi_read_clr(controller, 0x06, &gs);
     }
 }
 
-void reset_cb(size_t argc, const char *const *argv, FILE *fout){
-    //callback for reset controller canmore command
+static int reset_cb(size_t argc, const char *const *argv, FILE *fout) {
+    // callback for reset controller canmore command
     if (argc < 2) {
         fprintf(fout, "Not Enought Arguments - Please enter target number\n");
     }
@@ -787,7 +771,8 @@ void ledc_init(void) {
 
     debug_remote_cmd_register("pulse", "", "Pulse the LEDS\n", start_pulse_cb);
 
-    debug_remote_cmd_register("reset_controller", "[target]", "Reset all warnings on target LED controller\n", reset_cb);
+    debug_remote_cmd_register("reset_controller", "[target]", "Reset all warnings on target LED controller\n",
+                              reset_cb);
 
     debug_remote_cmd_register("setbuck", "[target] [buck] [state]", "Select the buck converter color channel",
                               setbuck_cb);
