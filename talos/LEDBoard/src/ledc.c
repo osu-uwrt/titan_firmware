@@ -234,7 +234,7 @@ float read_temp() {
     float voltage = adc_read() * convert_to_voltage_factor;
 
     // calculate thermistor resistance
-    float resistance = THERMISTOR_SERIES_RESISTANCE * (THERMISTOR_V_REF * voltage) / (THERMISTOR_V_REF + voltage);
+    float resistance = THERMISTOR_SERIES_RESISTANCE * (voltage) / (THERMISTOR_V_REF - voltage);
 
     float temperature =
         1 / (log(resistance / THERMISTOR_R_25) / THERMISTOR_B_25_85 + 1 / THERMISTOR_NOMINAL_TEMP) - 273.0;
