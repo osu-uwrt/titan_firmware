@@ -587,9 +587,25 @@ void led_pulse_start(void) {
     return;
 }
 
-static int setbuck_cb(size_t argc, const char *const *argv, FILE *fout) {
+void setBuck(uint target, uint buck, uint value) {
     uint8_t gs;
 
+    uint32_t spi_val = spi_read(target, 0x03, &gs);
+
+    if (value & 1)
+        spi_val |= 1 << (buck == 1 ? 14 : 12);
+    else
+        spi_val &= ~(1 << (buck == 1 ? 14 : 12));
+
+    if (value & (1 << 1))
+        spi_val |= 1 << (buck == 1 ? 15 : 13);
+    else
+        spi_val &= ~(1 << (buck == 1 ? 15 : 13));
+
+    spi_write(target, 0x03, correct_parity_bit(spi_val, true), &gs);
+}
+
+static int setbuck_cb(size_t argc, const char *const *argv, FILE *fout) {
     if (argc < 3) {
         fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and buck status\n");
     }
@@ -640,22 +656,8 @@ static int setbuck_cb(size_t argc, const char *const *argv, FILE *fout) {
     }
 
     fprintf(fout, "Setting buck %d on controller %d\n", buck, target + 1);
+    setBuck(target, buck, value);
 
-    uint32_t spi_val = spi_read(target, 0x03, &gs);
-
-    if (value & 1)
-        spi_val |= 1 << (buck == 1 ? 14 : 12);
-    else
-        spi_val &= ~(1 << (buck == 1 ? 14 : 12));
-
-    if (value & (1 << 1))
-        spi_val |= 1 << (buck == 1 ? 15 : 13);
-    else
-        spi_val &= ~(1 << (buck == 1 ? 15 : 13));
-
-    fprintf(fout, "Register 3 write: %x\n", spi_val);
-    spi_write(target, 0x03, correct_parity_bit(spi_val, true), &gs);
-    fprintf(fout, "Register 3 read: %x\n", spi_read(target, 0x03, &gs));
     return 0;
 }
 
