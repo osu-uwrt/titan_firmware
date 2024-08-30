@@ -412,9 +412,11 @@ static int enable_controllers(size_t argc, const char *const *argv, FILE *fout) 
     val = spi_read(LEDC2, 0x01, &gs);
     val = val | (1 << 3);
     val = val | (1 << 2);
-    val = correct_parity_bit(val | (1 << 1), true);
+    val = correct_parity_bit(val | (1 << 1), false);
     sleep_ms(1);
     spi_write(LEDC2, 0x01, val, &gs);
+    val_read = spi_read(LEDC2, 0x01, &gs);
+    fprintf(fout, "Controller 2 Register 1: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
 
     // set control regisiter 2
 
@@ -422,10 +424,12 @@ static int enable_controllers(size_t argc, const char *const *argv, FILE *fout) 
     sleep_ms(1);
     val = spi_read(LEDC2, 0x02, &gs);
     // val = val | (1 << 3);
-    val = correct_parity_bit(val | (1 << 2), true);
+    val = correct_parity_bit(val | (1 << 2), false);
     sleep_ms(1);
     spi_write(LEDC2, 0x02, val, &gs);
     sleep_ms(1);
+    val_read = spi_read(LEDC2, 0x02, &gs);
+    fprintf(fout, "Controller 2 Register 2: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
 
     doWatchdog = true;
 
