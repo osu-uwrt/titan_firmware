@@ -32,9 +32,12 @@
 #define THERMISTOR_NOMINAL_TEMP 298.15
 #define OPERATING_TEMPERATURE_MAX 50  // celcius
 
-#define PULSE_PERIOD 50
+#define PULSE_PERIOD 50         // ms
+#define WATCHDOG_PERIOD 3       // ms
+#define TEMP_CHECK_PERIOD 1000  // ms
 
 repeating_timer_t watchdog_timer;
+repeating_timer_t temperature_timer;
 uint8_t watchdog_state = false;
 uint32_t called_count = 0;
 uint32_t write_fail = 0;
@@ -42,7 +45,7 @@ uint32_t previous_val = 0;
 
 repeating_timer_t pulse_end_timer;
 uint8_t pulsing = false;
-bool doWatchdog = false;
+bool doPeriodicSpi = true;
 
 static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
     uint8_t tx_packet[] = { (data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF };
@@ -340,7 +343,7 @@ static int get_controller_status(size_t argc, const char *const *argv, FILE *fou
 }
 
 static bool satisfy_watchdog(struct repeating_timer *t) {
-    if (!doWatchdog)
+    if (!doPeriodicSpi)
         return true;
 
     uint8_t gs;
@@ -373,10 +376,15 @@ static bool satisfy_watchdog(struct repeating_timer *t) {
     return true;
 }
 
+static bool check_temperature(struct repeating_tier *t) {
+    if (!doPeriodicSpi)
+        return true;
+}
+
 static int enable_controllers(size_t argc, const char *const *argv, FILE *fout) {
     uint8_t gs;
 
-    doWatchdog = false;
+    doPeriodicSpi = false;
 
     // set control regisiter 1
 
@@ -431,7 +439,7 @@ static int enable_controllers(size_t argc, const char *const *argv, FILE *fout) 
     val_read = spi_read(LEDC2, 0x02, &gs);
     fprintf(fout, "Controller 2 Register 2: Setting: 0x%06X   Reading: 0x%06X \n", val, val_read);
 
-    doWatchdog = true;
+    doPeriodicSpi = true;
 
     // set control regisiter 3
 
@@ -739,14 +747,14 @@ void ledc_init(void) {
     // Set the PWM running
     pwm_set_enabled(slice_num, true);
 
-    add_repeating_timer_ms(3, satisfy_watchdog, NULL, &watchdog_timer);
+    add_repeating_timer_ms(WATCHDOG_PERIOD, satisfy_watchdog, NULL, &watchdog_timer);
+    add_repeating_timer_ms(TEMP_CHECK_PERIOD, check_temperature, NULL, &temperature_timer);
 
     gpio_init(LEDC_DIN1_PIN);
     gpio_set_dir(LEDC_DIN1_PIN, GPIO_OUT);
 
     gpio_init(LEDC_DIN2_PIN);
     gpio_set_dir(LEDC_DIN2_PIN, GPIO_OUT);
-    // gpio_put(LEDC_DIN2_PIN, 1);
 
     // TODO: Sam what frequency do you want for PWM_CLK?
 
@@ -763,9 +771,6 @@ void ledc_init(void) {
     // init adc - for read thermistor
     adc_init();
     adc_gpio_init(26);
-
-    // // repeating timer to make watchdog happy
-    // add_repeating_timer_ms(3, satisfy_watchdog, NULL, &watchdog_timer);
 
     debug_remote_cmd_register("temp", "", "Read Temperature on LEDS.\n", read_temp_cb);
 
