@@ -11,6 +11,7 @@
 #include "pico/time.h"
 #include "titan/debug.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -379,6 +380,8 @@ static bool satisfy_watchdog(struct repeating_timer *t) {
 static bool check_temperature(struct repeating_tier *t) {
     if (!doPeriodicSpi)
         return true;
+
+    return true;
 }
 
 static int enable_controllers(size_t argc, const char *const *argv, FILE *fout) {
@@ -706,6 +709,67 @@ static int reset_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
+void set_brightness(uint target, uint buck, uint brightness, FILE *fout) {
+    uint8_t gs;
+
+    uint32_t spi_val = spi_read(target, 0x01, &gs);
+
+    spi_val &= buck == 1 ? 0x3FFF : 0xFFC00F;
+    spi_val |= brightness << (buck == 1 ? 14 : 4);
+
+    fprintf(fout, "Writing: %x\n", spi_val);
+    spi_write(target, 0x01, correct_parity_bit(spi_val, false), &gs);
+}
+
+static int set_brightness_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc < 3) {
+        fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and brightness level\n");
+        return 1;
+    }
+
+    const char *target_str = argv[1];
+    uint target;
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        target = LEDC1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        target = LEDC2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    const char *buck_str = argv[2];
+    uint buck;
+    if (buck_str[0] == '1' && buck_str[1] == '\0') {
+        buck = 1;
+    }
+    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
+        buck = 2;
+    }
+    else {
+        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    uint brightness = strtoumax(argv[3], NULL, 10);
+
+    if (brightness > 1023 || brightness < 0) {
+        fprintf(fout, "Invalid brightness level, must be [0, 1023]\n");
+        return 1;
+    }
+
+    uint8_t gs;
+    fprintf(fout, "Brightness value: %d\n", brightness);
+    fprintf(fout, "Reading: %x\n", spi_read(target, 0x01, &gs));
+
+    set_brightness(target, buck, brightness, fout);
+    fprintf(fout, "Wrote: %x\n", spi_read(target, 0x01, &gs));
+
+    return 0;
+}
+
 void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -787,4 +851,8 @@ void ledc_init(void) {
 
     debug_remote_cmd_register("setbuck", "[target] [buck] [state]", "Select the buck converter color channel",
                               setbuck_cb);
+    debug_remote_cmd_register(
+        "setbrightness", "[target] [buck] [brightness]",
+        "Select the PWM brightness output of each buck converter. Brightness must be between [0, 1023].",
+        set_brightness_cb);
 }
