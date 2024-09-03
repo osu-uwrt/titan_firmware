@@ -36,6 +36,7 @@
 #define PULSE_PERIOD 50         // ms
 #define WATCHDOG_PERIOD 3       // ms
 #define TEMP_CHECK_PERIOD 1000  // ms
+#define BREATHING_SPEED 1       // ms
 
 repeating_timer_t watchdog_timer;
 repeating_timer_t temperature_timer;
@@ -47,6 +48,13 @@ uint32_t previous_val = 0;
 repeating_timer_t pulse_end_timer;
 uint8_t pulsing = false;
 bool doPeriodicSpi = true;
+
+// TODO: Remove breathing
+repeating_timer_t breathing_timer;
+uint breathing_controller;
+uint breathing_buck;
+uint breathing_val = 0;
+int breathing_delta = 1;
 
 static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
     uint8_t tx_packet[] = { (data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF };
@@ -709,7 +717,7 @@ static int reset_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
-void set_brightness(uint target, uint buck, uint brightness, FILE *fout) {
+void set_brightness(uint target, uint buck, uint brightness) {
     uint8_t gs;
 
     uint32_t spi_val = spi_read(target, 0x01, &gs);
@@ -717,7 +725,7 @@ void set_brightness(uint target, uint buck, uint brightness, FILE *fout) {
     spi_val &= buck == 1 ? 0x3FFF : 0xFFC00F;
     spi_val |= brightness << (buck == 1 ? 14 : 4);
 
-    fprintf(fout, "Writing: %x\n", spi_val);
+    // fprintf(fout, "Writing: %x\n", spi_val);
     spi_write(target, 0x01, correct_parity_bit(spi_val, false), &gs);
 }
 
@@ -764,9 +772,71 @@ static int set_brightness_cb(size_t argc, const char *const *argv, FILE *fout) {
     fprintf(fout, "Brightness value: %d\n", brightness);
     fprintf(fout, "Reading: %x\n", spi_read(target, 0x01, &gs));
 
-    set_brightness(target, buck, brightness, fout);
+    set_brightness(target, buck, brightness);
     fprintf(fout, "Wrote: %x\n", spi_read(target, 0x01, &gs));
 
+    return 0;
+}
+
+static bool run_breathing(struct repeating_tier *t) {
+    if (!doPeriodicSpi)
+        return true;
+
+    // if (breathing_val >= (uint) 1023 || breathing_val <= (uint) 0)
+    //     breathing_delta *= -1;
+    if (breathing_val >= (uint) 1023)
+        breathing_delta = -1;
+    else if (breathing_val <= (uint) 0)
+        breathing_delta = 1;
+
+    breathing_val += breathing_delta;
+    set_brightness(breathing_controller, breathing_buck, breathing_val);
+
+    return true;
+}
+
+static int start_breathing_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc < 2) {
+        fprintf(fout, "Not Enought Arguments - Please enter target and buck number\n");
+        return 1;
+    }
+
+    const char *target_str = argv[1];
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        breathing_controller = LEDC1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        breathing_controller = LEDC2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    const char *buck_str = argv[2];
+    if (buck_str[0] == '1' && buck_str[1] == '\0') {
+        breathing_buck = 1;
+    }
+    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
+        breathing_buck = 2;
+    }
+    else {
+        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    add_repeating_timer_ms(BREATHING_SPEED, run_breathing, NULL, &breathing_timer);
+    return 0;
+}
+
+static int stop_breathing_cb(size_t argc, const char *const *argv, FILE *fout) {
+    cancel_repeating_timer(&breathing_timer);
+    return 0;
+}
+
+static int breathing_status_cb(size_t argc, const char *const *argv, FILE *fout) {
+    fprintf(fout, "Breathing value: %d\n", breathing_val);
+    fprintf(fout, "Breathing delta: %d\n", breathing_delta);
     return 0;
 }
 
@@ -855,4 +925,12 @@ void ledc_init(void) {
         "setbrightness", "[target] [buck] [brightness]",
         "Select the PWM brightness output of each buck converter. Brightness must be between [0, 1023].",
         set_brightness_cb);
+
+    debug_remote_cmd_register("start_breathing", "[target] [buck]",
+                              "Start a breathing effect on a specified controller and buck.", start_breathing_cb);
+
+    debug_remote_cmd_register("stop_breathing", "", "Stop active breathing effects", stop_breathing_cb);
+
+    debug_remote_cmd_register("breathing_status", "", "Get the status of active breathing effects",
+                              breathing_status_cb);
 }
