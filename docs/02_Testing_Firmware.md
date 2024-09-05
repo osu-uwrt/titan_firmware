@@ -240,7 +240,7 @@ not support the RP2040. Ensure you do not have openocd installed from the packag
 Go to somewhere not tracked by git that you want to store the build files, and run the following commands:
 
     cd ~/Downloads  # Change this with wherever you want to clone openocd
-    git clone --depth 1 --branch v0.12.0 https://github.com/openocd-org/openocd
+    git clone --depth 1 https://github.com/openocd-org/openocd
     cd openocd
     ./bootstrap
     ./configure

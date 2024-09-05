@@ -40,6 +40,8 @@ pico_set_program_name(camera_cage_bb "Camera Cage BB Firmware")
 titan_use_upload_tool(camera_cage_bb)
 titan_enable_bootloader(camera_cage_bb can)
 
+pico_generate_pio_header(camera_cage_bb ${CMAKE_CURRENT_LIST_DIR}/src/tachometer.pio)
+
 # Define linking and targets
 pico_add_extra_outputs(camera_cage_bb)
 target_link_libraries(camera_cage_bb PUBLIC

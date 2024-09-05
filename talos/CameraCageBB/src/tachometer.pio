@@ -1,0 +1,111 @@
+.program tachometer
+
+; Tachometer Signal Receiver
+; After every transition a message will be sent to the PIO FIFO for the number of ticks for that edge
+
+; The number of PIO instructions (PIO clock cycles) per decrement of the tachometer counter
+.define PUBLIC clocks_per_tick 2
+
+public start:
+; Be sure to load Y with the max tick count before starting the SM
+JMP PIN handle_high
+
+; ====================
+; Rising Edge
+; ====================
+
+.wrap_target
+handle_low:
+mov X, y  ; Load Y with the max number of cycles we want to wait per edge
+
+; Loop until the pin goes high
+low_loop:
+jmp pin low_push
+jmp x-- low_loop
+; Overflowed, fall through and push FFs
+
+low_push:
+mov isr, x
+push noblock [1]  ; Push and delay 1 so we have the same delay characteristics as high signal
+; Fall through to handle falling edge
+
+; ====================
+; Falling Edge
+; ====================
+
+handle_high:
+mov x, y  ; Load Y with the max number of cycles we want to wait per edge
+
+; LOop until the pin goes low
+high_loop:
+jmp pin high_still
+jmp high_push
+high_still:
+jmp x-- handle_high
+; Overflowed, fall through and push all FFs
+
+high_push:
+mov isr, x
+push noblock
+.wrap
+
+
+% c-sdk {
+
+#include <assert.h>
+#include <stdbool.h>
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+// Configuration
+// Amount of time in microseconds passed for each decrement of the PIO tachometer counter
+#define TICK_TIME_US 50
+#define MAX_PERIOD_US 600000
+// 600 ms period can detect down to 50 RPM
+
+static_assert(MAX_PERIOD_US % TICK_TIME_US == 0, "Max period must be divisible by tick time");
+
+static inline void tachometer_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    // Stop machine if it is running
+    pio_sm_set_enabled(pio, sm, false);
+
+    // Set initial GPIO state
+    // This is so that when the PIO machine runs, when direction is output it will drive the line low
+    // but when the direction is input the IO bank will pull the line high
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);     // Set the tachometer pin to input, so it is pulled high
+    pio_gpio_init(pio, pin);            // Assign GPIO to PIO
+    gpio_pull_up(pin);                  // Configure pin to pull up
+
+    // We want the divider such that `tachometer_clocks_per_tick` PIO clock cycles takes TICK_TIME_US microseconds
+    // div = sysclk / pioclockfreq
+    // pioclockfreq = (1 / tick_period) * tachometer_clocks_per_tick
+    // tick_period = tick_time_us / 1000000
+    // => Simplified:
+    // div = syclk / ((1 / (tickperiod_us / 1000000)) * tachometer_clocks_per_tick)
+    // => Simplified More:
+    float div = (((double)clock_get_hz(clk_sys)) * TICK_TIME_US) / (1000000.0 * tachometer_clocks_per_tick);
+
+    // Configure PIO machine
+    pio_sm_config c = tachometer_program_get_default_config(offset);
+    // Configure IO Assignment (Only need jump pin)
+    sm_config_set_jmp_pin(&c, pin);
+    // Configure Clock
+    sm_config_set_clkdiv(&c, div);
+    // Configure shift registers
+    sm_config_set_out_shift(&c, false, false, 32);          // TX 32-bit, manual pull, left shift previous data
+
+    pio_sm_init(pio, sm, offset + tachometer_offset_start, &c);
+
+    // Preload Y register with the max period to wait
+    uint max_tick_val = MAX_PERIOD_US / TICK_TIME_US;
+    pio_sm_put_blocking(pio, sm, max_tick_val);
+    pio_sm_exec_wait_blocking(pio, sm, pio_encode_pull(false, true));
+    pio_sm_exec_wait_blocking(pio, sm, pio_encode_mov(pio_y, pio_osr));
+
+    // Don't enable the SM yet, let the caller allocate IRQs for this function
+
+    // NOTE TO IMPLEMENTER: Be sure to check for fifo overflow flag before pulling, as this means data is stale
+    // NOTE TO IMPLEMENTER: Be sure to handle the fact that it'll take 3 cycles between push and cycling for RPM
+}
+
+%}
