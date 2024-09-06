@@ -840,6 +840,66 @@ static int breathing_status_cb(size_t argc, const char *const *argv, FILE *fout)
     return 0;
 }
 
+void set_peak_current(uint target, uint buck, uint current) {
+    uint8_t gs;
+
+    uint32_t spi_val = spi_read(target, 0x02, &gs);
+
+    spi_val &= buck == 1 ? 0x3FFFF : 0xFC0FFF;
+    spi_val |= current << (buck == 1 ? 18 : 12);
+
+    spi_write(target, 0x02, correct_parity_bit(spi_val, false), &gs);
+}
+
+static int set_peak_current_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc < 3) {
+        fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and current\n");
+        return 1;
+    }
+
+    const char *target_str = argv[1];
+    uint target;
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        target = LEDC1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        target = LEDC2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    const char *buck_str = argv[2];
+    uint buck;
+    if (buck_str[0] == '1' && buck_str[1] == '\0') {
+        buck = 1;
+    }
+    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
+        buck = 2;
+    }
+    else {
+        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    uint current = strtoumax(argv[3], NULL, 10);
+
+    if (current > 63 || current < 0) {
+        fprintf(fout, "Invalid max current, must be [0, 63]\n");
+        return 1;
+    }
+
+    uint8_t gs;
+    fprintf(fout, "Peak current value: %d\n", current);
+    fprintf(fout, "Reading: %x\n", spi_read(target, 0x01, &gs));
+
+    set_peak_current(target, buck, current);
+    fprintf(fout, "Wrote: %x\n", spi_read(target, 0x01, &gs));
+
+    return 0;
+}
+
 void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -933,4 +993,7 @@ void ledc_init(void) {
 
     debug_remote_cmd_register("breathing_status", "", "Get the status of active breathing effects",
                               breathing_status_cb);
+
+    debug_remote_cmd_register("setpeakcurrent", "[target] [buck] [current]",
+                              "Set the peak current for a buck converter.", set_peak_current_cb);
 }
