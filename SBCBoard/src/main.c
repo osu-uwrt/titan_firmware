@@ -1,3 +1,4 @@
+#include "boards/talos/sbc_board.h"
 #include "safety_interface.h"
 
 #include "driver/async_i2c.h"
