@@ -12,11 +12,6 @@
 #define BUCK_ALWAYS_ON 2
 #define BUCK_FOLLOW_DIN 3
 
-/**
- * @brief Possible operation modes for the LEDs.
- */
-enum status_mode { MODE_SOLID, MODE_SLOW_FLASH, MODE_FAST_FLASH, MODE_BREATH };
-
 _Bool controller_satisfy_watchdog();
 void controller_clear_watchdog_error(unsigned int controller);
 void controller_enable(unsigned int controller);
