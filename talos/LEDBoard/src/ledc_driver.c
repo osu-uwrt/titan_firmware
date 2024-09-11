@@ -156,3 +156,31 @@ void ledc_init() {
                            &controller_watchdog_timer);
     hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
 }
+
+void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
+    uint32_t prev_interrupts = save_and_disable_interrupts();
+    led_timer = 0;
+    led_mode = mode;
+    red_target = red;
+    green_target = green;
+    blue_target = blue;
+    restore_interrupts(prev_interrupts);
+}
+
+void led_status_flash(uint8_t red, uint8_t green, uint8_t blue) {
+    flash_active = false;
+    red_flash_target = red;
+    green_flash_target = green;
+    blue_flash_target = blue;
+    flash_timer = 0;
+    flash_count = 0;
+    flash_active = true;
+}
+
+void led_enable(void) {
+    led_enabled = true;
+}
+
+void led_disable(void) {
+    led_enabled = false;
+}
