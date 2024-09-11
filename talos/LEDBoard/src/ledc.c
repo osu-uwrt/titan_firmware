@@ -42,7 +42,7 @@ repeating_timer_t watchdog_timer;
 repeating_timer_t temperature_timer;
 uint8_t watchdog_state = false;
 uint32_t called_count = 0;
-uint32_t write_fail = 0;
+static uint32_t write_fail = 0;
 uint32_t previous_val = 0;
 
 repeating_timer_t pulse_end_timer;
@@ -145,7 +145,7 @@ static int parse_int(const char *str, long long *val_out) {
         (var_out) = val_tmp;                                                                                           \
     } while (0)
 
-uint32_t correct_parity_bit(uint32_t val, bool odd_parity) {
+static uint32_t correct_parity_bit(uint32_t val, bool odd_parity) {
     // ensure the parity bit at the end of the 24 bit spi is correctly computed
     // ODD parity bit check
 
@@ -900,7 +900,7 @@ static int set_peak_current_cb(size_t argc, const char *const *argv, FILE *fout)
     return 0;
 }
 
-void ledc_init(void) {
+static void ledc_init(void) {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
     spi_init(LEDC_SPI_INST, 4000000);  // Run SPI at 4 MHz
