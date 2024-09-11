@@ -1,6 +1,8 @@
 #ifndef LEDC_COMMANDS_H_
 #define LEDC_COMMANDS_H_
 
+#include "pico/types.h"
+
 #define LEDC1 0
 #define LEDC2 1
 
@@ -13,10 +15,10 @@
 #define BUCK_FOLLOW_DIN 3
 
 _Bool controller_satisfy_watchdog();
-void controller_clear_watchdog_error(unsigned int controller);
-void controller_enable(unsigned int controller);
+void controller_clear_watchdog_error(uint controller);
+void controller_enable(uint controller);
 
-void buck_set_control_mode(unsigned int controller, unsigned int buck, unsigned int mode);
+void buck_set_control_mode(uint controller, uint buck, uint mode);
 
 void init_spi_and_gpio();
 

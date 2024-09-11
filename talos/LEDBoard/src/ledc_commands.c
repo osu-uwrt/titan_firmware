@@ -11,6 +11,8 @@
 #include "pico/time.h"
 #include "titan/debug.h"
 
+#include <math.h>
+
 #define LEDC_SPI_INST __CONCAT(spi, LEDC_SPI)
 
 // LEDC controller defines in header
@@ -140,7 +142,6 @@ void controller_enable(uint controller) {
     sleep_ms(1);
     spi_write(controller, 0x01, val, &gs);
     sleep_ms(1);
-    uint32_t val_read = spi_read(controller, 0x01, &gs);
 
     // Set enabled high and gostby low
     sleep_ms(1);
@@ -149,7 +150,6 @@ void controller_enable(uint controller) {
     sleep_ms(1);
     spi_write(controller, 0x02, val, &gs);
     sleep_ms(1);
-    val_read = spi_read(controller, 0x02, &gs);
 
     do_periodic_spi = true;
     // watchdog_state = !watchdog_state
