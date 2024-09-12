@@ -25,8 +25,13 @@ int main() {
     // FIXME: canbus_utility_fram_register_cb() ?
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
     // Initialize bq25730
+    // bq25730_init();
+
     // Initialize USB-PD chip
+    // usbpd_init();
+
     // Initialize screen
+    // screen_init();
 
     uint can_id = CAN_BUS_CLIENT_ID;
     bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
