@@ -17,7 +17,7 @@ void screen_init(void);
  * @param battery_charging_state
  */
 // TODO: add "batt chrgr_state_t" in main.c
-void screen_tick(batt_chrgr_state_t battery_charger_state);
+// void screen_tick(batt_chrgr_state_t battery_charger_state);
 
 /**
  * @brief Show status message to screen

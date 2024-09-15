@@ -1,4 +1,5 @@
 #include "boards/talos/sbc_board.h"
+#include "bq25730.h"
 #include "safety_interface.h"
 
 #include "driver/async_i2c.h"
@@ -24,8 +25,16 @@ int main() {
 
     // FIXME: canbus_utility_fram_register_cb() ?
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+
     // Initialize bq25730
-    // bq25730_init();
+    bq25730_init(BOARD_I2C);
+
+    sleep_ms(1000);
+
+    while (true) {
+        bq25730_start_read_manufacturer_id();
+        sleep_ms(1500);
+    }
 
     // Initialize USB-PD chip
     // usbpd_init();
