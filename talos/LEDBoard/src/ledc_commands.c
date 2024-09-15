@@ -12,6 +12,8 @@
 #include "titan/debug.h"
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define LEDC_SPI_INST __CONCAT(spi, LEDC_SPI)
 

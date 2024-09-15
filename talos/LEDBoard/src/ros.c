@@ -1,6 +1,7 @@
 #include "ros.h"
 
-#include "ledc.h"
+// #include "ledc.h"
+#include "ledc_driver.h"
 
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -12,6 +13,7 @@
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/led_command.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/int8.h>
 
@@ -26,7 +28,8 @@
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
-#define LED_SUBSCRIBER_NAME "led/pulse"
+#define LED_SUBSCRIBER_NAME "command/led"
+#define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 
 bool ros_connected = false;
 bool pulse = false;
@@ -44,10 +47,10 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 
-rcl_subscription_t pulse_subscriber;
-std_msgs__msg__Bool pulse_msg;
-
-
+rcl_subscription_t led_subscriber;
+riptide_msgs2__msg__LedCommand led_command_msg;
+rcl_subscription_t physkill_notify_subscriber;
+std_msgs__msg__Bool physkill_notify_msg;
 
 // TODO: Add node specific items here
 
@@ -60,8 +63,53 @@ static void killswitch_subscription_callback(const void *msgin) {
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-static void pulse_subscription_callback(const void *msgin) {
-    led_pulse_start();
+static void led_subscription_callback(const void *msgin) {
+    const riptide_msgs2__msg__LedCommand *msg = (const riptide_msgs2__msg__LedCommand *) msgin;
+
+    // Ignore commands not for us
+    if ((msg->target & riptide_msgs2__msg__LedCommand__TARGET_ALU) == 0) {
+        return;
+    }
+
+    enum status_mode mode;
+
+    // Convert message mode to local mode
+    switch (msg->mode) {
+    case riptide_msgs2__msg__LedCommand__MODE_SOLID:
+        mode = MODE_SOLID;
+        break;
+    case riptide_msgs2__msg__LedCommand__MODE_SLOW_FLASH:
+        mode = MODE_SLOW_FLASH;
+        break;
+    case riptide_msgs2__msg__LedCommand__MODE_FAST_FLASH:
+        mode = MODE_FAST_FLASH;
+        break;
+    case riptide_msgs2__msg__LedCommand__MODE_BREATH:
+        mode = MODE_BREATH;
+        break;
+    default:
+        led_clear();
+        return;
+    }
+
+    led_set(mode, msg->red, msg->green, msg->blue);
+}
+
+static void physkill_notify_subscription_callback(const void *msgin) {
+    // This topic is published whenever the physical killswitch topic is published
+    // This will flash the LED strip for feedback that the kill switch is inserted
+    // This is required as the thrusters won't chime if software kill is active, so this is the only source of
+    // feedback for whoever inserts the kill switch
+
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+    if (msg->data) {  // Note true means that the physical kill switch is asserted (switch removed)
+        // Flash red on kill switch removal
+        led_flash(255, 0, 0);
+    }
+    else {
+        // Flash blue on kill switch insertion
+        led_flash(0, 0, 255);
+    }
 }
 
 // TODO: Add in node specific tasks here
@@ -161,16 +209,23 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &pulse_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), LED_SUBSCRIBER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_default(
+        &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
-                                              &killswitch_subscription_callback, ON_NEW_DATA));    
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &pulse_subscriber, &pulse_msg,
-                                              &pulse_subscription_callback, ON_NEW_DATA));
+                                              &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback,
+                                              ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg,
+                                              &physkill_notify_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 
@@ -190,9 +245,10 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&pulse_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

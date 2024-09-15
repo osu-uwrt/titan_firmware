@@ -10,6 +10,7 @@
 #include "hardware/timer.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
+#include "pico/sync.h"
 #include "pico/time.h"
 #include "titan/debug.h"
 
@@ -167,7 +168,7 @@ void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     restore_interrupts(prev_interrupts);
 }
 
-void led_status_flash(uint8_t red, uint8_t green, uint8_t blue) {
+void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = false;
     red_flash_target = red;
     green_flash_target = green;
