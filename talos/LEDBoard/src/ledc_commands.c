@@ -31,6 +31,11 @@
 #define THERMISTOR_NOMINAL_TEMP 298.15
 #define THERMISTOR_PIN
 
+const uint led_r_path[2] = { LEDC1, BUCK1 };
+const uint led_g_path[2] = { LEDC1, BUCK2 };
+const uint led_b_path[2] = { LEDC2, BUCK1 };
+const uint led_w_path[2] = { LEDC2, BUCK2 };
+
 bool do_periodic_spi = true;
 uint32_t write_fail = 0;
 
@@ -183,6 +188,24 @@ void buck_set_control_mode(uint controller, uint buck, uint mode) {
         sleep_ms(1);
         buck_set_brightness(controller, buck, 0);
     }
+}
+
+static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
+    *w = MIN(*r, MIN(*g, *b));
+
+    *r -= *w;
+    *g -= *w;
+    *b -= *w;
+}
+
+void led_set_rgb(uint r, uint b, uint g) {
+    uint w;
+    rgb_to_rgbw(&r, &g, &b, &w);
+
+    buck_set_brightness(r * (1023.0 / 255.0), led_r_path[0], led_r_path[1]);
+    buck_set_brightness(g * (1023.0 / 255.0), led_g_path[0], led_g_path[1]);
+    buck_set_brightness(b * (1023.0 / 255.0), led_b_path[0], led_b_path[1]);
+    buck_set_brightness(w * (1023.0 / 255.0), led_w_path[0], led_w_path[1]);
 }
 
 // TODO: remove me
@@ -403,6 +426,21 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
+// TODO: Remove me
+static int led_rgb_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc < 3) {
+        fprintf(fout, "Usage: @led_rgb [r] [g] [b]\n");
+        return 1;
+    }
+
+    uint r, g, b;
+    parse_int_with_bounds(argv[0], r, 0, 255);
+    parse_int_with_bounds(argv[1], g, 0, 255);
+    parse_int_with_bounds(argv[2], b, 0, 255);
+
+    led_set_rgb(r, g, b);
+}
+
 void init_spi_and_gpio() {
     // SPI Init
     bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
@@ -466,4 +504,5 @@ void init_spi_and_gpio() {
                               "  rdclr\tReads/clears the specified register\n"
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
+    debug_remote_cmd_register("led_rgb", "[r] [g] [b]", "Set board RGB values. Must be [0, 255].\n", led_rgb_cb);
 }

@@ -218,7 +218,7 @@ rcl_ret_t ros_init() {
                                               PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
 
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
