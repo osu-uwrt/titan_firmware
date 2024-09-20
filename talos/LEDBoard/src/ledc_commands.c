@@ -33,8 +33,8 @@
 
 const uint led_r_path[2] = { LEDC1, BUCK1 };
 const uint led_g_path[2] = { LEDC1, BUCK2 };
-const uint led_b_path[2] = { LEDC2, BUCK1 };
-const uint led_w_path[2] = { LEDC2, BUCK2 };
+const uint led_b_path[2] = { LEDC2, BUCK2 };
+const uint led_w_path[2] = { LEDC2, BUCK1 };
 
 bool do_periodic_spi = true;
 uint32_t write_fail = 0;
@@ -198,14 +198,14 @@ static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
     *b -= *w;
 }
 
-void led_set_rgb(uint r, uint b, uint g) {
+void led_set_rgb(uint r, uint g, uint b) {
     uint w;
     rgb_to_rgbw(&r, &g, &b, &w);
 
-    buck_set_brightness(r * (1023.0 / 255.0), led_r_path[0], led_r_path[1]);
-    buck_set_brightness(g * (1023.0 / 255.0), led_g_path[0], led_g_path[1]);
-    buck_set_brightness(b * (1023.0 / 255.0), led_b_path[0], led_b_path[1]);
-    buck_set_brightness(w * (1023.0 / 255.0), led_w_path[0], led_w_path[1]);
+    buck_set_brightness(led_r_path[0], led_r_path[1], r * (1023.0 / 255.0));
+    buck_set_brightness(led_g_path[0], led_g_path[1], g * (1023.0 / 255.0));
+    buck_set_brightness(led_b_path[0], led_b_path[1], b * (1023.0 / 255.0));
+    buck_set_brightness(led_w_path[0], led_w_path[1], w * (1023.0 / 255.0));
 }
 
 // TODO: remove me
@@ -433,12 +433,92 @@ static int led_rgb_cb(size_t argc, const char *const *argv, FILE *fout) {
         return 1;
     }
 
-    uint r, g, b;
-    parse_int_with_bounds(argv[0], r, 0, 255);
-    parse_int_with_bounds(argv[1], g, 0, 255);
-    parse_int_with_bounds(argv[2], b, 0, 255);
+    uint r = strtoumax(argv[1], NULL, 10);
+    uint g = strtoumax(argv[2], NULL, 10);
+    uint b = strtoumax(argv[3], NULL, 10);
+
+    fprintf(fout, "r: %u\n", r);
+    fprintf(fout, "g: %u\n", g);
+    fprintf(fout, "b: %u\n", b);
 
     led_set_rgb(r, g, b);
+    return 0;
+}
+
+// TODO: Remove me
+static int set_brightness_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc < 3) {
+        fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and brightness level\n");
+        return 1;
+    }
+
+    const char *target_str = argv[1];
+    uint target;
+    if (target_str[0] == '1' && target_str[1] == '\0') {
+        target = LEDC1;
+    }
+    else if (target_str[0] == '2' && target_str[1] == '\0') {
+        target = LEDC2;
+    }
+    else {
+        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    const char *buck_str = argv[2];
+    uint buck;
+    if (buck_str[0] == '1' && buck_str[1] == '\0') {
+        buck = 1;
+    }
+    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
+        buck = 2;
+    }
+    else {
+        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
+        return 1;
+    }
+
+    uint brightness = strtoumax(argv[3], NULL, 10);
+
+    if (brightness > 1023 || brightness < 0) {
+        fprintf(fout, "Invalid brightness level, must be [0, 1023]\n");
+        return 1;
+    }
+
+    uint8_t gs;
+    fprintf(fout, "Brightness value: %d\n", brightness);
+    fprintf(fout, "Reading: %x\n", spi_read(target, 0x01, &gs));
+
+    buck_set_brightness(target, buck, brightness);
+    fprintf(fout, "Wrote: %x\n", spi_read(target, 0x01, &gs));
+
+    return 0;
+}
+
+// TODO: Remove me
+static float read_temp() {
+    // read led al board thermistor
+
+    adc_select_input(0);
+    const float convert_to_voltage_factor = 3.3f / (1 << 12);
+    float voltage = adc_read() * convert_to_voltage_factor;
+
+    // calculate thermistor resistance
+    float resistance = THERMISTOR_SERIES_RESISTANCE * (voltage) / (THERMISTOR_V_REF - voltage);
+
+    float temperature =
+        1 / (log(resistance / THERMISTOR_R_25) / THERMISTOR_B_25_85 + 1 / THERMISTOR_NOMINAL_TEMP) - 273.0;
+
+    return temperature;
+}
+
+// TODO: Remove me
+static int read_temp_cb(size_t argc, const char *const *argv, FILE *fout) {
+    float temperature = read_temp();
+
+    fprintf(fout, "Temperature: %f \n", temperature);
+
+    return 0;
 }
 
 void init_spi_and_gpio() {
@@ -505,4 +585,9 @@ void init_spi_and_gpio() {
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
     debug_remote_cmd_register("led_rgb", "[r] [g] [b]", "Set board RGB values. Must be [0, 255].\n", led_rgb_cb);
+    debug_remote_cmd_register(
+        "setbrightness", "[target] [buck] [brightness]",
+        "Select the PWM brightness output of each buck converter. Brightness must be between [0, 1023].",
+        set_brightness_cb);
+    debug_remote_cmd_register("temp", "", "Read Temperature on LEDS.\n", read_temp_cb);
 }

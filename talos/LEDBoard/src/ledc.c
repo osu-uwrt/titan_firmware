@@ -238,7 +238,7 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
-float read_temp() {
+static float read_temp() {
     // read led al board thermistor
 
     adc_select_input(0);

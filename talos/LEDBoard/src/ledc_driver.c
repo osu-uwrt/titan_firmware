@@ -130,6 +130,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     }
 
     // Transmit data
+    led_set_rgb(red, green, blue);
 
     return true;
 }
