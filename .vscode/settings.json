@@ -25,7 +25,7 @@
     },
     "debug.onTaskErrors": "abort",
     "editor.detectIndentation": false,
-    "editor.formatOnSave": true,
+    "editor.formatOnSave": false,
     "editor.insertSpaces": true,
     "editor.rulers": [
         120

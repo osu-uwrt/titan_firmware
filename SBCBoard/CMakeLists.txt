@@ -49,5 +49,5 @@ target_link_libraries(sbc_board PUBLIC
 
     pico_stdlib         # Pico SDK Standard Library
     driver_async_i2c
-    driver_mcp251Xfd_ll_driver
+    micro_ros_can
 )
