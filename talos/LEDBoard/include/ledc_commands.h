@@ -22,6 +22,6 @@ void buck_set_control_mode(uint controller, uint buck, uint mode);
 
 void init_spi_and_gpio();
 
-void led_set_rgb(uint r, uint g, uint b);
+void led_set_rgb(uint r, uint g, uint b, float maxBrightness);
 
 #endif

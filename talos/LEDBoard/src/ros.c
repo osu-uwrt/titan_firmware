@@ -12,6 +12,7 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
+#include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/led_command.h>
 #include <std_msgs/msg/bool.h>
@@ -30,6 +31,7 @@
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
+#define DEPTH_SUBSCRIBER_NAME "state/depth/raw"
 
 bool ros_connected = false;
 bool pulse = false;
@@ -51,6 +53,8 @@ rcl_subscription_t led_subscriber;
 riptide_msgs2__msg__LedCommand led_command_msg;
 rcl_subscription_t physkill_notify_subscriber;
 std_msgs__msg__Bool physkill_notify_msg;
+rcl_subscription_t depth_subscriber;
+riptide_msgs2__msg__Depth depth_msg;
 
 // TODO: Add node specific items here
 
@@ -110,6 +114,11 @@ static void physkill_notify_subscription_callback(const void *msgin) {
         // Flash blue on kill switch insertion
         led_flash(0, 0, 255);
     }
+}
+
+static void depth_subscription_callback(const void *msgin) {
+    const riptide_msgs2__msg__Depth *msg = (const riptide_msgs2__msg__Depth *) msgin;
+    led_depth_set(msg->depth);
 }
 
 // TODO: Add in node specific tasks here
@@ -216,9 +225,11 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                               PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(
+        &depth_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth), DEPTH_SUBSCRIBER_NAME));
 
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -226,6 +237,8 @@ rcl_ret_t ros_init() {
                                               ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg,
                                               &physkill_notify_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_subscriber, &depth_msg, &depth_subscription_callback,
+                                              ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 

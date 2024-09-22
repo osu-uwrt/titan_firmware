@@ -15,6 +15,7 @@
 #include "titan/debug.h"
 
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
+#define DEPTH_MONITOR_PERIOD 100
 
 #define LED_UPDATE_INTERVAL_MS 50
 #define LED_TIMER_PERIOD_TICKS                                                                                         \
@@ -28,7 +29,11 @@
 
 #define OPERATING_TEMPERATURE_MAX_C 50
 
-static repeating_timer_t status_update_timer, controller_watchdog_timer;
+#define WATER_MAX_BRIGHTNESS 1.0f
+#define BENCH_MAX_BRIGHTNESS 0.01f
+#define UNDERWATER_MIN_DEPTH -0.05f
+
+static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer;
 
 // LED state config
 volatile bool led_enabled;
@@ -45,6 +50,11 @@ uint flash_count;
 uint8_t red_flash_target;
 uint8_t green_flash_target;
 uint8_t blue_flash_target;
+
+// Depth status
+volatile bool is_underwater = false;
+volatile bool depth_stale = true;
+volatile bool got_new_depth = false;
 
 static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
     uint red, green, blue;
@@ -130,7 +140,14 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     }
 
     // Transmit data
-    led_set_rgb(red, green, blue);
+    led_set_rgb(red, green, blue, is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS);
+
+    return true;
+}
+
+static bool monitor_depth(__unused repeating_timer_t *rt) {
+    depth_stale = got_new_depth;
+    got_new_depth = false;
 
     return true;
 }
@@ -157,6 +174,7 @@ void ledc_init() {
     add_repeating_timer_ms(CONTROLLER_WATCHDOG_PERIOD_MS, controller_satisfy_watchdog, NULL,
                            &controller_watchdog_timer);
     hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
+    add_repeating_timer_ms(DEPTH_MONITOR_PERIOD, monitor_depth, NULL, &depth_monitor_timer);
 }
 
 void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
@@ -185,4 +203,9 @@ void led_enable(void) {
 
 void led_disable(void) {
     led_enabled = false;
+}
+
+void led_depth_set(float depth) {
+    is_underwater = depth < UNDERWATER_MIN_DEPTH;
+    got_new_depth = true;
 }

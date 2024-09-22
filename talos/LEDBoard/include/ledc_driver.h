@@ -19,4 +19,6 @@ static inline void led_clear(void) {
 
 void ledc_init();
 
+void led_depth_set(float depth);
+
 #endif

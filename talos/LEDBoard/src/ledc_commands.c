@@ -198,14 +198,14 @@ static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
     *b -= *w;
 }
 
-void led_set_rgb(uint r, uint g, uint b) {
+void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {
     uint w;
     rgb_to_rgbw(&r, &g, &b, &w);
 
-    buck_set_brightness(led_r_path[0], led_r_path[1], r * (1023.0 / 255.0));
-    buck_set_brightness(led_g_path[0], led_g_path[1], g * (1023.0 / 255.0));
-    buck_set_brightness(led_b_path[0], led_b_path[1], b * (1023.0 / 255.0));
-    buck_set_brightness(led_w_path[0], led_w_path[1], w * (1023.0 / 255.0));
+    buck_set_brightness(led_r_path[0], led_r_path[1], r * (1023.0 / 255.0) * maxBrightness);
+    buck_set_brightness(led_g_path[0], led_g_path[1], g * (1023.0 / 255.0) * maxBrightness);
+    buck_set_brightness(led_b_path[0], led_b_path[1], b * (1023.0 / 255.0) * maxBrightness);
+    buck_set_brightness(led_w_path[0], led_w_path[1], w * (1023.0 / 255.0) * maxBrightness);
 }
 
 // TODO: remove me
@@ -427,25 +427,6 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
 }
 
 // TODO: Remove me
-static int led_rgb_cb(size_t argc, const char *const *argv, FILE *fout) {
-    if (argc < 3) {
-        fprintf(fout, "Usage: @led_rgb [r] [g] [b]\n");
-        return 1;
-    }
-
-    uint r = strtoumax(argv[1], NULL, 10);
-    uint g = strtoumax(argv[2], NULL, 10);
-    uint b = strtoumax(argv[3], NULL, 10);
-
-    fprintf(fout, "r: %u\n", r);
-    fprintf(fout, "g: %u\n", g);
-    fprintf(fout, "b: %u\n", b);
-
-    led_set_rgb(r, g, b);
-    return 0;
-}
-
-// TODO: Remove me
 static int set_brightness_cb(size_t argc, const char *const *argv, FILE *fout) {
     if (argc < 3) {
         fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and brightness level\n");
@@ -584,7 +565,6 @@ void init_spi_and_gpio() {
                               "  rdclr\tReads/clears the specified register\n"
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
-    debug_remote_cmd_register("led_rgb", "[r] [g] [b]", "Set board RGB values. Must be [0, 255].\n", led_rgb_cb);
     debug_remote_cmd_register(
         "setbrightness", "[target] [buck] [brightness]",
         "Select the PWM brightness output of each buck converter. Brightness must be between [0, 1023].",
