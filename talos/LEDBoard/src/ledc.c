@@ -840,7 +840,7 @@ static int breathing_status_cb(size_t argc, const char *const *argv, FILE *fout)
     return 0;
 }
 
-void set_peak_current(uint target, uint buck, uint current) {
+static void set_peak_current(uint target, uint buck, uint current) {
     uint8_t gs;
 
     uint32_t spi_val = spi_read(target, 0x02, &gs);
