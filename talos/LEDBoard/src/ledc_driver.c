@@ -154,6 +154,7 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
 
 void ledc_init() {
     init_spi_and_gpio();
+    register_canmore_commands();
 
     // LEDC defines set in ledc_commands.h
     for (uint controller = LEDC1; controller <= LEDC2; controller++) {
