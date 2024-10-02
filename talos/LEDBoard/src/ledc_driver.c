@@ -51,6 +51,11 @@ uint8_t red_flash_target;
 uint8_t green_flash_target;
 uint8_t blue_flash_target;
 
+volatile bool do_singleton;
+uint8_t red_singleton_target;
+uint8_t green_singleton_target;
+uint8_t blue_singleton_target;
+
 // Depth status
 volatile bool is_underwater = false;
 volatile bool depth_stale = true;
@@ -134,6 +139,14 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         }
     }
 
+    // Do a short (singleton) flash
+    if (do_singleton) {
+        red = red_singleton_target;
+        green = green_singleton_target;
+        blue = blue_singleton_target;
+        do_singleton = false;
+    }
+
     // Clear color output if LEDs are disabled
     if (!led_enabled) {
         red = green = blue = 0;
@@ -196,6 +209,14 @@ void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_timer = 0;
     flash_count = 0;
     flash_active = true;
+}
+
+void led_singleton(uint8_t red, uint8_t green, uint8_t blue) {
+    do_singleton = false;
+    red_singleton_target = red;
+    green_singleton_target = green;
+    blue_singleton_target = blue;
+    do_singleton = true;
 }
 
 void led_enable(void) {

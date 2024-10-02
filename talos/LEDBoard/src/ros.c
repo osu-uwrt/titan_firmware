@@ -76,6 +76,7 @@ static void led_subscription_callback(const void *msgin) {
     }
 
     enum status_mode mode;
+    bool is_singleton = false;
 
     // Convert message mode to local mode
     switch (msg->mode) {
@@ -91,12 +92,18 @@ static void led_subscription_callback(const void *msgin) {
     case riptide_msgs2__msg__LedCommand__MODE_BREATH:
         mode = MODE_BREATH;
         break;
+    case riptide_msgs2__msg__LedCommand__SINGLETON_FLASH:
+        is_singleton = true;
+        break;
     default:
         led_clear();
         return;
     }
 
-    led_set(mode, msg->red, msg->green, msg->blue);
+    if (is_singleton)
+        led_singleton(msg->red, msg->green, msg->blue);
+    else
+        led_set(mode, msg->red, msg->green, msg->blue);
 }
 
 static void physkill_notify_subscription_callback(const void *msgin) {
