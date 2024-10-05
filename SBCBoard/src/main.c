@@ -2,6 +2,8 @@
 #include "bq25730.h"
 #include "safety_interface.h"
 
+#include "hardware/watchdog.h"
+
 #include "driver/async_i2c.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
@@ -21,19 +23,17 @@ int main() {
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
-    led_init();
 
     // FIXME: canbus_utility_fram_register_cb() ?
-    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+    // async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
 
     // Initialize bq25730
-    bq25730_init(BOARD_I2C);
-
-    sleep_ms(1000);
+    //bq25730_init(BOARD_I2C);
 
     while (true) {
-        bq25730_start_read_manufacturer_id();
-        sleep_ms(1500);
+        //bq25730_start_read_manufacturer_id();
+        printf("hello\n");
+        sleep_ms(500);
     }
 
     // Initialize USB-PD chip
