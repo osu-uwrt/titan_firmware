@@ -267,6 +267,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&depth_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
