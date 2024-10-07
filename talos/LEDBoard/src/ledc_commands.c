@@ -183,12 +183,6 @@ void buck_set_control_mode(uint controller, uint buck, uint mode) {
     spi_val |= mode << (buck == BUCK1 ? 14 : 12);
 
     spi_write(controller, 0x03, correct_parity_bit(spi_val, true), &gs);
-
-    // Make LEDs off by default if using PWM dimming
-    if (mode == BUCK_PWM_DIMMING) {
-        sleep_ms(1);
-        buck_set_brightness(controller, buck, 0);
-    }
 }
 
 static void buck_set_peak_current(uint controller, uint buck, uint current) {

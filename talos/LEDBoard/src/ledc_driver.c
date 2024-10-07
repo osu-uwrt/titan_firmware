@@ -168,6 +168,7 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
 void ledc_init() {
     init_spi_and_gpio();
     register_canmore_commands();
+    led_set_rgb(0, 0, 0, 1023);  // Set LEDs off before enabling them
 
     // LEDC defines set in ledc_commands.h
     for (uint controller = LEDC1; controller <= LEDC2; controller++) {
