@@ -25,14 +25,15 @@ int main() {
     safety_setup();
 
     // FIXME: canbus_utility_fram_register_cb() ?
-    // async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
 
     // Initialize bq25730
-    //bq25730_init(BOARD_I2C);
+    bq25730_init(BOARD_I2C);
 
     while (true) {
-        //bq25730_start_read_manufacturer_id();
+        bq25730_start_read_manufacturer_id();
         printf("hello\n");
+        safety_tick();
         sleep_ms(500);
     }
 

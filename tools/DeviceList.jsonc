@@ -107,6 +107,14 @@
             "boardType": "mk2/sbh_mcu",
             "serial": "E66214550758C027"
         },
+        // =======================================
+        // Smart Battery Chargers
+        // =======================================
+        {
+            "name": "Smart Battery Charger 0",
+            "boardType": "talos/sbc_board",
+            "serial": "E461BC9893335328"
+        },
         // ========================================
         // Mark 1 Era Boards (2020-2021)
         // In chronological order of assembly/usage

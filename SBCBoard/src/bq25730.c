@@ -73,6 +73,7 @@ static void bq25730_on_i2c_req_complete(const struct async_i2c_request *req) {
 void bq25730_init(unsigned int busNum) {
     i2c_req.i2c_num = busNum;
     i2c_req.address = 0x6b;
+    i2c_req.nostop = false;
     i2c_req.tx_buffer = i2c_tx_buffer;
     i2c_req.rx_buffer = i2c_rx_buffer;
     i2c_req.bytes_to_receive = 0;
