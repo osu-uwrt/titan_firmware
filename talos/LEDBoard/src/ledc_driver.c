@@ -27,13 +27,16 @@
 #define LED_FLASH_PULSE_PERIOD 6  // Note this should be less than 256 to avoid multiplication overflows
 #define LED_FLASH_PULSE_COUNT 2
 
+#define SINGLETON_FLASH_PERIOD_MS 10
+#define LOOPS_PER_SINGLETON 5  // Number of main loops until the next singleton is allowed
+
 #define OPERATING_TEMPERATURE_MAX_C 50
 
 #define WATER_MAX_BRIGHTNESS 1.0f
 #define BENCH_MAX_BRIGHTNESS 0.01f
 #define UNDERWATER_MIN_DEPTH -0.05f
 
-static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer;
+static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer;
 
 // LED state config
 volatile bool led_enabled;
@@ -52,9 +55,16 @@ uint8_t green_flash_target;
 uint8_t blue_flash_target;
 
 volatile bool do_singleton;
+uint next_singleton = LOOPS_PER_SINGLETON;
+bool is_in_singleton = false;
 uint8_t red_singleton_target;
 uint8_t green_singleton_target;
 uint8_t blue_singleton_target;
+
+uint8_t last_red;
+uint8_t last_green;
+uint8_t last_blue;
+float last_max_brightness;
 
 // Depth status
 volatile bool is_underwater = false;
@@ -139,21 +149,23 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         }
     }
 
-    // Do a short (singleton) flash
-    if (do_singleton) {
-        red = red_singleton_target;
-        green = green_singleton_target;
-        blue = blue_singleton_target;
-        do_singleton = false;
-    }
-
     // Clear color output if LEDs are disabled
     if (!led_enabled) {
         red = green = blue = 0;
     }
 
+    float max_brightness = is_underwater ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
+
+    last_red = red;
+    last_green = green;
+    last_blue = blue;
+    last_max_brightness = max_brightness;
+
+    if (next_singleton > 0)
+        next_singleton--;
+
     // Transmit data
-    led_set_rgb(red, green, blue, is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS);
+    led_set_rgb(red, green, blue, max_brightness);
 
     return true;
 }
@@ -161,6 +173,25 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 static bool monitor_depth(__unused repeating_timer_t *rt) {
     depth_stale = got_new_depth;
     got_new_depth = false;
+
+    return true;
+}
+
+static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
+    if (next_singleton > 0 || !do_singleton)
+        return true;
+
+    if (is_in_singleton) {
+        led_set_rgb(last_red, last_green, last_blue, last_max_brightness);
+        is_in_singleton = false;
+    }
+    else {
+        led_set_rgb(red_singleton_target, green_singleton_target, blue_singleton_target, last_max_brightness);
+        is_in_singleton = true;
+    }
+
+    do_singleton = false;
+    next_singleton = LOOPS_PER_SINGLETON;
 
     return true;
 }
@@ -190,6 +221,7 @@ void ledc_init() {
                            &controller_watchdog_timer);
     hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
     add_repeating_timer_ms(DEPTH_MONITOR_PERIOD, monitor_depth, NULL, &depth_monitor_timer);
+    add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
 }
 
 void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
