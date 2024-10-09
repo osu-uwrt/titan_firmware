@@ -7,6 +7,7 @@
 
 #include "driver/async_i2c.h"
 #include <stdio.h>
+#include <string.h>
 
 #define BQ25730_I2C_TOTAL_REGISTERS_SIZE 64
 
@@ -57,9 +58,12 @@ static void bq25730_read_data(bq25730_register_t reg) {
 }
 
 static void bq25730_write_data(bq25730_register_t reg_start, uint8_t *data, size_t data_len) {
-    (void) reg_start;
-    (void) data;
-    (void) data_len;
+    i2c_req.bytes_to_receive = 0;
+    i2c_req.bytes_to_send = data_len + 1;
+    i2c_tx_buffer[0] = reg_start;
+    memcpy(i2c_tx_buffer + 1, data, data_len);
+    i2c_req.timeout = make_timeout_time_ms(1000);
+    async_i2c_enqueue(&i2c_req, &i2c_request_in_progress);
 }
 
 static void bq25730_on_i2c_failure(const struct async_i2c_request *req, uint32_t error) {
@@ -67,7 +71,7 @@ static void bq25730_on_i2c_failure(const struct async_i2c_request *req, uint32_t
 }
 
 static void bq25730_on_i2c_req_complete(const struct async_i2c_request *req) {
-    printf("Manufacturer ID: %x\n", i2c_rx_buffer[0]);
+    printf("Result: %i\n", i2c_rx_buffer[0]);
 }
 
 void bq25730_init(unsigned int busNum) {
@@ -85,4 +89,18 @@ void bq25730_init(unsigned int busNum) {
 
 void bq25730_start_read_manufacturer_id() {
     bq25730_read_data(BQ25730_REG_MANUFACTURER_ID);
+}
+
+void bq25730_start_read_system_voltage() {
+    bq25730_read_data(BQ25730_REG_ADCVSYSVBAT);
+}
+
+void bq25730_start_write_enable_low_power_mode() {
+    uint8_t data[] = {0x4A, 0x03};
+    bq25730_write_data(BQ25730_REG_CHARGE_OPTION_0, data, 2);
+}
+
+void bq25730_start_write_ADC_option() {
+    uint8_t data[] = {0xFF, 0x2C};
+    bq25730_write_data(BQ25730_REG_ADCOPTION, data, 2);
 }

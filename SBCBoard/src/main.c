@@ -30,9 +30,19 @@ int main() {
     // Initialize bq25730
     bq25730_init(BOARD_I2C);
 
+    bq25730_start_write_enable_low_power_mode();
+    sleep_ms(500);
+
+    bq25730_start_write_ADC_option();
+    sleep_ms(500);
+
     while (true) {
+        printf("\nManufacturer ID: \n");
         bq25730_start_read_manufacturer_id();
-        printf("hello\n");
+        sleep_ms(500);
+        printf("\nSystem Voltage: \n");
+        bq25730_start_read_system_voltage();
+        sleep_ms(500);
         safety_tick();
         sleep_ms(500);
     }
