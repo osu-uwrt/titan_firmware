@@ -1,6 +1,7 @@
 #include "ledc_driver.h"
 
 #include "ledc_commands.h"
+#include "safety_interface.h"
 
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
@@ -15,7 +16,8 @@
 #include "titan/debug.h"
 
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
-#define DEPTH_MONITOR_PERIOD 1000
+#define DEPTH_MONITOR_PERIOD_MS 1000
+#define TEMPERATURE_MONITOR_PERIOD_MS 1000
 
 #define LED_UPDATE_INTERVAL_MS 50
 #define LED_TIMER_PERIOD_TICKS                                                                                         \
@@ -30,13 +32,18 @@
 #define SINGLETON_FLASH_PERIOD_MS 10
 #define LOOPS_PER_SINGLETON 5  // Number of main loops until the next singleton is allowed
 
-#define OPERATING_TEMPERATURE_MAX_C 50
+#define OVERTEMP_WARNING_C 50
+#define MAX_OPERATING_TEMPERATURE_C 55
+
+#define OVERTEMP_PEAK_CURRENT 0
+#define NORMAL_OPERATION_PEAK_CURRENT 45  // See LED controller datasheet
 
 #define WATER_MAX_BRIGHTNESS 1.0f
 #define BENCH_MAX_BRIGHTNESS 0.01f
 #define UNDERWATER_MIN_DEPTH -0.05f
 
-static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer;
+static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
+    temperature_monitor_timer;
 
 // LED state config
 volatile bool led_enabled;
@@ -70,6 +77,8 @@ float last_max_brightness;
 volatile bool is_underwater = false;
 volatile bool depth_stale = true;
 volatile bool got_new_depth = false;
+
+bool em_overtemp = false;
 
 static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
     uint red, green, blue;
@@ -156,6 +165,10 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 
     float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
 
+    // Turn off LEDs if temp exceeds max
+    if (em_overtemp)
+        max_brightness = 0.0f;
+
     last_red = red;
     last_green = green;
     last_blue = blue;
@@ -196,6 +209,30 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
     return true;
 }
 
+static bool monitor_temperature(__unused repeating_timer_t *rt) {
+    float al_temp = al_read_temp();
+
+    if (al_temp > OVERTEMP_WARNING_C) {
+        safety_raise_fault_with_arg(FAULT_LED_TEMP_WARN, al_temp);
+        buck_set_all_peak_current(OVERTEMP_PEAK_CURRENT);
+    }
+    else {
+        safety_lower_fault(FAULT_LED_TEMP_WARN);
+        buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
+    }
+
+    if (al_temp > MAX_OPERATING_TEMPERATURE_C) {
+        safety_raise_fault_with_arg(FAULT_LED_OVERTEMP, al_temp);
+        em_overtemp = true;
+    }
+    else {
+        safety_lower_fault(FAULT_LED_OVERTEMP);
+        em_overtemp = false;
+    }
+
+    return true;
+}
+
 void ledc_init() {
     init_spi_and_gpio();
     register_canmore_commands();
@@ -204,7 +241,6 @@ void ledc_init() {
     // LEDC defines set in ledc_commands.h
     for (uint controller = LEDC1; controller <= LEDC2; controller++) {
         for (uint buck = BUCK1; buck <= BUCK2; buck++) {
-            // Sets LEDs to off by default using PWM dimming
             buck_set_control_mode(controller, buck, BUCK_PWM_DIMMING);
             sleep_ms(1);
         }
@@ -213,6 +249,9 @@ void ledc_init() {
         controller_enable(controller);
     }
 
+    // Set all bucks into high current mode
+    buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
+
     led_enabled = true;
     led_timer = 0;
     flash_active = false;
@@ -220,8 +259,10 @@ void ledc_init() {
     add_repeating_timer_ms(CONTROLLER_WATCHDOG_PERIOD_MS, controller_satisfy_watchdog, NULL,
                            &controller_watchdog_timer);
     hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
-    add_repeating_timer_ms(DEPTH_MONITOR_PERIOD, monitor_depth, NULL, &depth_monitor_timer);
     add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
+    add_repeating_timer_ms(DEPTH_MONITOR_PERIOD_MS, monitor_depth, NULL, &depth_monitor_timer);
+    hard_assert(
+        add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL, &temperature_monitor_timer));
 }
 
 void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
@@ -261,6 +302,6 @@ void led_disable(void) {
 }
 
 void led_depth_set(float depth) {
-    is_underwater = depth < -0.1f;
+    is_underwater = depth < UNDERWATER_MIN_DEPTH;
     got_new_depth = true;
 }

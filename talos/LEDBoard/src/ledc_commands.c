@@ -196,6 +196,14 @@ static void buck_set_peak_current(uint controller, uint buck, uint current) {
     spi_write(controller, 0x02, correct_parity_bit(spi_val, false), &gs);
 }
 
+void buck_set_all_peak_current(uint current) {
+    for (uint controller = LEDC1; controller <= LEDC2; controller++) {
+        for (uint buck = BUCK1; buck <= BUCK2; buck++) {
+            buck_set_peak_current(controller, buck, current);
+        }
+    }
+}
+
 static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
     *w = MIN(*r, MIN(*g, *b));
 
@@ -214,7 +222,7 @@ void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {
     buck_set_brightness(led_w_path[0], led_w_path[1], w * (1023.0 / 255.0) * maxBrightness);
 }
 
-static float al_read_temp() {
+float al_read_temp() {
     // read led al board thermistor
 
     adc_select_input(0);
