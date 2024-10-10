@@ -15,7 +15,7 @@
 #include "titan/debug.h"
 
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
-#define DEPTH_MONITOR_PERIOD 100
+#define DEPTH_MONITOR_PERIOD 1000
 
 #define LED_UPDATE_INTERVAL_MS 50
 #define LED_TIMER_PERIOD_TICKS                                                                                         \
@@ -154,7 +154,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         red = green = blue = 0;
     }
 
-    float max_brightness = is_underwater ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
+    float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
 
     last_red = red;
     last_green = green;
@@ -171,7 +171,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 }
 
 static bool monitor_depth(__unused repeating_timer_t *rt) {
-    depth_stale = got_new_depth;
+    depth_stale = !got_new_depth;
     got_new_depth = false;
 
     return true;
@@ -261,6 +261,6 @@ void led_disable(void) {
 }
 
 void led_depth_set(float depth) {
-    is_underwater = depth < UNDERWATER_MIN_DEPTH;
+    is_underwater = depth < -0.1f;
     got_new_depth = true;
 }

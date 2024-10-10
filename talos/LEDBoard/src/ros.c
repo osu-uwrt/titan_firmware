@@ -232,7 +232,7 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                               PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
-    RCRETCHECK(rclc_subscription_init_default(
+    RCRETCHECK(rclc_subscription_init_best_effort(
         &depth_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth), DEPTH_SUBSCRIBER_NAME));
 
     // Executor Initialization
