@@ -3,6 +3,7 @@
 
 #include "pico/types.h"
 
+// Defines needed for internal and external operation
 #define LEDC1 0
 #define LEDC2 1
 

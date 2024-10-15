@@ -15,6 +15,10 @@
 #include "pico/time.h"
 #include "titan/debug.h"
 
+//
+// Driver timing management
+//
+
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
 #define DEPTH_MONITOR_PERIOD_MS 1000
 #define TEMPERATURE_MONITOR_PERIOD_MS 1000
@@ -32,15 +36,23 @@
 #define SINGLETON_FLASH_PERIOD_MS 10
 #define LOOPS_PER_SINGLETON 5  // Number of main loops until the next singleton is allowed
 
+//
+// Depth brightness adjustment
+//
+
+#define WATER_MAX_BRIGHTNESS 1.0f
+#define BENCH_MAX_BRIGHTNESS 0.01f
+#define UNDERWATER_MIN_DEPTH -0.05f
+
+//
+// Temperature safety
+//
+
 #define OVERTEMP_WARNING_C 45
 #define MAX_OPERATING_TEMPERATURE_C 50
 
 #define OVERTEMP_PEAK_CURRENT 0
 #define NORMAL_OPERATION_PEAK_CURRENT 45  // See LED controller datasheet
-
-#define WATER_MAX_BRIGHTNESS 1.0f
-#define BENCH_MAX_BRIGHTNESS 0.01f
-#define UNDERWATER_MIN_DEPTH -0.05f
 
 static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
     temperature_monitor_timer;
@@ -61,6 +73,7 @@ uint8_t red_flash_target;
 uint8_t green_flash_target;
 uint8_t blue_flash_target;
 
+// Short singleton flash (vision detections)
 volatile bool do_singleton;
 uint next_singleton = LOOPS_PER_SINGLETON;
 bool is_in_singleton = false;
@@ -68,6 +81,7 @@ uint8_t red_singleton_target;
 uint8_t green_singleton_target;
 uint8_t blue_singleton_target;
 
+// Track the last values set by the driver so they can be restored later
 uint8_t last_red;
 uint8_t last_green;
 uint8_t last_blue;
@@ -163,6 +177,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         red = green = blue = 0;
     }
 
+    // Use brightness dictated by depth management
     float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
 
     // Turn off LEDs if temp exceeds max
@@ -174,6 +189,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     last_blue = blue;
     last_max_brightness = max_brightness;
 
+    // Allow singleton flashes every LOOPS_PER_SINGLETON iterations
     if (next_singleton > 0)
         next_singleton--;
 
@@ -184,6 +200,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 }
 
 static bool monitor_depth(__unused repeating_timer_t *rt) {
+    // Set to low brightness if we lose depth
     depth_stale = !got_new_depth;
     got_new_depth = false;
 
@@ -191,24 +208,27 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
 }
 
 static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
-    if (next_singleton > 0 || !do_singleton)
+    if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
         return true;
 
-    if (is_in_singleton) {
+    if (is_in_singleton) {  // Set back to pre-flash color
         led_set_rgb(last_red, last_green, last_blue, last_max_brightness);
         is_in_singleton = false;
     }
-    else {
+    else {  // Set to flash color, to be reset the next loop
         led_set_rgb(red_singleton_target, green_singleton_target, blue_singleton_target, last_max_brightness);
         is_in_singleton = true;
     }
 
+    // Reset state and counter
     do_singleton = false;
     next_singleton = LOOPS_PER_SINGLETON;
 
     return true;
 }
 
+// Get aluminum board thermistor temps and raise/lower faults accordingly
+// Also adjusts peak current based on temp
 static bool monitor_temperature(__unused repeating_timer_t *rt) {
     float al_temp = al_read_temp();
 
@@ -233,6 +253,7 @@ static bool monitor_temperature(__unused repeating_timer_t *rt) {
     return true;
 }
 
+// Configure, set inital states, start repeating timers
 void ledc_init() {
     init_spi_and_gpio();
     register_canmore_commands();
@@ -265,6 +286,7 @@ void ledc_init() {
         add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL, &temperature_monitor_timer));
 }
 
+// Set local persistent driver mode
 void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
     led_timer = 0;
@@ -275,6 +297,7 @@ void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     restore_interrupts(prev_interrupts);
 }
 
+// Flash (on kill switch insertion), not persistent
 void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = false;
     red_flash_target = red;
@@ -285,6 +308,7 @@ void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = true;
 }
 
+// Short flash (on vision detection), not persistent
 void led_singleton(uint8_t red, uint8_t green, uint8_t blue) {
     do_singleton = false;
     red_singleton_target = red;
@@ -301,6 +325,7 @@ void led_disable(void) {
     led_enabled = false;
 }
 
+// Use underwater brightness if below threshold
 void led_depth_set(float depth) {
     is_underwater = depth < UNDERWATER_MIN_DEPTH;
     got_new_depth = true;
