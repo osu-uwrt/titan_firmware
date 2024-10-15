@@ -32,8 +32,8 @@
 #define SINGLETON_FLASH_PERIOD_MS 10
 #define LOOPS_PER_SINGLETON 5  // Number of main loops until the next singleton is allowed
 
-#define OVERTEMP_WARNING_C 50
-#define MAX_OPERATING_TEMPERATURE_C 55
+#define OVERTEMP_WARNING_C 45
+#define MAX_OPERATING_TEMPERATURE_C 50
 
 #define OVERTEMP_PEAK_CURRENT 0
 #define NORMAL_OPERATION_PEAK_CURRENT 45  // See LED controller datasheet
