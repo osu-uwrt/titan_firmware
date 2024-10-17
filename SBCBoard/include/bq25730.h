@@ -9,3 +9,5 @@ void bq25730_start_read_sys_voltage();
 void bq25730_start_write_enable_low_power_mode();
 
 void bq25730_start_write_ADC_option();
+
+void bq25730_start_read_input_voltage();

@@ -43,6 +43,9 @@ int main() {
         printf("\nSystem Voltage: \n");
         bq25730_start_read_system_voltage();
         sleep_ms(500);
+        printf("\nInput Voltage: \n");
+        bq25730_start_read_input_voltage();
+        sleep_ms(500);
         safety_tick();
         sleep_ms(500);
     }

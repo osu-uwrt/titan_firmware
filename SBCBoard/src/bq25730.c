@@ -104,3 +104,7 @@ void bq25730_start_write_ADC_option() {
     uint8_t data[] = {0xFF, 0x2C};
     bq25730_write_data(BQ25730_REG_ADCOPTION, data, 2);
 }
+
+void bq25730_start_read_input_voltage() {
+    bq25730_read_data(BQ25730_REG_INPUT_VOLTAGE);
+}
