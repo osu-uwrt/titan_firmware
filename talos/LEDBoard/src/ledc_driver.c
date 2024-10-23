@@ -93,6 +93,7 @@ volatile bool depth_stale = true;
 volatile bool got_new_depth = false;
 
 bool em_overtemp = false;
+bool high_temp = false;
 
 static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
     uint red, green, blue;
@@ -234,11 +235,15 @@ static bool monitor_temperature(__unused repeating_timer_t *rt) {
 
     if (al_temp > OVERTEMP_WARNING_C) {
         safety_raise_fault_with_arg(FAULT_LED_TEMP_WARN, al_temp);
-        buck_set_all_peak_current(OVERTEMP_PEAK_CURRENT);
+        if (!high_temp)
+            buck_set_all_peak_current(OVERTEMP_PEAK_CURRENT);
+        high_temp = true;
     }
     else {
         safety_lower_fault(FAULT_LED_TEMP_WARN);
-        buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
+        if (high_temp)
+            buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
+        high_temp = false;
     }
 
     if (al_temp > MAX_OPERATING_TEMPERATURE_C) {
