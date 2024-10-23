@@ -214,108 +214,10 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
-static int set_brightness_cb(size_t argc, const char *const *argv, FILE *fout) {
-    if (argc < 3) {
-        fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and brightness level\n");
-        return 1;
-    }
-
-    const char *target_str = argv[1];
-    uint target;
-    if (target_str[0] == '1' && target_str[1] == '\0') {
-        target = LEDC1;
-    }
-    else if (target_str[0] == '2' && target_str[1] == '\0') {
-        target = LEDC2;
-    }
-    else {
-        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
-        return 1;
-    }
-
-    const char *buck_str = argv[2];
-    uint buck;
-    if (buck_str[0] == '1' && buck_str[1] == '\0') {
-        buck = 1;
-    }
-    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
-        buck = 2;
-    }
-    else {
-        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
-        return 1;
-    }
-
-    uint brightness = strtoumax(argv[3], NULL, 10);
-
-    if (brightness > 1023) {
-        fprintf(fout, "Invalid brightness level, must be [0, 1023]\n");
-        return 1;
-    }
-
-    uint8_t gs;
-    fprintf(fout, "Brightness value: %d\n", brightness);
-    fprintf(fout, "Reading: %lx\n", spi_read(target, 0x01, &gs));
-
-    buck_set_brightness(target, buck, brightness);
-    fprintf(fout, "Wrote: %lx\n", spi_read(target, 0x01, &gs));
-
-    return 0;
-}
-
 static int al_read_temp_cb(__unused size_t argc, __unused const char *const *argv, FILE *fout) {
     float temperature = al_read_temp();
 
     fprintf(fout, "Temperature: %f \n", temperature);
-
-    return 0;
-}
-
-static int set_peak_current_cb(size_t argc, const char *const *argv, FILE *fout) {
-    if (argc < 3) {
-        fprintf(fout, "Not Enought Arguments - Please enter target, buck number, and current\n");
-        return 1;
-    }
-
-    const char *target_str = argv[1];
-    uint target;
-    if (target_str[0] == '1' && target_str[1] == '\0') {
-        target = LEDC1;
-    }
-    else if (target_str[0] == '2' && target_str[1] == '\0') {
-        target = LEDC2;
-    }
-    else {
-        fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
-        return 1;
-    }
-
-    const char *buck_str = argv[2];
-    uint buck;
-    if (buck_str[0] == '1' && buck_str[1] == '\0') {
-        buck = 1;
-    }
-    else if (buck_str[0] == '2' && buck_str[1] == '\0') {
-        buck = 2;
-    }
-    else {
-        fprintf(fout, "Invalid Buck: Must be either '1' or '2', not '%s'\n", target_str);
-        return 1;
-    }
-
-    uint current = strtoumax(argv[3], NULL, 10);
-
-    if (current > 63) {
-        fprintf(fout, "Invalid max current, must be [0, 63]\n");
-        return 1;
-    }
-
-    uint8_t gs;
-    fprintf(fout, "Peak current value: %d\n", current);
-    fprintf(fout, "Reading: %lx\n", spi_read(target, 0x01, &gs));
-
-    buck_set_peak_current(target, buck, current);
-    fprintf(fout, "Wrote: %lx\n", spi_read(target, 0x01, &gs));
 
     return 0;
 }
@@ -331,11 +233,5 @@ void register_canmore_commands() {
                               "  rdclr\tReads/clears the specified register\n"
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
-    debug_remote_cmd_register(
-        "setbrightness", "[target] [buck] [brightness]",
-        "Select the PWM brightness output of each buck converter. Brightness must be between [0, 1023].",
-        set_brightness_cb);
     debug_remote_cmd_register("temp", "", "Read Temperature on LEDS.\n", al_read_temp_cb);
-    debug_remote_cmd_register("setpeakcurrent", "[target] [buck] [current]",
-                              "Set the peak current for a buck converter.", set_peak_current_cb);
 }
