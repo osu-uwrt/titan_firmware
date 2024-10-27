@@ -1,5 +1,6 @@
 #include "boards/talos/sbc_board.h"
 #include "bq25730.h"
+#include "tps25750.h"
 #include "safety_interface.h"
 
 #include "hardware/watchdog.h"
@@ -29,6 +30,7 @@ int main() {
 
     // Initialize bq25730
     bq25730_init(BOARD_I2C);
+    tps25750_init(BOARD_I2C);
 
     bq25730_start_write_enable_low_power_mode();
     sleep_ms(500);
@@ -43,8 +45,8 @@ int main() {
         printf("\nSystem Voltage: \n");
         bq25730_start_read_system_voltage();
         sleep_ms(500);
-        printf("\nInput Voltage: \n");
-        bq25730_start_read_input_voltage();
+        //printf("\nInput Voltage: \n");
+        //bq25730_start_read_input_voltage();
         sleep_ms(500);
         safety_tick();
         sleep_ms(500);

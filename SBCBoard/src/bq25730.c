@@ -101,7 +101,7 @@ void bq25730_start_write_enable_low_power_mode() {
 }
 
 void bq25730_start_write_ADC_option() {
-    uint8_t data[] = {0xFF, 0x2C};
+    uint8_t data[] = {0xFF, 0xE0};
     bq25730_write_data(BQ25730_REG_ADCOPTION, data, 2);
 }
 
