@@ -19,10 +19,28 @@ static uint8_t i2c_tx_buffer[TPS25750_I2C_TOTAL_REGISTERS_SIZE];
 static bool i2c_request_in_progress = false;
 
 typedef enum tps25750_register {
-    BQ25730_REG_CHARGE_OPTION_0 = 0x00 // TODO: change
+    TPS25750_REG_MODE = 0x03,
+    TPS25750_REG_PORT_CONTROL = 0x29
 
     // .. //
-} tps25750_register;
+} tps25750_register_t;
+
+static void tps25750_read_data(tps25750_register_t reg) {
+    i2c_req.bytes_to_send = 1;
+    i2c_tx_buffer[0] = (uint8_t) reg;
+    i2c_req.bytes_to_receive = 1;
+    i2c_req.timeout = make_timeout_time_ms(1000);
+    async_i2c_enqueue(&i2c_req, &i2c_request_in_progress);
+}
+
+static void tps25750_write_data(tps25750_register_t reg_start, uint8_t *data, size_t data_len) {
+    i2c_req.bytes_to_receive = 0;
+    i2c_req.bytes_to_send = data_len + 1;
+    i2c_tx_buffer[0] = reg_start;
+    memcpy(i2c_tx_buffer + 1, data, data_len);
+    i2c_req.timeout = make_timeout_time_ms(1000);
+    async_i2c_enqueue(&i2c_req, &i2c_request_in_progress);
+}
 
 static void tps25750_on_i2c_failure(const struct async_i2c_request *req, uint32_t error) {
     printf("Error: %lu\n", error);
@@ -43,4 +61,13 @@ void tps25750_init(unsigned int busNum) {
     i2c_req.completed_callback = tps25750_on_i2c_req_complete;
     i2c_req.failed_callback = tps25750_on_i2c_failure;
     i2c_req.next_req_on_success = NULL;
+}
+
+void tps25750_start_read_mode() {
+    tps25750_read_data(TPS25750_REG_MODE);
+}
+
+void tps25750_start_write_port_control() {
+    uint8_t data[] = {/*0xsomething, 0xsomething, 0xsomething, 0xsomething*/};
+    tps25750_write_data(TPS25750_REG_PORT_CONTROL, data, 4);
 }

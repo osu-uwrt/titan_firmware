@@ -30,7 +30,12 @@ int main() {
 
     // Initialize bq25730
     bq25730_init(BOARD_I2C);
+
+    // Initialize tps25750
     tps25750_init(BOARD_I2C);
+
+    // Initialize screen
+    // screen_init();
 
     bq25730_start_write_enable_low_power_mode();
     sleep_ms(500);
@@ -39,24 +44,18 @@ int main() {
     sleep_ms(500);
 
     while (true) {
-        printf("\nManufacturer ID: \n");
+        printf("\nBQ Manufacturer ID: \n");
         bq25730_start_read_manufacturer_id();
         sleep_ms(500);
-        printf("\nSystem Voltage: \n");
+        printf("\nBQ System Voltage: \n");
         bq25730_start_read_system_voltage();
         sleep_ms(500);
-        //printf("\nInput Voltage: \n");
-        //bq25730_start_read_input_voltage();
+        printf("\nTPS MODE: \n");
+        tps25750_start_read_mode();
         sleep_ms(500);
         safety_tick();
         sleep_ms(500);
     }
-
-    // Initialize USB-PD chip
-    // usbpd_init();
-
-    // Initialize screen
-    // screen_init();
 
     uint can_id = CAN_BUS_CLIENT_ID;
     bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
