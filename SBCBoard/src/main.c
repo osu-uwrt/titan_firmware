@@ -30,24 +30,15 @@ int main() {
     // Initialize bq25730
     bq25730_init(BOARD_I2C);
 
-    bq25730_start_write_enable_low_power_mode();
-    sleep_ms(500);
+    // Configure BQ25730
+    bq25730_wait_until_configured();
 
-    bq25730_start_write_ADC_option();
-    sleep_ms(500);
-
+    // Main Loop
     while (true) {
-        printf("\nManufacturer ID: \n");
-        bq25730_start_read_manufacturer_id();
-        sleep_ms(500);
-        printf("\nSystem Voltage: \n");
-        bq25730_start_read_system_voltage();
-        sleep_ms(500);
-        printf("\nInput Voltage: \n");
-        bq25730_start_read_input_voltage();
-        sleep_ms(500);
-        safety_tick();
-        sleep_ms(500);
+        // safety_tick();
+        // printf("\nSystem Voltage: \n");
+        // bq25730_start_read_system_voltage();
+        // sleep_ms(500);
     }
 
     // Initialize USB-PD chip
