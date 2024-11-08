@@ -20,7 +20,8 @@ static bool i2c_request_in_progress = false;
 
 typedef enum tps25750_register {
     TPS25750_REG_MODE = 0x03,
-    TPS25750_REG_PORT_CONTROL = 0x29
+    TPS25750_REG_PORT_CONTROL = 0x29,
+    TPS25750_REG_TX_SOURCE_CAPS = 0x32
 
     // .. //
 } tps25750_register_t;
@@ -68,6 +69,11 @@ void tps25750_start_read_mode() {
 }
 
 void tps25750_start_write_port_control() {
-    uint8_t data[] = {/*0xsomething, 0xsomething, 0xsomething, 0xsomething*/};
+    uint8_t data[] = {0x02, 0x00, 0x00, 0xE4};
     tps25750_write_data(TPS25750_REG_PORT_CONTROL, data, 4);
+}
+
+void tps25750_start_write_tx_source_caps() {
+    uint8_t data[] = {0x02, 0x00, 0x00, 0xE4};
+    tps25750_write_data(TPS25750_REG_PORT_CONTROL, data, 31);
 }
