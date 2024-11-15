@@ -32,13 +32,13 @@ int main() {
 
     // Configure BQ25730
     bq25730_wait_until_configured();
-
     // Main Loop
     while (true) {
-        // safety_tick();
+        safety_tick();
         // printf("\nSystem Voltage: \n");
         // bq25730_start_read_system_voltage();
-        // sleep_ms(500);
+        sleep_ms(500);
+        printf("BQ25730 State: %s\n", bq25730_state_to_string(bq25730_get_state()));
     }
 
     // Initialize USB-PD chip

@@ -46,6 +46,7 @@ target_link_libraries(sbc_board PUBLIC
     driver_led          # Status LED support
     titan_logger        # A nice little logging library
     titan_safety        # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    titan_queue
 
     pico_stdlib         # Pico SDK Standard Library
     driver_async_i2c
