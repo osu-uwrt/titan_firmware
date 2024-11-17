@@ -30,7 +30,6 @@
 #define THERMISTOR_R_25 22000.0
 #define THERMISTOR_B_25_85 3730.0
 #define THERMISTOR_NOMINAL_TEMP 298.15
-#define THERMISTOR_PIN
 
 const uint led_r_path[2] = { LEDC1, BUCK1 };
 const uint led_g_path[2] = { LEDC1, BUCK2 };
@@ -185,7 +184,7 @@ void buck_set_control_mode(uint controller, uint buck, uint mode) {
     spi_write(controller, 0x03, correct_parity_bit(spi_val, true), &gs);
 }
 
-static void buck_set_peak_current(uint controller, uint buck, uint current) {
+void buck_set_peak_current(uint controller, uint buck, uint current) {
     uint8_t gs;
 
     uint32_t spi_val = spi_read(controller, 0x02, &gs);
@@ -194,14 +193,6 @@ static void buck_set_peak_current(uint controller, uint buck, uint current) {
     spi_val |= current << (buck == 1 ? 18 : 12);
 
     spi_write(controller, 0x02, correct_parity_bit(spi_val, false), &gs);
-}
-
-void buck_set_all_peak_current(uint current) {
-    for (uint controller = LEDC1; controller <= LEDC2; controller++) {
-        for (uint buck = BUCK1; buck <= BUCK2; buck++) {
-            buck_set_peak_current(controller, buck, current);
-        }
-    }
 }
 
 static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {

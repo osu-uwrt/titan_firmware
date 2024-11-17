@@ -20,7 +20,7 @@ void controller_clear_watchdog_error(uint controller);
 void controller_enable(uint controller);
 
 void buck_set_control_mode(uint controller, uint buck, uint mode);
-void buck_set_all_peak_current(uint current);
+void buck_set_peak_current(uint controller, uint buck, uint current);
 
 void init_spi_and_gpio();
 void register_canmore_commands();

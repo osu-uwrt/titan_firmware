@@ -22,6 +22,7 @@
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
 #define DEPTH_MONITOR_PERIOD_MS 1000
 #define TEMPERATURE_MONITOR_PERIOD_MS 1000
+#define PEAK_CURRENT_STAGGER_MS 10
 
 #define LED_UPDATE_INTERVAL_MS 50
 #define LED_TIMER_PERIOD_TICKS                                                                                         \
@@ -48,10 +49,9 @@
 // Temperature safety
 //
 
-#define OVERTEMP_WARNING_C 45
+#define BASE_OPERATING_TEMPERATURE_C 30
 #define MAX_OPERATING_TEMPERATURE_C 50
 
-#define OVERTEMP_PEAK_CURRENT 0
 #define NORMAL_OPERATION_PEAK_CURRENT 45  // See LED controller datasheet
 
 static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
@@ -94,6 +94,7 @@ volatile bool got_new_depth = false;
 
 bool em_overtemp = false;
 bool high_temp = false;
+float curr_al_temp = 0.0f;
 
 static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
     uint red, green, blue;
@@ -181,6 +182,14 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     // Use brightness dictated by depth management
     float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
 
+    // Scale brightness based on temperature
+    float temp_adjust =
+        (-1.0f / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C)) * curr_al_temp +
+        (MAX_OPERATING_TEMPERATURE_C * 1.0f) / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C);
+    // Clamp to [0, 1]
+    temp_adjust = temp_adjust < 0.0f ? 0.0f : temp_adjust;
+    temp_adjust = temp_adjust > 1.0f ? 1.0f : temp_adjust;
+
     // Turn off LEDs if temp exceeds max
     if (em_overtemp)
         max_brightness = 0.0f;
@@ -195,7 +204,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         next_singleton--;
 
     // Transmit data
-    led_set_rgb(red, green, blue, max_brightness);
+    led_set_rgb(red, green, blue, max_brightness * temp_adjust);
 
     return true;
 }
@@ -231,23 +240,10 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
 // Get aluminum board thermistor temps and raise/lower faults accordingly
 // Also adjusts peak current based on temp
 static bool monitor_temperature(__unused repeating_timer_t *rt) {
-    float al_temp = al_read_temp();
+    curr_al_temp = al_read_temp();
 
-    if (al_temp > OVERTEMP_WARNING_C) {
-        safety_raise_fault_with_arg(FAULT_LED_TEMP_WARN, al_temp);
-        if (!high_temp)
-            buck_set_all_peak_current(OVERTEMP_PEAK_CURRENT);
-        high_temp = true;
-    }
-    else {
-        safety_lower_fault(FAULT_LED_TEMP_WARN);
-        if (high_temp)
-            buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
-        high_temp = false;
-    }
-
-    if (al_temp > MAX_OPERATING_TEMPERATURE_C) {
-        safety_raise_fault_with_arg(FAULT_LED_OVERTEMP, al_temp);
+    if (curr_al_temp > MAX_OPERATING_TEMPERATURE_C) {
+        safety_raise_fault_with_arg(FAULT_LED_OVERTEMP, curr_al_temp);
         em_overtemp = true;
     }
     else {
@@ -268,15 +264,13 @@ void ledc_init() {
     for (uint controller = LEDC1; controller <= LEDC2; controller++) {
         for (uint buck = BUCK1; buck <= BUCK2; buck++) {
             buck_set_control_mode(controller, buck, BUCK_PWM_DIMMING);
+            buck_set_peak_current(controller, buck, NORMAL_OPERATION_PEAK_CURRENT);
             sleep_ms(1);
         }
 
         controller_clear_watchdog_error(controller);
         controller_enable(controller);
     }
-
-    // Set all bucks into high current mode
-    buck_set_all_peak_current(NORMAL_OPERATION_PEAK_CURRENT);
 
     led_enabled = true;
     led_timer = 0;
