@@ -1,51 +1,94 @@
-#include "ledc.h"
+// NOTE THIS FILE IS INCLUDED IN ledc_commands.c
+// THIS IS SEPARATED INTO A DIFFERENT FILE TO KEEP CLUTTER OUT
 
-#include "hardware/gpio.h"
-#include "hardware/spi.h"
-#include "hardware/timer.h"
-#include "pico/binary_info.h"
-#include "titan/debug.h"
+static int get_controller_status(__unused size_t argc, __unused const char *const *argv, FILE *fout) {
+    uint8_t gs;
 
-#include <stdlib.h>
-#include <string.h>
-
-#define LEDC_SPI_INST __CONCAT(spi, LEDC_SPI)
-
-#define LEDC1 0
-#define LEDC2 1
-#define OPCODE_WRITE 0b00
-#define OPCODE_READ 0b01
-#define OPCODE_READ_CLR 0b10
-#define OPCODE_READ_ROM 0b11
-
-static uint32_t spi_xfer(uint target, uint32_t data, uint8_t *gs_out) {
-    uint8_t tx_packet[] = { (data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF };
-    uint8_t rx_packet[sizeof(tx_packet)];
-    uint cs_pin = target == LEDC1 ? LEDC_NCS1_PIN : LEDC_NCS2_PIN;
-
-    gpio_put(cs_pin, 0);
-    busy_wait_us(1);
-    if (spi_write_read_blocking(LEDC_SPI_INST, tx_packet, rx_packet, sizeof(tx_packet)) != 4) {
-        // TODO: Something a little less agressive than this
-        panic("LEDC SPI Xfer Failure!");
+    uint val1_1 = spi_read(LEDC1, 0x01, &gs);
+    uint val2_1 = spi_read(LEDC1, 0x02, &gs);
+    uint val6_1 = spi_read(LEDC1, 0x06, &gs);
+    for (int count = 0; count < 100000; count++) {
     }
-    busy_wait_us(1);
-    gpio_put(cs_pin, 1);
+    uint val1_2 = spi_read(LEDC2, 0x01, &gs);
+    uint val2_2 = spi_read(LEDC2, 0x02, &gs);
+    uint val6_2 = spi_read(LEDC2, 0x06, &gs);
 
-    if (gs_out) {
-        *gs_out = rx_packet[0];
+    fprintf(fout, "\nController 1 Status \n");
+
+    if (val1_1 & (1 << 1)) {
+        fprintf(fout, "Unlocked - UNLOCK: 1 \n");
+    }
+    else {
+        fprintf(fout, "Locked - UNLOCK: 0 \n");
     }
 
-    return ((uint32_t) (rx_packet[1]) << 16) | ((uint32_t) (rx_packet[2]) << 8) | rx_packet[3];
+    if (val2_1 & (1 << 3)) {
+        fprintf(fout, "In Standby - GOSTBY: 1 \n");
+    }
+    else {
+        fprintf(fout, "Woke Up, Not in Standby  -  GOSTBY: 0 \n");
+    }
+
+    if (val2_1 & (1 << 2)) {
+        fprintf(fout, "Enabled - EN: 1 \n");
+    }
+    else {
+        fprintf(fout, "Not Enabled / Limp Home -  EN: 0 \n");
+    }
+
+    if ((val6_1 & (1 << 16)) && (val6_1 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .75+ \n");
+    }
+    else if ((val6_1 & (1 << 16)) && !(val6_1 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .50+ \n");
+    }
+    else if (!(val6_1 & (1 << 16)) && (val6_1 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .25+ \n");
+    }
+    else {
+        fprintf(fout, "Watchdog Timer .0+ \n");
+    }
+
+    fprintf(fout, "\nController 2 Status \n");
+
+    if (val1_2 & (1 << 1)) {
+        fprintf(fout, "Unlocked - UNLOCK: 1 \n");
+    }
+    else {
+        fprintf(fout, "Locked - UNLOCK: 0 \n");
+    }
+
+    if (val2_2 & (1 << 3)) {
+        fprintf(fout, "In Standby - GOSTBY: 1 \n");
+    }
+    else {
+        fprintf(fout, "Woke Up, Not in Standby  -  GOSTBY: 0 \n");
+    }
+
+    if (val2_2 & (1 << 2)) {
+        fprintf(fout, "Enabled - EN: 1 \n");
+    }
+    else {
+        fprintf(fout, "Not Enabled / Limp Home -  EN: 0 \n");
+    }
+
+    if ((val6_2 & (1 << 16)) && (val6_2 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .75+ \n");
+    }
+    else if ((val6_2 & (1 << 16)) && !(val6_2 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .50+ \n");
+    }
+    else if (!(val6_2 & (1 << 16)) && (val6_2 & (1 << 15))) {
+        fprintf(fout, "Watchdog Timer .25+ \n");
+    }
+    else {
+        fprintf(fout, "Watchdog Timer .0+ \n");
+    }
+
+    fprintf(fout, "Sysclk Freq: %ld Hz\n", clock_get_hz(clk_sys));
+
+    return 0;
 }
-
-// Wrappers around SPI logic
-#define spi_xfer_cmd(target, opcode, addr, data, gs_out)                                                               \
-    spi_xfer((target), ((opcode) << 30) | (((addr) & 0x3F) << 24) | ((data) & 0xFFFFFF), (gs_out))
-#define spi_read(target, addr, gs_out) spi_xfer_cmd(target, OPCODE_READ, addr, 0, gs_out)
-#define spi_read_clr(target, addr, gs_out) spi_xfer_cmd(target, OPCODE_READ_CLR, addr, 0, gs_out)
-#define spi_read_rom(target, addr, gs_out) spi_xfer_cmd(target, OPCODE_READ_ROM, addr, 0, gs_out)
-#define spi_write(target, addr, data, gs_out) spi_xfer_cmd(target, OPCODE_WRITE, addr, data, gs_out)
 
 static void print_global_status(FILE *fout, uint8_t gs) {
     fprintf(fout, "==Global Status Set Bits==\n");
@@ -118,10 +161,10 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     const char *target_str = argv[2];
     uint target;
     if (target_str[0] == '1' && target_str[1] == '\0') {
-        target = 1;
+        target = LEDC1;
     }
     else if (target_str[0] == '2' && target_str[1] == '\0') {
-        target = 2;
+        target = LEDC2;
     }
     else {
         fprintf(fout, "Invalid Target: Must be either '1' or '2', not '%s'\n", target_str);
@@ -171,31 +214,16 @@ static int ledc_cmd_cb(size_t argc, const char *const *argv, FILE *fout) {
     return 0;
 }
 
-void ledc_init(void) {
-    // SPI Init
-    bi_decl_if_func_used(bi_3pins_with_func(LEDC_MISO_PIN, LEDC_MOSI_PIN, LEDC_SCK_PIN, LEDC_SPI));
-    spi_init(LEDC_SPI_INST, 4000000);  // Run SPI at 4 MHz
-    spi_set_format(LEDC_SPI_INST,      // SPI instance
-                   8,                  // Number of bits per transfer
-                   0,                  // Polarity (CPOL)
-                   0,                  // Phase (CPHA)
-                   SPI_MSB_FIRST);     // MSB First
-    gpio_set_function(LEDC_MISO_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(LEDC_SCK_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(LEDC_MOSI_PIN, GPIO_FUNC_SPI);
+static int al_read_temp_cb(__unused size_t argc, __unused const char *const *argv, FILE *fout) {
+    float temperature = al_read_temp();
 
-    // Configure the CS pins
-    bi_decl_if_func_used(bi_1pin_with_name(LEDC_NCS1_PIN, "LEDC 1 nCS Pin"));
-    bi_decl_if_func_used(bi_1pin_with_name(LEDC_NCS2_PIN, "LEDC 2 nCS Pin"));
-    gpio_init(LEDC_NCS1_PIN);
-    gpio_put(LEDC_NCS1_PIN, 1);
-    gpio_set_dir(LEDC_NCS1_PIN, GPIO_OUT);
-    gpio_init(LEDC_NCS2_PIN);
-    gpio_put(LEDC_NCS2_PIN, 1);
-    gpio_set_dir(LEDC_NCS2_PIN, GPIO_OUT);
+    fprintf(fout, "Temperature: %f \n", temperature);
 
-    // TODO: Sam what frequency do you want for PWM_CLK?
+    return 0;
+}
 
+void register_canmore_commands() {
+    debug_remote_cmd_register("leds", "", "Read and decode status of led controllers.\n", get_controller_status);
     debug_remote_cmd_register("ledc", "[cmd] [target] [addr] [data (if write)]",
                               "Issues the command to the target LED controller\n"
                               "Target must be either '1' or '2'\n"
@@ -205,4 +233,5 @@ void ledc_init(void) {
                               "  rdclr\tReads/clears the specified register\n"
                               "  rom\tReads the specified ROM address",
                               ledc_cmd_cb);
+    debug_remote_cmd_register("temp", "", "Read Temperature on LEDS.\n", al_read_temp_cb);
 }

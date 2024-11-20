@@ -1,4 +1,5 @@
-#include "ledc.h"
+// #include "ledc.h"
+#include "ledc_driver.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -161,6 +162,7 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+    // TODO: Put this somewhere else
     ledc_init();
 
 // Initialize ROS Transports

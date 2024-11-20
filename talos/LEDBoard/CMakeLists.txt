@@ -50,6 +50,7 @@ target_link_libraries(led_board PUBLIC
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
+    hardware_adc    # adc lib
     hardware_spi
 )
 
