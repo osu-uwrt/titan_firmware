@@ -3,7 +3,6 @@
 #include "actuators.h"
 #include "ros_internal.h"
 
-#include "driver/status_strip.h"
 #include "pico/stdlib.h"
 #include "titan/version.h"
 
@@ -15,7 +14,6 @@
 #include <riptide_msgs2/msg/actuator_status.h>
 #include <riptide_msgs2/msg/electrical_command.h>
 #include <riptide_msgs2/msg/firmware_status.h>
-#include <riptide_msgs2/msg/led_command.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/int8.h>
 
@@ -38,14 +36,6 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 
-// Electrical System
-rcl_subscription_t led_subscriber;
-riptide_msgs2__msg__LedCommand led_command_msg;
-rcl_subscription_t physkill_notify_subscriber;
-std_msgs__msg__Bool physkill_notify_msg;
-rcl_subscription_t elec_command_subscriber;
-riptide_msgs2__msg__ElectricalCommand elec_command_msg;
-
 // ========================================
 // Executor Callbacks
 // ========================================
@@ -53,65 +43,6 @@ riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 static void killswitch_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
-}
-
-static void led_subscription_callback(const void *msgin) {
-    const riptide_msgs2__msg__LedCommand *msg = (const riptide_msgs2__msg__LedCommand *) msgin;
-
-    // Ignore commands not for us
-    if ((msg->target & riptide_msgs2__msg__LedCommand__TARGET_ACT) == 0) {
-        return;
-    }
-
-    enum status_strip_mode mode;
-
-    // Convert message mode to local mode
-    switch (msg->mode) {
-    case riptide_msgs2__msg__LedCommand__MODE_SOLID:
-        mode = STATUS_STRIP_MODE_SOLID;
-        break;
-    case riptide_msgs2__msg__LedCommand__MODE_SLOW_FLASH:
-        mode = STATUS_STRIP_MODE_SLOW_FLASH;
-        break;
-    case riptide_msgs2__msg__LedCommand__MODE_FAST_FLASH:
-        mode = STATUS_STRIP_MODE_FAST_FLASH;
-        break;
-    case riptide_msgs2__msg__LedCommand__MODE_BREATH:
-        mode = STATUS_STRIP_MODE_BREATH;
-        break;
-    default:
-        status_strip_clear();
-        return;
-    }
-
-    status_strip_set(mode, msg->red, msg->green, msg->blue);
-}
-
-static void physkill_notify_subscription_callback(const void *msgin) {
-    // This topic is published whenever the physical killswitch topic is published
-    // This will flash the LED strip for feedback that the kill switch is inserted
-    // This is required as the thrusters won't chime if software kill is active, so this is the only source of
-    // feedback for whoever inserts the kill switch
-
-    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
-    if (msg->data) {  // Note true means that the physical kill switch is asserted (switch removed)
-        // Flash red on kill switch removal
-        status_strip_status_flash(255, 0, 0);
-    }
-    else {
-        // Flash blue on kill switch insertion
-        status_strip_status_flash(0, 0, 255);
-    }
-}
-
-static void elec_command_subscription_callback(const void *msgin) {
-    const riptide_msgs2__msg__ElectricalCommand *msg = (const riptide_msgs2__msg__ElectricalCommand *) msgin;
-    if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_LEDS) {
-        status_strip_enable();
-    }
-    else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_LEDS) {
-        status_strip_disable();
-    }
 }
 
 // ========================================
@@ -199,19 +130,8 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(
-        &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));
-
-    RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
-                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-                                              PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
-
-    RCRETCHECK(rclc_subscription_init_default(&elec_command_subscriber, &node,
-                                              ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
-                                              ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
-
     // Executor Initialization
-    const int executor_num_local_handles = 4;
+    const int executor_num_local_handles = 1;
 #if ACTUATOR_V1_SUPPORT
     const int executor_num_handles =
         ros_actuators_num_executor_handles + actuator_v1_parameters_num_executor_handles + executor_num_local_handles;
@@ -225,12 +145,6 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback,
-                                              ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg,
-                                              &physkill_notify_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
-                                              &elec_command_subscription_callback, ON_NEW_DATA));
 
     // Initialize other files
     RCRETCHECK(ros_actuators_init(&executor, &node));
@@ -266,9 +180,6 @@ void ros_fini(void) {
 
     ros_actuators_fini(&node);
 
-    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&physkill_notify_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
