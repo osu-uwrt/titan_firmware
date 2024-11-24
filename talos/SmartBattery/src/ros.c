@@ -97,12 +97,14 @@ static void leak_subscription_callback(const void *msgin) {
 
     if (msg->data && !has_rviz) {
         // Detected leak and Rviz isn't present to respond to it... shutdown immediately
-        LOG_INFO("ROS Command requested kill robot power... Issuing latched Emergency FET Shutdown");
+        LOG_INFO("Leak detected but no operator found to respond... Issuing latched Emergency FET Shutdown");
         core1_kill_robot_power();
     }
-
-    // Force rechecking of rviz connection
-    has_rviz = false;
+    else if (!msg->data) {
+        // Force rechecking of rviz connection
+        // Don't do this if there was a leak since the popup in rviz blocks sw kill pub
+        has_rviz = false;
+    }
 }
 
 // ========================================
