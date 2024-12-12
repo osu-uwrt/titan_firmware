@@ -17,7 +17,7 @@
 #define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_CAMERA_CAGE_BB
 
 #define FAN_SW_PIN 0
-#define TACH4_PIN 1
+#define LEAK_SENSE_PIN 1
 #define TACH3_PIN 2
 #define TACH2_PIN 3
 #define TACH1_PIN 4

@@ -16,6 +16,7 @@
 #include <riptide_msgs2/msg/battery_status.h>
 #include <riptide_msgs2/msg/electrical_command.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
@@ -35,8 +36,11 @@
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 #define TEMP_STATUS_PUBLISHER_NAME "status/temp/smartbattery"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "status/humidity/smartbattery"
+#define SWKILL_SUBSCRIBER_NAME "command/software_kill"
+#define LEAK_SUBSCRIBER_NAME "state/leak"
 
 bool ros_connected = false;
+bool has_rviz = false;
 
 // Core Variables
 rcl_node_t node;
@@ -48,9 +52,11 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher, battery_status_publisher, temp_status_publisher, humidity_status_publisher;
-rcl_subscription_t killswtich_subscriber, electrical_command_subscriber;
+rcl_subscription_t killswtich_subscriber, electrical_command_subscriber, swkill_subscriber, leak_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 riptide_msgs2__msg__ElectricalCommand electrical_command_msg;
+riptide_msgs2__msg__KillSwitchReport swkill_msg;
+std_msgs__msg__Bool leak_msg;
 
 // ========================================
 // Executor Callbacks
@@ -74,6 +80,30 @@ static void electrical_command_callback(const void *msgin) {
     if (msg->command == riptide_msgs2__msg__ElectricalCommand__KILL_ROBOT_POWER) {
         LOG_INFO("ROS Command requested kill robot power... Issuing latched Emergency FET Shutdown");
         core1_kill_robot_power();
+    }
+}
+
+static void swkill_subscription_callback(const void *msgin) {
+    const riptide_msgs2__msg__KillSwitchReport *msg = (const riptide_msgs2__msg__KillSwitchReport *) msgin;
+
+    if (msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_RQT_CONTROLLER) {
+        // Rviz is currently running
+        has_rviz = true;
+    }
+}
+
+static void leak_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+
+    if (msg->data && !has_rviz) {
+        // Detected leak and Rviz isn't present to respond to it... shutdown immediately
+        LOG_INFO("Leak detected but no operator found to respond... Issuing latched Emergency FET Shutdown");
+        core1_kill_robot_power();
+    }
+    else if (!msg->data) {
+        // Force rechecking of rviz connection
+        // Don't do this if there was a leak since the popup in rviz blocks sw kill pub
+        has_rviz = false;
     }
 }
 
@@ -229,13 +259,24 @@ rcl_ret_t ros_init(uint8_t board_id) {
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
                                               ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(&swkill_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+                                              SWKILL_SUBSCRIBER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_default(&leak_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              LEAK_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &electrical_command_subscriber, &electrical_command_msg,
                                               &electrical_command_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &swkill_subscriber, &swkill_msg, &swkill_subscription_callback,
+                                              ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &leak_subscriber, &leak_msg, &leak_subscription_callback,
+                                              ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out

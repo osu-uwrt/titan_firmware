@@ -22,6 +22,7 @@
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define LEAK_PUBLISH_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -29,6 +30,7 @@
 absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_water_temp_publish = { 0 };
+absolute_time_t next_leak_publish = { 0 };
 
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
@@ -79,6 +81,7 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
+    next_leak_publish = make_timeout_time_ms(LEAK_PUBLISH_INTERVAL_MS);
 }
 
 /**
@@ -109,6 +112,10 @@ static void tick_ros_tasks() {
     if (sht41_temp_rh_set_on_read) {
         sht41_temp_rh_set_on_read = false;
         RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
+
+    if (timer_ready(&next_leak_publish, LEAK_PUBLISH_INTERVAL_MS, true)) {
+        RCSOFTRETVCHECK(ros_update_leak_publisher());
     }
 }
 
@@ -178,6 +185,11 @@ int main() {
     gpio_init(ORIN_SW_PIN);
     gpio_put(ORIN_SW_PIN, true);
     gpio_set_dir(ORIN_SW_PIN, true);
+
+    // Monitor leak sensors
+    bi_decl_if_func_used(bi_1pin_with_name(LEAK_SENSE_PIN, "Leak sensing"));
+    gpio_init(LEAK_SENSE_PIN);
+    gpio_set_dir(LEAK_SENSE_PIN, false);
 
     // Enter main loop
     bool ros_initialized = false;
