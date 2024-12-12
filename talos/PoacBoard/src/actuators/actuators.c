@@ -268,6 +268,11 @@ bool actuators_arm(const char **errMsgOut) {
     // Arm all of the subsystems
     for (size_t i = 0; i < countof(dynamixel_states); i++) {
         if (!dxlact_base_arm(&dynamixel_states[i], errMsgOut)) {
+            // TODO: Remove the continue below once we have a reliable claw
+            // Until then, this allows us to keep using torpedo/droppers without a working claw, but at the
+            // cost of if an actuator fails to arm for any other reason, we'll report that it is still okay
+            continue;
+
             // Failed, disarm all and report error
             actuators_disarm();
             return false;
