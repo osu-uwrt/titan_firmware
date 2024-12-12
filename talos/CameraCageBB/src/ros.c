@@ -76,6 +76,8 @@ const float depth_variance = 0.003;
 
 // Leak Sensor
 rcl_publisher_t leak_publisher;
+const uint min_leak_reads = 2;
+uint num_leak_reads = 0;
 
 // ========================================
 // Executor Callbacks
@@ -291,8 +293,13 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
 }
 
 rcl_ret_t ros_update_leak_publisher() {
+    if (gpio_get(LEAK_SENSE_PIN))
+        num_leak_reads++;
+    else
+        num_leak_reads = 0;
+
     std_msgs__msg__Bool leak_msg;
-    leak_msg.data = gpio_get(LEAK_SENSE_PIN);
+    leak_msg.data = num_leak_reads >= min_leak_reads;
     RCSOFTRETCHECK(rcl_publish(&leak_publisher, &leak_msg, NULL));
 
     return RCL_RET_OK;
