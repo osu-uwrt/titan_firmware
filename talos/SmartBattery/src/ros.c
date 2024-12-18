@@ -98,7 +98,8 @@ static void leak_subscription_callback(const void *msgin) {
     if (msg->data && !has_rviz) {
         // Detected leak and Rviz isn't present to respond to it... shutdown immediately
         LOG_INFO("Leak detected but no operator found to respond... Issuing latched Emergency FET Shutdown");
-        core1_kill_robot_power();
+        // Put this back in once leak false positives are fixed
+        // core1_kill_robot_power();
     }
     else if (!msg->data) {
         // Force rechecking of rviz connection
