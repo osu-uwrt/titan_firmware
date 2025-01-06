@@ -190,6 +190,7 @@ int main() {
     bi_decl_if_func_used(bi_1pin_with_name(LEAK_SENSE_PIN, "Leak sensing"));
     gpio_init(LEAK_SENSE_PIN);
     gpio_set_dir(LEAK_SENSE_PIN, false);
+    gpio_set_pulls(LEAK_SENSE_PIN, false, true);  // Pulldown to prevent false positives
 
     // Enter main loop
     bool ros_initialized = false;
