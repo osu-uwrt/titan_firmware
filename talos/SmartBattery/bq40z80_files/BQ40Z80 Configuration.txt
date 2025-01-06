@@ -3,8 +3,11 @@ Max Voltage to Charge (per cell): 4.15V
 Minimum Voltage to Discharge To (per cell): 3.2V
 Designed for MaxAmps 8000 mAh 5S2P 18.5V LiPo battery pack
 
+Pull config off BMS 5 and diff it
+Check optop
+
 Things to go through:
- - Once we know that PF won't accidentally fire on us (give it a few months after robosub 2024)
+ - Once we know that PF won't accidentally fire on us (give it a few months after robosub 2024) **IT DID AT RS24**
    Set the FUSE_EN in Manufacturing Status Init to enable the fuse
      ALSO MAKE SURE THAT THE RESISTOR IS SOLDERED TO ALL THE BMB BOARDS
      You'll have to take them apart anyways to program them, good to check that as well

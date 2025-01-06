@@ -405,6 +405,12 @@ static void __time_critical_func(core1_main)(void) {
                     if (req.type == FIFO_CMD_POWER_CYCLE) {
                         power_cycle_time_ms = req.arg;
                     }
+                    else {
+                        // Big hammer kill power since this is used on leak detection
+                        // Battery should return to normal state on power cycle
+                        emshut_state = EMSHUT_STATE_LATCH_OFF;
+                        bq_emshut_enter();
+                    }
                 }
                 else {
                     // Can't do this command right now

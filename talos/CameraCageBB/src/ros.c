@@ -40,6 +40,7 @@
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
+#define LEAK_PUBLISHER_NAME "state/leak"
 
 bool ros_connected = false;
 
@@ -72,6 +73,11 @@ rcl_publisher_t water_temp_publisher;
 riptide_msgs2__msg__Depth depth_msg;
 char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
 const float depth_variance = 0.003;
+
+// Leak Sensor
+rcl_publisher_t leak_publisher;
+const uint min_leak_reads = 2;
+uint num_leak_reads = 0;
 
 // ========================================
 // Executor Callbacks
@@ -286,6 +292,19 @@ rcl_ret_t ros_update_temp_humidity_publisher() {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_update_leak_publisher() {
+    if (gpio_get(LEAK_SENSE_PIN))
+        num_leak_reads++;
+    else
+        num_leak_reads = 0;
+
+    std_msgs__msg__Bool leak_msg;
+    leak_msg.data = num_leak_reads >= min_leak_reads;
+    RCSOFTRETCHECK(rcl_publish(&leak_publisher, &leak_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -332,6 +351,9 @@ rcl_ret_t ros_init() {
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalCommand),
                                               ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&leak_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           LEAK_PUBLISHER_NAME));
+
     // Executor Initialization
     const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
@@ -366,7 +388,8 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&leak_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));
