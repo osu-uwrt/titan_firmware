@@ -24,7 +24,7 @@ typedef struct UartPacket {
     uint8_t target_id;
     uint8_t command_length;
     uint8_t command;
-    uint8_t parameter_buf[PARAMETER_MTU];
+    uint8_t param_buf[PARAMETER_MTU];
     uint8_t checksum;
 } UartPacket_t;
 
@@ -33,7 +33,7 @@ static void on_packet_sent(enum async_uart_tx_err error) {}
 uint8_t calculate_checksum(UartPacket_t *packet) {
     uint data_sum = packet->target_id + packet->command_length + packet->command;
     for (uint8_t i = 0; i < packet->command_length - 3; i++) {
-        data_sum += packet->parameter_buf[i];
+        data_sum += packet->param_buf[i];
     }
 
     return (uint8_t) (~data_sum);
@@ -47,7 +47,7 @@ void send_packet(UartPacket_t *packet) {
     output[4] = packet->command;
 
     for (uint8_t i = 0; i < packet->command_length - 3; i++) {
-        output[i + 5] = packet->parameter_buf[i];
+        output[i + 5] = packet->param_buf[i];
     }
 
     output[sizeof(output) / sizeof(uint8_t) - 1] = calculate_checksum(packet);
