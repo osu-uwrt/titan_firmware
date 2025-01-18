@@ -54,4 +54,5 @@ target_link_libraries(pico_sdk_example PUBLIC
     hardware_pio
     titan_logger
     titan_queue
+    titan_logger
 )
