@@ -227,6 +227,8 @@ bq25730_status_t bq25730_start_charging() {
     }
 
     bq_state = BQ25730_STATE_CHARGING_SETUP;
+    // add write options to the queue
+    // once all options are set, set charge inhibit to zero
     return BQ25730_OK;
 }
 

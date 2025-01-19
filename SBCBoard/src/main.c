@@ -32,6 +32,8 @@ int main() {
 
     // Configure BQ25730
     bq25730_wait_until_configured();
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_IN);
     // Main Loop
     while (true) {
         safety_tick();
@@ -39,6 +41,7 @@ int main() {
         // bq25730_start_read_system_voltage();
         sleep_ms(500);
         printf("BQ25730 State: %s\n", bq25730_state_to_string(bq25730_get_state()));
+        printf("Charge OK: %d\n", gpio_get(25));
     }
 
     // Initialize USB-PD chip
@@ -55,6 +58,7 @@ int main() {
     }
     while (true) {
         tick_background_tasks();
+
 
         safety_tick();
     }
