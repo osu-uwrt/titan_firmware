@@ -1,5 +1,6 @@
 #include "ros.h"
 
+#include "driver/depth.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -9,6 +10,7 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
+#include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/int8.h>
@@ -24,6 +26,7 @@
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
+#define DEPTH_PUBLISHER_NAME "state/depth/raw"
 
 bool ros_connected = false;
 
@@ -40,6 +43,13 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 // TODO: Add node specific items here
+
+// Depth Sensor
+rcl_publisher_t depth_publisher;
+rcl_publisher_t water_temp_publisher;
+riptide_msgs2__msg__Depth depth_msg;
+char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
+const float depth_variance = 0.003;
 
 // ========================================
 // Executor Callbacks
@@ -126,6 +136,19 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
 }
 
 // TODO: Add in node specific tasks here
+rcl_ret_t ros_update_depth_publisher() {
+    if (depth_reading_valid()) {
+        struct timespec ts;
+        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+        depth_msg.header.stamp.sec = ts.tv_sec;
+        depth_msg.header.stamp.nanosec = ts.tv_nsec;
+
+        depth_msg.depth = -depth_read();
+        RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
 
 // ========================================
 // ROS Core
@@ -155,11 +178,18 @@ rcl_ret_t ros_init() {
                                               &killswitch_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
+    RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
+                                   DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
     // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
     // in the event that specific request times out
+
+    depth_msg.header.frame_id.data = depth_frame;
+    depth_msg.header.frame_id.capacity = sizeof(depth_frame);
+    depth_msg.header.frame_id.size = strlen(depth_frame);
+    depth_msg.variance = depth_variance;
 
     return RCL_RET_OK;
 }
@@ -177,6 +207,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));
+    RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
 
     ros_connected = false;
 }

@@ -1,6 +1,7 @@
 #include "ros.h"
 #include "safety_interface.h"
 
+#include "driver/depth.h"
 #include "driver/led.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -120,6 +121,11 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
+    // Send depth as soon as a new reading comes in
+    if (depth_set_on_read) {
+        depth_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
 }
 
 static void tick_background_tasks() {
@@ -151,8 +157,18 @@ static void tick_background_tasks() {
     // TODO: Put any code that should periodically occur here
 }
 
+static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
+    if (recoverable) {
+        safety_raise_fault_with_arg(FAULT_DEPTH_ERROR, event);
+    }
+    else {
+        safety_raise_fault_with_arg(FAULT_DEPTH_INIT_ERROR, event);
+    }
+}
+
 int main() {
-// Initialize stdio
+    // Initialize stdio
+    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 #ifdef MICRO_ROS_TRANSPORT_USB
     // The USB transport is special since it initializes stdio for you already
     transport_usb_serial_init_early();
