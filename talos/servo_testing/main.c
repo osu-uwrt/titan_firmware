@@ -6,6 +6,7 @@
 #include "titan/version.h"
 
 #include <stdio.h>
+#include <string.h>
 
 // Taken from Hiwonder datasheet
 #define SERVO_MOVE_TIME_WRITE_CMD 1
@@ -66,7 +67,7 @@
 #define SERVO_LED_ERROR_WRITE_LEN 4
 #define SERVO_LED_ERROR_READ_LEN 3
 
-#define UART_PIN 8u
+#define UART_PIN 20
 #define UART_BAUD 115200u
 #define UART_TIMEOUT_MS 50
 
@@ -77,13 +78,15 @@
 
 #define MAX_PACKET_SIZE 10
 
-#define SET_TARGET_PIN 2
-#define READ_POS_PIN 3
-#define GO_HOME_PIN 4
-#define ARM_PIN 5
-#define READ_ARMED_PIN 6
-#define SET_ID_PIN 7
-#define READ_ID_PIN 8
+#define SET_TARGET_PIN 6
+#define READ_POS_PIN 7
+#define GO_HOME_PIN 8
+#define ARM_PIN 9
+#define READ_ARMED_PIN 10
+#define SET_ID_PIN 11
+#define READ_ID_PIN 12
+#define SET_CONTINUOUS_PIN 13
+#define READ_CONTINUOUS_PIN 14
 
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 
@@ -98,6 +101,8 @@ typedef struct UartPacket {
 static UartPacket_t packet;
 uint8_t raw_packet[MAX_PACKET_SIZE];
 static bool is_read_request = false;
+
+static bool new_packet_rx = false;
 
 uint8_t calculate_checksum(UartPacket_t *packet) {
     uint data_sum = packet->target_id + packet->command_length + packet->command;
@@ -132,23 +137,29 @@ static void on_packet_received(enum async_uart_rx_err error, uint8_t *data, size
     else if (calculate_checksum(&rx_packet) != rx_packet.checksum) {
         LOG_ERROR("Received checksum (%x) didn't match expected (%x\n", rx_packet.checksum,
                   calculate_checksum(&rx_packet));
-        return;  // This should set off a retransmit either here or in higher logic
+        // return;  // This should set off a retransmit either here or in higher logic
     }
     // Someway somehow check if the command value is correct
 
     // Packet received correctly, make it available
     packet = rx_packet;
 
-    LOG_INFO("Packet data: ");
-    for (uint8_t i = 0; i < PARAMETER_MTU; i++)
-        LOG_INFO("%x ", packet.param_buf[i]);
-    LOG_INFO("\n");
+    new_packet_rx = true;
+
+    // LOG_INFO("Packet data: ");
+    // for (uint8_t i = 0; i < PARAMETER_MTU; i++)
+    //     LOG_INFO("%x ", packet.param_buf[i]);
+
+    // LOG_INFO("Raw packet: ");
+    // for (uint8_t i = 0; i < rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE; i++)
+    //     LOG_INFO("%x ", raw_packet[i]);
 }
 
 static void on_packet_sent(enum async_uart_tx_err error) {
     if (is_read_request) {
         is_read_request = false;
-        async_uart_read(raw_packet, packet.command_length + HEADER_SIZE + CHECKSUM_SIZE, on_packet_received);
+        memset(raw_packet, 0, MAX_PACKET_SIZE * sizeof(uint8_t));
+        async_uart_read(raw_packet, MAX_PACKET_SIZE, on_packet_received);
     }
 }
 
@@ -185,7 +196,7 @@ void servo_set_target(uint8_t target, uint angle, uint time) {
     split_uint(angle, &packet.param_buf[0], &packet.param_buf[1]);
     split_uint(time, &packet.param_buf[2], &packet.param_buf[3]);
 
-    LOG_INFO("Sending move request: %x to %udeg in %us\n", target, angle, time);
+    LOG_INFO("Sending move request: %x to %u deg in %ums\n", target, angle, time);
     send_packet();
 }
 
@@ -226,15 +237,39 @@ void servo_set_id(uint8_t old_target, uint8_t new_target) {
     packet.param_buf[0] = new_target;
 
     LOG_INFO("Changing id %x to %x", old_target, new_target);
+    send_packet();
 }
 
 void servo_ping_all() {
-    packet.target_id = 254;
+    packet.target_id = 0xFE;
     packet.command = SERVO_ID_READ_CMD;
     packet.command_length = SERVO_ID_READ_LEN;
 
     is_read_request = true;
     LOG_INFO("Requesting bus-wide servo ping\n");
+    send_packet();
+}
+
+void servo_set_continuous(uint8_t target) {
+    packet.target_id = target;
+    packet.command = SERVO_OR_MOTOR_MODE_WRITE_CMD;
+    packet.command_length = SERVO_OR_MOTOR_MODE_WRITE_LEN;
+    packet.param_buf[0] = 0x01;
+    packet.param_buf[1] = 0x00;
+    packet.param_buf[2] = 0xFF;
+    packet.param_buf[3] = 0x00;
+
+    LOG_INFO("Setting servo %x to continuous rotation mode\n", target);
+    send_packet();
+}
+
+void servo_read_continuous(uint8_t target) {
+    packet.target_id = target;
+    packet.command = SERVO_OR_MOTOR_MODE_READ_CMD;
+    packet.command_length = SERVO_OR_MOTOR_MODE_READ_LEN;
+
+    is_read_request = true;
+    LOG_INFO("Sending read continuous state request to %x\n", target);
     send_packet();
 }
 
@@ -262,6 +297,8 @@ int main() {
     configure_pin(READ_ARMED_PIN);
     configure_pin(SET_ID_PIN);
     configure_pin(READ_ID_PIN);
+    configure_pin(SET_CONTINUOUS_PIN);
+    configure_pin(READ_CONTINUOUS_PIN);
 
     bool value = true;
 
@@ -269,17 +306,17 @@ int main() {
 
     while (true) {
         watchdog_update();
-        printf("Hello World!\n");
+        // printf("Hello World!\n");
 
         gpio_put(LED_PIN, value);
         value = !value;
 
         if (!gpio_get(SET_TARGET_PIN))
-            servo_set_target(0x01, 1000, 2000);
+            servo_set_target(0x01, 2000, 4000);
         else if (!gpio_get(READ_POS_PIN))
             servo_read_pos(0x01);
         else if (!gpio_get(GO_HOME_PIN))
-            servo_set_target(0x01, 0, 2000);
+            servo_set_target(0x01, 0, 4000);
         else if (!gpio_get(ARM_PIN))
             servo_set_arm_state(0x01, true);
         else if (!gpio_get(READ_ARMED_PIN))
@@ -288,6 +325,17 @@ int main() {
             servo_set_id(0x01, 0x02);
         else if (!gpio_get(READ_ID_PIN))
             servo_ping_all();
+        else if (!gpio_get(SET_CONTINUOUS_PIN))
+            servo_set_continuous(0x01);
+        else if (!gpio_get(READ_CONTINUOUS_PIN))
+            servo_read_continuous(0x01);
+
+        if (new_packet_rx) {
+            LOG_INFO("Raw packet:");
+            for (uint8_t i = 0; i < MAX_PACKET_SIZE; i++)
+                LOG_INFO("%x", raw_packet[i]);
+            new_packet_rx = false;
+        }
 
         sleep_ms(1000);
     }
