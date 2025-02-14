@@ -37,11 +37,12 @@
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
 #define WATER_TEMP_PUBLISHER_NAME "state/depth/temp"
+#define PRESSURE_PUBLISHER_NAME "state/depth/pressure"
 #define LED_SUBSCRIBER_NAME "command/led"
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 #define LEAK_PUBLISHER_NAME "state/leak"
-#define PRESSURE_PUBLISHER_NAME "state/pressure/raw"
+
 
 bool ros_connected = false;
 
