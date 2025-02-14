@@ -43,7 +43,6 @@
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 #define LEAK_PUBLISHER_NAME "state/leak"
 
-
 bool ros_connected = false;
 
 // Core Variables
@@ -285,7 +284,7 @@ rcl_ret_t ros_update_water_temp_publisher() {
 
 rcl_ret_t ros_update_pressure_publisher() {
     if (depth_reading_valid()) {
-        std_msgs__msg__Float32 pressure_msg;
+        std_msgs__msg__Float32 pressure_msg;  // Measured in Pascals
         pressure_msg.data = (float) pressure_read();
         RCSOFTRETCHECK(rcl_publish(&pressure_publisher, &pressure_msg, NULL));
     }

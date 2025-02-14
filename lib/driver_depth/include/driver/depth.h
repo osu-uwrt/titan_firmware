@@ -85,7 +85,7 @@ double depth_read(void);
  *
  * @return double The raw pressure reading
  */
-double depth_read(void);
+double pressure_read(void);
 
 /**
  * @brief Returns the current temperature read from the depth sensor.
