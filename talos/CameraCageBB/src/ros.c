@@ -41,6 +41,7 @@
 #define PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME "state/physkill_notify"
 #define ELECTRICAL_COMMAND_SUBSCRIBER_NAME "command/electrical"
 #define LEAK_PUBLISHER_NAME "state/leak"
+#define PRESSURE_PUBLISHER_NAME "state/pressure/raw"
 
 bool ros_connected = false;
 
@@ -70,6 +71,7 @@ riptide_msgs2__msg__ElectricalCommand elec_command_msg;
 // Depth Sensor
 rcl_publisher_t depth_publisher;
 rcl_publisher_t water_temp_publisher;
+rcl_publisher_t pressure_publisher;
 riptide_msgs2__msg__Depth depth_msg;
 char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
 const float depth_variance = 0.003;
@@ -280,6 +282,16 @@ rcl_ret_t ros_update_water_temp_publisher() {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_update_pressure_publisher() {
+    if (depth_reading_valid()) {
+        std_msgs__msg__Float32 pressure_msg;
+        pressure_msg.data = (float) depth_pressure;
+        RCSOFTRETCHECK(rcl_publish(&pressure_publisher, &pressure_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
+
 rcl_ret_t ros_update_temp_humidity_publisher() {
     if (sht41_is_valid()) {
         std_msgs__msg__Float32 sht41_msg;
@@ -331,6 +343,9 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_publisher_init(&water_temp_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                    WATER_TEMP_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
+
+    RCRETCHECK(rclc_publisher_init(&pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                   PRESSURE_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
     RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
@@ -384,6 +399,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&led_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&water_temp_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&pressure_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
