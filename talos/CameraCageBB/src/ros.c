@@ -285,7 +285,7 @@ rcl_ret_t ros_update_water_temp_publisher() {
 rcl_ret_t ros_update_pressure_publisher() {
     if (depth_reading_valid()) {
         std_msgs__msg__Float32 pressure_msg;
-        pressure_msg.data = (float) depth_pressure;
+        pressure_msg.data = (float) pressure_read();
         RCSOFTRETCHECK(rcl_publish(&pressure_publisher, &pressure_msg, NULL));
     }
 
