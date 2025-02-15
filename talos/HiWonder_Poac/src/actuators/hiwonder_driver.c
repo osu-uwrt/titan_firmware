@@ -73,11 +73,11 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
         rx_packet.param_buf[i] = raw_packet[i + 5];
     }
 
-    LOG_INFO("Header: %hhx", raw_packet[0]);
-    LOG_INFO("ID: %hhx", raw_packet[2]);
-    LOG_INFO("Command: %hhx", raw_packet[4]);
-    LOG_INFO("Len: %hhx", raw_packet[3]);
-    LOG_INFO("Checksum: %hhx", raw_packet[len - 1]);
+    // LOG_INFO("Header: %hhx", raw_packet[0]);
+    // LOG_INFO("ID: %hhx", raw_packet[2]);
+    // LOG_INFO("Command: %hhx", raw_packet[4]);
+    // LOG_INFO("Len: %hhx", raw_packet[3]);
+    // LOG_INFO("Checksum: %hhx", raw_packet[len - 1]);
 
     enum servo_read_err err = SERVO_READ_OK;
 
@@ -111,7 +111,7 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
     most_recent_sent.on_read(rx_packet, err);
     packet_in_flight = false;
 
-    LOG_INFO("Packet receive complete; marking packet_in_flight as false");
+    // LOG_INFO("Packet receive complete; marking packet_in_flight as false");
 
     // LOG_INFO("Packet data: ");
     // for (uint8_t i = 0; i < PARAMETER_MTU; i++)
@@ -132,7 +132,7 @@ static void on_packet_sent(__unused enum async_uart_tx_err error) {
         packet_in_flight = false;
     }
 
-    LOG_INFO("Packet sent callback");
+    // LOG_INFO("Packet sent callback");
 }
 
 void send_packet(ServoPacket_t packet) {
@@ -158,7 +158,7 @@ void send_packet(ServoPacket_t packet) {
 
     // uint8_t prev_interrupts = save_and_disable_interrupts();
     most_recent_sent = packet;
-    LOG_INFO("Writing pacekt to UART line; packet_in_flight marked true");
+    // LOG_INFO("Writing pacekt to UART line; packet_in_flight marked true");
 
     // LOG_INFO("Header: %hhx", raw_packet[0]);
     // LOG_INFO("ID: %hhx", raw_packet[2]);
@@ -196,7 +196,7 @@ static bool dequeue_packet(ServoPacket_t *packet) {
     if (QUEUE_EMPTY(&tx_queue))
         return false;
 
-    LOG_INFO("Dequeue request successful");
+    // LOG_INFO("Dequeue request successful");
 
     ServoPacket_t *entry = QUEUE_CUR_READ_ENTRY(&tx_queue);
     *packet = *entry;  // shallow copy

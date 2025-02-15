@@ -10,7 +10,9 @@ extern void servo_ping();
 
 extern void servo_set_armed(bool armed);
 
-extern void servo_set_deg(float deg);
+extern uint16_t servo_set_deg(float deg);
+
+extern void servo_set_deg_then_home(float deg);
 
 extern void servo_read_deg();
 

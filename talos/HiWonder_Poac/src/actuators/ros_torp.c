@@ -73,8 +73,8 @@ static std_srvs__srv__SetBool_Response actuator_arm_res;
 #define TORP_NUMBER 2
 #define DROPPER_NUMBER 2
 
-#define TORP_2_DEG 100
-#define TORP_1_DEG 150
+#define TORP_2_DEG 200
+#define TORP_1_DEG 240
 
 #define MARKER_2_DEG 50
 #define MARKER_1_DEG 0
@@ -86,10 +86,10 @@ uint8_t num_marker = DROPPER_NUMBER;
 //
 bool torpedo_fire(const char **errMsgOut) {
     // Don't allow firing of torpedos when killed
-    if (safety_kill_get_asserting_kill()) {
-        *errMsgOut = "Kill Switch Removed";
-        return false;
-    }
+    // if (safety_kill_get_asserting_kill()) {
+    //     *errMsgOut = "Kill Switch Removed";
+    //     return false;
+    // }
 
     // Make sure that actuators are armed
     if (!enabled) {
@@ -159,9 +159,9 @@ bool torpedo_fire(const char **errMsgOut) {
     LOG_INFO("Firing Torpedo %d", num_torp);
 
     if (num_torp == 2)
-        servo_set_deg(TORP_2_DEG);
+        servo_set_deg_then_home(TORP_2_DEG);
     else if (num_torp == 1)
-        servo_set_deg(TORP_1_DEG);
+        servo_set_deg_then_home(TORP_1_DEG);
 
     num_torp--;
     return true;
@@ -183,11 +183,11 @@ uint8_t torpedo_get_state(void) {
     else if (move_active) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
     }
-    else if (num_torp < TORP_NUMBER) {
-        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRED;
+    else if (num_torp > 0) {
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
     }
     else /*if (torpedo_check_charged())*/ {
-        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGED;
+        return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRED;
     }
     // else {
     //     return riptide_msgs2__msg__ActuatorStatus__TORPEDO_CHARGING;
@@ -209,10 +209,10 @@ bool torpedo_notify_reload(const char **errMsgOut) {
 
 bool dropper_drop_marker(const char **errMsgOut) {
     if (num_marker == 2) {
-        servo_set_deg(MARKER_2_DEG);
+        servo_set_deg_then_home(MARKER_2_DEG);
     }
     else if (num_marker == 1) {
-        servo_set_deg(MARKER_1_DEG);
+        servo_set_deg_then_home(MARKER_1_DEG);
     }
     else {
         *errMsgOut = "All Dropped";
@@ -233,11 +233,11 @@ uint8_t dropper_get_state(void) {
     else if (move_active) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
     }
-    else if (num_marker < DROPPER_NUMBER) {
-        return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPED;
+    else if (num_marker > 0) {
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
     }
     else {
-        return riptide_msgs2__msg__ActuatorStatus__DROPPER_READY;
+        return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPED;
     }
 }
 
@@ -265,11 +265,11 @@ bool actuators_arm(const char **errMsgOut) {
     }
 
     // Don't allow arming if killed
-    if (safety_kill_get_asserting_kill()) {
-        restore_interrupts(prev_interrupts);
-        *errMsgOut = "Kill Switch Removed";
-        return false;
-    }
+    // if (safety_kill_get_asserting_kill()) {
+    //     restore_interrupts(prev_interrupts);
+    //     *errMsgOut = "Kill Switch Removed";
+    //     return false;
+    // }
 
     LOG_INFO("Arming Actuators");
 
@@ -367,7 +367,7 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
 
 rcl_ret_t ros_actuators_update_status(void) {
     std_msgs__msg__Bool busy_msg = { .data = move_active };
-    // RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
+    RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
 
     riptide_msgs2__msg__ActuatorStatus status_msg;
     status_msg.actuators_armed = enabled;
@@ -377,7 +377,7 @@ rcl_ret_t ros_actuators_update_status(void) {
     status_msg.dropper_state = dropper_get_state();
     status_msg.dropper_available_count = num_marker;
 
-    // RCRETCHECK(rcl_publish(&status_publisher, &status_msg, NULL));
+    RCRETCHECK(rcl_publish(&status_publisher, &status_msg, NULL));
 
     // Publish dynamixel status if running v2 actuators
     // #if ACTUATOR_V2_SUPPORT
