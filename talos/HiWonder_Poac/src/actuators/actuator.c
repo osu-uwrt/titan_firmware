@@ -40,8 +40,8 @@ static void split_uint16(uint val, uint8_t *out_lsb, uint8_t *out_msb) {
     *out_msb = (val >> 8) & 0xFF;
 }
 
-static void servo_ping_cb(ServoPacket_t rx_packet, uint8_t status) {
-    if (!status && rx_packet.target_id == id)
+static void servo_ping_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
+    if (!err && rx_packet.target_id == id)
         connected = true;
     else
         connected = false;
@@ -55,7 +55,7 @@ void servo_ping() {
     enqueue_packet(ping_packet);
 }
 
-static void servo_is_armed_cb(ServoPacket_t rx_packet, __unused uint8_t status) {
+static void servo_is_armed_cb(ServoPacket_t rx_packet, __unused enum servo_read_err err) {
     if (rx_packet.param_buf[0])
         enabled = true;
     else
@@ -100,7 +100,7 @@ void servo_set_deg(float deg) {
     move_complete_alarm = add_alarm_in_ms(SERVO_MOVE_TIME_MS, servo_move_complete_cb, NULL, true);
 }
 
-static void servo_read_deg_cb(ServoPacket_t rx_packet, __unused uint8_t status) {
+static void servo_read_deg_cb(ServoPacket_t rx_packet, __unused enum servo_read_err err) {
     uint16_t pos = rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8;
     curr_deg = pos * (1000.0 / 240.0);
 

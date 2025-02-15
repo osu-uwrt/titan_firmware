@@ -90,9 +90,18 @@
 
 #define MAX_PACKET_SIZE 10
 
+enum servo_read_err {
+    SERVO_READ_OK = 0,
+    SERVO_INTERNAL_UART_ERROR,
+    SERVO_BAD_RESPONSE_TYPE,
+    SERVO_BAD_RESPONSE_LENGTH,
+    SERVO_INCORRECT_RESPONDER,
+    SERVO_BAD_CHECKSUM
+};
+
 struct ServoPacket;
 
-typedef void (*servo_read_cb)(struct ServoPacket rx_packet, uint8_t status /*Add error state enum*/);
+typedef void (*servo_read_cb)(struct ServoPacket rx_packet, enum servo_read_err err);
 
 typedef struct ServoPacket {
     uint8_t target_id;

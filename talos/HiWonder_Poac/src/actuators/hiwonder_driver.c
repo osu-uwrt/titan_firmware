@@ -57,15 +57,21 @@ static uint8_t calculate_checksum(ServoPacket_t *packet) {
 }
 
 static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *raw_packet, __unused size_t len) {
-    ServoPacket_t rx_packet = { .target_id = raw_packet[2], .command_length = raw_packet[3], .command = raw_packet[4] };
-
+    // Any operatiosn on raw_packet are invalid if error is set, so check that first
     if (error != ASYNC_UART_RX_OK) {
         LOG_ERROR("Async UART reported RX error: %u\n", error);
+        ServoPacket_t dummy_packet;
+        most_recent_sent.on_read(dummy_packet, SERVO_INTERNAL_UART_ERROR);
         packet_in_flight = false;
         return;
     }
 
+    ServoPacket_t rx_packet = { .target_id = raw_packet[2], .command_length = raw_packet[3], .command = raw_packet[4] };
     rx_packet.checksum = raw_packet[rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE - 1];
+
+    for (uint8_t i = 0; i < rx_packet.command_length - 3; i++) {
+        rx_packet.param_buf[i] = raw_packet[i + 5];
+    }
 
     LOG_INFO("Header: %hhx", raw_packet[0]);
     LOG_INFO("ID: %hhx", raw_packet[2]);
@@ -73,36 +79,28 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
     LOG_INFO("Len: %hhx", raw_packet[3]);
     LOG_INFO("Checksum: %hhx", raw_packet[len - 1]);
 
+    enum servo_read_err err = SERVO_READ_OK;
+
     if (rx_packet.command != most_recent_sent.command) {
         LOG_ERROR("Received unexpected response type: %hhx. Expected %hhx\n", rx_packet.command,
                   most_recent_sent.command);
-        packet_in_flight = false;
-        return;
+        err = SERVO_BAD_RESPONSE_TYPE;
     }
-    if (rx_packet.command_length != response_len[most_recent_sent.command]) {
+    else if (rx_packet.command_length != response_len[most_recent_sent.command]) {
         LOG_ERROR("Received incorrect response size: %hhu. Expected %hhx from %hhx\n", rx_packet.command_length,
                   response_len[most_recent_sent.command], most_recent_sent.command);
-        most_recent_sent.on_read(rx_packet, 1);
-        packet_in_flight = false;
-        return;
+        err = SERVO_BAD_RESPONSE_LENGTH;
     }
-    if (rx_packet.target_id != most_recent_sent.target_id) {
+    else if (calculate_checksum(&rx_packet) != rx_packet.checksum) {
+        LOG_ERROR("Received checksum (%x) didn't match expected (%x)\n", rx_packet.checksum,
+                  calculate_checksum(&rx_packet));
+        err = SERVO_BAD_CHECKSUM;
+    }
+    else if (rx_packet.target_id != most_recent_sent.target_id) {
         LOG_WARN("Response packet source (%x) didn't match target (%x)\n", rx_packet.target_id,
                  most_recent_sent.target_id);
         // This can happen in some commands, so don't return early
-    }
-
-    for (uint8_t i = 0; i < rx_packet.command_length - 3; i++) {
-        rx_packet.param_buf[i] = raw_packet[i + 5];
-    }
-    rx_packet.checksum = raw_packet[rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE - 1];
-
-    if (calculate_checksum(&rx_packet) != rx_packet.checksum) {
-        LOG_ERROR("Received checksum (%x) didn't match expected (%x)\n", rx_packet.checksum,
-                  calculate_checksum(&rx_packet));
-        most_recent_sent.on_read(rx_packet, 1);
-        packet_in_flight = false;
-        return;  // This should set off a retransmit either here or in higher logic
+        err = SERVO_INCORRECT_RESPONDER;
     }
 
     // LOG_INFO("Receieved response packet");
@@ -110,7 +108,7 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
     //     LOG_INFO("%hhx", raw_packet[i]);
     // }
 
-    most_recent_sent.on_read(rx_packet, 0);
+    most_recent_sent.on_read(rx_packet, err);
     packet_in_flight = false;
 
     LOG_INFO("Packet receive complete; marking packet_in_flight as false");
