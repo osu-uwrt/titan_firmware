@@ -140,8 +140,8 @@ void servo_set_deg_then_home(float deg) {
 }
 
 void init_servo() {
-    gpio_disable_pulls(CLAW_CHECK_PIN);
+    // gpio_disable_pulls(CLAW_CHECK_PIN);
     async_uart_init(pio0, 0, CLAW_CHECK_PIN, UART_BAUD, UART_TIMEOUT_MS);
 
-    servo_go_home();
+    // servo_go_home();
 }

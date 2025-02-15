@@ -35,7 +35,9 @@ bool packet_in_flight = false;
 ServoPacket_t most_recent_sent;
 uint8_t raw_rx_packet[MAX_PACKET_SIZE];
 
-ServoPacket_t make_servo_packet(uint8_t target_id, uint8_t command_length, uint8_t command,
+uint8_t raw_packet[MAX_PACKET_SIZE];
+
+ServoPacket_t make_servo_packet(uint8_t target_id, uint8_t command, uint8_t command_length,
                                 uint8_t param_buf[PARAMETER_MTU]) {
     ServoPacket_t tmp = {
         .target_id = target_id, .command_length = command_length, .command = command, .on_read = NULL
@@ -62,15 +64,24 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
         packet_in_flight = false;
         return;
     }
+
+    rx_packet.checksum = raw_packet[rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE - 1];
+
+    LOG_INFO("Header: %hhx", raw_packet[0]);
+    LOG_INFO("ID: %hhx", raw_packet[2]);
+    LOG_INFO("Command: %hhx", raw_packet[4]);
+    LOG_INFO("Len: %hhx", raw_packet[3]);
+    LOG_INFO("Checksum: %hhx", raw_packet[len - 1]);
+
     if (rx_packet.command != most_recent_sent.command) {
         LOG_ERROR("Received unexpected response type: %hhx. Expected %hhx\n", rx_packet.command,
                   most_recent_sent.command);
         packet_in_flight = false;
         return;
     }
-    if (rx_packet.command_length != response_len[most_recent_sent.command_length]) {
-        LOG_ERROR("Received incorrect response size: %hhu\n. Expected %hhx\n", rx_packet.command_length,
-                  response_len[most_recent_sent.command_length]);
+    if (rx_packet.command_length != response_len[most_recent_sent.command]) {
+        LOG_ERROR("Received incorrect response size: %hhu. Expected %hhx from %hhx\n", rx_packet.command_length,
+                  response_len[most_recent_sent.command], most_recent_sent.command);
         most_recent_sent.on_read(rx_packet, 1);
         packet_in_flight = false;
         return;
@@ -116,7 +127,8 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
 static void on_packet_sent(__unused enum async_uart_tx_err error) {
     if (most_recent_sent.on_read) {
         memset(raw_rx_packet, 0, MAX_PACKET_SIZE * sizeof(uint8_t));
-        async_uart_read(raw_rx_packet, response_len[most_recent_sent.command], on_packet_received);
+        async_uart_read(raw_rx_packet, response_len[most_recent_sent.command] + HEADER_SIZE + CHECKSUM_SIZE,
+                        on_packet_received);
     }
     else {
         packet_in_flight = false;
@@ -129,15 +141,14 @@ void send_packet(ServoPacket_t packet) {
     packet_in_flight = true;
 
     uint packet_size = packet.command_length + HEADER_SIZE + CHECKSUM_SIZE;
-    uint8_t raw_packet[packet_size];
 
     raw_packet[0] = raw_packet[1] = HEADER_CODE;
     raw_packet[2] = packet.target_id;
     raw_packet[3] = packet.command_length;
     raw_packet[4] = packet.command;
-    raw_packet[2] = 1;
-    raw_packet[3] = SERVO_MOVE_TIME_WRITE_CMD;
-    raw_packet[4] = SERVO_MOVE_TIME_WRITE_LEN;
+    // raw_packet[2] = 1;
+    // raw_packet[3] = SERVO_MOVE_TIME_WRITE_CMD;
+    // raw_packet[4] = SERVO_MOVE_TIME_WRITE_LEN;
 
     // TODO: replace with memcpy?
     for (uint8_t i = 0; i < 7 - 3; i++) {
@@ -147,15 +158,15 @@ void send_packet(ServoPacket_t packet) {
 
     raw_packet[packet_size - 1] = calculate_checksum(&packet);
 
-    // ros_pub_packet_if_connected(&tx_packet_publisher, packet);
     // uint8_t prev_interrupts = save_and_disable_interrupts();
     most_recent_sent = packet;
     LOG_INFO("Writing pacekt to UART line; packet_in_flight marked true");
 
-    LOG_INFO("Header: %hhx", raw_packet[0]);
-    LOG_INFO("ID: %hhx", raw_packet[2]);
-    LOG_INFO("Command: %hhx", raw_packet[4]);
-    LOG_INFO("Len: %hhx", raw_packet[3]);
+    // LOG_INFO("Header: %hhx", raw_packet[0]);
+    // LOG_INFO("ID: %hhx", raw_packet[2]);
+    // LOG_INFO("Command: %hhx", raw_packet[4]);
+    // LOG_INFO("Len: %hhx", raw_packet[3]);
+    // LOG_INFO("Checksum: %hhx", raw_packet[packet_size - 1]);
 
     // for (int i = 0; i < packet_size; i++) {
     //     LOG_INFO("%hhx", raw_packet[i]);

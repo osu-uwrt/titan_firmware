@@ -67,7 +67,7 @@
 #define SERVO_LED_ERROR_WRITE_LEN 4
 #define SERVO_LED_ERROR_READ_LEN 3
 
-#define UART_PIN 20
+#define UART_PIN 10
 #define UART_BAUD 115200u
 #define UART_TIMEOUT_MS 50
 
@@ -117,6 +117,10 @@ uint8_t calculate_checksum(UartPacket_t *packet) {
 // TODO: rewrite this better since you actually get the data array in (duh)
 static void on_packet_received(enum async_uart_rx_err error, uint8_t *data, size_t len) {
     UartPacket_t rx_packet = { .target_id = raw_packet[2], .command_length = raw_packet[3], .command = raw_packet[4] };
+
+    if (error) {
+        LOG_ERROR("UART ERROR %d >:(\n", error);
+    }
 
     // Do at least *some* error checking before trying to read into the void
     if (rx_packet.command_length + 3 > MAX_PACKET_SIZE || rx_packet.command_length < 3) {
@@ -176,6 +180,17 @@ void send_packet() {
     }
 
     raw_packet[packet_size - 1] = calculate_checksum(&packet);
+
+    LOG_INFO("Sending packet:\n");
+    // for (uint i = 0; i < packet_size; i++) {
+    //     LOG_INFO("%hhx\n", raw_packet[i]);
+    // }
+
+    LOG_INFO("Header: %hhx", raw_packet[0]);
+    LOG_INFO("ID: %hhx", raw_packet[2]);
+    LOG_INFO("Command: %hhx", raw_packet[4]);
+    LOG_INFO("Len: %hhx", raw_packet[3]);
+    LOG_INFO("Checksum: %hhx", raw_packet[packet_size - 1]);
 
     async_uart_write(raw_packet, packet_size, false, on_packet_sent);
 }
@@ -273,6 +288,16 @@ void servo_read_continuous(uint8_t target) {
     send_packet();
 }
 
+void servo_read_temp(uint8_t target) {
+    packet.target_id = target;
+    packet.command = SERVO_TEMP_READ_CMD;
+    packet.command_length = SERVO_TEMP_READ_LEN;
+
+    is_read_request = true;
+    LOG_INFO("Sending temp read request to %hhx\n", target);
+    send_packet();
+}
+
 //
 // Start pin config and main
 //
@@ -314,7 +339,8 @@ int main() {
         if (!gpio_get(SET_TARGET_PIN))
             servo_set_target(0x01, 2000, 4000);
         else if (!gpio_get(READ_POS_PIN))
-            servo_read_pos(0x01);
+            // servo_read_pos(0x01);
+            servo_read_temp(0x01);
         else if (!gpio_get(GO_HOME_PIN))
             servo_set_target(0x01, 0, 4000);
         else if (!gpio_get(ARM_PIN))
