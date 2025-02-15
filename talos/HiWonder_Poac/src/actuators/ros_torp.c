@@ -156,7 +156,7 @@ bool torpedo_fire(const char **errMsgOut) {
 
     // restore_interrupts(prev_interrupts);
 
-    // LOG_INFO("Firing Torpedo %d", torpedo_index + 1);
+    LOG_INFO("Firing Torpedo %d", num_torp);
 
     if (num_torp == 2)
         servo_set_deg(TORP_2_DEG);
@@ -271,11 +271,11 @@ bool actuators_arm(const char **errMsgOut) {
         return false;
     }
 
+    LOG_INFO("Arming Actuators");
+
     // We're good to arm
     servo_set_armed(true);
     restore_interrupts(prev_interrupts);
-
-    LOG_INFO("Arming Actuators");
 
     // Perform individual arm actions for actuators
     // if (!torpedo_arm(errMsgOut)) {
@@ -290,20 +290,20 @@ bool actuators_arm(const char **errMsgOut) {
 }
 
 bool torpedo_marker_set_home(const char **errMsgOut) {
-    // if (!connected) {
-    //     *errMsgOut = "Not Connected";
-    //     return false;
-    // }
+    if (!connected) {
+        *errMsgOut = "Not Connected";
+        return false;
+    }
 
     // if (torpedo_marker_state->hardware_err) {
     //     *errMsgOut = "Hardware Error";
     //     return false;
     // }
 
-    // if (enabled) {
-    //     *errMsgOut = "Must be disarmed";
-    //     return false;
-    // }
+    if (enabled) {
+        *errMsgOut = "Must be disarmed";
+        return false;
+    }
 
     // struct dynamixel_eeprom *eeprom = dynamixel_get_eeprom(torpedo_marker_state->id);
     // volatile struct dynamixel_ram *ram = dynamixel_get_ram(torpedo_marker_state->id);
