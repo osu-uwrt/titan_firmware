@@ -30,7 +30,7 @@
 #define LED_UPTIME_INTERVAL_MS 250
 #define ACTUATOR_STATUS_TIME_MS 1000
 #define SERVO_TRANSMIT_PERIOD_MS 10
-#define SERVO_PING_PERIOD_MS 500
+#define SERVO_PING_PERIOD_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately

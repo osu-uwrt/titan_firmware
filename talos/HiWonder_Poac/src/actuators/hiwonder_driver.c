@@ -57,6 +57,13 @@ static uint8_t calculate_checksum(ServoPacket_t *packet) {
 }
 
 static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *raw_packet, __unused size_t len) {
+    // LOG_INFO("Header? %hhx", raw_rx_packet[0]);
+    LOG_INFO("Header: %hhx, %hhx", raw_rx_packet[0], raw_rx_packet[1]);
+    LOG_INFO("ID: %hhx", raw_rx_packet[2]);
+    LOG_INFO("Command: %hhx", raw_rx_packet[4]);
+    LOG_INFO("Len: %hhx", raw_rx_packet[3]);
+    LOG_INFO("Checksum: %hhx", raw_rx_packet[len - 1]);
+
     // Any operatiosn on raw_packet are invalid if error is set, so check that first
     if (error != ASYNC_UART_RX_OK) {
         LOG_ERROR("Async UART reported RX error: %u\n", error);
@@ -72,12 +79,6 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
     for (uint8_t i = 0; i < rx_packet.command_length - 3; i++) {
         rx_packet.param_buf[i] = raw_packet[i + 5];
     }
-
-    // LOG_INFO("Header: %hhx", raw_packet[0]);
-    // LOG_INFO("ID: %hhx", raw_packet[2]);
-    // LOG_INFO("Command: %hhx", raw_packet[4]);
-    // LOG_INFO("Len: %hhx", raw_packet[3]);
-    // LOG_INFO("Checksum: %hhx", raw_packet[len - 1]);
 
     enum servo_read_err err = SERVO_READ_OK;
 
