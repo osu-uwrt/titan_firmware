@@ -10,7 +10,8 @@
 // #define SERVO_MOVE_TIME_MS 1000
 #define SERVO_MAX_DPS 300
 #define SERVO_POSTMOVE_DELAY_MS 250
-#define MAX_NUM_ERRORS 5
+#define MAX_NUM_ERRORS 10
+#define SERVO_MAX_TARGET_ERROR 5
 
 uint8_t id = 1;
 uint32_t max_move_time_ms;
@@ -20,7 +21,7 @@ uint16_t curr_deg = 0;
 
 // TODO: this is cursed
 bool is_sethome_req = false;
-// bool return_home_after_move = false;
+bool return_home_after_move = false;
 bool desired_armed_state = false;
 
 // Handlers
@@ -36,8 +37,10 @@ volatile bool hardware_err;
 volatile uint8_t num_errors;
 
 // Only valid when move_active is true
-int16_t target_position;
+int16_t target_deg;
+uint16_t target_pos;
 absolute_time_t move_timeout;
+uint16_t curr_move_time_ms;
 
 // Alarms and timers
 alarm_id_t move_complete_alarm;
@@ -75,7 +78,7 @@ void servo_ping() {
     enqueue_packet(ping_packet);
 }
 
-static void servo_is_armed_cb(ServoPacket_t rx_packet, __unused enum servo_read_err err) {
+static void servo_is_armed_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
     if (err || rx_packet.param_buf[0] != desired_armed_state) {
         if (num_errors < MAX_NUM_ERRORS) {
             num_errors++;
@@ -111,18 +114,47 @@ static int64_t servo_move_complete_cb(__unused alarm_id_t id, __unused void *use
     move_active = false;
     servo_read_deg();
 
-    // if (return_home_after_move) {
-    //     servo_go_home();
-    //     return_home_after_move = false;
-    // }
+    if (return_home_after_move) {
+        servo_go_home();
+        return_home_after_move = false;
+    }
 
     return false;
+}
+
+static void servo_read_target_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
+    if (err || abs((rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8) - target_pos) > SERVO_MAX_TARGET_ERROR) {
+        // LOG_WARN("Got bad servo target: %hd", rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8);
+        // LOG_WARN("Expected %hd", target_pos);
+        LOG_WARN("Got bad servo target. Retransmitting...");
+        if (num_errors < MAX_NUM_ERRORS) {
+            num_errors++;
+            servo_set_deg(target_pos * (240.0 / 1000.0));
+        }
+        else {
+            move_active = false;
+        }
+        return;
+    }
+
+    LOG_INFO("Read servo target %hd", rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8);
+    move_complete_alarm =
+        add_alarm_in_ms(curr_move_time_ms + SERVO_POSTMOVE_DELAY_MS, servo_move_complete_cb, NULL, true);
+}
+
+static void servo_read_target() {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    ServoPacket_t read_target_packet =
+        make_servo_packet(id, SERVO_MOVE_TIME_READ_CMD, SERVO_MOVE_TIME_READ_LEN, param_buf);
+    read_target_packet.on_read = servo_read_target_cb;
+
+    enqueue_packet(read_target_packet);
 }
 
 uint16_t servo_set_deg(float deg) {
     uint8_t param_buf[MAX_PACKET_SIZE];
 
-    // float bound_deg = min(max(deg, SERVO_MIN_DEG), SERVO_MAX_DEG);  // TODO: use this
+    // float bound_deg = min(max(deg, SERVO_MIN_DEG), SERVO_MAX_DEG);  // TODO: actually do something like this
     uint16_t target = deg * (1000.0 / 240.0);
     uint16_t move_time_ms = fabs(deg - curr_deg) * (1.0 / SERVO_MAX_DPS) * 1000;
 
@@ -134,15 +166,18 @@ uint16_t servo_set_deg(float deg) {
     ServoPacket_t set_target_packet =
         make_servo_packet(id, SERVO_MOVE_TIME_WRITE_CMD, SERVO_MOVE_TIME_WRITE_LEN, param_buf);
 
-    target_position = deg;
+    target_deg = deg;
+    target_pos = target;
     enqueue_packet(set_target_packet);
     move_active = true;
-    move_complete_alarm = add_alarm_in_ms(move_time_ms, servo_move_complete_cb, NULL, true);
+    curr_move_time_ms = move_time_ms;
+
+    servo_read_target();
 
     return move_time_ms;
 }
 
-static void servo_read_deg_cb(ServoPacket_t rx_packet, __unused enum servo_read_err err) {
+static void servo_read_deg_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
     // Set off retransmit if error occurred and below error threshold
     if (err) {
         if (num_errors < MAX_NUM_ERRORS) {
@@ -153,6 +188,7 @@ static void servo_read_deg_cb(ServoPacket_t rx_packet, __unused enum servo_read_
     }
 
     uint16_t pos = rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8;
+    pos = pos > 1000 ? 1000 : pos;
     curr_deg = pos * (240.0 / 1000.0);
 
     LOG_INFO("Read %hd pos as %hd deg", pos, curr_deg);
@@ -189,8 +225,8 @@ static int64_t servo_go_home_cb(__unused alarm_id_t id, __unused void *user_data
 
 void servo_set_deg_then_home(float deg) {
     uint16_t move_time_ms = servo_set_deg(deg);
-    add_alarm_in_ms(move_time_ms + SERVO_POSTMOVE_DELAY_MS, servo_go_home_cb, NULL, true);
-    // return_home_after_move = true;
+    // add_alarm_in_ms(move_time_ms + SERVO_POSTMOVE_DELAY_MS, servo_go_home_cb, NULL, true);
+    return_home_after_move = true;
 }
 
 void init_servo() {

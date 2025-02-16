@@ -29,7 +29,7 @@ const size_t response_len[SERVO_LED_ERROR_READ_CMD + 1] = {  // Easily access ex
     [SERVO_LED_CTRL_READ_CMD] = SERVO_LED_CTRL_READ_RESPONSE_LEN,
     [SERVO_LED_ERROR_READ_CMD] = SERVO_LED_ERROR_READ_RESPONSE_LEN
 };
-static struct QUEUE_DEFINE(struct ServoPacket, 8) tx_queue = { 0 };
+static struct QUEUE_DEFINE(struct ServoPacket, 10) tx_queue = { 0 };
 
 bool packet_in_flight = false;
 ServoPacket_t most_recent_sent;
