@@ -119,11 +119,11 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
-#ifdef MICRO_ROS_TRANSPORT_CAN
+    // #ifdef MICRO_ROS_TRANSPORT_CAN
     uint8_t client_id = CAN_BUS_CLIENT_ID;
-#else
-    uint8_t client_id = 1;
-#endif
+    // #else
+    //     uint8_t client_id = 1;
+    // #endif
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -160,7 +160,7 @@ static void tick_ros_tasks() {
 }
 
 static void tick_background_tasks() {
-#if MICRO_ROS_TRANSPORT_CAN
+    // #if MICRO_ROS_TRANSPORT_CAN
     // Tick canbus heartbeat/control interface
     canbus_tick();
 
@@ -168,22 +168,22 @@ static void tick_background_tasks() {
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
-#elif MICRO_ROS_TRANSPORT_ETH
-    // Update the LED to report ethernet link status
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_network_online_set(ethernet_check_online());
-    }
+    // #elif MICRO_ROS_TRANSPORT_ETH
+    //     // Update the LED to report ethernet link status
+    //     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    //         led_network_online_set(ethernet_check_online());
+    //     }
 
-    // Tick ethernet heartbeat/control interface
-    ethernet_tick();
+    //     // Tick ethernet heartbeat/control interface
+    //     ethernet_tick();
 
-#else
-    // Update the LED (so it can alternate between colors if a fault is present)
-    // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_update_pins();
-    }
-#endif
+    // #else
+    //     // Update the LED (so it can alternate between colors if a fault is present)
+    //     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for
+    //     us if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    //         led_update_pins();
+    //     }
+    // #endif
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
@@ -205,13 +205,13 @@ static void sht41_sensor_error_cb(const sht41_error_code error_type) {
 }
 
 int main() {
-// Initialize stdio
-#ifdef MICRO_ROS_TRANSPORT_USB
-    // The USB transport is special since it initializes stdio for you already
-    transport_usb_serial_init_early();
-#else
+    // Initialize stdio
+    // #ifdef MICRO_ROS_TRANSPORT_USB
+    //     // The USB transport is special since it initializes stdio for you already
+    //     transport_usb_serial_init_early();
+    // #else
     stdio_init_all();
-#endif
+    // #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
 
     // Perform all initializations
@@ -248,27 +248,27 @@ int main() {
     mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
     sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
 
-// Initialize ROS Transports
-// TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
-#ifdef MICRO_ROS_TRANSPORT_CAN
+    // Initialize ROS Transports
+    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove
+    // it #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
     bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
-#endif
+    // #endif
 
-#ifdef MICRO_ROS_TRANSPORT_ETH
-    if (!transport_eth_init()) {
-        // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and retry
-        panic("Failed to initialize Ethernet hardware!");
-    }
-#endif
+    // #ifdef MICRO_ROS_TRANSPORT_ETH
+    //     if (!transport_eth_init()) {
+    //         // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and
+    //         retry panic("Failed to initialize Ethernet hardware!");
+    //     }
+    // #endif
 
-#ifdef MICRO_ROS_TRANSPORT_USB
-    transport_usb_init();
-#endif
+    // #ifdef MICRO_ROS_TRANSPORT_USB
+    //     transport_usb_init();
+    // #endif
 
     // Enter main loop
     // This is split into two sections of timers

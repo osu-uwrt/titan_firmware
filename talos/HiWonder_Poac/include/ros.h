@@ -101,8 +101,8 @@ rcl_ret_t ros_publish_auxswitch();
 rcl_ret_t ros_update_temp_humidity_publisher();
 
 // TODO: Add in any additional ROS tasks here
-// #define MICRO_ROS_TRANSPORT_CAN 1
-#define MICRO_ROS_TRANSPORT_USB 1
-#undef MICRO_ROS_TRANSPORT_CAN
+#define MICRO_ROS_TRANSPORT_CAN 1
+// #define MICRO_ROS_TRANSPORT_USB 1
+// #undef MICRO_ROS_TRANSPORT_CAN
 
 #endif
