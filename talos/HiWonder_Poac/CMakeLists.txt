@@ -59,6 +59,10 @@ target_link_libraries(poac_board PUBLIC
     hardware_dma
     hardware_pio
     hardware_irq
+    hardware_adc
+    driver_async_i2c
+    driver_mcp3426
+    driver_sht41
 
     titan_queue
 )

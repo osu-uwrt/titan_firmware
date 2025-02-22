@@ -4,7 +4,10 @@
 #include "ros.h"
 #include "safety_interface.h"
 
+#include "driver/async_i2c.h"
 #include "driver/led.h"
+#include "driver/mcp3426.h"
+#include "driver/sht41.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -28,7 +31,10 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define ACTUATOR_STATUS_TIME_MS 1000
+#define KILLSWITCH_PUBLISH_TIME_MS 150
+#define ELECTRICAL_READINGS_INTERVAL 1000
+#define AUXSWITCH_INTERVAL 1000
+#define ACTUATOR_STATUS_TIME_MS 500
 #define SERVO_TRANSMIT_PERIOD_MS 10
 #define SERVO_PING_PERIOD_MS 1000
 
@@ -39,9 +45,11 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+absolute_time_t next_killswitch_publish = { 0 };
+absolute_time_t next_electrical_reading_publish = { 0 };
+absolute_time_t next_auxswitch_publish = { 0 };
 absolute_time_t next_servo_ping = { 0 };
 absolute_time_t next_actuator_status = { 0 };
-absolute_time_t next_uart_transmit = { 0 };
 
 static repeating_timer_t uart_scheduler_timer;
 
@@ -90,6 +98,9 @@ static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bo
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
+    next_killswitch_publish = make_timeout_time_ms(KILLSWITCH_PUBLISH_TIME_MS);
+    next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
+    next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
     next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
 }
 
@@ -124,6 +135,25 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
+    if (timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ||
+        safety_interface_kill_switch_refreshed) {
+        safety_interface_kill_switch_refreshed = false;
+        RCSOFTRETVCHECK(ros_publish_killswitch());
+    }
+
+    if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_electrical_readings());
+    }
+
+    if (timer_ready(&next_auxswitch_publish, AUXSWITCH_INTERVAL, true)) {
+        RCSOFTRETVCHECK(ros_publish_auxswitch());
+    }
+
+    if (sht41_temp_rh_set_on_read) {
+        sht41_temp_rh_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
+
     if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_actuators_update_status());
     }
@@ -163,6 +193,17 @@ static void tick_background_tasks() {
     }
 }
 
+static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t error_code) {
+    // Mark as used in case debug logging is disabled
+    (void) req;
+    LOG_DEBUG("Error in mcp3426 driver request: 0x%p, error_code: 0x%08lx", req, error_code);
+    safety_raise_fault_with_arg(FAULT_ADC_ERROR, error_code);
+}
+
+static void sht41_sensor_error_cb(const sht41_error_code error_type) {
+    safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
+}
+
 int main() {
 // Initialize stdio
 #ifdef MICRO_ROS_TRANSPORT_USB
@@ -179,8 +220,33 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
+
+    // Turn on FAN to get cooling
+    // TODO: Move to separate directory when tachometer added
+    bi_decl_if_func_used(bi_1pin_with_name(FAN_SWITCH_PIN, "Fan Control"));
+    gpio_init(FAN_SWITCH_PIN);
+    gpio_put(FAN_SWITCH_PIN, true);
+    gpio_set_dir(FAN_SWITCH_PIN, true);
+
+    gpio_init(AUX_SWITCH_PIN);
+    gpio_set_dir(AUX_SWITCH_PIN, false);
+
+    gpio_init(STBD_STAT_PIN);
+    gpio_init(PORT_STAT_PIN);
+    gpio_set_dir(STBD_STAT_PIN, GPIO_IN);
+    gpio_set_dir(PORT_STAT_PIN, GPIO_IN);
+    gpio_disable_pulls(STBD_STAT_PIN);
+    gpio_disable_pulls(PORT_STAT_PIN);
+
     init_servo();
     add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
+
+    // Initialize I2C
+    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
+    static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
+    mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
+    sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
@@ -222,6 +288,7 @@ int main() {
 
                 // TODO: Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
+                safety_lower_fault(FAULT_ROS_BAD_COMMAND);
 
                 if (ros_init() == RCL_RET_OK) {
                     ros_initialized = true;

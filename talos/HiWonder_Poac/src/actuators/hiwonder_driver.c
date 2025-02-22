@@ -57,13 +57,6 @@ static uint8_t calculate_checksum(ServoPacket_t *packet) {
 }
 
 static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *raw_packet, __unused size_t len) {
-    // LOG_INFO("Header? %hhx", raw_rx_packet[0]);
-    LOG_INFO("Header: %hhx, %hhx", raw_rx_packet[0], raw_rx_packet[1]);
-    LOG_INFO("ID: %hhx", raw_rx_packet[2]);
-    LOG_INFO("Command: %hhx", raw_rx_packet[4]);
-    LOG_INFO("Len: %hhx", raw_rx_packet[3]);
-    LOG_INFO("Checksum: %hhx", raw_rx_packet[len - 1]);
-
     // Any operatiosn on raw_packet are invalid if error is set, so check that first
     if (error != ASYNC_UART_RX_OK) {
         LOG_ERROR("Async UART reported RX error: %u\n", error);
@@ -104,23 +97,8 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
         err = SERVO_INCORRECT_RESPONDER;
     }
 
-    // LOG_INFO("Receieved response packet");
-    // for (int i = 0; i < len; i++) {
-    //     LOG_INFO("%hhx", raw_packet[i]);
-    // }
-
     most_recent_sent.on_read(rx_packet, err);
     packet_in_flight = false;
-
-    // LOG_INFO("Packet receive complete; marking packet_in_flight as false");
-
-    // LOG_INFO("Packet data: ");
-    // for (uint8_t i = 0; i < PARAMETER_MTU; i++)
-    //     LOG_INFO("%x ", rx_packet.param_buf[i]);
-
-    // LOG_INFO("Raw packet: ");
-    // for (uint8_t i = 0; i < rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE; i++)
-    //     LOG_INFO("%x ", raw_packet[i]);
 }
 
 static void on_packet_sent(__unused enum async_uart_tx_err error) {
@@ -132,8 +110,6 @@ static void on_packet_sent(__unused enum async_uart_tx_err error) {
     else {
         packet_in_flight = false;
     }
-
-    // LOG_INFO("Packet sent callback");
 }
 
 void send_packet(ServoPacket_t packet) {
@@ -145,33 +121,16 @@ void send_packet(ServoPacket_t packet) {
     raw_packet[2] = packet.target_id;
     raw_packet[3] = packet.command_length;
     raw_packet[4] = packet.command;
-    // raw_packet[2] = 1;
-    // raw_packet[3] = SERVO_MOVE_TIME_WRITE_CMD;
-    // raw_packet[4] = SERVO_MOVE_TIME_WRITE_LEN;
 
     // TODO: replace with memcpy?
     for (uint8_t i = 0; i < 7 - 3; i++) {
         raw_packet[i + 5] = packet.param_buf[i];
-        // raw_packet[i + 5] = i;
     }
 
     raw_packet[packet_size - 1] = calculate_checksum(&packet);
 
-    // uint8_t prev_interrupts = save_and_disable_interrupts();
     most_recent_sent = packet;
-    // LOG_INFO("Writing pacekt to UART line; packet_in_flight marked true");
-
-    // LOG_INFO("Header: %hhx", raw_packet[0]);
-    // LOG_INFO("ID: %hhx", raw_packet[2]);
-    // LOG_INFO("Command: %hhx", raw_packet[4]);
-    // LOG_INFO("Len: %hhx", raw_packet[3]);
-    // LOG_INFO("Checksum: %hhx", raw_packet[packet_size - 1]);
-
-    // for (int i = 0; i < packet_size; i++) {
-    //     LOG_INFO("%hhx", raw_packet[i]);
-    // }
     async_uart_write(raw_packet, packet_size, false, on_packet_sent);
-    // restore_interrupts(prev_interrupts);
 }
 
 bool enqueue_packet(ServoPacket_t packet) {
@@ -181,11 +140,6 @@ bool enqueue_packet(ServoPacket_t packet) {
     ServoPacket_t *entry = QUEUE_CUR_WRITE_ENTRY(&tx_queue);
     // This copy is generally safe since there are no (non-function) pointers in ServoPacket
     *entry = packet;
-    // entry->target_id = packet.target_id;
-    // entry->command = packet.command;
-    // entry->command_length = packet.command_length;
-    // memcpy(entry->param_buf, packet.param_buf, sizeof(packet.param_buf));
-    // entry->on_read = packet.on_read;
     QUEUE_MARK_WRITE_DONE(&tx_queue);
 
     return true;
@@ -197,8 +151,6 @@ static bool dequeue_packet(ServoPacket_t *packet) {
     if (QUEUE_EMPTY(&tx_queue))
         return false;
 
-    // LOG_INFO("Dequeue request successful");
-
     ServoPacket_t *entry = QUEUE_CUR_READ_ENTRY(&tx_queue);
     *packet = *entry;  // shallow copy
     QUEUE_MARK_READ_DONE(&tx_queue);
@@ -207,8 +159,6 @@ static bool dequeue_packet(ServoPacket_t *packet) {
 }
 
 bool uart_scheduler(__unused repeating_timer_t *rt) {
-    // LOG_INFO("Ran uart scheduler");
-
     ServoPacket_t packet;
     // Short-circuit to not dequeue when bus is busy
     if (packet_in_flight || !dequeue_packet(&packet))
