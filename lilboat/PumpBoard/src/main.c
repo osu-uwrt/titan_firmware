@@ -3,6 +3,7 @@
 
 #include "driver/depth.h"
 #include "driver/led.h"
+#include "hardware/clocks.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"

@@ -135,6 +135,11 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
+static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
+    ts->tv_sec = time_nanos / 1000000000;
+    ts->tv_nsec = time_nanos % 1000000000;
+}
+
 // TODO: Add in node specific tasks here
 rcl_ret_t ros_update_depth_publisher() {
     if (depth_reading_valid()) {

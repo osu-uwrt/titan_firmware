@@ -47,6 +47,7 @@ pico_add_extra_outputs(template_project)
 target_link_libraries(template_project PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
+    driver_depth
     # TODO: Select your transport:
     micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
     titan_logger    # A nice little logging library
