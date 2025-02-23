@@ -3,6 +3,7 @@
 
 #include "driver/depth.h"
 #include "driver/led.h"
+#include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -28,6 +29,9 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+
+#define NEG_CTRL_PIN 27
+#define POS_CTRL_PIN 28
 
 // To drive the pump
 //
@@ -166,6 +170,21 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
+static void pump_fwd(uint neg_slice_num, uint pos_slice_num) {
+    pwm_set_enabled(neg_slice_num, false);
+    pwm_set_enabled(pos_slice_num, true);
+}
+
+static void pump_rev(uint neg_slice_num, uint pos_slice_num) {
+    pwm_set_enabled(neg_slice_num, true);
+    pwm_set_enabled(pos_slice_num, false);
+}
+
+static void pump_off() {
+    gpio_put(NEG_CTRL_PIN, 0);
+    gpio_put(POS_CTRL_PIN, 0);
+}
+
 int main() {
     // Initialize stdio
     depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
@@ -182,7 +201,38 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
-// TODO: Put any additional hardware initialization code here
+
+    // TODO: Put any additional hardware initialization code here
+    gpio_init(NEG_CTRL_PIN);
+    gpio_init(POS_CTRL_PIN);
+
+    gpio_set_dir(NEG_CTRL_PIN, GPIO_OUT);
+    gpio_set_dir(POS_CTRL_PIN, GPIO_OUT);
+
+    pump_off();
+
+    gpio_set_function(NEG_CTRL_PIN, GPIO_FUNC_PWM);
+    gpio_set_function(POS_CTRL_PIN, GPIO_FUNC_PWM);
+
+    uint neg_slice_num = pwm_gpio_to_slice_num(NEG_CTRL_PIN);
+    int neg_chan = pwm_gpio_to_channel(NEG_CTRL_PIN);
+
+    uint pos_slice_num = pwm_gpio_to_slice_num(POS_CTRL_PIN);
+    int pos_chan = pwm_gpio_to_channel(POS_CTRL_PIN);
+
+    // Want PWMCLK to be a square wave at 204,800 Hz
+    // Set period of 4 cycles (0 to 3 inclusive)
+    pwm_set_wrap(neg_slice_num, 3);
+    pwm_set_wrap(pos_slice_num, 3);
+    // Set channels output high for two cycles before dropping (50% duty cycle)
+    pwm_set_chan_level(neg_slice_num, neg_chan, 2);
+    pwm_set_chan_level(pos_slice_num, pos_chan, 2);
+    // This means that we need the slice to be clocked at 819,200 Hz
+    // Compute fractioanl divider to get our target frequency
+    pwm_set_clkdiv(neg_slice_num, clock_get_hz(clk_sys) / 819200.0f);
+    pwm_set_clkdiv(pos_slice_num, clock_get_hz(clk_sys) / 819200.0f);
+
+    pump_fwd(neg_slice_num, pos_slice_num);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
