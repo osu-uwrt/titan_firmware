@@ -15,6 +15,12 @@
 #define BUCK_ALWAYS_ON 2
 #define BUCK_FOLLOW_DIN 3
 
+typedef struct RGB {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+} RGB_t;
+
 _Bool controller_satisfy_watchdog();
 void controller_clear_watchdog_error(uint controller);
 void controller_enable(uint controller);
@@ -25,7 +31,7 @@ void buck_set_peak_current(uint controller, uint buck, uint current);
 void init_spi_and_gpio();
 void register_canmore_commands();
 
-void led_set_rgb(uint r, uint g, uint b, float maxBrightness);
+void led_set_rgb(const RGB_t rgb, float maxBrightness);
 
 float al_read_temp();
 

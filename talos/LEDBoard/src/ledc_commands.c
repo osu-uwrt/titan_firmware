@@ -195,21 +195,24 @@ void buck_set_peak_current(uint controller, uint buck, uint current) {
     spi_write(controller, 0x02, correct_parity_bit(spi_val, false), &gs);
 }
 
-static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
-    *w = MIN(*r, MIN(*g, *b));
+static uint rgb_to_rgbw(RGB_t *rgb) {
+    uint w = MIN(rgb->r, MIN(rgb->g, rgb->b));
 
-    *r -= *w;
-    *g -= *w;
-    *b -= *w;
+    rgb->r -= w;
+    rgb->g -= w;
+    rgb->b -= w;
+
+    return w;
 }
 
-void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {
-    uint w;
-    rgb_to_rgbw(&r, &g, &b, &w);
+// static void rescale_rgb()
 
-    buck_set_brightness(led_r_path[0], led_r_path[1], r * (1023.0 / 255.0) * maxBrightness);
-    buck_set_brightness(led_g_path[0], led_g_path[1], g * (1023.0 / 255.0) * maxBrightness);
-    buck_set_brightness(led_b_path[0], led_b_path[1], b * (1023.0 / 255.0) * maxBrightness);
+void led_set_rgb(RGB_t rgb, float maxBrightness) {
+    uint w = rgb_to_rgbw(&rgb);
+
+    buck_set_brightness(led_r_path[0], led_r_path[1], rgb.r * (1023.0 / 255.0) * maxBrightness);
+    buck_set_brightness(led_g_path[0], led_g_path[1], rgb.g * (1023.0 / 255.0) * maxBrightness);
+    buck_set_brightness(led_b_path[0], led_b_path[1], rgb.b * (1023.0 / 255.0) * maxBrightness);
     buck_set_brightness(led_w_path[0], led_w_path[1], w * (1023.0 / 255.0) * maxBrightness);
 }
 

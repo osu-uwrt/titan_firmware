@@ -60,31 +60,23 @@ static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_m
 // LED state config
 volatile bool led_enabled;
 enum status_mode led_mode;
-uint8_t red_target;
-uint8_t green_target;
-uint8_t blue_target;
 uint led_timer;
+RGB_t target_rgb;
 
 // Flash State Config
 volatile bool flash_active;  // Voltaile as this is used to protect the flashing state, rather than disabling interrupts
 uint flash_timer;
 uint flash_count;
-uint8_t red_flash_target;
-uint8_t green_flash_target;
-uint8_t blue_flash_target;
+RGB_t flash_target_rgb;
 
 // Short singleton flash (vision detections)
 volatile bool do_singleton;
 uint next_singleton = LOOPS_PER_SINGLETON;
 bool is_in_singleton = false;
-uint8_t red_singleton_target;
-uint8_t green_singleton_target;
-uint8_t blue_singleton_target;
+RGB_t singleton_target_rgb;
 
 // Track the last values set by the driver so they can be restored later
-uint8_t last_red;
-uint8_t last_green;
-uint8_t last_blue;
+RGB_t last_rgb;
 float last_max_brightness;
 
 // Depth status
@@ -100,16 +92,16 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     uint red, green, blue;
 
     if (led_mode == MODE_SOLID) {
-        red = red_target;
-        green = green_target;
-        blue = blue_target;
+        red = target_rgb.r;
+        green = target_rgb.g;
+        blue = target_rgb.b;
     }
     else if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
         uint flash_period = (led_mode == MODE_FAST_FLASH ? LED_FAST_FLASH_PERIOD : LED_SLOW_FLASH_PERIOD);
         if (led_timer % flash_period < (flash_period / 2)) {
-            red = red_target;
-            green = green_target;
-            blue = blue_target;
+            red = target_rgb.r;
+            green = target_rgb.g;
+            blue = target_rgb.b;
         }
         else {
             // Set blank
@@ -119,18 +111,18 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     else if (led_mode == MODE_BREATH) {
         if (led_timer % LED_TIMER_PERIOD_TICKS < (LED_TIMER_PERIOD_TICKS / 2)) {
             // Handle rising fade
-            red = (((uint32_t) red_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
-            green = (((uint32_t) green_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
-            blue = (((uint32_t) blue_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
+            red = (((uint32_t) target_rgb.r) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
+            green = (((uint32_t) target_rgb.g) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
+            blue = (((uint32_t) target_rgb.b) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
         }
         else {
             // Handle falling fade
-            red = (red_target) -
-                  (((uint32_t) red_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) / (LED_TIMER_PERIOD_TICKS / 2));
-            green = (green_target) - (((uint32_t) green_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
-                                      (LED_TIMER_PERIOD_TICKS / 2));
-            blue = (blue_target) - (((uint32_t) blue_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
+            red = (target_rgb.r) - (((uint32_t) target_rgb.r) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
                                     (LED_TIMER_PERIOD_TICKS / 2));
+            green = (target_rgb.g) - (((uint32_t) target_rgb.g) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
+                                      (LED_TIMER_PERIOD_TICKS / 2));
+            blue = (target_rgb.b) - (((uint32_t) target_rgb.b) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
+                                     (LED_TIMER_PERIOD_TICKS / 2));
         }
         // Square it to make fading look smoother
         red = (((uint32_t) red) * ((uint32_t) red)) >> 8;
@@ -148,19 +140,19 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         // First compute color for this round of flashing
         if (flash_timer % LED_FLASH_PULSE_PERIOD < (LED_FLASH_PULSE_PERIOD / 2)) {
             // Handle rising fade
-            red = (((uint32_t) red_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
-            green = (((uint32_t) green_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
-            blue = (((uint32_t) blue_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
+            red = (((uint32_t) flash_target_rgb.r) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
+            green = (((uint32_t) flash_target_rgb.g) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
+            blue = (((uint32_t) flash_target_rgb.b) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
         }
         else {
             // Handle falling fade
-            red = (red_flash_target) - (((uint32_t) red_flash_target) * (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) /
-                                        (LED_FLASH_PULSE_PERIOD / 2));
-            green =
-                (green_flash_target) - (((uint32_t) green_flash_target) * (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) /
-                                        (LED_FLASH_PULSE_PERIOD / 2));
-            blue = (blue_flash_target) - (((uint32_t) blue_flash_target) *
+            red = (flash_target_rgb.r) - (((uint32_t) flash_target_rgb.r) *
                                           (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) / (LED_FLASH_PULSE_PERIOD / 2));
+            green =
+                (flash_target_rgb.g) - (((uint32_t) flash_target_rgb.g) * (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) /
+                                        (LED_FLASH_PULSE_PERIOD / 2));
+            blue = (flash_target_rgb.b) - (((uint32_t) flash_target_rgb.b) *
+                                           (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) / (LED_FLASH_PULSE_PERIOD / 2));
         }
 
         // Then compute the next timer and count values
@@ -187,16 +179,15 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         (-1.0f / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C)) * curr_al_temp +
         (MAX_OPERATING_TEMPERATURE_C * 1.0f) / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C);
     // Clamp to [0, 1]
-    temp_adjust = temp_adjust < 0.0f ? 0.0f : temp_adjust;
-    temp_adjust = temp_adjust > 1.0f ? 1.0f : temp_adjust;
+    temp_adjust = MIN(MAX(temp_adjust, 0.0f), 1.0f);
 
     // Turn off LEDs if temp exceeds max
     if (em_overtemp)
         max_brightness = 0.0f;
 
-    last_red = red;
-    last_green = green;
-    last_blue = blue;
+    last_rgb.r = red;
+    last_rgb.g = green;
+    last_rgb.b = blue;
     last_max_brightness = max_brightness;
 
     // Allow singleton flashes every LOOPS_PER_SINGLETON iterations
@@ -204,7 +195,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
         next_singleton--;
 
     // Transmit data
-    led_set_rgb(red, green, blue, max_brightness * temp_adjust);
+    led_set_rgb((RGB_t) { red, green, blue }, max_brightness * temp_adjust);
 
     return true;
 }
@@ -222,11 +213,11 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
         return true;
 
     if (is_in_singleton) {  // Set back to pre-flash color
-        led_set_rgb(last_red, last_green, last_blue, last_max_brightness);
+        led_set_rgb(last_rgb, last_max_brightness);
         is_in_singleton = false;
     }
     else {  // Set to flash color, to be reset the next loop
-        led_set_rgb(red_singleton_target, green_singleton_target, blue_singleton_target, last_max_brightness);
+        led_set_rgb(singleton_target_rgb, last_max_brightness);
         is_in_singleton = true;
     }
 
@@ -258,7 +249,7 @@ static bool monitor_temperature(__unused repeating_timer_t *rt) {
 void ledc_init() {
     init_spi_and_gpio();
     register_canmore_commands();
-    led_set_rgb(0, 0, 0, 1023);  // Set LEDs off before enabling them
+    led_set_rgb((RGB_t) { 0, 0, 0 }, 1023);  // Set LEDs off before enabling them
 
     // LEDC defines set in ledc_commands.h
     for (uint controller = LEDC1; controller <= LEDC2; controller++) {
@@ -290,18 +281,18 @@ void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
     led_timer = 0;
     led_mode = mode;
-    red_target = red;
-    green_target = green;
-    blue_target = blue;
+    target_rgb.r = red;
+    target_rgb.g = green;
+    target_rgb.b = blue;
     restore_interrupts(prev_interrupts);
 }
 
 // Flash (on kill switch insertion), not persistent
 void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = false;
-    red_flash_target = red;
-    green_flash_target = green;
-    blue_flash_target = blue;
+    flash_target_rgb.r = red;
+    flash_target_rgb.g = green;
+    flash_target_rgb.b = blue;
     flash_timer = 0;
     flash_count = 0;
     flash_active = true;
@@ -310,9 +301,9 @@ void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
 // Short flash (on vision detection), not persistent
 void led_singleton(uint8_t red, uint8_t green, uint8_t blue) {
     do_singleton = false;
-    red_singleton_target = red;
-    green_singleton_target = green;
-    blue_singleton_target = blue;
+    singleton_target_rgb.r = red;
+    singleton_target_rgb.g = green;
+    singleton_target_rgb.b = blue;
     do_singleton = true;
 }
 
