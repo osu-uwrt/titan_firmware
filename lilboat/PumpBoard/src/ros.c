@@ -1,5 +1,7 @@
 #include "ros.h"
 
+#include "seabotix.h"
+
 #include "driver/depth.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -27,6 +29,8 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
+#define LEFT_POWER_SUBSCRIBER_NAME "drive/left"
+#define RIGHT_POWER_SUBSCRIBER_NAME "drive/right"
 
 bool ros_connected = false;
 
@@ -43,6 +47,10 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 // TODO: Add node specific items here
+rcl_subscription_t left_power_subscriber;
+std_msgs__msg__Int8 left_power_msg;
+rcl_subscription_t right_power_subscriber;
+std_msgs__msg__Int8 right_power_msg;
 
 // Depth Sensor
 rcl_publisher_t depth_publisher;
@@ -58,6 +66,16 @@ const float depth_variance = 0.003;
 static void killswitch_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
+}
+
+static void left_power_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
+    seabotix_set_pct(0, msg->data);
+}
+
+static void right_power_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
+    seabotix_set_pct(1, msg->data);
 }
 
 // TODO: Add in node specific tasks here
@@ -142,15 +160,15 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 
 // TODO: Add in node specific tasks here
 rcl_ret_t ros_update_depth_publisher() {
-    if (depth_reading_valid()) {
-        struct timespec ts;
-        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
-        depth_msg.header.stamp.sec = ts.tv_sec;
-        depth_msg.header.stamp.nanosec = ts.tv_nsec;
+    // if (depth_reading_valid()) {
+    //     struct timespec ts;
+    //     nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+    //     depth_msg.header.stamp.sec = ts.tv_sec;
+    //     depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
-        depth_msg.depth = -depth_read();
-        RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
-    }
+    //     depth_msg.depth = -depth_read();
+    //     RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+    // }
 
     return RCL_RET_OK;
 }
@@ -176,15 +194,23 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &left_power_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), LEFT_POWER_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(
+        &right_power_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), RIGHT_POWER_SUBSCRIBER_NAME));
+
+    // RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
+    //                                DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
+
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
-
-    // TODO: Modify this method with node specific objects
-    RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
-                                   DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &left_power_subscriber, &left_power_msg,
+                                              &left_power_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &right_power_subscriber, &right_power_msg,
+                                              &right_power_subscription_callback, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -208,7 +234,9 @@ void ros_fini(void) {
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&left_power_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&right_power_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

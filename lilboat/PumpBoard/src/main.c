@@ -1,5 +1,6 @@
 #include "ros.h"
 #include "safety_interface.h"
+#include "seabotix.h"
 
 #include "driver/depth.h"
 #include "driver/led.h"
@@ -30,9 +31,6 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-
-#define NEG_CTRL_PIN 27
-#define POS_CTRL_PIN 28
 
 // To drive the pump
 //
@@ -127,10 +125,10 @@ static void tick_ros_tasks() {
 
     // TODO: Put any additional ROS tasks added here
     // Send depth as soon as a new reading comes in
-    if (depth_set_on_read) {
-        depth_set_on_read = false;
-        RCSOFTRETVCHECK(ros_update_depth_publisher());
-    }
+    // if (depth_set_on_read) {
+    //     depth_set_on_read = false;
+    //     RCSOFTRETVCHECK(ros_update_depth_publisher());
+    // }
 }
 
 static void tick_background_tasks() {
@@ -155,7 +153,7 @@ static void tick_background_tasks() {
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        led_update_pins();
+        // led_update_pins();
     }
 #endif
 
@@ -171,20 +169,20 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
-static void pump_fwd(uint neg_slice_num, uint pos_slice_num) {
-    pwm_set_enabled(neg_slice_num, false);
-    pwm_set_enabled(pos_slice_num, true);
-}
+// static void pump_fwd(uint neg_slice_num, uint pos_slice_num) {
+//     pwm_set_enabled(neg_slice_num, false);
+//     pwm_set_enabled(pos_slice_num, true);
+// }
 
-static void pump_rev(uint neg_slice_num, uint pos_slice_num) {
-    pwm_set_enabled(neg_slice_num, true);
-    pwm_set_enabled(pos_slice_num, false);
-}
+// static void pump_rev(uint neg_slice_num, uint pos_slice_num) {
+//     pwm_set_enabled(neg_slice_num, true);
+//     pwm_set_enabled(pos_slice_num, false);
+// }
 
-static void pump_off() {
-    gpio_put(NEG_CTRL_PIN, 0);
-    gpio_put(POS_CTRL_PIN, 0);
-}
+// static void pump_off() {
+//     gpio_put(NEG_CTRL_PIN, 0);
+//     gpio_put(POS_CTRL_PIN, 0);
+// }
 
 int main() {
     // Initialize stdio
@@ -200,40 +198,11 @@ int main() {
     // Perform all initializations
     // NOTE: Safety must be the first thing up after stdio, so the watchdog will be enabled
     safety_setup();
-    led_init();
+    // led_init();
     micro_ros_init_error_handling();
 
     // TODO: Put any additional hardware initialization code here
-    gpio_init(NEG_CTRL_PIN);
-    gpio_init(POS_CTRL_PIN);
-
-    gpio_set_dir(NEG_CTRL_PIN, GPIO_OUT);
-    gpio_set_dir(POS_CTRL_PIN, GPIO_OUT);
-
-    pump_off();
-
-    gpio_set_function(NEG_CTRL_PIN, GPIO_FUNC_PWM);
-    gpio_set_function(POS_CTRL_PIN, GPIO_FUNC_PWM);
-
-    uint neg_slice_num = pwm_gpio_to_slice_num(NEG_CTRL_PIN);
-    int neg_chan = pwm_gpio_to_channel(NEG_CTRL_PIN);
-
-    uint pos_slice_num = pwm_gpio_to_slice_num(POS_CTRL_PIN);
-    int pos_chan = pwm_gpio_to_channel(POS_CTRL_PIN);
-
-    // Want PWMCLK to be a square wave at 204,800 Hz
-    // Set period of 4 cycles (0 to 3 inclusive)
-    pwm_set_wrap(neg_slice_num, 3);
-    pwm_set_wrap(pos_slice_num, 3);
-    // Set channels output high for two cycles before dropping (50% duty cycle)
-    pwm_set_chan_level(neg_slice_num, neg_chan, 2);
-    pwm_set_chan_level(pos_slice_num, pos_chan, 2);
-    // This means that we need the slice to be clocked at 819,200 Hz
-    // Compute fractioanl divider to get our target frequency
-    pwm_set_clkdiv(neg_slice_num, clock_get_hz(clk_sys) / 819200.0f);
-    pwm_set_clkdiv(pos_slice_num, clock_get_hz(clk_sys) / 819200.0f);
-
-    pump_fwd(neg_slice_num, pos_slice_num);
+    seabotix_init();
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

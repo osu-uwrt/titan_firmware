@@ -30,8 +30,11 @@
 #define BOARD_SDA_PIN 24
 #define BOARD_SCL_PIN 25
 
-#define PUMP_POS_CTRL_PIN 28
-#define PUMP_NEG_CTRL_PIN 27
+#define MOT0_2_PIN 14
+#define MOT0_1_PIN 15
+
+#define MOT1_2_PIN 0
+#define MOT1_1_PIN 1
 
 #ifndef PICO_DEFAULT_I2C
 #define PICO_DEFAULT_I2C BOARD_I2C

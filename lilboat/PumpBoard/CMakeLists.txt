@@ -40,7 +40,7 @@ pico_set_program_name(template_project "LilboatPumpBoard")  # TODO: Set the proj
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(template_project)
-titan_enable_bootloader(template_project can)  # TODO: Select the same transport as below, or remove this line if using USB
+# titan_enable_bootloader(template_project can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
 pico_add_extra_outputs(template_project)
@@ -50,8 +50,10 @@ target_link_libraries(template_project PUBLIC
     driver_depth
     # TODO: Select your transport:
     micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_usb
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    hardware_pwm
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
 )
