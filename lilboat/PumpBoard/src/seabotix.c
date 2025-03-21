@@ -50,7 +50,7 @@ void seabotix_set_pct(uint8_t target, int8_t pct) {
     pwm_set_freq_duty(pos_slice_num[target], pos_chan[target], SEABOTIX_PWM_HZ, pos_duty);
     pwm_set_freq_duty(neg_slice_num[target], neg_chan[target], SEABOTIX_PWM_HZ, neg_duty);
 
-    LOG_INFO("Setting target %d to %f positive and %f negative", target, pos_duty, neg_duty);
+    // LOG_INFO("Setting target %d to %f positive and %f negative", target, pos_duty, neg_duty);
 }
 
 static void init_pin(uint pin) {
