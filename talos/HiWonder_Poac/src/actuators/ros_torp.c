@@ -73,8 +73,8 @@ static std_srvs__srv__SetBool_Response actuator_arm_res;
 #define TORP_NUMBER 2
 #define DROPPER_NUMBER 2
 
-#define TORP_2_DEG 200
-#define TORP_1_DEG 240
+#define TORP_2_DEG 100
+#define TORP_1_DEG 200
 
 #define MARKER_2_DEG 50
 #define MARKER_1_DEG 0
