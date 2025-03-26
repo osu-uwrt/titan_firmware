@@ -86,10 +86,10 @@ uint8_t num_marker = DROPPER_NUMBER;
 //
 bool torpedo_fire(const char **errMsgOut) {
     // Don't allow firing of torpedos when killed
-    // if (safety_kill_get_asserting_kill()) {
-    //     *errMsgOut = "Kill Switch Removed";
-    //     return false;
-    // }
+    if (safety_kill_get_asserting_kill()) {
+        *errMsgOut = "Kill Switch Removed";
+        return false;
+    }
 
     // Make sure that actuators are armed
     if (!enabled) {
@@ -265,11 +265,11 @@ bool actuators_arm(const char **errMsgOut) {
     }
 
     // Don't allow arming if killed
-    // if (safety_kill_get_asserting_kill()) {
-    //     restore_interrupts(prev_interrupts);
-    //     *errMsgOut = "Kill Switch Removed";
-    //     return false;
-    // }
+    if (safety_kill_get_asserting_kill()) {
+        restore_interrupts(prev_interrupts);
+        *errMsgOut = "Kill Switch Removed";
+        return false;
+    }
 
     LOG_INFO("Arming Actuators");
 
