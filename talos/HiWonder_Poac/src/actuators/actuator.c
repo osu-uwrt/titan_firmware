@@ -16,7 +16,7 @@
 uint8_t id = 1;
 uint32_t max_move_time_ms;
 
-uint16_t home_deg = 100;
+uint16_t home_deg = 120;
 uint16_t curr_deg = 0;
 
 // TODO: this is cursed
