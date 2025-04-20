@@ -3,7 +3,7 @@
 #include "seabotix.h"
 
 #include "driver/depth.h"
-#include "driver/led.h"
+#include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
@@ -31,6 +31,11 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define PRESSURE_PUB_INTERVAL_MS 500
+
+#define PRESSURE_MIN_VOLTAGE_PSI 0.0f
+#define PRESSURE_MAX_VOLTAGE_PSI 150.0f
+#define PRESSURE_ADC_NUM 0
 
 // To drive the pump
 //
@@ -45,6 +50,16 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+absolute_time_t next_pressure_read = { 0 };
+
+bool pressure_ready = false;
+float pressure;
+
+bool led_blink = false;
+bool led_do_blink = false;
+
+static void pressure_read();
+static void led_update_pins();
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -129,6 +144,11 @@ static void tick_ros_tasks() {
     //     depth_set_on_read = false;
     //     RCSOFTRETVCHECK(ros_update_depth_publisher());
     // }
+
+    if (pressure_ready) {
+        RCSOFTRETVCHECK(ros_pressure_pub(pressure));
+        pressure_ready = false;
+    }
 }
 
 static void tick_background_tasks() {
@@ -153,11 +173,14 @@ static void tick_background_tasks() {
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        // led_update_pins();
+        led_update_pins();
     }
 #endif
 
     // TODO: Put any code that should periodically occur here
+    if (timer_ready(&next_pressure_read, PRESSURE_PUB_INTERVAL_MS, false)) {
+        pressure_read();
+    }
 }
 
 static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
@@ -167,6 +190,33 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     else {
         safety_raise_fault_with_arg(FAULT_DEPTH_INIT_ERROR, event);
     }
+}
+
+static void pressure_read() {
+    adc_select_input(0);
+
+    // const float convert_to_voltage_factor = 3.3f / (1 << 12);
+    // pressure = adc_read() * convert_to_voltage_factor;
+
+    pressure = ((((float) adc_read()) / (1 << 12)) - 0.088) * (1 + 0.088) *
+               (PRESSURE_MAX_VOLTAGE_PSI - PRESSURE_MIN_VOLTAGE_PSI);
+    // pressure = ((float) adc_read()) / (1 << 12);
+    pressure = MIN(PRESSURE_MAX_VOLTAGE_PSI, MAX(pressure, PRESSURE_MIN_VOLTAGE_PSI));
+    pressure_ready = true;
+
+    LOG_INFO("Read pressure as %f PSI", pressure);
+
+    // LOG_INFO("Reading  ADCvoltage as %f", voltage);
+    // LOG_INFO("Got %d from pin", gpio_get(PRESSURE_PIN));
+}
+
+static void led_update_pins() {
+    gpio_put(LED_PIN, !(led_do_blink && led_blink));
+    led_blink = !led_blink;
+}
+
+static void led_ros_connected_set(bool val) {
+    led_do_blink = val;
 }
 
 // static void pump_fwd(uint neg_slice_num, uint pos_slice_num) {
@@ -186,7 +236,7 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
 
 int main() {
     // Initialize stdio
-    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
+    // depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 #ifdef MICRO_ROS_TRANSPORT_USB
     // The USB transport is special since it initializes stdio for you already
     transport_usb_serial_init_early();
@@ -203,6 +253,16 @@ int main() {
 
     // TODO: Put any additional hardware initialization code here
     seabotix_init();
+
+    adc_init();
+    adc_gpio_init(PRESSURE_PIN);
+
+    // gpio_init(PRESSURE_PIN);
+    // gpio_set_dir(PRESSURE_PIN, GPIO_IN);
+
+    gpio_init(LED_PIN);
+    gpio_put(LED_PIN, 1);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

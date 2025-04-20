@@ -15,7 +15,9 @@
 #include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
+#include <std_srvs/srv/trigger.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -29,8 +31,13 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
-#define LEFT_POWER_SUBSCRIBER_NAME "drive/left"
-#define RIGHT_POWER_SUBSCRIBER_NAME "drive/right"
+#define LEFT_POWER_SUBSCRIBER_NAME "command/left"
+#define RIGHT_POWER_SUBSCRIBER_NAME "command/right"
+#define PRESSURE_PUBLISHER_NAME "pressure"
+#define FLUSH_SERVICE_NAME "command/flush"
+
+#define FLUSH_TARGET 0
+#define FLUSH_TIME_MS 75
 
 bool ros_connected = false;
 
@@ -59,6 +66,14 @@ riptide_msgs2__msg__Depth depth_msg;
 char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
 const float depth_variance = 0.003;
 
+// Pressure
+rcl_publisher_t pressure_publisher;
+
+// Flush
+rcl_service_t flush_service;
+std_srvs__srv__Trigger_Request flush_service_req;
+std_srvs__srv__Trigger_Response flush_service_res;
+
 // ========================================
 // Executor Callbacks
 // ========================================
@@ -76,6 +91,20 @@ static void left_power_subscription_callback(const void *msgin) {
 static void right_power_subscription_callback(const void *msgin) {
     const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
     seabotix_set_pct(1, msg->data);
+}
+
+static void flush_service_callback(__unused const void *req, void *res) {
+    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
+
+    seabotix_set_pct_for(FLUSH_TARGET, 100, FLUSH_TIME_MS);
+
+    const char *message = "Triggering flush operation";
+    size_t msg_len = strlen(message);
+    res_in->message.data = (char *) message;
+    res_in->message.size = msg_len;
+    res_in->message.capacity = msg_len + 1;
+
+    res_in->success = true;
 }
 
 // TODO: Add in node specific tasks here
@@ -173,6 +202,15 @@ rcl_ret_t ros_update_depth_publisher() {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_pressure_pub(float pressure) {
+    std_msgs__msg__Float32 pressure_msg;
+    pressure_msg.data = pressure;
+
+    RCSOFTRETCHECK(rcl_publish(&pressure_publisher, &pressure_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -199,11 +237,17 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_default(
         &right_power_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), RIGHT_POWER_SUBSCRIBER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(
+        &pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), PRESSURE_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_service_init_default(&flush_service, &node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
+                                         FLUSH_SERVICE_NAME));
+
     // RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
     //                                DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -211,6 +255,8 @@ rcl_ret_t ros_init() {
                                               &left_power_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &right_power_subscriber, &right_power_msg,
                                               &right_power_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_service(&executor, &flush_service, &flush_service_req, &flush_service_res,
+                                         &flush_service_callback));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -237,6 +283,8 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_subscription_fini(&left_power_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&right_power_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&pressure_publisher, &node));
+    RCSOFTCHECK(rcl_service_fini(&flush_service, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

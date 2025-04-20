@@ -26,15 +26,19 @@
 // #define ORIN_SW_PIN 6
 // #define RGB_DATA_PIN 9
 
-#define BOARD_I2C 0
-#define BOARD_SDA_PIN 24
-#define BOARD_SCL_PIN 25
+// #define BOARD_I2C 0
+// #define BOARD_SDA_PIN 24
+// #define BOARD_SCL_PIN 25
+
+#define LED_PIN 25
 
 #define MOT0_2_PIN 14
 #define MOT0_1_PIN 15
 
 #define MOT1_2_PIN 0
 #define MOT1_1_PIN 1
+
+#define PRESSURE_PIN 26
 
 #ifndef PICO_DEFAULT_I2C
 #define PICO_DEFAULT_I2C BOARD_I2C

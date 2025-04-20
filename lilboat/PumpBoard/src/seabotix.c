@@ -53,6 +53,22 @@ void seabotix_set_pct(uint8_t target, int8_t pct) {
     // LOG_INFO("Setting target %d to %f positive and %f negative", target, pos_duty, neg_duty);
 }
 
+static int64_t seabotix_stop_callback(__unused alarm_id_t id, void *user_data) {
+    int8_t *target_ptr = ((int8_t *) user_data);
+    seabotix_set_pct(*target_ptr, 0);
+
+    free(target_ptr);
+    return 0;
+}
+
+void seabotix_set_pct_for(uint8_t target, int8_t pct, uint time_ms) {
+    seabotix_set_pct(target, pct);
+
+    int8_t *target_persistent = malloc(sizeof(int8_t));
+    *target_persistent = target;
+    add_alarm_in_ms(time_ms, seabotix_stop_callback, target_persistent, false);
+}
+
 static void init_pin(uint pin) {
     // gpio_init(pin);
     // gpio_put(pin, 0);

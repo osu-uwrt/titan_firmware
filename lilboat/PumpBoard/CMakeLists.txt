@@ -54,6 +54,7 @@ target_link_libraries(template_project PUBLIC
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
     hardware_pwm
+    hardware_adc
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
 )
