@@ -1,6 +1,7 @@
 #include "solenoid.h"
 
 #include "pico/stdlib.h"
+#include "titan/logger.h"
 
 #define SOLENOID_OPEN 1
 #define SOLENOID_CLOSED 0
@@ -21,7 +22,11 @@ void solenoid_init() {
 }
 
 void solenoid_set(int number, bool open) {
-    if (number < SOLENOID_COUNT) {
-        gpio_put(solenoid_pins[number], open ? SOLENOID_OPEN : SOLENOID_CLOSED);
+    int idx = number - 1;
+    if (idx >= 0 && number < SOLENOID_COUNT) {
+        gpio_put(solenoid_pins[idx], open ? SOLENOID_OPEN : SOLENOID_CLOSED);
+    }
+    else {
+        LOG_ERROR("cannot set solenoid: invalid number %d", number);
     }
 }

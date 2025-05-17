@@ -53,5 +53,6 @@ target_link_libraries(pohalf_board PUBLIC
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
+    hardware_adc
 )
 

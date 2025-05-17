@@ -36,6 +36,9 @@
 #define SOLENOID2_PIN 1
 #define SOLENOID3_PIN 2
 
+#define ADC0_PIN 28
+#define ADC1_PIN 29
+
 #ifndef PICO_DEFAULT_I2C
 #define PICO_DEFAULT_I2C BOARD_I2C
 #endif

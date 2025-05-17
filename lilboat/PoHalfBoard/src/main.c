@@ -1,6 +1,7 @@
 #include "ros.h"
 #include "safety_interface.h"
 #include "solenoid.h"
+#include "depth.h"
 
 #include "driver/led.h"
 #include "pico/stdlib.h"
@@ -28,6 +29,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define ADC_DEPTH_PUB_INTERVAL_MS 250
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -36,6 +38,10 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+
+absolute_time_t next_depth_adc_read = { 0 };
+bool depth_adc_readings_valid = false;
+float depth_adc_readings[2];
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -115,6 +121,8 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
+
+    // TODO: publish ADC depth readings
 }
 
 static void tick_background_tasks() {
@@ -143,7 +151,11 @@ static void tick_background_tasks() {
     }
 #endif
 
-    // TODO: Put any code that should periodically occur here
+    if (timer_ready(&next_depth_adc_read, ADC_DEPTH_PUB_INTERVAL_MS, false)) {
+        depth_adc_readings[0] = depth_adc_read(0);
+        depth_adc_readings[1] = depth_adc_read(1);
+        depth_adc_readings_valid = true;
+    }
 }
 
 int main() {
@@ -161,8 +173,10 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+
+    // board specific initialization
     solenoid_init();
-// TODO: Put any additional hardware initialization code here
+    depth_init();
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
