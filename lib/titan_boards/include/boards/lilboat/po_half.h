@@ -32,9 +32,9 @@
 
 #define LED_PIN 25
 
-#define SOLENOID1_PIN 0
-#define SOLENOID2_PIN 1
-#define SOLENOID3_PIN 2
+#define SOLENOID1_PIN 4
+#define SOLENOID2_PIN 5
+#define SOLENOID3_PIN 9
 
 #define ADC0_PIN 28
 #define ADC1_PIN 29
