@@ -219,7 +219,7 @@ rcl_ret_t ros_init() {
         &solenoid_subscribers[2], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), SOLENOID_SUBSCRIBER_NAME_3));
 
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -294,8 +294,9 @@ void ros_fini(void) {
         RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[i], &node));
     }
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[0], &node));
+    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[1], &node));
+    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[2], &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node))

@@ -23,7 +23,7 @@ void solenoid_init() {
 
 void solenoid_set(int number, bool open) {
     int idx = number - 1;
-    if (idx >= 0 && number < SOLENOID_COUNT) {
+    if (idx >= 0 && number <= SOLENOID_COUNT) {
         gpio_put(solenoid_pins[idx], open ? SOLENOID_OPEN : SOLENOID_CLOSED);
     }
     else {
