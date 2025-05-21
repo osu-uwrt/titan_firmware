@@ -3,6 +3,8 @@
 
 #include "safety_interface.h"
 
+// #define MICRO_ROS_TRANSPORT_USB
+
 #include <rcl/error_handling.h>
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
@@ -90,6 +92,12 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
-// TODO: Add in any additional ROS tasks here
+rcl_ret_t ros_update_depth_publisher();
+
+rcl_ret_t ros_publish_adc1_pressure(float pressure);
+
+rcl_ret_t ros_publish_adc2_pressure(float pressure);
+
+rcl_ret_t ros_publish_i2c_pressure(float pressure);
 
 #endif

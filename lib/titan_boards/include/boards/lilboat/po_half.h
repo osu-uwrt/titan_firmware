@@ -1,5 +1,5 @@
-#ifndef BOARDS__LILBOAT__PUMP_BOARD_H_
-#define BOARDS__LILBOAT__PUMP_BOARD_H_
+#ifndef BOARDS__LILBOAT__PO_HALF_BOARD_H_
+#define BOARDS__LILBOAT__PO_HALF_BOARD_H_
 
 #include "boards/mk2/blocks/rp2040_can_block.h"
 
@@ -14,7 +14,7 @@
 // This defines the client ID for this board on that bus
 // These are defined in the titan_canmore/.../client_ids.h header file (and implicity included by titan_boards.cmake)
 // Ensure that the bus that the client id below belongs to matches the bus selected above
-#define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_CAMERA_CAGE_BB
+#define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_POWER_BOARD
 
 // TODO: get this pins from Jawn
 // #define FAN_SW_PIN 0
@@ -26,15 +26,15 @@
 // #define ORIN_SW_PIN 6
 // #define RGB_DATA_PIN 9
 
-// #define BOARD_I2C 0
-// #define BOARD_SDA_PIN 24
-// #define BOARD_SCL_PIN 25
+#define BOARD_I2C 1
+#define BOARD_SDA_PIN 26
+#define BOARD_SCL_PIN 27
 
 #define LED_PIN 25
 
-#define SOLENOID1_PIN 0
-#define SOLENOID2_PIN 1
-#define SOLENOID3_PIN 2
+#define SOLENOID1_PIN 4
+#define SOLENOID2_PIN 5
+#define SOLENOID3_PIN 9
 
 #define ADC0_PIN 28
 #define ADC1_PIN 29

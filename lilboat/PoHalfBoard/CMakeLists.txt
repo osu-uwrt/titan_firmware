@@ -48,11 +48,14 @@ target_link_libraries(pohalf_board PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
-    micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_usb   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_can
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
     hardware_adc
+    driver_async_i2c
+    driver_depth
 )
 
