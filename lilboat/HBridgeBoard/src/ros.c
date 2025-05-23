@@ -59,7 +59,7 @@ static void killswitch_subscription_callback(const void *msgin) {
 
 static void power_subscription_callback(const void *msgin) {
     const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
-    // hbridge_set_power(msg->data);
+    hbridge_set_target(0, msg->data);
 }
 
 // TODO: Add in node specific tasks here

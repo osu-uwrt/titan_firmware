@@ -5,9 +5,7 @@
 
 void hbridge_set_target(uint idx, float target_pct);
 
-void hbridge_enable();
-
-void hbridge_disable();
+void hbridge_set_enabled(bool enabled);
 
 // Returns the number of bridges woken
 uint hbridge_wake();

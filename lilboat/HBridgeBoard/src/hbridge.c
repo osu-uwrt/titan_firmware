@@ -12,14 +12,17 @@
 
 #define PWM_FREQ_HZ 25000
 
-#define TIME_FOR_COM_US 500
-#define TIME_RESET_US 50
+#define WAKEUP_TIME_FOR_COM_US 500
+#define WAKEUP_TIME_RESET_US 50
 #define TIME_SLEEP_US 120
 
 #define MAX_WAKE_ATTEMPTS 3
 
 #define SLEW_PERIOD_MS 10
-#define SLEW_MAX_DIFF 1.0f
+#define SLEW_MAX_DIFF 5.0f
+
+#define PCT_MAX 100.0f
+#define PCT_MIN -100.0f
 
 typedef struct hbridge_t {
     uint ph_pin;
@@ -44,10 +47,6 @@ uint bridge_cnt = 0;
 bool bridges_enabled = false;
 
 static repeating_timer_t slew_timer;
-
-// uint ph;
-// uint slice_num;
-// uint channel;
 
 // static uint32_t pwm_set_freq_duty(uint slice_num, uint chan, uint32_t f, float d) {
 //     uint32_t clock = clock_get_hz(clk_sys);
@@ -113,20 +112,17 @@ static void hbridge_pwm_init(uint pin, hbridge *bridge) {
     bridge->en_chan = pwm_gpio_to_channel(pin);
 
     // Compute PWM parameters based on frequency
-    uint32_t sysclock_hz = clock_get_hz(clk_sys);
-    uint32_t factor = 4096 * 2 * PWM_FREQ_HZ;
-    uint32_t div = sysclock_hz / factor;
+    uint32_t clock = clock_get_hz(clk_sys);
+    uint32_t divider16 = clock / PWM_FREQ_HZ / 4096 + (clock % (PWM_FREQ_HZ * 4096) != 0);
 
-    if (sysclock_hz % factor != 0)
-        div += 1;
-    if (div < 16)
-        div = 16;
+    if (divider16 / 16 == 0)
+        divider16 = 16;
 
-    uint32_t wrap_value = (sysclock_hz * 8) / div / PWM_FREQ_HZ - 1;
+    uint32_t wrap = clock * 16 / divider16 / PWM_FREQ_HZ - 1;
 
-    pwm_set_clkdiv_int_frac(bridge->en_slice, div >> 4, div & 0xF);
-    pwm_set_wrap(bridge->en_slice, wrap_value);
-    bridge->en_wrap_value = wrap_value;
+    pwm_set_clkdiv_int_frac(bridge->en_slice, divider16 / 16, divider16 & 0xF);
+    pwm_set_wrap(bridge->en_slice, wrap);
+    bridge->en_wrap_value = wrap;
 
     // Enable PWM, but set chan level to 0 to be off initially
     pwm_set_chan_level(bridge->en_slice, bridge->en_chan, 0);
@@ -134,7 +130,8 @@ static void hbridge_pwm_init(uint pin, hbridge *bridge) {
 }
 
 static void hbridge_set_curr_duty(hbridge *bridge) {
-    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, (bridge->en_wrap_value + 1) * bridge->curr_pct);
+    gpio_put(bridge->ph_pin, bridge->curr_pct < 0.0f);
+    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, bridge->en_wrap_value * bridge->curr_pct / 100.0f);
 }
 
 static bool hbridge_slew(__unused repeating_timer_t *rt) {
@@ -147,6 +144,7 @@ static bool hbridge_slew(__unused repeating_timer_t *rt) {
             // Error can't be 0 here
             bridges[i].curr_pct += SLEW_MAX_DIFF * (error / fabs(error));
 
+        LOG_INFO("Slewed bridge to %f since error was %f", bridges[i].curr_pct, error);
         hbridge_set_curr_duty(&bridges[i]);
     }
 
@@ -157,7 +155,10 @@ void hbridge_set_target(uint idx, float target_pct) {
     if (!bridges_enabled)
         return;
 
-    bridges[idx].target_pct = target_pct;
+    LOG_INFO("Set a new target of %f", target_pct);
+
+    // Scale to [-100, 100]
+    bridges[idx].target_pct = MIN(PCT_MAX, MAX(PCT_MIN, target_pct));
 }
 
 static bool hbridge_get_nfault(hbridge *bridge) {
@@ -167,22 +168,13 @@ static bool hbridge_get_nfault(hbridge *bridge) {
         return gpio_get(bridge->nfault_access);
 }
 
-void hbridge_enable() {
+void hbridge_set_enabled(bool enabled) {
     for (uint i = 0; i < bridge_cnt; i++) {
         bridges[i].target_pct = 0.0f;
     }
 
-    gpio_put(all_drvoff_pin, 0);
-    bridges_enabled = true;
-}
-
-void hbridge_disable() {
-    for (uint i = 0; i < bridge_cnt; i++) {
-        bridges[i].target_pct = 0.0f;
-    }
-
-    gpio_put(all_drvoff_pin, 1);
-    bridges_enabled = false;
+    gpio_put(all_drvoff_pin, !enabled);
+    bridges_enabled = enabled;
 }
 
 // Returns the number of bridges woken
@@ -201,7 +193,7 @@ uint hbridge_wake() {
 
         // Start wakeup procedure
         gpio_put(all_nsleep_pin, 1);
-        sleep_us(TIME_FOR_COM_US);
+        sleep_us(WAKEUP_TIME_FOR_COM_US);
 
         // Verify nFault is low
         for (uint i = 0; i < bridge_cnt; i++) {
@@ -209,12 +201,12 @@ uint hbridge_wake() {
         }
 
         // Wait for bridges to be ready. This sleep is VERY IMPORTANT
-        sleep_us(TIME_FOR_COM_US);
+        sleep_us(WAKEUP_TIME_FOR_COM_US);
 
         // Issue nSleep reset pulse
         gpio_put(all_nsleep_pin, 0);
-        sleep_us(TIME_RESET_US);
-        gpio_put(all_drvoff_pin, 1);
+        sleep_us(WAKEUP_TIME_RESET_US);
+        gpio_put(all_nsleep_pin, 1);
 
         // Verify nFault is high
         for (uint i = 0; i < bridge_cnt; i++) {
