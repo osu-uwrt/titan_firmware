@@ -40,7 +40,7 @@ pico_set_program_name(template_project "Template Project")  # TODO: Set the proj
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(template_project)
-titan_enable_bootloader(template_project can)  # TODO: Select the same transport as below, or remove this line if using USB
+# titan_enable_bootloader(template_project can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
 pico_add_extra_outputs(template_project)

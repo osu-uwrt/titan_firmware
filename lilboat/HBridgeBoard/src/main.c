@@ -2,6 +2,7 @@
 #include "ros.h"
 #include "safety_interface.h"
 
+#include "driver/cd74hc4051.h"
 #include "driver/led.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
@@ -162,7 +163,12 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
+    multiplexer_init(MP_DATA_PIN, MP_S0_PIN, MP_S1_PIN, MP_S2_PIN);
+
     // hbridge_init(H1PH_PIN, H1EN_PIN);
+    hbridge_init(1, NSLEEP_PIN, DRVOFF_PIN);
+    hbridge_create(H1PH_PIN, H1EN_PIN, 0, true);
+    hbridge_wake();
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

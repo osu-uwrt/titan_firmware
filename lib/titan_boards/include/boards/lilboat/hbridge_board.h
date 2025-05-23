@@ -34,6 +34,11 @@
 #define H5PH_PIN 8
 #define H5EN_PIN 9
 
+#define MP_S0_PIN 23
+#define MP_S1_PIN 28
+#define MP_S2_PIN 29
+#define MP_DATA_PIN 26
+
 #define PUMP_SW_PIN 10
 
 #endif

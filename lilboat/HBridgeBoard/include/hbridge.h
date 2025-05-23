@@ -3,8 +3,20 @@
 
 #include "pico/stdlib.h"
 
-// void hbridge_set_power(float power);
+void hbridge_set_target(uint idx, float target_pct);
 
-// void hbridge_init(uint ph_pin, uint en_pin);
+void hbridge_enable();
+
+void hbridge_disable();
+
+// Returns the number of bridges woken
+uint hbridge_wake();
+
+void hbridge_sleep();
+
+// Returns the bridge index
+uint hbridge_create(uint ph_pin, uint en_pin, uint nfault_access, bool multiplex_nfault);
+
+void hbridge_init(uint num_bridges, uint nsleep_pin, uint drvoff_pin);
 
 #endif

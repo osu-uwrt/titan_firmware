@@ -158,7 +158,7 @@ void hbridge_set_target(uint idx, float target_pct) {
 }
 
 static bool hbridge_get_nfault(hbridge *bridge) {
-    if (bridge->nfault_access)
+    if (bridge->multiplex_nfault)
         return multiplexer_decode_digital(bridge->nfault_access);
     else
         return gpio_get(bridge->nfault_access);
@@ -202,7 +202,7 @@ uint hbridge_wake() {
 
         // Verify nFault is low
         for (uint i = 0; i < bridge_cnt; i++) {
-            wake_tracking_arr[bridge_cnt] = !hbridge_get_nfault(&bridges[i]);
+            wake_tracking_arr[i] = !hbridge_get_nfault(&bridges[i]);
         }
 
         // Issue nSleep reset pulse
@@ -232,7 +232,7 @@ void hbridge_sleep() {
 // Returns the bridge index
 uint hbridge_create(uint ph_pin, uint en_pin, uint nfault_access, bool multiplex_nfault) {
     if (bridge_cnt == max_num_bridges) {
-        LOG_ERROR("Too many bridges allocated: %u", bridge_cnt + 1);
+        LOG_ERROR("Too many bridges created: %u. Only %u specified by hbridge_init.", bridge_cnt + 1, max_num_bridges);
         return -1;
     }
 
