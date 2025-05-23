@@ -162,7 +162,7 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
-    hbridge_init(H1PH_PIN, H1EN_PIN);
+    // hbridge_init(H1PH_PIN, H1EN_PIN);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
