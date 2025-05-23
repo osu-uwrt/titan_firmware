@@ -19,10 +19,10 @@
 #define MAX_WAKE_ATTEMPTS 3
 
 #define SLEW_PERIOD_MS 10
-#define SLEW_MAX_DIFF 5.0f
+#define SLEW_MAX_DIFF 0.05f
 
-#define PCT_MAX 100.0f
-#define PCT_MIN -100.0f
+#define PCT_MAX 1.0f
+#define PCT_MIN -1.0f
 
 typedef struct hbridge_t {
     uint ph_pin;
@@ -131,7 +131,7 @@ static void hbridge_pwm_init(uint pin, hbridge *bridge) {
 
 static void hbridge_set_curr_duty(hbridge *bridge) {
     gpio_put(bridge->ph_pin, bridge->curr_pct < 0.0f);
-    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, bridge->en_wrap_value * bridge->curr_pct / 100.0f);
+    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, bridge->en_wrap_value * fabs(bridge->curr_pct));
 }
 
 static bool hbridge_slew(__unused repeating_timer_t *rt) {
@@ -144,7 +144,7 @@ static bool hbridge_slew(__unused repeating_timer_t *rt) {
             // Error can't be 0 here
             bridges[i].curr_pct += SLEW_MAX_DIFF * (error / fabs(error));
 
-        LOG_INFO("Slewed bridge to %f since error was %f", bridges[i].curr_pct, error);
+        // LOG_INFO("Slewed bridge to %f since error was %f", bridges[i].curr_pct, error);
         hbridge_set_curr_duty(&bridges[i]);
     }
 
@@ -157,7 +157,7 @@ void hbridge_set_target(uint idx, float target_pct) {
 
     LOG_INFO("Set a new target of %f", target_pct);
 
-    // Scale to [-100, 100]
+    // Scale to [-1, 1]
     bridges[idx].target_pct = MIN(PCT_MAX, MAX(PCT_MIN, target_pct));
 }
 
@@ -236,7 +236,7 @@ void hbridge_sleep() {
 // Returns the bridge index
 uint hbridge_create(uint ph_pin, uint en_pin, uint nfault_access, bool multiplex_nfault) {
     if (bridge_cnt >= max_num_bridges) {
-        LOG_ERROR("Too many bridges created: %u. Only %u specified by hbridge_init.", bridge_cnt + 1, max_num_bridges);
+        LOG_ERROR("Too many bridges created. Only %u specified by hbridge_init.", max_num_bridges);
         return -1;
     }
 

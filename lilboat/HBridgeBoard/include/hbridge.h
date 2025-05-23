@@ -3,6 +3,8 @@
 
 #include "pico/stdlib.h"
 
+#define NUM_BRIDGES 5
+
 void hbridge_set_target(uint idx, float target_pct);
 
 void hbridge_set_enabled(bool enabled);
