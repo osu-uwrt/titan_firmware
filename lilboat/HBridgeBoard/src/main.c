@@ -166,8 +166,11 @@ int main() {
     multiplexer_init(MP_DATA_PIN, MP_S0_PIN, MP_S1_PIN, MP_S2_PIN);
 
     // hbridge_init(H1PH_PIN, H1EN_PIN);
-    hbridge_init(1, NSLEEP_PIN, DRVOFF_PIN);
+    hbridge_init(4, NSLEEP_PIN, DRVOFF_PIN);
     hbridge_create(H1PH_PIN, H1EN_PIN, 0, true);
+    hbridge_create(H2PH_PIN, H2EN_PIN, 1, true);
+    hbridge_create(H4PH_PIN, H4EN_PIN, 2, true);
+    hbridge_create(H5PH_PIN, H5EN_PIN, 11, false);
     hbridge_wake();
 
 // Initialize ROS Transports

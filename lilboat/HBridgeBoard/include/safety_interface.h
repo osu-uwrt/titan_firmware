@@ -13,7 +13,8 @@
     XLIST_OF_LIBSAFETY_FAULTS(DEF) /* 0-1 reserved by safety */                                                        \
     DEF(FAULT_CAN_INTERNAL_ERROR, 2)                                                                                   \
     DEF(FAULT_ROS_ERROR, 3)                                                                                            \
-    DEF(FAULT_TIMER_MISSED, 4)
+    DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
+    DEF(FAULT_HBRIDGE_DISCONNECTED, 5)
 // TODO: Define any additional faults here
 
 // ===== Kill Switch Definitions =====

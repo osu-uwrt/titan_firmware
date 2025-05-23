@@ -1,5 +1,7 @@
 #include "hbridge.h"
 
+#include "safety_interface.h"
+
 #include "driver/cd74hc4051.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
@@ -142,6 +144,7 @@ static bool hbridge_slew(__unused repeating_timer_t *rt) {
         if (fabs(error) < SLEW_MAX_DIFF)
             bridges[i].curr_pct = bridges[i].target_pct;
         else
+            // Error can't be 0 here
             bridges[i].curr_pct += SLEW_MAX_DIFF * (error / fabs(error));
 
         hbridge_set_curr_duty(&bridges[i]);
@@ -205,6 +208,9 @@ uint hbridge_wake() {
             wake_tracking_arr[i] = !hbridge_get_nfault(&bridges[i]);
         }
 
+        // Wait for bridges to be ready. This sleep is VERY IMPORTANT
+        sleep_us(TIME_FOR_COM_US);
+
         // Issue nSleep reset pulse
         gpio_put(all_nsleep_pin, 0);
         sleep_us(TIME_RESET_US);
@@ -219,8 +225,14 @@ uint hbridge_wake() {
         num_attempts++;
     }
 
-    if (num_awake < bridge_cnt)
+    if (num_awake < bridge_cnt) {
+        // Issue a fault with the number of bridges missing as data
+        safety_raise_fault_with_arg(FAULT_HBRIDGE_DISCONNECTED, bridge_cnt - num_awake);
         LOG_WARN("Only %d hbridges found. Expected %d", num_awake, bridge_cnt);
+    }
+    else {
+        safety_lower_fault(FAULT_HBRIDGE_DISCONNECTED);
+    }
 
     return num_awake;
 }
@@ -231,7 +243,7 @@ void hbridge_sleep() {
 
 // Returns the bridge index
 uint hbridge_create(uint ph_pin, uint en_pin, uint nfault_access, bool multiplex_nfault) {
-    if (bridge_cnt == max_num_bridges) {
+    if (bridge_cnt >= max_num_bridges) {
         LOG_ERROR("Too many bridges created: %u. Only %u specified by hbridge_init.", bridge_cnt + 1, max_num_bridges);
         return -1;
     }
