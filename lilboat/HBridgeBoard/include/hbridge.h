@@ -15,7 +15,7 @@ uint hbridge_wake();
 void hbridge_sleep();
 
 // Returns the bridge index
-uint hbridge_create(uint ph_pin, uint en_pin, uint nfault_access, bool multiplex_nfault);
+uint hbridge_create(uint ph_pin, uint en_pin, bool invert, uint nfault_access, bool multiplex_nfault);
 
 void hbridge_init(uint num_bridges, uint nsleep_pin, uint drvoff_pin);
 
