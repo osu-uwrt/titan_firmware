@@ -1,5 +1,7 @@
 #include "safety_interface.h"
 
+#include "hbridge.h"
+
 #include "driver/led.h"
 #include "titan/logger.h"
 
@@ -34,13 +36,14 @@ void safety_set_fault_led(bool on) {
 void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
+    hbridge_set_enabled(false);
 
-    // TODO: Modify this function to add callbacks when system is killed
     led_killswitch_set(false);
 }
 
 void safety_handle_enable(void) {
-    // TODO: Modify this function to add callbacks for when system is enabled
+    hbridge_wake();
+    hbridge_set_enabled(true);
 
     led_killswitch_set(true);
 }

@@ -85,6 +85,7 @@ static void hbridge_set_curr_duty(hbridge *bridge) {
 }
 
 static bool hbridge_slew(__unused repeating_timer_t *rt) {
+    uint32_t prev_interrupts = save_and_disable_interrupts();
     for (uint i = 0; i < bridge_cnt; i++) {
         float error = bridges[i].target_pct - bridges[i].curr_pct;
 
@@ -97,6 +98,7 @@ static bool hbridge_slew(__unused repeating_timer_t *rt) {
         hbridge_set_curr_duty(&bridges[i]);
     }
 
+    restore_interrupts(prev_interrupts);
     return true;
 }
 
@@ -104,10 +106,10 @@ void hbridge_set_target(uint idx, float target_pct) {
     if (!bridges_enabled)
         return;
 
-    LOG_INFO("Set a new target of %f", target_pct);
-
     // Scale to [-1, 1]
+    uint32_t prev_interrupts = save_and_disable_interrupts();
     bridges[idx].target_pct = MIN(PCT_MAX, MAX(PCT_MIN, target_pct));
+    restore_interrupts(prev_interrupts);
 }
 
 static bool hbridge_get_nfault(hbridge *bridge) {
@@ -118,9 +120,11 @@ static bool hbridge_get_nfault(hbridge *bridge) {
 }
 
 void hbridge_set_enabled(bool enabled) {
+    uint32_t prev_interrupts = save_and_disable_interrupts();
     for (uint i = 0; i < bridge_cnt; i++) {
         bridges[i].target_pct = 0.0f;
     }
+    restore_interrupts(prev_interrupts);
 
     gpio_put(all_drvoff_pin, !enabled);
     bridges_enabled = enabled;

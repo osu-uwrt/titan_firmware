@@ -172,9 +172,6 @@ int main() {
     hbridge_create(H4PH_PIN, H4EN_PIN, false, 2, true);
     hbridge_create(H5PH_PIN, H5EN_PIN, false, 11, false);
 
-    hbridge_wake();
-    hbridge_set_enabled(true);
-
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
 #ifdef MICRO_ROS_TRANSPORT_CAN
