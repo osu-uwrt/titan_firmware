@@ -16,21 +16,15 @@
 // Ensure that the bus that the client id below belongs to matches the bus selected above
 #define CAN_BUS_CLIENT_ID CANMORE_CLIENT_ID_POWER_BOARD
 
-// TODO: get this pins from Jawn
-// #define FAN_SW_PIN 0
-// #define LEAK_SENSE_PIN 1
-// #define TACH3_PIN 2
-// #define TACH2_PIN 3
-// #define TACH1_PIN 4
-// #define PELT_SW_PIN 5
-// #define ORIN_SW_PIN 6
-// #define RGB_DATA_PIN 9
+#define AUX_SWITCH_PIN 10
+#define PHYS_KILLSWITCH_PIN 23
+#define SOFT_KILLSWITCH_PIN 12
+
+#define ORIN_SW_PIN 11
 
 #define BOARD_I2C 1
 #define BOARD_SDA_PIN 26
 #define BOARD_SCL_PIN 27
-
-#define LED_PIN 25
 
 #define SOLENOID1_PIN 4
 #define SOLENOID2_PIN 5

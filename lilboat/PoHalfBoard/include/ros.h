@@ -92,6 +92,8 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
+rcl_ret_t ros_publish_killswitch();
+
 rcl_ret_t ros_update_depth_publisher();
 
 rcl_ret_t ros_publish_adc1_pressure(float pressure);
@@ -100,7 +102,6 @@ rcl_ret_t ros_publish_adc2_pressure(float pressure);
 
 rcl_ret_t ros_publish_i2c_pressure(float pressure);
 
-#undef MICRO_ROS_TRANSPORT_CAN
-#define MICRO_ROS_TRANSPORT_USB 1
+#define MICRO_ROS_TRANSPORT_CAN 1
 
 #endif

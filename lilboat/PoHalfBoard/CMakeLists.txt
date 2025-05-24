@@ -31,6 +31,9 @@ add_executable(pohalf_board
 )
 target_include_directories(pohalf_board PUBLIC include)
 
+# Required so we can register our own gpio interrupt for the kill switch (only one gpio interrupt supported)
+target_compile_definitions(pohalf_board PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
+
 # Set version: major minor (see titan/version.h for more info)
 titan_generate_version_tag(pohalf_board 1 0)
 
@@ -40,7 +43,7 @@ pico_set_program_name(pohalf_board "PoHalf Firmware")  # TODO: Set the project n
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(pohalf_board)
-titan_enable_bootloader(pohalf_board can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_enable_bootloader(pohalf_board can)
 
 # Define linking and targets
 pico_add_extra_outputs(pohalf_board)
@@ -48,8 +51,7 @@ target_link_libraries(pohalf_board PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
-    micro_ros_usb   # Micro ros support (supports _can, _usb, _eth)
-    micro_ros_can
+    micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 

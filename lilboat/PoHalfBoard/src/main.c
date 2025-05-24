@@ -35,6 +35,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
+#define KILLSWITCH_PUBLISH_TIME_MS 150
 #define PRESSURE_PUB_INTERVAL_MS 500
 
 // Initialize all to nil time
@@ -44,6 +45,7 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+absolute_time_t next_killswitch_publish = { 0 };
 
 absolute_time_t next_pressure_adc_read = { 0 };
 bool pressure_adc_readings_valid = false;
@@ -126,6 +128,12 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
+    if (timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ||
+        safety_interface_kill_switch_refreshed) {
+        safety_interface_kill_switch_refreshed = false;
+        RCSOFTRETVCHECK(ros_publish_killswitch());
+    }
+
     // TODO: Put any additional ROS tasks added here
     if (depth_set_on_read) {
         depth_set_on_read = false;
@@ -206,6 +214,13 @@ int main() {
     // board specific initialization
     solenoid_init();
     pressure_init();
+
+    gpio_init(ORIN_SW_PIN);
+    gpio_put(ORIN_SW_PIN, 1);
+    gpio_set_dir(ORIN_SW_PIN, GPIO_OUT);
+
+    gpio_init(AUX_SWITCH_PIN);
+    gpio_set_dir(AUX_SWITCH_PIN, false);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

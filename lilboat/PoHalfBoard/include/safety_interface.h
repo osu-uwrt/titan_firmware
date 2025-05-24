@@ -14,18 +14,21 @@
     DEF(FAULT_CAN_INTERNAL_ERROR, 2)                                                                                   \
     DEF(FAULT_ROS_ERROR, 3)                                                                                            \
     DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
-    DEF(FAULT_DEPTH_INIT_ERROR, 5)                                                                                     \
-    DEF(FAULT_DEPTH_ERROR, 6)
-// TODO: Define any additional faults here
+    DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
+    DEF(FAULT_DEPTH_INIT_ERROR, 6)                                                                                     \
+    DEF(FAULT_DEPTH_ERROR, 7)
 
-// ===== Kill Switch Definitions =====
-// If no kill switches defined, set NUM_KILL_SWITCHES = 0
-enum kill_switch {
-    ROS_KILL_SWITCH = 0,
-    // Used to automatically calculate number of kill switches
-    // This must be the last enum
-    NUM_KILL_SWITCHES
-};
+/**
+ * @brief The state of the physical kill switch (true if asserting kill)
+ * Can be read to report if the physical kill switch state changes
+ */
+extern volatile bool safety_interface_physical_kill_asserting_kill;
+
+/**
+ * @brief Set every time the kill switch changes
+ * Can be cleared by code monitoring for kill switch changes
+ */
+extern volatile bool safety_interface_kill_switch_refreshed;
 
 // ==== Do not modify this code below this line ===
 // This defines the enum of all faults using the XMACRO above

@@ -14,6 +14,7 @@
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/firmware_status.h>
+#include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
@@ -30,7 +31,10 @@
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
-#define KILLSWITCH_SUBCRIBER_NAME "state/kill"
+#define KILLSWITCH_PUBLISHER_NAME "state/kill"
+#define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
+#define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
+
 #define SOLENOID_SUBSCRIBER_NAME_1 "pohalf/solenoid1"
 #define SOLENOID_SUBSCRIBER_NAME_2 "pohalf/solenoid2"
 #define SOLENOID_SUBSCRIBER_NAME_3 "pohalf/solenoid3"
@@ -52,8 +56,14 @@ int failed_heartbeats = 0;
 
 // Node specific Variables
 rcl_publisher_t firmware_status_publisher;
-rcl_subscription_t killswtich_subscriber;
-std_msgs__msg__Bool killswitch_msg;
+
+// Kill switch
+rcl_publisher_t killswitch_publisher;
+rcl_publisher_t physkill_notify_publisher;
+static bool last_physical_kill_asserting_kill = true;
+rcl_subscription_t software_kill_subscriber;
+riptide_msgs2__msg__KillSwitchReport software_kill_msg;
+char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE + 1] = { 0 };
 
 rcl_subscription_t solenoid_subscribers[SOLENOID_COUNT];
 std_msgs__msg__Bool solenoid_msgs[SOLENOID_COUNT];
@@ -72,9 +82,46 @@ const float depth_variance = 0.003;
 // Executor Callbacks
 // ========================================
 
-static void killswitch_subscription_callback(const void *msgin) {
-    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
-    safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
+static void software_kill_subscription_callback(const void *msgin) {
+    const riptide_msgs2__msg__KillSwitchReport *msg = (const riptide_msgs2__msg__KillSwitchReport *) msgin;
+
+    // Make sure kill switch id is valid
+    if (msg->kill_switch_id >= riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES ||
+        msg->kill_switch_id == riptide_msgs2__msg__KillSwitchReport__KILL_SWITCH_PHYSICAL) {
+        LOG_WARN("Invalid kill switch id used %d", msg->kill_switch_id);
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->kill_switch_id);
+        return;
+    }
+
+    // Make sure frame id isn't too large
+    if (msg->sender_id.size >= SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE) {
+        LOG_WARN("Software Kill Frame ID too large");
+        safety_raise_fault_with_arg(FAULT_ROS_BAD_COMMAND, msg->sender_id.size);
+        return;
+    }
+
+    struct kill_switch_state *kill_entry = &kill_switch_states[msg->kill_switch_id];
+
+    if (kill_entry->enabled && kill_entry->asserting_kill && !msg->switch_asserting_kill &&
+        strncmp(kill_entry->locking_frame, msg->sender_id.data, SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE)) {
+        LOG_WARN("Invalid frame ID to unlock kill switch %d ('%s' expected, '%s' requested)", msg->kill_switch_id,
+                 kill_entry->locking_frame, msg->sender_id.data);
+        safety_raise_fault(FAULT_ROS_BAD_COMMAND);
+        return;
+    }
+
+    // Set frame id of the switch requesting disable
+    // This can technically override previous kills and allow one node to kill when another is stopping
+    // However, this is mainly to prevent getting locked out if, for example, rqt crashed and the robot was killed
+    // If multiple points are needed to be separate, separate kill switch IDs should be used
+    // This will protect from someone unexpectedly unkilling the robot by publishing a non assert kill
+    // since it must be asserted as killed by the node to take ownership of the lock
+    if (msg->switch_asserting_kill) {
+        strncpy(kill_entry->locking_frame, msg->sender_id.data, msg->sender_id.size);
+        kill_entry->locking_frame[msg->sender_id.size] = '\0';
+    }
+
+    safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
 static void solenoid1_subscription_callback(const void *msgin) {
@@ -97,6 +144,24 @@ static void solenoid3_subscription_callback(const void *msgin) {
 // ========================================
 // Public Task Methods (called in main tick)
 // ========================================
+
+rcl_ret_t ros_publish_killswitch() {
+    std_msgs__msg__Bool killswitch_msg = { .data = safety_kill_get_asserting_kill() };
+
+    RCSOFTRETCHECK(rcl_publish(&killswitch_publisher, &killswitch_msg, NULL));
+
+    // Notify the physical kill state
+    // This is primarily used to report to the actuator/camera cage boards to flash the LEDs on kill switch
+    // insertion/removal
+    bool value = safety_interface_physical_kill_asserting_kill;
+    if (last_physical_kill_asserting_kill != value) {
+        last_physical_kill_asserting_kill = value;
+        std_msgs__msg__Bool physkill_notify_msg = { .data = value };
+        RCSOFTRETCHECK(rcl_publish(&physkill_notify_publisher, &physkill_notify_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     riptide_msgs2__msg__FirmwareStatus status_msg;
@@ -124,7 +189,7 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id) {
     status_msg.kill_switches_needs_update = 0;
     status_msg.kill_switches_timed_out = 0;
 
-    for (int i = 0; i < NUM_KILL_SWITCHES; i++) {
+    for (int i = 0; i < riptide_msgs2__msg__KillSwitchReport__NUM_KILL_SWITCHES; i++) {
         if (kill_switch_states[i].enabled) {
             status_msg.kill_switches_enabled |= (1 << i);
         }
@@ -228,9 +293,12 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
                                            FIRMWARE_STATUS_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_publisher_init_default(&firmware_status_publisher, &node,
-                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
-                                           FIRMWARE_STATUS_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_default(
+        &killswitch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&physkill_notify_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_default(&adc_pressure1_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
@@ -247,8 +315,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
                                    DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
+                                                  SOFT_KILL_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
         &solenoid_subscribers[0], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), SOLENOID_SUBSCRIBER_NAME_1));
@@ -262,8 +331,8 @@ rcl_ret_t ros_init() {
     // Executor Initialization
     const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
-                                              &killswitch_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
+                                              &software_kill_subscription_callback, ON_NEW_DATA));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[0], &solenoid_msgs[0],
                                               &solenoid1_subscription_callback, ON_NEW_DATA));
@@ -279,6 +348,14 @@ rcl_ret_t ros_init() {
     // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
     // in the event that specific request times out
 
+    // Populate messages
+    software_kill_msg.sender_id.data = software_kill_frame_str;
+    software_kill_msg.sender_id.capacity = sizeof(software_kill_frame_str);
+    software_kill_msg.sender_id.size = 0;
+
+    // Make sure that if the physical kill switch is enabled, a notify is sent out
+    last_physical_kill_asserting_kill = true;
+
     return RCL_RET_OK;
 }
 
@@ -291,15 +368,11 @@ void ros_fini(void) {
     for (int i = 0; i < SOLENOID_COUNT; i++) {
         RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[i], &node));
     }
-    RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[0], &node));
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[1], &node));
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[2], &node));
+    RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[0], &node));
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[1], &node));
-    RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[2], &node));
+    RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node))
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure2_publisher, &node))
     RCSOFTCHECK(rcl_publisher_fini(&i2c_pressure_publisher, &node))
