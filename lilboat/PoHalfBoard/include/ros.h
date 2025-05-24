@@ -100,4 +100,7 @@ rcl_ret_t ros_publish_adc2_pressure(float pressure);
 
 rcl_ret_t ros_publish_i2c_pressure(float pressure);
 
+#undef MICRO_ROS_TRANSPORT_CAN
+#define MICRO_ROS_TRANSPORT_USB 1
+
 #endif

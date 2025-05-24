@@ -7,7 +7,7 @@
 #define UWRT_ROBOT_DEFINED
 
 // ROS Namespace
-#define ROBOT_NAMESPACE "lilboat"
+#define ROBOT_NAMESPACE "liltank"
 
 // CAN Bus Definitions
 // Note that each can bus is defined by `BUS_NAME`_`PARAMETER_NAME`

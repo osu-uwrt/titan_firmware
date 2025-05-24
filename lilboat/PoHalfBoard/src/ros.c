@@ -167,7 +167,48 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id) {
     return RCL_RET_OK;
 }
 
-// TODO: Add in node specific tasks here
+static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
+    ts->tv_sec = time_nanos / 1000000000;
+    ts->tv_nsec = time_nanos % 1000000000;
+}
+
+rcl_ret_t ros_update_depth_publisher() {
+    if (depth_reading_valid()) {
+        struct timespec ts;
+        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+        depth_msg.header.stamp.sec = ts.tv_sec;
+        depth_msg.header.stamp.nanosec = ts.tv_nsec;
+
+        depth_msg.depth = -depth_read();
+        RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_adc1_pressure(float pressure) {
+    std_msgs__msg__Float32 pressure_msg;
+    pressure_msg.data = pressure;
+    RCSOFTRETCHECK(rcl_publish(&adc_pressure1_publisher, &pressure_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_adc2_pressure(float pressure) {
+    std_msgs__msg__Float32 pressure_msg;
+    pressure_msg.data = pressure;
+    RCSOFTRETCHECK(rcl_publish(&adc_pressure2_publisher, &pressure_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_i2c_pressure(float pressure) {
+    std_msgs__msg__Float32 pressure_msg;
+    pressure_msg.data = pressure;
+    RCSOFTRETCHECK(rcl_publish(&i2c_pressure_publisher, &pressure_msg, NULL));
+
+    return RCL_RET_OK;
+}
 
 // ========================================
 // ROS Core
@@ -243,49 +284,6 @@ rcl_ret_t ros_init() {
 
 void ros_spin_executor(void) {
     rclc_executor_spin_some(&executor, 0);
-}
-
-static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
-    ts->tv_sec = time_nanos / 1000000000;
-    ts->tv_nsec = time_nanos % 1000000000;
-}
-
-rcl_ret_t ros_update_depth_publisher() {
-    if (depth_reading_valid()) {
-        struct timespec ts;
-        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
-        depth_msg.header.stamp.sec = ts.tv_sec;
-        depth_msg.header.stamp.nanosec = ts.tv_nsec;
-
-        depth_msg.depth = -depth_read();
-        RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
-    }
-
-    return RCL_RET_OK;
-}
-
-rcl_ret_t ros_publish_adc1_pressure(float pressure) {
-    std_msgs__msg__Float32 pressure_msg;
-    pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&adc_pressure1_publisher, &pressure_msg, NULL));
-
-    return RCL_RET_OK;
-}
-
-rcl_ret_t ros_publish_adc2_pressure(float pressure) {
-    std_msgs__msg__Float32 pressure_msg;
-    pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&adc_pressure2_publisher, &pressure_msg, NULL));
-
-    return RCL_RET_OK;
-}
-
-rcl_ret_t ros_publish_i2c_pressure(float pressure) {
-    std_msgs__msg__Float32 pressure_msg;
-    pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&i2c_pressure_publisher, &pressure_msg, NULL));
-
-    return RCL_RET_OK;
 }
 
 void ros_fini(void) {
