@@ -80,12 +80,15 @@ static void hbridge_pwm_init(uint pin, hbridge *bridge) {
 }
 
 static void hbridge_set_curr_duty(hbridge *bridge) {
-    gpio_put(bridge->ph_pin, bridge->curr_pct < 0.0f);
-    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, bridge->en_wrap_value * fabs(bridge->curr_pct));
+    float output_pct = bridge->curr_pct * bridge->invert;
+
+    gpio_put(bridge->ph_pin, output_pct < 0.0f);
+    pwm_set_chan_level(bridge->en_slice, bridge->en_chan, bridge->en_wrap_value * fabs(output_pct));
 }
 
 static bool hbridge_slew(__unused repeating_timer_t *rt) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
+
     for (uint i = 0; i < bridge_cnt; i++) {
         float error = bridges[i].target_pct - bridges[i].curr_pct;
 
