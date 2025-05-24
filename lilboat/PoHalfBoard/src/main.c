@@ -1,10 +1,16 @@
+#include "pressure.h"
 #include "ros.h"
 #include "safety_interface.h"
 #include "solenoid.h"
-#include "depth.h"
 
+#include "driver/async_i2c.h"
+#include "driver/canbus.h"
+#include "driver/depth.h"
 #include "driver/led.h"
+#include "micro_ros_pico/transport_can.h"
+#include "pico/binary_info.h"
 #include "pico/stdlib.h"
+#include "titan/binary_info.h"
 #include "titan/logger.h"
 #include "titan/version.h"
 
@@ -29,7 +35,7 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define ADC_DEPTH_PUB_INTERVAL_MS 250
+#define PRESSURE_PUB_INTERVAL_MS 500
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -39,9 +45,9 @@ absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 
-absolute_time_t next_depth_adc_read = { 0 };
-bool depth_adc_readings_valid = false;
-float depth_adc_readings[2];
+absolute_time_t next_pressure_adc_read = { 0 };
+bool pressure_adc_readings_valid = false;
+float pressure_adc_readings[2];
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -121,8 +127,16 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
+    if (depth_set_on_read) {
+        depth_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
 
-    // TODO: publish ADC depth readings
+    if (pressure_adc_readings_valid) {
+        ros_publish_adc1_pressure(pressure_adc_readings[0]);
+        ros_publish_adc2_pressure(pressure_adc_readings[1]);
+        pressure_adc_readings_valid = false;
+    }
 }
 
 static void tick_background_tasks() {
@@ -151,10 +165,19 @@ static void tick_background_tasks() {
     }
 #endif
 
-    if (timer_ready(&next_depth_adc_read, ADC_DEPTH_PUB_INTERVAL_MS, false)) {
-        depth_adc_readings[0] = depth_adc_read(0);
-        depth_adc_readings[1] = depth_adc_read(1);
-        depth_adc_readings_valid = true;
+    if (timer_ready(&next_pressure_adc_read, PRESSURE_PUB_INTERVAL_MS, false)) {
+        pressure_adc_readings[0] = pressure_read_adc(0);
+        pressure_adc_readings[1] = pressure_read_adc(1);
+        pressure_adc_readings_valid = true;
+    }
+}
+
+static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
+    if (recoverable) {
+        safety_raise_fault_with_arg(FAULT_DEPTH_ERROR, event);
+    }
+    else {
+        safety_raise_fault_with_arg(FAULT_DEPTH_INIT_ERROR, event);
     }
 }
 
@@ -174,9 +197,15 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
 
+    // I2C Initialization
+    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+
+    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
+
     // board specific initialization
     solenoid_init();
-    depth_init();
+    pressure_init();
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
@@ -199,6 +228,8 @@ int main() {
 #ifdef MICRO_ROS_TRANSPORT_USB
     transport_usb_init();
 #endif
+
+    LOG_INFO("board init complete");
 
     // Enter main loop
     // This is split into two sections of timers
@@ -246,6 +277,7 @@ int main() {
             if (time_reached(next_connect_ping)) {
                 ros_ping();
                 next_connect_ping = make_timeout_time_ms(UROS_CONNECT_PING_TIME_MS);
+                LOG_INFO("pinging ROS...");
             }
         }
 
