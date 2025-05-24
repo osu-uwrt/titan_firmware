@@ -21,34 +21,34 @@ include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
 # TODO: Rename project and executable to your project name
-project(template_project C CXX ASM)
+project(hbridge_board C CXX ASM)
 titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
-add_executable(template_project
+add_executable(hbridge_board
     ${SOURCES}
 )
-target_include_directories(template_project PUBLIC include)
+target_include_directories(hbridge_board PUBLIC include)
 
 # Set version: major minor (see titan/version.h for more info)
-titan_generate_version_tag(template_project 1 0)
+titan_generate_version_tag(hbridge_board 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(template_project 1)
-pico_set_program_name(template_project "Template Project")  # TODO: Set the project name
+pico_enable_stdio_uart(hbridge_board 1)
+pico_set_program_name(hbridge_board "Template Project")  # TODO: Set the project name
 
 # Enable the 'make upload' and 'make info' commands for project
-titan_use_upload_tool(template_project)
-# titan_enable_bootloader(template_project can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_use_upload_tool(hbridge_board)
+# titan_enable_bootloader(hbridge_board can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
-pico_add_extra_outputs(template_project)
-target_link_libraries(template_project PUBLIC
+pico_add_extra_outputs(hbridge_board)
+target_link_libraries(hbridge_board PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
-    micro_ros_usb   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 

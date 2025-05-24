@@ -27,7 +27,13 @@
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
-#define POWER_SUBSCRIBER_NAME "power"
+#define HBRIDGE_SUBSCRIBER_NAME_TEMPLATE "hbridge_board/command/bridge%u_percent"
+
+const char HBRIDGE_SUBSCRIBER_NAMES[NUM_BRIDGES][50] = { "hbridge_board/command/bridge0_percent",
+                                                         "hbridge_board/command/bridge1_percent",
+                                                         "hbridge_board/command/bridge2_percent",
+                                                         "hbridge_board/command/bridge3_percent",
+                                                         "hbridge_board/command/bridge4_percent" };
 
 bool ros_connected = false;
 
@@ -43,10 +49,20 @@ int failed_heartbeats = 0;
 rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
-// TODO: Add node specific items here
 
-rcl_subscription_t power_subscriber;
-std_msgs__msg__Float32 power_msg;
+rcl_subscription_t hbridge_subscribers[NUM_BRIDGES];
+std_msgs__msg__Float32 hbridge_msgs[NUM_BRIDGES];
+
+static void hbridge0_subscription_callback(const void *msgin);
+static void hbridge1_subscription_callback(const void *msgin);
+static void hbridge2_subscription_callback(const void *msgin);
+static void hbridge3_subscription_callback(const void *msgin);
+static void hbridge4_subscription_callback(const void *msgin);
+
+const rclc_subscription_callback_t hbridge_callbacks[NUM_BRIDGES] = {
+    hbridge0_subscription_callback, hbridge1_subscription_callback, hbridge2_subscription_callback,
+    hbridge3_subscription_callback, hbridge4_subscription_callback
+};
 
 // ========================================
 // Executor Callbacks
@@ -57,12 +73,30 @@ static void killswitch_subscription_callback(const void *msgin) {
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
 }
 
-static void power_subscription_callback(const void *msgin) {
+static void hbridge0_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
+    hbridge_set_target(0, msg->data);
+}
+
+static void hbridge1_subscription_callback(const void *msgin) {
     const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
     hbridge_set_target(1, msg->data);
 }
 
-// TODO: Add in node specific tasks here
+static void hbridge2_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
+    hbridge_set_target(2, msg->data);
+}
+
+static void hbridge3_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
+    hbridge_set_target(3, msg->data);
+}
+
+static void hbridge4_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
+    hbridge_set_target(4, msg->data);
+}
 
 // ========================================
 // Public Task Methods (called in main tick)
@@ -160,18 +194,22 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(
-        &power_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), POWER_SUBSCRIBER_NAME));
+    for (int i = 0; i < NUM_BRIDGES; i++) {
+        RCRETCHECK(rclc_subscription_init_default(&hbridge_subscribers[i], &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                                  HBRIDGE_SUBSCRIBER_NAMES[i]));
+    }
 
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 1 + NUM_BRIDGES;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &power_subscriber, &power_msg, power_subscription_callback,
-                                              ON_NEW_DATA));
 
-    // TODO: Modify this method with node specific objects
+    for (int i = 0; i < NUM_BRIDGES; i++) {
+        RCRETCHECK(rclc_executor_add_subscription(&executor, &hbridge_subscribers[i], &hbridge_msgs[i],
+                                                  hbridge_callbacks[i], ON_NEW_DATA));
+    }
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -188,10 +226,13 @@ void ros_spin_executor(void) {
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
+    for (int i = 0; i < NUM_BRIDGES; i++) {
+        RCSOFTCHECK(rcl_subscription_fini(&hbridge_subscribers[i], &node));
+    }
+
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&power_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

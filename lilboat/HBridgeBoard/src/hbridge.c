@@ -5,6 +5,7 @@
 #include "driver/cd74hc4051.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
+#include "hardware/sync.h"
 #include "titan/logger.h"
 
 #include <math.h>
