@@ -22,9 +22,9 @@
 
 #define ORIN_SW_PIN 11
 
-#define BOARD_I2C 1
-#define BOARD_SDA_PIN 26
-#define BOARD_SCL_PIN 27
+// #define BOARD_I2C 1
+// #define BOARD_SDA_PIN 26
+// #define BOARD_SCL_PIN 27
 
 #define SOLENOID1_PIN 4
 #define SOLENOID2_PIN 5
@@ -33,14 +33,22 @@
 #define ADC0_PIN 28
 #define ADC1_PIN 29
 
-#ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C BOARD_I2C
-#endif
-#ifndef PICO_DEFAULT_I2C_SDA_PIN
-#define PICO_DEFAULT_I2C_SDA_PIN BOARD_SDA_PIN
-#endif
-#ifndef PICO_DEFAULT_I2C_SCL_PIN
-#define PICO_DEFAULT_I2C_SCL_PIN BOARD_SCL_PIN
-#endif
+#define DEPTH0_I2C 0
+#define DEPTH0_SDA_PIN 24
+#define DEPTH0_SCL_PIN 25
+
+#define DEPTH1_I2C 1
+#define DEPTH1_SDA_PIN 26
+#define DEPTH1_SCL_PIN 27
+
+// #ifndef PICO_DEFAULT_I2C
+// #define PICO_DEFAULT_I2C BOARD_I2C
+// #endif
+// #ifndef PICO_DEFAULT_I2C_SDA_PIN
+// #define PICO_DEFAULT_I2C_SDA_PIN BOARD_SDA_PIN
+// #endif
+// #ifndef PICO_DEFAULT_I2C_SCL_PIN
+// #define PICO_DEFAULT_I2C_SCL_PIN BOARD_SCL_PIN
+// #endif
 
 #endif

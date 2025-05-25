@@ -1,8 +1,8 @@
 #include "ros.h"
 
+#include "driver_depth/depth.h"
 #include "solenoid.h"
 
-#include "driver/depth.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -43,6 +43,7 @@
 #define ADC_PRESSURE2_PUBLISHER_NAME "pohalf/adc_pressure2"
 #define I2C_PRESSURE_PUBLISHER_NAME "pohalf/i2c_pressure"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
+#define REGULATOR_PRESSURE_NAME "state/regulator_pressure"
 
 bool ros_connected = false;
 
@@ -77,6 +78,9 @@ rcl_publisher_t depth_publisher;
 riptide_msgs2__msg__Depth depth_msg;
 char depth_frame[] = ROBOT_NAMESPACE "/pressure_link";
 const float depth_variance = 0.003;
+
+// Blue Robotics pressure sensor
+rcl_publisher_t reg_pressure_publisher;
 
 // ========================================
 // Executor Callbacks
@@ -238,14 +242,25 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 }
 
 rcl_ret_t ros_update_depth_publisher() {
-    if (depth_reading_valid()) {
+    if (depth_reading_valid(DEPTH0_I2C)) {
         struct timespec ts;
         nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
         depth_msg.header.stamp.sec = ts.tv_sec;
         depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
-        depth_msg.depth = -depth_read();
+        depth_msg.depth = -depth_read(DEPTH0_I2C);
         RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_update_reg_pressure_publisher() {
+    if (depth_reading_valid(DEPTH1_I2C)) {
+        std_msgs__msg__Float32 pressure_msg;
+        pressure_msg.data = pressure_read(DEPTH1_I2C);
+
+        RCSOFTRETCHECK(rcl_publish(&reg_pressure_publisher, &pressure_msg, NULL));
     }
 
     return RCL_RET_OK;
@@ -315,6 +330,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
                                    DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
+    RCRETCHECK(rclc_publisher_init(&reg_pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                   REGULATOR_PRESSURE_NAME, &rmw_qos_profile_sensor_data));
+
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
                                                   SOFT_KILL_SUBSCRIBER_NAME));
@@ -373,9 +391,11 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node))
-    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure2_publisher, &node))
-    RCSOFTCHECK(rcl_publisher_fini(&i2c_pressure_publisher, &node))
+    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure2_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&i2c_pressure_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&reg_pressure_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

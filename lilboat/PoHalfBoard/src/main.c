@@ -1,3 +1,4 @@
+#include "driver_depth/depth.h"
 #include "pressure.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -5,7 +6,6 @@
 
 #include "driver/async_i2c.h"
 #include "driver/canbus.h"
-#include "driver/depth.h"
 #include "driver/led.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
@@ -135,9 +135,14 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
-    if (depth_set_on_read) {
-        depth_set_on_read = false;
+    if (depth_set_on_read[DEPTH0_I2C]) {
+        depth_set_on_read[DEPTH0_I2C] = false;
         RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
+
+    if (depth_set_on_read[DEPTH1_I2C]) {
+        depth_set_on_read[DEPTH1_I2C] = false;
+        RCSOFTRETVCHECK(ros_update_reg_pressure_publisher());
     }
 
     if (pressure_adc_readings_valid) {
@@ -206,10 +211,12 @@ int main() {
     micro_ros_init_error_handling();
 
     // I2C Initialization
-    bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
-    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+    bi_decl_if_func_used(bi_2pins_with_func(DEPTH0_SDA_PIN, DEPTH0_SCL_PIN, GPIO_FUNC_I2C));
+    bi_decl_if_func_used(bi_2pins_with_func(DEPTH1_SDA_PIN, DEPTH1_SCL_PIN, GPIO_FUNC_I2C));
+    async_i2c_init(DEPTH0_SDA_PIN, DEPTH0_SCL_PIN, DEPTH1_SDA_PIN, DEPTH1_SCL_PIN, 200000, 10);
 
-    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
+    depth_init(DEPTH0_I2C, MS5837_02BA, &depth_sensor_error_cb);
+    depth_init(DEPTH1_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
     // board specific initialization
     solenoid_init();
