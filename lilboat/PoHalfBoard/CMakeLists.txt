@@ -58,6 +58,5 @@ target_link_libraries(pohalf_board PUBLIC
     # TODO: Add any additional hardware here (ex. hardware_adc)
     hardware_adc
     driver_async_i2c
-    micro_ros_usb
 )
 

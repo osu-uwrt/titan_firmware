@@ -10,8 +10,11 @@
 #define ADC0_INPUT_NUM (ADC0_PIN - RP2040_BASE_ADC_PIN)
 #define ADC1_INPUT_NUM (ADC1_PIN - RP2040_BASE_ADC_PIN)
 
-#define ADC_MIN_PRESSURE 0.0
-#define ADC_MAX_PRESSURE 1600.0
+// #define ADC_MIN_PRESSURE 0.0
+// #define ADC_MAX_PRESSURE 1600.0
+
+#define PRESSURE_SCALE_SLOPE 1.0f
+#define PRESSURE_SCALE_OFFSET 0.0f
 
 void pressure_init() {
     adc_init();
@@ -32,13 +35,9 @@ float pressure_read_adc(int adc) {
         return NAN;
     }
 
-    const float max_voltage = 5.0 * (2.2 / 3.2);  // 5V signal that goes into a voltage divider
-    const float offset = 0.0;
-    const float scale = 1600.0f;
-    float reading = ((float) adc_read()) / (1 << 12);
-    reading *= max_voltage;
-    reading -= offset;
-    reading *= scale;
+    // Scale reading to actual voltage [0, 3.3]
+    float reading = ((float) adc_read()) / (1 << 12) * 3.3f;
 
-    return MIN(ADC_MAX_PRESSURE, MAX(ADC_MIN_PRESSURE, reading));
+    float scaled_reading = reading * PRESSURE_SCALE_SLOPE + PRESSURE_SCALE_OFFSET;
+    return scaled_reading;
 }
