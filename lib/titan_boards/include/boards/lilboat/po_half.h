@@ -22,10 +22,6 @@
 
 #define ORIN_SW_PIN 11
 
-// #define BOARD_I2C 1
-// #define BOARD_SDA_PIN 26
-// #define BOARD_SCL_PIN 27
-
 #define SOLENOID0_PIN 4
 #define SOLENOID1_PIN 5
 #define SOLENOID2_PIN 9
@@ -48,14 +44,7 @@
 #define DEPTH1_SDA_PIN 26
 #define DEPTH1_SCL_PIN 27
 
-// #ifndef PICO_DEFAULT_I2C
-// #define PICO_DEFAULT_I2C BOARD_I2C
-// #endif
-// #ifndef PICO_DEFAULT_I2C_SDA_PIN
-// #define PICO_DEFAULT_I2C_SDA_PIN BOARD_SDA_PIN
-// #endif
-// #ifndef PICO_DEFAULT_I2C_SCL_PIN
-// #define PICO_DEFAULT_I2C_SCL_PIN BOARD_SCL_PIN
-// #endif
+#define WATER_DEPTH_NUM 0
+#define REGHOUSING_DEPTH_NUM 1
 
 #endif

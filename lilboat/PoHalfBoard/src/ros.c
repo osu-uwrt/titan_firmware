@@ -38,16 +38,18 @@
 #define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 
-const char SOLENOID_SUBSCRIBER_NAMES[][30] = { [EXHAUST_SOLENOID_NUM] = "command/solenoid/exhaust",
+const char SOLENOID_SUBSCRIBER_NAMES[][50] = { [EXHAUST_SOLENOID_NUM] = "command/solenoid/exhaust",
                                                [PRESSURE_SOLENOID_NUM] = "command/solenoid/pressure",
                                                [WATER_SOLENOID_NUM] = "command/solenoid/water" };
 
-const char ADC_PRESSURE_SUBSCRIBER_NAMES[][30] = {
+const char ADC_PRESSURE_PUBLISHER_NAMES[][50] = {
     [TANK_PRESSURE_ADC_NUM] = "state/pressure/tank", [REGULATED_PRESSURE_ADC_NUM] = "state/pressure/regulated"
 };
 
-#define DEPTH_PUBLISHER_NAME "state/depth/raw"
-#define REGULATOR_PRESSURE_NAME "state/pressure/regulator_housing"
+const char DEPTH_SENSOR_PUBLISHER_NAMES[][50] = {
+    [WATER_DEPTH_NUM] = "state/depth/raw", [REGHOUSING_DEPTH_NUM] = "state/pressure/regulator_housing"
+};
+
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
 #define ELECTRICAL_READING_NAME "state/electrical"
@@ -254,13 +256,13 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 }
 
 rcl_ret_t ros_update_depth_publisher() {
-    if (depth_reading_valid(DEPTH0_I2C)) {
+    if (depth_reading_valid(WATER_DEPTH_NUM)) {
         struct timespec ts;
         nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
         depth_msg.header.stamp.sec = ts.tv_sec;
         depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
-        depth_msg.depth = -depth_read(DEPTH0_I2C);
+        depth_msg.depth = -depth_read(WATER_DEPTH_NUM);
         RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
     }
 
@@ -268,9 +270,9 @@ rcl_ret_t ros_update_depth_publisher() {
 }
 
 rcl_ret_t ros_update_reg_pressure_publisher() {
-    if (depth_reading_valid(DEPTH1_I2C)) {
+    if (depth_reading_valid(REGHOUSING_DEPTH_NUM)) {
         std_msgs__msg__Float32 pressure_msg;
-        pressure_msg.data = pressure_read(DEPTH1_I2C);
+        pressure_msg.data = pressure_read(REGHOUSING_DEPTH_NUM);
 
         RCSOFTRETCHECK(rcl_publish(&reg_pressure_publisher, &pressure_msg, NULL));
     }
@@ -356,17 +358,17 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_publisher_init_default(&adc_pressure0_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                           ADC_PRESSURE_SUBSCRIBER_NAMES[0]));
+                                           ADC_PRESSURE_PUBLISHER_NAMES[0]));
 
     RCRETCHECK(rclc_publisher_init_default(&adc_pressure1_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                           ADC_PRESSURE_SUBSCRIBER_NAMES[1]));
+                                           ADC_PRESSURE_PUBLISHER_NAMES[1]));
 
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
-                                   DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
+                                   DEPTH_SENSOR_PUBLISHER_NAMES[WATER_DEPTH_NUM], &rmw_qos_profile_sensor_data));
 
     RCRETCHECK(rclc_publisher_init(&reg_pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                   REGULATOR_PRESSURE_NAME, &rmw_qos_profile_sensor_data));
+                                   DEPTH_SENSOR_PUBLISHER_NAMES[REGHOUSING_DEPTH_NUM], &rmw_qos_profile_sensor_data));
 
     RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
