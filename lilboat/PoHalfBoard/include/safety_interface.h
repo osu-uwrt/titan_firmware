@@ -16,7 +16,9 @@
     DEF(FAULT_TIMER_MISSED, 4)                                                                                         \
     DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
     DEF(FAULT_DEPTH_INIT_ERROR, 6)                                                                                     \
-    DEF(FAULT_DEPTH_ERROR, 7)
+    DEF(FAULT_DEPTH_ERROR, 7)                                                                                          \
+    DEF(FAULT_ADC_ERROR, 8)                                                                                            \
+    DEF(FAULT_SHT41_ERROR, 9)
 
 /**
  * @brief The state of the physical kill switch (true if asserting kill)

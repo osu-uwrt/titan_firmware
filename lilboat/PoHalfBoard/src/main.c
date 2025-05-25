@@ -7,6 +7,8 @@
 #include "driver/async_i2c.h"
 #include "driver/canbus.h"
 #include "driver/led.h"
+#include "driver/mcp3426.h"
+#include "driver/sht41.h"
 #include "micro_ros_pico/transport_can.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
@@ -37,6 +39,7 @@
 #define LED_UPTIME_INTERVAL_MS 250
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define PRESSURE_PUB_INTERVAL_MS 500
+#define ELECTRICAL_READINGS_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -46,6 +49,7 @@ absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
+absolute_time_t next_electrical_reading_publish = { 0 };
 
 absolute_time_t next_pressure_adc_read = { 0 };
 bool pressure_adc_readings_valid = false;
@@ -150,6 +154,15 @@ static void tick_ros_tasks() {
         ros_publish_adc1_pressure(pressure_adc_readings[1]);
         pressure_adc_readings_valid = false;
     }
+
+    if (sht41_temp_rh_set_on_read) {
+        sht41_temp_rh_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    }
+
+    if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL_MS, true)) {
+        RCSOFTRETVCHECK(ros_publish_electrical_readings());
+    }
 }
 
 static void tick_background_tasks() {
@@ -194,6 +207,17 @@ static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable
     }
 }
 
+static void mcp3426_error_callback(const struct async_i2c_request *req, uint32_t error_code) {
+    // Mark as used in case debug logging is disabled
+    (void) req;
+    LOG_DEBUG("Error in mcp3426 driver request: 0x%p, error_code: 0x%08lx", req, error_code);
+    safety_raise_fault_with_arg(FAULT_ADC_ERROR, error_code);
+}
+
+static void sht41_sensor_error_cb(const sht41_error_code error_type) {
+    safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
+}
+
 int main() {
 // Initialize stdio
 #ifdef MICRO_ROS_TRANSPORT_USB
@@ -217,6 +241,9 @@ int main() {
 
     depth_init(DEPTH0_I2C, MS5837_02BA, &depth_sensor_error_cb);
     depth_init(DEPTH1_I2C, MS5837_02BA, &depth_sensor_error_cb);
+
+    mcp3426_init(DEPTH0_I2C, 0x68, mcp3426_error_callback);
+    sht41_init(&sht41_sensor_error_cb, DEPTH0_I2C);
 
     // board specific initialization
     solenoid_init();

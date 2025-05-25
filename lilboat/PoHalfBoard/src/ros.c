@@ -3,6 +3,8 @@
 #include "driver_depth/depth.h"
 #include "solenoid.h"
 
+#include "driver/mcp3426.h"
+#include "driver/sht41.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -13,6 +15,7 @@
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/depth.h>
+#include <riptide_msgs2/msg/electrical_readings.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/bool.h>
@@ -43,9 +46,11 @@ const char ADC_PRESSURE_SUBSCRIBER_NAMES[][30] = {
     [TANK_PRESSURE_ADC_NUM] = "state/pressure/tank", [REGULATED_PRESSURE_ADC_NUM] = "state/pressure/regulated"
 };
 
-#define I2C_PRESSURE_PUBLISHER_NAME "pohalf/i2c_pressure"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
 #define REGULATOR_PRESSURE_NAME "state/pressure/regulator_housing"
+#define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
+#define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
+#define ELECTRICAL_READING_NAME "state/electrical"
 
 bool ros_connected = false;
 
@@ -73,7 +78,6 @@ std_msgs__msg__Bool solenoid_msgs[SOLENOID_COUNT];
 
 rcl_publisher_t adc_pressure0_publisher;
 rcl_publisher_t adc_pressure1_publisher;
-rcl_publisher_t i2c_pressure_publisher;
 
 // Depth Sensor
 rcl_publisher_t depth_publisher;
@@ -83,6 +87,12 @@ const float depth_variance = 0.003;
 
 // Blue Robotics pressure sensor
 rcl_publisher_t reg_pressure_publisher;
+
+rcl_publisher_t temp_status_publisher;
+rcl_publisher_t humidity_status_publisher;
+
+rcl_publisher_t electrical_reading_publisher;
+riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
 
 // ========================================
 // Executor Callbacks
@@ -284,10 +294,37 @@ rcl_ret_t ros_publish_adc1_pressure(float pressure) {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_publish_i2c_pressure(float pressure) {
-    std_msgs__msg__Float32 pressure_msg;
-    pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&i2c_pressure_publisher, &pressure_msg, NULL));
+rcl_ret_t ros_update_temp_humidity_publisher() {
+    if (sht41_is_valid()) {
+        std_msgs__msg__Float32 sht41_msg;
+        sht41_msg.data = sht41_read_temp();
+        RCSOFTRETCHECK(rcl_publish(&temp_status_publisher, &sht41_msg, NULL));
+        sht41_msg.data = sht41_read_rh();
+        RCSOFTRETCHECK(rcl_publish(&humidity_status_publisher, &sht41_msg, NULL));
+    }
+    return RCL_RET_OK;
+}
+
+static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
+    float top = 10000.0;
+    float bottom;
+
+    if (is_3v3) {
+        bottom = 10000.0;
+    }
+    else {
+        bottom = 1000.0;
+    }
+    return adc_voltage * 1.0 / (bottom / (bottom + top));
+}
+
+rcl_ret_t ros_publish_electrical_readings() {
+    electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
+    electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
+    electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
+    electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
+
+    RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -325,15 +362,23 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                            ADC_PRESSURE_SUBSCRIBER_NAMES[1]));
 
-    RCRETCHECK(rclc_publisher_init_default(&i2c_pressure_publisher, &node,
-                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                           I2C_PRESSURE_PUBLISHER_NAME));
-
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
                                    DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
     RCRETCHECK(rclc_publisher_init(&reg_pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                    REGULATOR_PRESSURE_NAME, &rmw_qos_profile_sensor_data));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               TEMP_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               HUMIDITY_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&electrical_reading_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, ElectricalReadings),
+                                           ELECTRICAL_READING_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
@@ -398,9 +443,11 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure0_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&i2c_pressure_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&reg_pressure_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

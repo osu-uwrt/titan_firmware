@@ -102,6 +102,8 @@ rcl_ret_t ros_publish_adc0_pressure(float pressure);
 
 rcl_ret_t ros_publish_adc1_pressure(float pressure);
 
-rcl_ret_t ros_publish_i2c_pressure(float pressure);
+rcl_ret_t ros_update_temp_humidity_publisher();
+
+rcl_ret_t ros_publish_electrical_readings();
 
 #endif
