@@ -35,15 +35,17 @@
 #define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
 #define PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME "state/physkill_notify"
 
-#define SOLENOID_SUBSCRIBER_NAME_1 "pohalf/solenoid1"
-#define SOLENOID_SUBSCRIBER_NAME_2 "pohalf/solenoid2"
-#define SOLENOID_SUBSCRIBER_NAME_3 "pohalf/solenoid3"
+const char SOLENOID_SUBSCRIBER_NAMES[][30] = { [EXHAUST_SOLENOID_NUM] = "command/solenoid/exhaust",
+                                               [PRESSURE_SOLENOID_NUM] = "command/solenoid/pressure",
+                                               [WATER_SOLENOID_NUM] = "command/solenoid/water" };
 
-#define ADC_PRESSURE1_PUBLISHER_NAME "pohalf/adc_pressure1"
-#define ADC_PRESSURE2_PUBLISHER_NAME "pohalf/adc_pressure2"
+const char ADC_PRESSURE_SUBSCRIBER_NAMES[][30] = {
+    [TANK_PRESSURE_ADC_NUM] = "state/pressure/tank", [REGULATED_PRESSURE_ADC_NUM] = "state/pressure/regulated"
+};
+
 #define I2C_PRESSURE_PUBLISHER_NAME "pohalf/i2c_pressure"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
-#define REGULATOR_PRESSURE_NAME "state/regulator_pressure"
+#define REGULATOR_PRESSURE_NAME "state/pressure/regulator_housing"
 
 bool ros_connected = false;
 
@@ -69,8 +71,8 @@ char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE + 1] = { 0 };
 rcl_subscription_t solenoid_subscribers[SOLENOID_COUNT];
 std_msgs__msg__Bool solenoid_msgs[SOLENOID_COUNT];
 
+rcl_publisher_t adc_pressure0_publisher;
 rcl_publisher_t adc_pressure1_publisher;
-rcl_publisher_t adc_pressure2_publisher;
 rcl_publisher_t i2c_pressure_publisher;
 
 // Depth Sensor
@@ -128,17 +130,17 @@ static void software_kill_subscription_callback(const void *msgin) {
     safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
-static void solenoid1_subscription_callback(const void *msgin) {
+static void solenoid0_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     solenoid_set(1, msg->data);
 }
 
-static void solenoid2_subscription_callback(const void *msgin) {
+static void solenoid1_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     solenoid_set(2, msg->data);
 }
 
-static void solenoid3_subscription_callback(const void *msgin) {
+static void solenoid2_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     solenoid_set(3, msg->data);
 }
@@ -266,18 +268,18 @@ rcl_ret_t ros_update_reg_pressure_publisher() {
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_publish_adc1_pressure(float pressure) {
+rcl_ret_t ros_publish_adc0_pressure(float pressure) {
     std_msgs__msg__Float32 pressure_msg;
     pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&adc_pressure1_publisher, &pressure_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&adc_pressure0_publisher, &pressure_msg, NULL));
 
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_publish_adc2_pressure(float pressure) {
+rcl_ret_t ros_publish_adc1_pressure(float pressure) {
     std_msgs__msg__Float32 pressure_msg;
     pressure_msg.data = pressure;
-    RCSOFTRETCHECK(rcl_publish(&adc_pressure2_publisher, &pressure_msg, NULL));
+    RCSOFTRETCHECK(rcl_publish(&adc_pressure1_publisher, &pressure_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -315,13 +317,13 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                            PHYSICAL_KILL_NOTIFY_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&adc_pressure0_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                           ADC_PRESSURE_SUBSCRIBER_NAMES[0]));
+
     RCRETCHECK(rclc_publisher_init_default(&adc_pressure1_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                           ADC_PRESSURE1_PUBLISHER_NAME));
-
-    RCRETCHECK(rclc_publisher_init_default(&adc_pressure2_publisher, &node,
-                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                           ADC_PRESSURE2_PUBLISHER_NAME));
+                                           ADC_PRESSURE_SUBSCRIBER_NAMES[1]));
 
     RCRETCHECK(rclc_publisher_init_default(&i2c_pressure_publisher, &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
@@ -337,14 +339,17 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, KillSwitchReport),
                                                   SOFT_KILL_SUBSCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &solenoid_subscribers[0], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), SOLENOID_SUBSCRIBER_NAME_1));
+    RCRETCHECK(rclc_subscription_init_best_effort(&solenoid_subscribers[0], &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                                  SOLENOID_SUBSCRIBER_NAMES[0]));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &solenoid_subscribers[1], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), SOLENOID_SUBSCRIBER_NAME_2));
+    RCRETCHECK(rclc_subscription_init_best_effort(&solenoid_subscribers[1], &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                                  SOLENOID_SUBSCRIBER_NAMES[1]));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &solenoid_subscribers[2], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), SOLENOID_SUBSCRIBER_NAME_3));
+    RCRETCHECK(rclc_subscription_init_best_effort(&solenoid_subscribers[2], &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                                  SOLENOID_SUBSCRIBER_NAMES[2]));
 
     // Executor Initialization
     const int executor_num_handles = 4;
@@ -353,13 +358,13 @@ rcl_ret_t ros_init() {
                                               &software_kill_subscription_callback, ON_NEW_DATA));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[0], &solenoid_msgs[0],
-                                              &solenoid1_subscription_callback, ON_NEW_DATA));
+                                              &solenoid0_subscription_callback, ON_NEW_DATA));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[1], &solenoid_msgs[1],
-                                              &solenoid2_subscription_callback, ON_NEW_DATA));
+                                              &solenoid1_subscription_callback, ON_NEW_DATA));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[2], &solenoid_msgs[2],
-                                              &solenoid3_subscription_callback, ON_NEW_DATA));
+                                              &solenoid2_subscription_callback, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -391,8 +396,8 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure0_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_pressure1_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&adc_pressure2_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&i2c_pressure_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&depth_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&reg_pressure_publisher, &node));

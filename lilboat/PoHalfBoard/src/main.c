@@ -146,8 +146,8 @@ static void tick_ros_tasks() {
     }
 
     if (pressure_adc_readings_valid) {
-        ros_publish_adc1_pressure(pressure_adc_readings[0]);
-        ros_publish_adc2_pressure(pressure_adc_readings[1]);
+        ros_publish_adc0_pressure(pressure_adc_readings[0]);
+        ros_publish_adc1_pressure(pressure_adc_readings[1]);
         pressure_adc_readings_valid = false;
     }
 }

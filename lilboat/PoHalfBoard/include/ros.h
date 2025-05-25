@@ -98,9 +98,9 @@ rcl_ret_t ros_update_depth_publisher();
 
 rcl_ret_t ros_update_reg_pressure_publisher();
 
-rcl_ret_t ros_publish_adc1_pressure(float pressure);
+rcl_ret_t ros_publish_adc0_pressure(float pressure);
 
-rcl_ret_t ros_publish_adc2_pressure(float pressure);
+rcl_ret_t ros_publish_adc1_pressure(float pressure);
 
 rcl_ret_t ros_publish_i2c_pressure(float pressure);
 

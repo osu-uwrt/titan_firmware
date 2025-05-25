@@ -7,9 +7,9 @@
 #define SOLENOID_CLOSED 0
 
 const int solenoid_pins[SOLENOID_COUNT] = {
+    SOLENOID0_PIN,
     SOLENOID1_PIN,
     SOLENOID2_PIN,
-    SOLENOID3_PIN,
 };
 
 void solenoid_init() {

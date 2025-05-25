@@ -311,7 +311,7 @@ double pressure_read(int idx) {
 }
 
 bool depth_reading_valid(uint idx) {
-    LOG_INFO("Depth init status is %d", depth_initialized[idx]);
+    // LOG_INFO("Depth init status is %d", depth_initialized[idx]);
     return depth_initialized[idx] && !time_reached(depth_current_read_timeout[idx]);
 }
 
