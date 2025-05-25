@@ -29,11 +29,11 @@
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 #define HBRIDGE_SUBSCRIBER_NAME_TEMPLATE "hbridge_board/command/bridge%u_percent"
 
-const char HBRIDGE_SUBSCRIBER_NAMES[NUM_BRIDGES][50] = { "hbridge_board/command/bridge0_percent",
-                                                         "hbridge_board/command/bridge1_percent",
-                                                         "hbridge_board/command/bridge2_percent",
-                                                         "hbridge_board/command/bridge3_percent",
-                                                         "hbridge_board/command/bridge4_percent" };
+const char HBRIDGE_SUBSCRIBER_NAMES[][30] = { [MOTOR_PORT_BRIDGE_NUM] = "command/motor/port",
+                                              [MOTOR_STDB_BRIDGE_NUM] = "command/motor/stdb",
+                                              [THRUSTER_PORT_BRIDGE_NUM] = "command/thruster/port",
+                                              [THRUSTER_STDB_BRIDGE_NUM] = "command/thruster/stdb",
+                                              [EXTRA_BRIDGE_NUM] = "command/bridge2/unused" };
 
 bool ros_connected = false;
 

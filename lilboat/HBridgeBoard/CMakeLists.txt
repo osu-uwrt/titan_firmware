@@ -40,7 +40,7 @@ pico_set_program_name(hbridge_board "Template Project")  # TODO: Set the project
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(hbridge_board)
-# titan_enable_bootloader(hbridge_board can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_enable_bootloader(hbridge_board can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
 pico_add_extra_outputs(hbridge_board)

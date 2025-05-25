@@ -167,10 +167,10 @@ int main() {
 
     // NUM_BRIDGES set in hbridges.h
     hbridge_init(NUM_BRIDGES, NSLEEP_PIN, DRVOFF_PIN);
-    hbridge_create(H1PH_PIN, H1EN_PIN, false, 0, true);
-    hbridge_create(H2PH_PIN, H2EN_PIN, false, 1, true);
-    hbridge_create(H4PH_PIN, H4EN_PIN, false, 2, true);
-    hbridge_create(H5PH_PIN, H5EN_PIN, false, 11, false);
+    hbridge_create(H0PH_PIN, H0EN_PIN, H0_INVERTED, 0, true);
+    hbridge_create(H1PH_PIN, H1EN_PIN, H1_INVERTED, 1, true);
+    hbridge_create(H3PH_PIN, H3EN_PIN, H3_INVERTED, 2, true);
+    hbridge_create(H4PH_PIN, H4EN_PIN, H4_INVERTED, 11, false);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it

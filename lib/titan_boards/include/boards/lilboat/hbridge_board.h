@@ -19,20 +19,31 @@
 #define NSLEEP_PIN 25
 #define DRVOFF_PIN 12
 
-#define H1PH_PIN 0
-#define H1EN_PIN 1
+#define H0PH_PIN 0
+#define H0EN_PIN 1
+#define H0_INVERTED false
 
-#define H2PH_PIN 2
-#define H2EN_PIN 3
+#define H1PH_PIN 2
+#define H1EN_PIN 3
+#define H1_INVERTED false
 
-#define H3PH_PIN 4
-#define H3EN_PIN 5
+#define H2PH_PIN 4
+#define H2EN_PIN 5
+#define H2_INVERTED false
 
-#define H4PH_PIN 6
-#define H4EN_PIN 7
+#define H3PH_PIN 6
+#define H3EN_PIN 7
+#define H3_INVERTED false
 
-#define H5PH_PIN 8
-#define H5EN_PIN 9
+#define H4PH_PIN 8
+#define H4EN_PIN 9
+#define H4_INVERTED false
+
+#define MOTOR_PORT_BRIDGE_NUM 0
+#define MOTOR_STDB_BRIDGE_NUM 1
+#define THRUSTER_PORT_BRIDGE_NUM 3
+#define THRUSTER_STDB_BRIDGE_NUM 4
+#define EXTRA_BRIDGE_NUM 2
 
 #define MP_S0_PIN 23
 #define MP_S1_PIN 28
