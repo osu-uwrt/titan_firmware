@@ -22,6 +22,16 @@
     // Contains map of all board serial numbers to board type, as well as providing a friendly name
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
+        {
+            "name": "Lilboat Pohalf Board",
+            "boardType": "lilboat/po_half",
+            "serial": "E46211015B21492F"
+        },
+        {
+            "name": "Lilboat Pump Board",
+            "boardType": "lilboat/pump_board",
+            "serial": "E663B03597933524"
+        },
         // ========================================
         // 2023-2024 (Talos) Boards
         // ========================================

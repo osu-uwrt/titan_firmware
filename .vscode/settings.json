@@ -8,7 +8,8 @@
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",
         "${workspaceFolder}/tools/canmore_cli/",
-        "${workspaceFolder}/SBCBoard"
+        "${workspaceFolder}/SBCBoard",
+        "${workspaceFolder}/lilboat/PoHalfBoard/"
     ],
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
