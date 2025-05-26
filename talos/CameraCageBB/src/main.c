@@ -114,9 +114,9 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
     }
 
-    if (timer_ready(&next_leak_publish, LEAK_PUBLISH_INTERVAL_MS, true)) {
-        RCSOFTRETVCHECK(ros_update_leak_publisher());
-    }
+    // if (timer_ready(&next_leak_publish, LEAK_PUBLISH_INTERVAL_MS, true)) {
+    //     RCSOFTRETVCHECK(ros_update_leak_publisher());
+    // }
 }
 
 static void tick_background_tasks() {

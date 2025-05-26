@@ -26,6 +26,11 @@
         // Lilboat Boards
         // ========================================
         {
+            "name": "Lilboat Pohalf Board",
+            "boardType": "lilboat/po_half",
+            "serial": "E46211015B21492F"
+        },
+        {
             "name": "Lilboat Pump Board",
             "boardType": "lilboat/pump_board",
             "serial": "E663B03597933524"

@@ -10,6 +10,7 @@
         "${workspaceFolder}/tools/canmore_cli/",
         "${workspaceFolder}/SBCBoard",
         "${workspaceFolder}/lilboat/HBridgeBoard/"
+        "${workspaceFolder}/lilboat/PoHalfBoard/"
     ],
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
