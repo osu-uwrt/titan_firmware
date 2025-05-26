@@ -367,8 +367,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
                                    DEPTH_SENSOR_PUBLISHER_NAMES[WATER_DEPTH_NUM], &rmw_qos_profile_sensor_data));
 
-    RCRETCHECK(rclc_publisher_init(&reg_pressure_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                   DEPTH_SENSOR_PUBLISHER_NAMES[REGHOUSING_DEPTH_NUM], &rmw_qos_profile_sensor_data));
+    RCRETCHECK(rclc_publisher_init_default(&reg_pressure_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                           DEPTH_SENSOR_PUBLISHER_NAMES[REGHOUSING_DEPTH_NUM]));
 
     RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),

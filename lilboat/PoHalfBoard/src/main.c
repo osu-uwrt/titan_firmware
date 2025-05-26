@@ -50,6 +50,7 @@ absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
+absolute_time_t next_reghousing_pressure_publish = { 0 };
 
 absolute_time_t next_pressure_adc_read = { 0 };
 bool pressure_adc_readings_valid = false;
@@ -139,12 +140,13 @@ static void tick_ros_tasks() {
     }
 
     // TODO: Put any additional ROS tasks added here
-    if (depth_set_on_read[DEPTH0_I2C]) {
-        depth_set_on_read[DEPTH0_I2C] = false;
+    if (depth_set_on_read[WATER_DEPTH_NUM]) {
+        depth_set_on_read[WATER_DEPTH_NUM] = false;
         RCSOFTRETVCHECK(ros_update_depth_publisher());
     }
 
-    if (depth_set_on_read[DEPTH1_I2C]) {
+    if (timer_ready(&next_reghousing_pressure_publish, PRESSURE_PUB_INTERVAL_MS, true) &&
+        depth_set_on_read[REGHOUSING_DEPTH_NUM]) {
         depth_set_on_read[DEPTH1_I2C] = false;
         RCSOFTRETVCHECK(ros_update_reg_pressure_publisher());
     }
