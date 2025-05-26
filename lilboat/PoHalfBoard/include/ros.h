@@ -106,4 +106,6 @@ rcl_ret_t ros_update_temp_humidity_publisher();
 
 rcl_ret_t ros_publish_electrical_readings();
 
+rcl_ret_t ros_publish_solenoid_states();
+
 #endif

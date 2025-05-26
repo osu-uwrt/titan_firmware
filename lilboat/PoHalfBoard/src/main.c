@@ -40,6 +40,7 @@
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define PRESSURE_PUB_INTERVAL_MS 500
 #define ELECTRICAL_READINGS_INTERVAL_MS 1000
+#define SOLENOID_STATE_PUB_INTERVAL_MS 1000
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -51,6 +52,7 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_reghousing_pressure_publish = { 0 };
+absolute_time_t next_solenoid_state_publish = { 0 };
 
 absolute_time_t next_pressure_adc_read = { 0 };
 bool pressure_adc_readings_valid = false;
@@ -164,6 +166,10 @@ static void tick_ros_tasks() {
 
     if (timer_ready(&next_electrical_reading_publish, ELECTRICAL_READINGS_INTERVAL_MS, true)) {
         RCSOFTRETVCHECK(ros_publish_electrical_readings());
+    }
+
+    if (timer_ready(&next_solenoid_state_publish, SOLENOID_STATE_PUB_INTERVAL_MS, true)) {
+        RCSOFTRETVCHECK(ros_publish_solenoid_states());
     }
 }
 

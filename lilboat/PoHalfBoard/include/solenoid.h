@@ -15,3 +15,5 @@ void solenoid_init();
  * @param number the number of solenoid (in the range [1..SOLENOID_COUNT])
  */
 void solenoid_set(int number, bool open);
+
+bool solenoid_get(int number);

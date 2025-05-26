@@ -42,6 +42,10 @@ const char SOLENOID_SUBSCRIBER_NAMES[][50] = { [EXHAUST_SOLENOID_NUM] = "command
                                                [PRESSURE_SOLENOID_NUM] = "command/solenoid/pressure",
                                                [WATER_SOLENOID_NUM] = "command/solenoid/water" };
 
+const char SOLENOID_STATE_PUBLISHER_NAMES[][50] = { [EXHAUST_SOLENOID_NUM] = "state/solenoid/exhaust",
+                                                    [PRESSURE_SOLENOID_NUM] = "state/solenoid/pressure",
+                                                    [WATER_SOLENOID_NUM] = "state/solenoid/water" };
+
 const char ADC_PRESSURE_PUBLISHER_NAMES[][50] = {
     [TANK_PRESSURE_ADC_NUM] = "state/pressure/tank", [REGULATED_PRESSURE_ADC_NUM] = "state/pressure/regulated"
 };
@@ -77,6 +81,8 @@ char software_kill_frame_str[SAFETY_SOFTWARE_KILL_FRAME_STR_SIZE + 1] = { 0 };
 
 rcl_subscription_t solenoid_subscribers[SOLENOID_COUNT];
 std_msgs__msg__Bool solenoid_msgs[SOLENOID_COUNT];
+
+rcl_publisher_t solenoid_state_publishers[SOLENOID_COUNT];
 
 rcl_publisher_t adc_pressure0_publisher;
 rcl_publisher_t adc_pressure1_publisher;
@@ -331,6 +337,17 @@ rcl_ret_t ros_publish_electrical_readings() {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_publish_solenoid_states() {
+    for (int i = 0; i < SOLENOID_COUNT; i++) {
+        std_msgs__msg__Bool solenoid_state_msg;
+        solenoid_state_msg.data = solenoid_get(i + 1);
+
+        RCSOFTRETCHECK(rcl_publish(&solenoid_state_publishers[i], &solenoid_state_msg, NULL));
+    }
+
+    return RCL_RET_OK;
+}
+
 // ========================================
 // ROS Core
 // ========================================
@@ -399,6 +416,18 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                                   SOLENOID_SUBSCRIBER_NAMES[2]));
 
+    RCRETCHECK(rclc_publisher_init_default(&solenoid_state_publishers[0], &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           SOLENOID_STATE_PUBLISHER_NAMES[0]));
+
+    RCRETCHECK(rclc_publisher_init_default(&solenoid_state_publishers[1], &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           SOLENOID_STATE_PUBLISHER_NAMES[1]));
+
+    RCRETCHECK(rclc_publisher_init_default(&solenoid_state_publishers[2], &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           SOLENOID_STATE_PUBLISHER_NAMES[2]));
+
     // Executor Initialization
     const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
@@ -438,6 +467,7 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
     for (int i = 0; i < SOLENOID_COUNT; i++) {
         RCSOFTCHECK(rcl_subscription_fini(&solenoid_subscribers[i], &node));
+        RCSOFTCHECK(rcl_publisher_fini(&solenoid_state_publishers[i], &node));
     }
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
