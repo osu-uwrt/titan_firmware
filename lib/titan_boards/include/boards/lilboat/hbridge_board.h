@@ -25,7 +25,7 @@
 
 #define H1PH_PIN 2
 #define H1EN_PIN 3
-#define H1_INVERTED false
+#define H1_INVERTED true
 
 #define H2PH_PIN 4
 #define H2EN_PIN 5
