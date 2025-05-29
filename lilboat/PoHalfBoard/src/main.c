@@ -40,7 +40,7 @@
 #define KILLSWITCH_PUBLISH_TIME_MS 150
 #define PRESSURE_PUB_INTERVAL_MS 500
 #define ELECTRICAL_READINGS_INTERVAL_MS 1000
-#define SOLENOID_STATE_PUB_INTERVAL_MS 1000
+#define SOLENOID_STATE_PUB_INTERVAL_MS 500
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
