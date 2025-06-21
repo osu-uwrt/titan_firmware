@@ -19,8 +19,8 @@
 
 #define MAX_WAKE_ATTEMPTS 3
 
-#define SLEW_PERIOD_MS 10
-#define SLEW_MAX_DIFF 0.02f
+#define SLEW_PERIOD_MS 20
+#define SLEW_MAX_DIFF 0.1f
 
 #define PCT_MAX 1.0f
 #define PCT_MIN -1.0f
