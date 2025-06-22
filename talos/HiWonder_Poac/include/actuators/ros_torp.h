@@ -11,4 +11,6 @@ extern rcl_ret_t ros_actuators_fini(rcl_node_t *node);
 
 extern rcl_ret_t ros_actuators_update_status(void);
 
+extern rcl_ret_t ros_actuators_update_cmd_feedback(void);
+
 #endif  // ROS_TORP_H

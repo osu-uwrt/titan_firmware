@@ -37,6 +37,7 @@
 #define ACTUATOR_STATUS_TIME_MS 500
 #define SERVO_TRANSMIT_PERIOD_MS 10
 #define SERVO_PING_PERIOD_MS 1000
+#define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -50,6 +51,7 @@ absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_auxswitch_publish = { 0 };
 absolute_time_t next_servo_ping = { 0 };
 absolute_time_t next_actuator_status = { 0 };
+absolute_time_t next_cmd_feedback = { 0 };
 
 static repeating_timer_t uart_scheduler_timer;
 
@@ -102,6 +104,7 @@ static void start_ros_timers() {
     next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
     next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
     next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
+    next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
 }
 
 /**
@@ -156,6 +159,10 @@ static void tick_ros_tasks() {
 
     if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_actuators_update_status());
+    }
+
+    if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
+        RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
     }
 }
 

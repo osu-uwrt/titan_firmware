@@ -14,8 +14,8 @@
 #include <riptide_msgs2/msg/actuator_status.h>
 #include <riptide_msgs2/msg/dynamixel_status.h>
 #include <std_msgs/msg/bool.h>
-#include <std_srvs/srv/set_bool.h>
-#include <std_srvs/srv/trigger.h>
+#include <std_msgs/msg/empty.h>
+#include <std_msgs/msg/string.h>
 
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
@@ -33,42 +33,45 @@
 #define BUSY_TOPIC_NAME "state/actuator/busy"
 #define STATUS_TOPIC_NAME "state/actuator/status"
 #define DYNAMIXEL_STATUS_TOPIC_NAME "state/actuator/dynamixel"
-#define TORPEDO_SERVICE_NAME "command/actuator/torpedo"
-#define DROPPER_SERVICE_NAME "command/actuator/dropper"
-#define CLAW_SERVICE_NAME "command/actuator/claw"
-#define NOTIFY_RELOAD_SERVICE_NAME "command/actuator/notify_reload"
-#define ARM_SERVICE_NAME "command/actuator/arm"
-#define TORPEDO_MARKER_MOVE_HOME_SERVICE_NAME "command/actuator/torpedo_marker/go_home"
-#define TORPEDO_MARKER_SET_HOME_SERVICE_NAME "command/actuator/torpedo_marker/set_home"
-#define CLAW_SET_CLOSED_POS_SERVICE_NAME "command/actuator/claw/set_closed_pos"
+#define TORPEDO_SUBSCRIPTION_NAME "command/actuator/torpedo"
+#define DROPPER_SUBSCRIPTION_NAME "command/actuator/dropper"
+#define CLAW_SUBSCRIPTION_NAME "command/actuator/claw"
+#define NOTIFY_RELOAD_SUBSCRIPTION_NAME "command/actuator/notify_reload"
+#define ARM_SUBSCRIPTION_NAME "command/actuator/arm"
+#define TORPEDO_MARKER_MOVE_HOME_SUBSCRIPTION_NAME "command/actuator/torpedo_marker/go_home"
+#define TORPEDO_MARKER_SET_HOME_SUBSCRIPTION_NAME "command/actuator/torpedo_marker/set_home"
+#define CLAW_SET_CLOSED_POS_SUBSCRIPTION_NAME "command/actuator/claw/set_closed_pos"
+#define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
+#define ACTUATOR_FEEDBACK_STATE_TOPIC_NAME "state/actuator/cmd_status"
 
 static rcl_publisher_t dynamixel_status_publisher;
 static rcl_publisher_t status_publisher;
 static rcl_publisher_t busy_publisher;
 
-static rcl_service_t move_home_service;
-static std_srvs__srv__Trigger_Request move_home_req;
-static std_srvs__srv__Trigger_Response move_home_res;
+static rcl_subscription_t move_home_subscription;
+static std_msgs__msg__Empty move_home_msg;
 
-static rcl_service_t set_home_service;
-static std_srvs__srv__Trigger_Request set_home_req;
-static std_srvs__srv__Trigger_Response set_home_res;
+static rcl_subscription_t set_home_subscription;
+static std_msgs__msg__Empty set_home_msg;
 
-static rcl_service_t torpedo_service;
-static std_srvs__srv__Trigger_Request torpedo_req;
-static std_srvs__srv__Trigger_Response torpedo_res;
+static rcl_subscription_t torpedo_subscription;
+static std_msgs__msg__Empty torpedo_msg;
 
-static rcl_service_t dropper_service;
-static std_srvs__srv__Trigger_Request dropper_req;
-static std_srvs__srv__Trigger_Response dropper_res;
+static rcl_subscription_t dropper_subscription;
+static std_msgs__msg__Empty dropper_msg;
 
-static rcl_service_t notify_reload_service;
-static std_srvs__srv__Trigger_Request notify_reload_req;
-static std_srvs__srv__Trigger_Response notify_reload_res;
+static rcl_subscription_t notify_reload_subscription;
+static std_msgs__msg__Empty notify_reload_msg;
 
-static rcl_service_t arm_service;
-static std_srvs__srv__SetBool_Request actuator_arm_req;
-static std_srvs__srv__SetBool_Response actuator_arm_res;
+static rcl_subscription_t arm_subscription;
+static std_msgs__msg__Bool actuator_arm_msg;
+
+static rcl_publisher_t cmd_feedback_publisher;
+static rcl_publisher_t cmd_status_publisher;
+
+static std_msgs__msg__String cmd_feedback;
+static std_msgs__msg__Bool cmd_status;
+static bool new_cmd = false;
 
 #define TORP_NUMBER 2
 #define DROPPER_NUMBER 2
@@ -387,72 +390,83 @@ rcl_ret_t ros_actuators_update_status(void) {
     return RCL_RET_OK;
 }
 
-// ========================================
-// Service Callbacks
-// ========================================
+rcl_ret_t ros_actuators_update_cmd_feedback() {
+    if (!new_cmd)
+        return RCL_RET_OK;
 
-static void torpedo_service_callback(__unused const void *req, void *res) {
-    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
+    RCRETCHECK(rcl_publish(&cmd_feedback_publisher, &cmd_feedback, NULL));
+    RCRETCHECK(rcl_publish(&cmd_status_publisher, &cmd_status, NULL));
 
-    const char *message = "";
-
-    res_in->success = torpedo_fire(&message);
-
-    size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    return RCL_RET_OK;
 }
 
-static void dropper_service_callback(__unused const void *req, void *res) {
-    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
+// ========================================
+// subscription Callbacks
+// ========================================
 
+static void torpedo_subscription_callback(__unused const void *msgin) {
     const char *message = "";
 
-    res_in->success = dropper_drop_marker(&message);
+    cmd_status.data = torpedo_fire(&message);
 
     size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
 }
 
-static void notify_reload_service_callback(__unused const void *req, void *res) {
-    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
-
+static void dropper_subscription_callback(__unused const void *msgin) {
     const char *message = "";
 
-    res_in->success = torpedo_notify_reload(&message);
-    if (res_in->success) {
-        res_in->success = dropper_notify_reload(&message);
+    cmd_status.data = dropper_drop_marker(&message);
+
+    size_t msg_len = strlen(message);
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
+}
+
+static void notify_reload_subscription_callback(__unused const void *msgin) {
+    const char *message = "";
+
+    cmd_status.data = torpedo_notify_reload(&message);
+    if (cmd_status.data) {
+        cmd_status.data = dropper_notify_reload(&message);
     }
 
     size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
 }
 
-static void arm_service_callback(const void *req, void *res) {
-    std_srvs__srv__SetBool_Request *req_in = (std_srvs__srv__SetBool_Request *) req;
-    std_srvs__srv__SetBool_Response *res_in = (std_srvs__srv__SetBool_Response *) res;
+static void arm_subscription_callback(const void *msgin) {
+    std_msgs__msg__Bool *msg = (std_msgs__msg__Bool *) msgin;
 
     const char *message = "";
 
     // True, arm
-    if (req_in->data) {
-        res_in->success = actuators_arm(&message);
+    if (msg->data) {
+        cmd_status.data = actuators_arm(&message);
     }
     // False, disarm
     else {
         servo_set_armed(false);
-        res_in->success = true;
+        cmd_status.data = true;
     }
 
     size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
 }
 
 // rcl_ret_t actuator_v2_dynamixel_update_status(void) {
@@ -468,30 +482,30 @@ static void arm_service_callback(const void *req, void *res) {
 //     return RCL_RET_OK;
 // }
 
-static void move_home_service_callback(__unused const void *req, void *res) {
-    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
-
+static void move_home_subscription_callback(__unused const void *msgin) {
     const char *message = "";
 
-    res_in->success = torpedo_marker_move_home(&message);
+    cmd_status.data = torpedo_marker_move_home(&message);
 
     size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
 }
 
-static void set_home_service_callback(__unused const void *req, void *res) {
-    std_srvs__srv__Trigger_Response *res_in = (std_srvs__srv__Trigger_Response *) res;
-
+static void set_home_subscription_callback(__unused const void *msgin) {
     const char *message = "";
 
-    res_in->success = torpedo_marker_set_home(&message);
+    cmd_status.data = torpedo_marker_set_home(&message);
 
     size_t msg_len = strlen(message);
-    res_in->message.data = (char *) message;
-    res_in->message.size = msg_len;
-    res_in->message.capacity = msg_len + 1;  // Add null terminated byte
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = msg_len;
+    cmd_feedback.data.capacity = msg_len + 1;  // Add null terminated byte
+
+    new_cmd = true;
 }
 
 // ========================================
@@ -503,28 +517,29 @@ const size_t ros_actuators_num_executor_handles = 6;
 
 rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
     // Torpedos
-    RCRETCHECK(rclc_service_init_default(&torpedo_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
-                                         TORPEDO_SERVICE_NAME));
-    RCRETCHECK(
-        rclc_executor_add_service(executor, &torpedo_service, &torpedo_req, &torpedo_res, torpedo_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(
+        &torpedo_subscription, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty), TORPEDO_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &torpedo_subscription, &torpedo_msg,
+                                              torpedo_subscription_callback, ON_NEW_DATA));
 
     // Droppers
-    RCRETCHECK(rclc_service_init_default(&dropper_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
-                                         DROPPER_SERVICE_NAME));
-    RCRETCHECK(
-        rclc_executor_add_service(executor, &dropper_service, &dropper_req, &dropper_res, dropper_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(
+        &dropper_subscription, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty), DROPPER_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &dropper_subscription, &dropper_msg,
+                                              dropper_subscription_callback, ON_NEW_DATA));
 
     // Notify Reload
-    RCRETCHECK(rclc_service_init_default(
-        &notify_reload_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger), NOTIFY_RELOAD_SERVICE_NAME));
-    RCRETCHECK(rclc_executor_add_service(executor, &notify_reload_service, &notify_reload_req, &notify_reload_res,
-                                         notify_reload_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(&notify_reload_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty),
+                                              NOTIFY_RELOAD_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &notify_reload_subscription, &notify_reload_msg,
+                                              notify_reload_subscription_callback, ON_NEW_DATA));
 
     // Actuator Arm
-    RCRETCHECK(rclc_service_init_default(&arm_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, SetBool),
-                                         ARM_SERVICE_NAME));
-    RCRETCHECK(
-        rclc_executor_add_service(executor, &arm_service, &actuator_arm_req, &actuator_arm_res, arm_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(&arm_subscription, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              ARM_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &arm_subscription, &actuator_arm_msg, arm_subscription_callback,
+                                              ON_NEW_DATA));
 
     // State Publishers
     RCRETCHECK(rclc_publisher_init_best_effort(&busy_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
@@ -536,15 +551,26 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, DynamixelStatus),
                                                DYNAMIXEL_STATUS_TOPIC_NAME));
 
-    RCRETCHECK(rclc_service_init_default(&move_home_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
-                                         TORPEDO_MARKER_MOVE_HOME_SERVICE_NAME));
-    RCRETCHECK(rclc_executor_add_service(executor, &move_home_service, &move_home_req, &move_home_res,
-                                         move_home_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(&move_home_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty),
+                                              TORPEDO_MARKER_MOVE_HOME_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &move_home_subscription, &move_home_msg,
+                                              move_home_subscription_callback, ON_NEW_DATA));
 
-    RCRETCHECK(rclc_service_init_default(&set_home_service, node, ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger),
-                                         TORPEDO_MARKER_SET_HOME_SERVICE_NAME));
-    RCRETCHECK(rclc_executor_add_service(executor, &set_home_service, &set_home_req, &set_home_res,
-                                         set_home_service_callback));
+    RCRETCHECK(rclc_subscription_init_default(&set_home_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Empty),
+                                              TORPEDO_MARKER_SET_HOME_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &set_home_subscription, &set_home_msg,
+                                              set_home_subscription_callback, ON_NEW_DATA));
+
+    // Command Feedback Pubishers
+    RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
+                                           ACTUATOR_FEEDBACK_MSG_TOPIC_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&cmd_status_publisher, node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           ACTUATOR_FEEDBACK_STATE_TOPIC_NAME));
 
     return RCL_RET_OK;
 }
@@ -552,13 +578,13 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
 rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
     RCSOFTCHECK(rcl_publisher_fini(&status_publisher, node));
     RCSOFTCHECK(rcl_publisher_fini(&busy_publisher, node));
-    RCSOFTCHECK(rcl_service_fini(&torpedo_service, node));
-    RCSOFTCHECK(rcl_service_fini(&dropper_service, node));
-    RCSOFTCHECK(rcl_service_fini(&notify_reload_service, node));
-    RCSOFTCHECK(rcl_service_fini(&arm_service, node));
+    RCSOFTCHECK(rcl_subscription_fini(&torpedo_subscription, node));
+    RCSOFTCHECK(rcl_subscription_fini(&dropper_subscription, node));
+    RCSOFTCHECK(rcl_subscription_fini(&notify_reload_subscription, node));
+    RCSOFTCHECK(rcl_subscription_fini(&arm_subscription, node));
     RCSOFTCHECK(rcl_publisher_fini(&dynamixel_status_publisher, node));
-    RCSOFTCHECK(rcl_service_fini(&move_home_service, node));
-    RCSOFTCHECK(rcl_service_fini(&set_home_service, node));
+    RCSOFTCHECK(rcl_subscription_fini(&move_home_subscription, node));
+    RCSOFTCHECK(rcl_subscription_fini(&set_home_subscription, node));
 
     return RCL_RET_OK;
 }

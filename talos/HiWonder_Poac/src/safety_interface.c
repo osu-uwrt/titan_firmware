@@ -36,25 +36,18 @@ static void safety_interface_gpio_callback(uint gpio, uint32_t events) {
     }
 }
 
-#ifdef MICRO_ROS_TRANSPORT_CAN
-#include "driver/canbus.h"
-
 static void safety_handle_can_internal_error(canbus_error_data_t error_data) {
     LOG_ERROR("CAN Internal Error - Line: %d; Code: %d (%s Error)", error_data.error_line, error_data.error_code,
               (error_data.is_driver_error ? "Internal Driver" : "Library"));
     safety_raise_fault_with_arg(FAULT_CAN_INTERNAL_ERROR, error_data.raw);
 }
 
-#endif
-
 // ========================================
 // Implementations for External Interface Functions
 // ========================================
 
 void safety_set_fault_led(bool on) {
-#ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_device_in_error(on);
-#endif
 
     led_fault_set(on);
 }
@@ -104,9 +97,7 @@ void safety_interface_setup(void) {
     gpio_set_dir(SOFT_KILLSWITCH_PIN, GPIO_OUT);
     gpio_disable_pulls(SOFT_KILLSWITCH_PIN);
 
-#ifdef MICRO_ROS_TRANSPORT_CAN
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
-#endif
 }
 
 void safety_interface_init(void) {
