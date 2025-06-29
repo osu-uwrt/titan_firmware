@@ -397,6 +397,7 @@ rcl_ret_t ros_actuators_update_cmd_feedback() {
     RCRETCHECK(rcl_publish(&cmd_feedback_publisher, &cmd_feedback, NULL));
     RCRETCHECK(rcl_publish(&cmd_status_publisher, &cmd_status, NULL));
 
+    new_cmd = false;
     return RCL_RET_OK;
 }
 
