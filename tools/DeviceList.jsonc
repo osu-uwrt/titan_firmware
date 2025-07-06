@@ -24,7 +24,7 @@
     "serialMap": [
         {
             "name": "Talos IVC Board",
-            "boardType": "ivc_board",
+            "boardType": "talos/ivc_board",
             "serial": "E46214B0630D2A32"
         },
         // ========================================
