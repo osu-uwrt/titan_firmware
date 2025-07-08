@@ -53,5 +53,9 @@ target_link_libraries(ivc_board PUBLIC
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
+    hardware_pwm
+    hardware_adc
+    hardware_dma
+    micro_ros_usb
 )
 

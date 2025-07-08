@@ -1,5 +1,9 @@
 #include "ros.h"
 
+#include "ivc.h"
+
+#include "hardware/clocks.h"
+#include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -11,7 +15,9 @@
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
+#include <std_msgs/msg/u_int8.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -24,6 +30,9 @@
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
+#define TX_ENABLE_SUBSCRIBER_NAME "ivc/tx_enable"
+#define TX_FREQUENCY_SUBSCRIBER_NAME "ivc/tx_frequency"
+#define TX_DATA_SUBSCRIBER_NAME "ivc/tx_packet"
 
 bool ros_connected = false;
 
@@ -40,6 +49,13 @@ rcl_publisher_t firmware_status_publisher;
 rcl_subscription_t killswtich_subscriber;
 std_msgs__msg__Bool killswitch_msg;
 // TODO: Add node specific items here
+rcl_subscription_t tx_enable_subscriber;
+std_msgs__msg__Bool tx_enable_msg;
+rcl_subscription_t tx_frequency_subscriber;
+std_msgs__msg__Float32 tx_frequency_msg;
+
+rcl_subscription_t tx_data_subscriber;
+std_msgs__msg__UInt8 tx_data_msg;
 
 // ========================================
 // Executor Callbacks
@@ -48,6 +64,30 @@ std_msgs__msg__Bool killswitch_msg;
 static void killswitch_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     safety_kill_switch_update(ROS_KILL_SWITCH, msg->data, true);
+}
+
+static void tx_enable_subscription_callback(const void *msgin) {
+    // const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+    // pwm_set_enabled(pwm_gpio_to_slice_num(TX_PIN), msg->data);
+}
+
+static int64_t tx_shutdown_callback(__unused alarm_id_t id, __unused void *user_data) {
+    pwm_set_enabled(pwm_gpio_to_slice_num(TX_PIN), false);
+
+    return 0;
+}
+
+static void tx_frequency_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32 *) msgin;
+    pwm_set_clkdiv(pwm_gpio_to_slice_num(TX_PIN), clock_get_hz(clk_sys) / (msg->data * 99));
+    pwm_set_enabled(pwm_gpio_to_slice_num(TX_PIN), true);
+
+    add_alarm_in_ms(1000, &tx_shutdown_callback, NULL, true);
+}
+
+static void tx_data_subscription_callback(const void *msgin) {
+    const std_msgs__msg__UInt8 *msg = (const std_msgs__msg__UInt8 *) msgin;
+    ivc_tx(msg->data);
 }
 
 // TODO: Add in node specific tasks here
@@ -148,11 +188,30 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(
+        &tx_enable_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), TX_ENABLE_SUBSCRIBER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_default(&tx_frequency_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                              TX_FREQUENCY_SUBSCRIBER_NAME));
+
+    RCRETCHECK(rclc_subscription_init_default(
+        &tx_data_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DATA_SUBSCRIBER_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_enable_subscriber, &tx_enable_msg,
+                                              &tx_enable_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_frequency_subscriber, &tx_frequency_msg,
+                                              &tx_frequency_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_data_subscriber, &tx_frequency_msg,
+                                              &tx_data_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 
@@ -172,6 +231,9 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&tx_enable_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&tx_frequency_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&tx_data_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));

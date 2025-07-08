@@ -1,3 +1,4 @@
+#include "ivc.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -160,7 +161,45 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
-// TODO: Put any additional hardware initialization code here
+    // TODO: Put any additional hardware initialization code here
+    ivc_init();
+
+    // // Start transmission with PWM
+    // // Find out which PWM slice is connected to GPIO 0 (it's slice 0)
+    // gpio_set_function(TX_PIN, GPIO_FUNC_PWM);
+    // uint slice_num = pwm_gpio_to_slice_num(TX_PIN);
+    // uint chan = pwm_gpio_to_channel(TX_PIN);
+
+    // // Want PWMCLK to be a square wave at 204,800 Hz
+    // // Set period of 4 cycles (0 to 3 inclusive)
+    // pwm_set_wrap(slice_num, WRAP_VALUE - 1);
+    // // Set channel A output high for two cycles before dropping (50% duty cycle)
+    // pwm_set_chan_level(slice_num, chan, WRAP_VALUE / 2);
+    // // This means that we need the slice to be clocked at 819,200 Hz
+    // // Compute fractioanl divider to get our target frequency
+    // pwm_set_clkdiv(slice_num, clock_get_hz(clk_sys) / (PWM_FREQ * WRAP_VALUE));
+
+    // // Start transmission with PWM
+    // // Find out which PWM slice is connected to GPIO 0 (it's slice 0)
+    // gpio_set_function(TX_PIN, GPIO_FUNC_PWM);
+    // uint slice_num = pwm_gpio_to_slice_num(TX_PIN);
+    // uint chan = pwm_gpio_to_channel(TX_PIN);
+
+    // // Want PWMCLK to be a square wave at 204,800 Hz
+    // // Set period of 4 cycles (0 to 3 inclusive)
+    // pwm_set_wrap(slice_num, WRAP_VALUE - 1);
+    // // Set channel A output high for two cycles before dropping (50% duty cycle)
+    // pwm_set_chan_level(slice_num, chan, WRAP_VALUE / 2);
+    // // This means that we need the slice to be clocked at 819,200 Hz
+    // // Compute fractioanl divider to get our target frequency
+    // pwm_set_clkdiv(slice_num, clock_get_hz(clk_sys) / (PWM_FREQ * WRAP_VALUE));
+    // // Set the PWM running
+    // pwm_set_enabled(slice_num, true);
+
+    // Select lpf output
+    // gpio_init(OUTPUT_SELECT_PIN);
+    // gpio_set_dir(OUTPUT_SELECT_PIN, GPIO_OUT);
+    // gpio_put(OUTPUT_SELECT_PIN, 1);
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
