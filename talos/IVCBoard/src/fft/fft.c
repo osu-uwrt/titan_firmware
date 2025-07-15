@@ -1,5 +1,7 @@
 #include "fft/fft.h"
 
+#include "titan/logger.h"
+
 static dma_channel_config cfg;
 static uint dma_chan;
 static float freqs[NSAMP];
@@ -48,8 +50,10 @@ void fft_setup(irq_handler_t dma_irq_cb) {
 }
 
 void fft_sample(uint8_t *capture_buf) {
-    adc_run(false);
-    adc_fifo_drain();
+    // adc_run(false);
+    // adc_fifo_drain();
+
+    // LOG_INFO("Starting DMA");
 
     dma_channel_configure(dma_chan, &cfg,
                           capture_buf,    // dst
@@ -80,6 +84,8 @@ void fft_process(uint8_t *capture_buf, frequency_bin_t *bins, int bin_count) {
 }
 
 static void dma_handler() {
+    // LOG_INFO("Got DMA IRQ");
+
     dma_cb();
 
     // Clear the interrupt request

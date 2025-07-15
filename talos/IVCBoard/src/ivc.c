@@ -18,7 +18,7 @@
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
-#define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / FREQ_LOW_HZ / 255.0f) + 1.0f)
+#define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / 5000 / 255.0f) + 1.0f)
 static uint pwm_slice_num;
 static int tx_data_idx;
 static uint8_t tx_data;
@@ -41,7 +41,7 @@ frequency_bin_t bins[NUM_BINS] = { { "freq_low", FREQ_LOW_HZ - BIN_RANGE, FREQ_L
 
 uint8_t sample_bufs[2][NSAMP];
 bool buf_select = 0;
-// int goertzel_target = -1;
+int fft_target = -1;
 // float mags[NUM_BINS];
 // uint64_t last_dma_time = { 0 };
 // uint64_t last_dma_period = { 0 };
@@ -98,19 +98,22 @@ static void sample_handler() {
     // // Clear the interrupt request
     // dma_hw->ints0 = 1u << dma_chan;
 
+    fft_target = buf_select;
     buf_select = !buf_select;
     fft_sample(sample_bufs[buf_select]);
 
-    fft_process(sample_bufs[!buf_select], bins, NUM_BINS);
+    // fft_sample(sample_bufs[0]);
 
-    int8_t val = -1;
+    // fft_process(sample_bufs[!buf_select], bins, NUM_BINS);
 
-    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
-        val = 0;
-    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
-        val = 1;
+    // int val = -1;
 
-    LOG_INFO("%hhd", val);
+    // if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+    //     val = 0;
+    // if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+    //     val = 1;
+
+    // LOG_INFO("Got IVC value as %d", val);
 }
 
 void ivc_tick() {
@@ -124,6 +127,25 @@ void ivc_tick() {
     //     // LOG_INFO("%f", mags[0]);
     //     // LOG_INFO("\n");
     // }
+
+    // LOG_INFO("FIFO at: %hhu", adc_fifo_get_level());
+
+    if (fft_target != -1) {
+        fft_process(sample_bufs[fft_target], bins, NUM_BINS);
+
+        int val = -1;
+
+        if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+            val = 0;
+        if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+            val = 1;
+
+        LOG_INFO("Got IVC value as %d", val);
+
+        // printf("%s: Amplitude = %f\n", bins[0].name, bins[0].amplitude);
+
+        fft_target = -1;
+    }
 }
 
 static void rx_init() {
