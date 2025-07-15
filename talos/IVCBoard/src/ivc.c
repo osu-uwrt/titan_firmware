@@ -1,14 +1,19 @@
 #include "ivc.h"
 
+#include "fft/fft.h"
+
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
+#include "titan/logger.h"
+
+#include <math.h>
 
 // General defines
-#define FREQ_LOW_HZ 5000
-#define FREQ_HIGH_HZ 10000
+#define FREQ_LOW_HZ 17000
+#define FREQ_HIGH_HZ 19000
 #define SYSCLK_HZ clock_get_hz(clk_sys)
 
 // Tx data
@@ -20,6 +25,22 @@ static uint8_t tx_data;
 static repeating_timer_t tx_timer = { 0 };
 
 // Rx data
+// #define NUM_SAMPLES 500
+// #define ADC_FREQ_HZ 500000.0f
+// #define TIMESTEP_S 1.0f / ADC_FREQ_HZ
+#define NUM_BINS 2
+#define BIN_RANGE 500
+
+#define FREQ_LOW_THRESHOLD 3000
+#define FREQ_HIGH_THRESHOLD 3000
+// float freqs[NUM_BINS] = { 18000.0f, 19000.0f };
+// static int dma_chan;
+uint8_t sample_bufs[2][NSAMP];
+bool buf_select = 0;
+// int goertzel_target = -1;
+// float mags[NUM_BINS];
+// uint64_t last_dma_time = { 0 };
+// uint64_t last_dma_period = { 0 };
 
 static bool tx_cb(__unused repeating_timer_t *rt) {
     if (tx_data_idx < 0) {
@@ -58,7 +79,92 @@ static void tx_init() {
     gpio_put(OUTPUT_SELECT_PIN, 1);
 }
 
-static void rx_init() {}
+static void sample_handler() {
+    //     uint64_t now = to_us_since_boot(get_absolute_time());
+    //     last_dma_period = now - last_dma_time;
+    //     last_dma_time = now;
+
+    //     // Start DMA running on the other buffer
+    //     buf_select = !buf_select;
+    //     dma_channel_set_write_addr(dma_chan, &sample_bufs[buf_select], true);
+
+    //     // Call Goertzel's on the previously-collected sample
+    //     goertzel_target = !buf_select;
+
+    // // Clear the interrupt request
+    // dma_hw->ints0 = 1u << dma_chan;
+
+    buf_select = !buf_select;
+    fft_sample(sample_bufs[buf_select]);
+
+    frequency_bin_t bins[NUM_BINS] = { { "freq_low", FREQ_LOW_HZ - BIN_RANGE, FREQ_LOW_HZ + BIN_RANGE, 0 },
+                                       { "freq_high", FREQ_HIGH_HZ - BIN_RANGE, FREQ_HIGH_HZ + BIN_RANGE, 0 } };
+    fft_process(sample_bufs[!buf_select], bins, NUM_BINS);
+
+    int8_t val = -1;
+
+    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+        val = 0;
+    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+        val = 1;
+
+    LOG_INFO("%hhd", val);
+}
+
+void ivc_tick() {
+    // if (goertzel_target != -1) {
+    //     goertzel(goertzel_target);
+
+    //     // for (int i = 0; i < NUM_BINS; i++) {
+    //     //     LOG_INFO("Got mag %f for frequency %f Hz\n", mags[i], freqs[i]);
+    //     // }
+    //     LOG_INFO("%0.2f: %f, %0.2f: %f", freqs[0], mags[0], freqs[1], mags[1]);
+    //     // LOG_INFO("%f", mags[0]);
+    //     // LOG_INFO("\n");
+    // }
+}
+
+static void rx_init() {
+    // Config ADC
+    // adc_gpio_init(RX_PIN);
+    // adc_init();
+    // adc_select_input(RX_PIN - 26);
+    // adc_fifo_setup(true,   // Write each completed conversion to the sample FIFO
+    //                true,   // Enable DMA data request (DREQ)
+    //                1,      // DREQ (and IRQ) asserted when at least 1 sample present
+    //                false,  // We won't see the ERR bit because of 8 bit reads; disable.
+    //                true    // Shift each sample to 8 bits when pushing to FIFO
+    // );
+
+    // *** Don't set clkdiv since we want the ADC running in continuous mode
+    // adc_set_clkdiv(ADC_BASE_FREQ / (ADC_FREQ_HZ * ADC_NUM_SAMPLE_CYCLES));
+    // adc_set_clkdiv(1088);
+
+    // Config DMA
+    // dma_chan = dma_claim_unused_channel(false);
+    // if (dma_chan == -1) {
+    //     LOG_ERROR("\n\nDIDN'T GET A DMA CHANNEL\n\n");
+    // }
+
+    // dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
+    // channel_config_set_transfer_data_size(&cfg, DMA_SIZE_8);
+    // channel_config_set_read_increment(&cfg, false);
+    // channel_config_set_write_increment(&cfg, true);
+    // channel_config_set_dreq(&cfg, DREQ_ADC);
+
+    // dma_channel_configure(dma_chan, &cfg, &sample_bufs[0], &adc_hw->fifo, NUM_SAMPLES, false);  // Don't start yet
+
+    // dma_channel_set_irq0_enabled(dma_chan, true);  // Set IRQ
+    // irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
+    // irq_set_enabled(DMA_IRQ_0, true);
+
+    // // Now start the DMA
+    // dma_channel_start(dma_chan);
+    // adc_run(true);
+
+    fft_setup(sample_handler);
+    fft_sample(sample_bufs[0]);
+}
 
 void ivc_init() {
     tx_init();

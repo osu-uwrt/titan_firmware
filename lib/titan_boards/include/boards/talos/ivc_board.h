@@ -18,5 +18,6 @@
 
 #define TX_PIN 7
 #define OUTPUT_SELECT_PIN 3
+#define RX_PIN 26
 
 #endif

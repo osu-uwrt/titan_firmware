@@ -59,8 +59,8 @@ static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bo
                 i++;
             }
             if (!is_first_fire) {
-                LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
-                         next_fire_ptr);
+                // LOG_WARN("Missed %u runs of %s timer 0x%p", i, (error_on_miss ? "critical" : "non-critical"),
+                //  next_fire_ptr);
                 if (error_on_miss)
                     safety_raise_fault_with_arg(FAULT_TIMER_MISSED, next_fire_ptr);
             }
@@ -233,6 +233,9 @@ int main() {
     while (true) {
         // Do background tasks
         tick_background_tasks();
+
+        // Update IVC
+        ivc_tick();
 
         // Handle ROS state logic
         if (is_ros_connected()) {
