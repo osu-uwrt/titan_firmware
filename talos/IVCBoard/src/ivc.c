@@ -35,6 +35,10 @@ static repeating_timer_t tx_timer = { 0 };
 #define FREQ_HIGH_THRESHOLD 3000
 // float freqs[NUM_BINS] = { 18000.0f, 19000.0f };
 // static int dma_chan;
+
+frequency_bin_t bins[NUM_BINS] = { { "freq_low", FREQ_LOW_HZ - BIN_RANGE, FREQ_LOW_HZ + BIN_RANGE, 0 },
+                                   { "freq_high", FREQ_HIGH_HZ - BIN_RANGE, FREQ_HIGH_HZ + BIN_RANGE, 0 } };
+
 uint8_t sample_bufs[2][NSAMP];
 bool buf_select = 0;
 // int goertzel_target = -1;
@@ -97,8 +101,6 @@ static void sample_handler() {
     buf_select = !buf_select;
     fft_sample(sample_bufs[buf_select]);
 
-    frequency_bin_t bins[NUM_BINS] = { { "freq_low", FREQ_LOW_HZ - BIN_RANGE, FREQ_LOW_HZ + BIN_RANGE, 0 },
-                                       { "freq_high", FREQ_HIGH_HZ - BIN_RANGE, FREQ_HIGH_HZ + BIN_RANGE, 0 } };
     fft_process(sample_bufs[!buf_select], bins, NUM_BINS);
 
     int8_t val = -1;
