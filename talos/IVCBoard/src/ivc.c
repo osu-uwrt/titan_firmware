@@ -16,6 +16,7 @@
 #define FREQ_LOW_HZ 17000
 #define FREQ_HIGH_HZ 19000
 #define SYSCLK_HZ clock_get_hz(clk_sys)
+#define SYMBOL_PERIOD_MS 250
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
@@ -53,6 +54,10 @@ int fft_target = -1;
 // uint64_t last_dma_time = { 0 };
 // uint64_t last_dma_period = { 0 };
 bool packet_in_flight = false;
+bool rx_packet_in_flight = false;
+absolute_time_t next_rx_time = { 0 };
+uint8_t rx_idx = 0;
+uint8_t rx_packet;
 
 static bool tx_cb(__unused repeating_timer_t *rt) {
     if (tx_data_idx < 0) {
@@ -78,7 +83,7 @@ void ivc_tx(uint8_t data) {
     // Indicate start of packet with high frequency
     pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_HIGH_HZ * PWM_WRAP_VALUE));
 
-    add_repeating_timer_ms(-250, tx_cb, NULL, &tx_timer);
+    add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, NULL, &tx_timer);
 }
 
 void ivc_enqueue_packet(uint8_t data) {
@@ -173,14 +178,37 @@ void ivc_tick() {
         if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
             val = 1;
 
-        LOG_INFO("Got IVC value as %d", val);
+        if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude > FREQ_HIGH_THRESHOLD)
+            LOG_INFO("Both mags above threshold. Rejecting!");
 
-        // printf("%s: Amplitude = %f\n", bins[0].name, bins[0].amplitude);
+        if (rx_packet_in_flight && time_reached(next_rx_time)) {
+            if (rx_idx < 8) {
+                rx_packet |= val << (7 - rx_idx);
+                rx_idx++;
+                next_rx_time = make_timeout_time_ms(SYMBOL_PERIOD_MS);
+                LOG_INFO("Got IVC bit %d", val);
+            }
+            else {
+                LOG_INFO("Got IVC packet %hhu", rx_packet);
+                rx_packet_in_flight = false;
+            }
+        }
+
+        if (!rx_packet_in_flight && val == 1) {
+            rx_packet_in_flight = true;
+            rx_idx = rx_packet = 0;
+            next_rx_time = make_timeout_time_ms(1.25f * SYMBOL_PERIOD_MS);
+        }
+
+        // LOG_INFO("Got IVC value as %d", val);
+
+        // printf("%s: Amplitude = %f\n", bins[1].name, bins[1].amplitude);
+        // printf("%f, %f\n", bins[0].amplitude, bins[1].amplitude);
 
         fft_target = -1;
     }
 
-    uint tx_packet;
+    uint8_t tx_packet;
     if (!packet_in_flight && ivc_dequeue_packet(&tx_packet)) {
         ivc_tx(tx_packet);
     }
