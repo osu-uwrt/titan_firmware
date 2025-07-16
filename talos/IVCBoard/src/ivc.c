@@ -8,6 +8,7 @@
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
+#include "titan/queue.h"
 
 #include <math.h>
 
@@ -23,6 +24,12 @@ static uint pwm_slice_num;
 static int tx_data_idx;
 static uint8_t tx_data;
 static repeating_timer_t tx_timer = { 0 };
+
+#define TX_QUEUE_DEPTH 8
+typedef struct tx_msg_t {
+    uint8_t data;
+} tx_msg;
+static struct QUEUE_DEFINE(tx_msg, TX_QUEUE_DEPTH) tx_queue = { 0 };
 
 // Rx data
 // #define NUM_SAMPLES 500
@@ -45,10 +52,12 @@ int fft_target = -1;
 // float mags[NUM_BINS];
 // uint64_t last_dma_time = { 0 };
 // uint64_t last_dma_period = { 0 };
+bool packet_in_flight = false;
 
 static bool tx_cb(__unused repeating_timer_t *rt) {
     if (tx_data_idx < 0) {
         pwm_set_enabled(pwm_slice_num, false);
+        packet_in_flight = false;
         return false;
     }
 
@@ -63,9 +72,33 @@ void ivc_tx(uint8_t data) {
     tx_data_idx = 7;  // Transmit one byte's worth of data
     tx_data = data;
 
+    packet_in_flight = true;
     pwm_set_enabled(pwm_slice_num, true);
-    tx_cb(&tx_timer);
+
+    // Indicate start of packet with high frequency
+    pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_HIGH_HZ * PWM_WRAP_VALUE));
+
     add_repeating_timer_ms(-250, tx_cb, NULL, &tx_timer);
+}
+
+void ivc_enqueue_packet(uint8_t data) {
+    if (QUEUE_FULL(&tx_queue))
+        return;
+
+    tx_msg *msg = QUEUE_CUR_WRITE_ENTRY(&tx_queue);
+    msg->data = data;
+    QUEUE_MARK_WRITE_DONE(&tx_queue);
+}
+
+static bool ivc_dequeue_packet(uint8_t *data) {
+    if (QUEUE_EMPTY(&tx_queue))
+        return false;
+
+    tx_msg *msg = QUEUE_CUR_READ_ENTRY(&tx_queue);
+    *data = msg->data;
+    QUEUE_MARK_READ_DONE(&tx_queue);
+
+    return true;
 }
 
 static void tx_init() {
@@ -145,6 +178,11 @@ void ivc_tick() {
         // printf("%s: Amplitude = %f\n", bins[0].name, bins[0].amplitude);
 
         fft_target = -1;
+    }
+
+    uint tx_packet;
+    if (!packet_in_flight && ivc_dequeue_packet(&tx_packet)) {
+        ivc_tx(tx_packet);
     }
 }
 

@@ -56,6 +56,7 @@ target_link_libraries(ivc_board PUBLIC
     hardware_pwm
     hardware_adc
     hardware_dma
+    titan_queue
     micro_ros_usb
 )
 

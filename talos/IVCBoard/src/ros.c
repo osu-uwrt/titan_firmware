@@ -87,7 +87,8 @@ static void tx_frequency_subscription_callback(const void *msgin) {
 
 static void tx_data_subscription_callback(const void *msgin) {
     const std_msgs__msg__UInt8 *msg = (const std_msgs__msg__UInt8 *) msgin;
-    ivc_tx(msg->data);
+    // ivc_tx(msg->data);
+    ivc_enqueue_packet(msg->data);
 }
 
 // TODO: Add in node specific tasks here

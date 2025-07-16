@@ -5,6 +5,8 @@
 
 void ivc_tx(uint8_t data);
 
+void ivc_enqueue_packet(uint8_t data);
+
 void ivc_tick();
 
 void ivc_init();
