@@ -16,7 +16,7 @@
 #define FREQ_LOW_HZ 17000
 #define FREQ_HIGH_HZ 19000
 #define SYSCLK_HZ clock_get_hz(clk_sys)
-#define SYMBOL_PERIOD_MS 50
+#define SYMBOL_PERIOD_MS 250
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
@@ -197,7 +197,7 @@ void ivc_tick() {
         if (!rx_packet_in_flight && val == 1) {
             rx_packet_in_flight = true;
             rx_idx = rx_packet = 0;
-            next_rx_time = make_timeout_time_ms(0.5f * SYMBOL_PERIOD_MS);
+            next_rx_time = make_timeout_time_ms(1.25f * SYMBOL_PERIOD_MS);
         }
 
         // LOG_INFO("Got IVC value as %d", val);
