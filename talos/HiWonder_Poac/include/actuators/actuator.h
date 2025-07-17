@@ -16,6 +16,10 @@ extern void servo_set_deg_then_home(float deg);
 
 extern void servo_read_deg();
 
+extern void servo_set_id(uint8_t old_id, uint8_t new_id);
+
+extern void servo_read_id();
+
 extern void servo_go_home();
 
 extern void servo_set_home();

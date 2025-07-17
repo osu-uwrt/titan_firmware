@@ -4,6 +4,7 @@
 #include "actuators/hiwonder_driver.h"
 
 #include "hardware/pio.h"
+#include "titan/debug.h"
 
 #include <math.h>
 
@@ -23,6 +24,8 @@ uint16_t curr_deg = 0;
 bool is_sethome_req = false;
 bool return_home_after_move = false;
 bool desired_armed_state = false;
+
+uint8_t discovered_id = 0;
 
 // Handlers
 // dxlact_idle_position_handler_t idle_handler;
@@ -207,6 +210,35 @@ void servo_read_deg() {
     enqueue_packet(read_deg_packet);
 }
 
+void servo_set_id(uint8_t old_id, uint8_t new_id) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    param_buf[0] = new_id;
+    ServoPacket_t set_id_packet = make_servo_packet(old_id, SERVO_ID_WRITE_CMD, SERVO_ID_WRITE_LEN, param_buf);
+
+    enqueue_packet(set_id_packet);
+}
+
+static void servo_read_id_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
+    if (err != SERVO_READ_OK && err != SERVO_INCORRECT_RESPONDER) {
+        if (num_errors < MAX_NUM_ERRORS) {
+            num_errors++;
+            servo_read_id();
+        }
+        return;
+    }
+
+    discovered_id = rx_packet.param_buf[0];
+}
+
+void servo_read_id() {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    ServoPacket_t read_id_packet = make_servo_packet(0xFE, SERVO_ID_READ_CMD, SERVO_ID_READ_LEN, param_buf);
+    read_id_packet.on_read = servo_read_id_cb;
+
+    discovered_id = 0;
+    enqueue_packet(read_id_packet);
+}
+
 void servo_go_home() {
     homed = true;
     servo_set_deg(home_deg);
@@ -229,9 +261,78 @@ void servo_set_deg_then_home(float deg) {
     return_home_after_move = true;
 }
 
+static int parse_int(const char *str, long long *val_out) {
+    char *end;
+    long long val;
+    if (str[0] == '0' && str[1] == 'x') {
+        val = strtoll(&str[2], &end, 16);
+    }
+    else {
+        val = strtoll(str, &end, 10);
+    }
+    if (*end != 0 || end == str) {
+        return 1;
+    }
+    *val_out = val;
+    return 0;
+}
+
+#define parse_int_with_bounds(str, var_out, min_bounds, max_bounds)                                                    \
+    do {                                                                                                               \
+        long long val_tmp;                                                                                             \
+        if (parse_int(str, &val_tmp)) {                                                                                \
+            fprintf(fout, "Invalid Decimal Value Specified: '%s'\n", str);                                             \
+            return 1;                                                                                                  \
+        }                                                                                                              \
+        if (val_tmp > (max_bounds) || val_tmp < (min_bounds)) {                                                        \
+            fprintf(fout, "Provided number '%s' out of bounds! Must be between %lld - %lld\n", str,                    \
+                    (long long) (min_bounds), (long long) (max_bounds));                                               \
+            return 1;                                                                                                  \
+        }                                                                                                              \
+        (var_out) = val_tmp;                                                                                           \
+    } while (0)
+
+static int debug_set_id_cb(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc != 3) {
+        fprintf(fout, "Incorrect number of arguments (%d)! Needs old and new ID", argc);
+        return 1;
+    }
+
+    uint old_id, new_id;
+    parse_int_with_bounds(argv[1], old_id, 1, 252);
+    parse_int_with_bounds(argv[2], new_id, 1, 252);
+
+    servo_set_id(old_id, new_id);
+    return 0;
+}
+
+static int debug_discover_servo_cb(size_t argc, const char *const *argv, FILE *fout) {
+    servo_read_id();
+
+    absolute_time_t packet_wait_time = make_timeout_time_ms(100);
+    while (!time_reached(packet_wait_time)) {
+        sleep_ms(1);
+    }
+
+    if (!discovered_id) {
+        fprintf(fout, "Servo not found");
+        return 1;
+    }
+
+    fprintf(fout, "Discovered servo id %hhu", discovered_id);
+    return 0;
+}
+
 void init_servo() {
     gpio_disable_pulls(DYNAMIXEL_PWM_PIN);
     async_uart_init(pio0, 0, DYNAMIXEL_PWM_PIN, UART_BAUD, UART_TIMEOUT_MS);
+
+    debug_remote_cmd_register("hwsetid", "[old_id] [new_id]", "Sets a servo of ID [old_id] to the desired ID [1, 252]",
+                              debug_set_id_cb);
+    debug_remote_cmd_register(
+        "hwfind", "",
+        "Discover the ID of a servo on the bus. Only one servo can be connected for this command to function.",
+        debug_discover_servo_cb);
 
     servo_go_home();
 }
