@@ -203,7 +203,7 @@ void ivc_tick() {
         // LOG_INFO("Got IVC value as %d", val);
 
         // printf("%s: Amplitude = %f\n", bins[1].name, bins[1].amplitude);
-        // printf("%f, %f\n", bins[0].amplitude, bins[1].amplitude);
+        printf("%f, %f\n", bins[0].amplitude, bins[1].amplitude);
 
         fft_target = -1;
     }

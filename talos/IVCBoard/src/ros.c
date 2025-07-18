@@ -86,7 +86,7 @@ static void tx_frequency_subscription_callback(const void *msgin) {
 }
 
 static void tx_data_subscription_callback(const void *msgin) {
-    const std_msgs__msg__UInt8 *msg = (const std_msgs__msg__UInt8 *) msgin;
+    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
     // ivc_tx(msg->data);
     ivc_enqueue_packet(msg->data);
 }
@@ -197,7 +197,7 @@ rcl_ret_t ros_init() {
                                               TX_FREQUENCY_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(
-        &tx_data_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DATA_SUBSCRIBER_NAME));
+        &tx_data_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), TX_DATA_SUBSCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 4;

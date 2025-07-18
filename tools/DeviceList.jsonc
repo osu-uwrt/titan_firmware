@@ -23,6 +23,11 @@
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
         {
+            "name": "SSFB IVC Board",
+            "boardType": "talos/ivc_board",
+            "serial": "E46211015B40222F"
+        },
+        {
             "name": "Talos IVC Board",
             "boardType": "talos/ivc_board",
             "serial": "E46214B0630D2A32"
