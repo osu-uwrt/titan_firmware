@@ -36,7 +36,10 @@ titan_generate_version_tag(hbridge_board 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(hbridge_board 1)
-pico_set_program_name(hbridge_board "Template Project")  # TODO: Set the project name
+pico_set_program_name(hbridge_board "Liltank HBridge Board")  # TODO: Set the project name
+
+# Add async UART (should be moved to separate lib)
+pico_generate_pio_header(hbridge_board ${CMAKE_CURRENT_LIST_DIR}/src/actuators/uart_multidrop.pio)
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(hbridge_board)
@@ -54,6 +57,12 @@ target_link_libraries(hbridge_board PUBLIC
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
     hardware_pwm
+    hardware_dma
+    hardware_pio
+    hardware_irq
+    hardware_adc
+    driver_async_i2c
+    titan_queue
     driver_cd74hc4051
 )
 

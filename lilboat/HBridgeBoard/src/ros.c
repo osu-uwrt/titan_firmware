@@ -1,5 +1,6 @@
 #include "ros.h"
 
+#include "actuators/ros_torp.h"
 #include "hbridge.h"
 
 #include "pico/stdlib.h"
@@ -201,7 +202,7 @@ rcl_ret_t ros_init() {
     }
 
     // Executor Initialization
-    const int executor_num_handles = 1 + NUM_BRIDGES;
+    const int executor_num_handles = 1 + NUM_BRIDGES + ros_actuators_num_executor_handles;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -210,6 +211,8 @@ rcl_ret_t ros_init() {
         RCRETCHECK(rclc_executor_add_subscription(&executor, &hbridge_subscribers[i], &hbridge_msgs[i],
                                                   hbridge_callbacks[i], ON_NEW_DATA));
     }
+
+    RCRETCHECK(ros_actuators_init(&executor, &node));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out

@@ -52,4 +52,6 @@
 
 #define PUMP_SW_PIN 10
 
+#define SERVO_PIN 24
+
 #endif
