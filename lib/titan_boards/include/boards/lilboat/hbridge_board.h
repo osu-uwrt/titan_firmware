@@ -33,7 +33,7 @@
 
 #define H3PH_PIN 6
 #define H3EN_PIN 7
-#define H3_INVERTED false
+#define H3_INVERTED true
 
 #define H4PH_PIN 8
 #define H4EN_PIN 9
