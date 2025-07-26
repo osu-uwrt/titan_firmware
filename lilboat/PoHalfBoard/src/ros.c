@@ -53,6 +53,7 @@ const char ADC_PRESSURE_PUBLISHER_NAMES[][50] = {
 const char DEPTH_SENSOR_PUBLISHER_NAMES[][50] = {
     [WATER_DEPTH_NUM] = "state/depth/raw", [REGHOUSING_DEPTH_NUM] = "state/pressure/regulator_housing"
 };
+#define BR_DEPTH_RECALIBRATE_SUBSCRIPTION_NAME "command/depth/recalibrate"
 
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
@@ -95,6 +96,8 @@ const float depth_variance = 0.003;
 
 // Blue Robotics pressure sensor
 rcl_publisher_t reg_pressure_publisher;
+rcl_subscription_t br_depth_calibrate_subscription;
+std_msgs__msg__Int8 br_depth_calibrate_msg;
 
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
@@ -161,6 +164,15 @@ static void solenoid1_subscription_callback(const void *msgin) {
 static void solenoid2_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     solenoid_set(3, msg->data);
+}
+
+static void br_depth_calibrate_cb(const void *msgin) {
+    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
+
+    if (msg->data < 0 || msg->data > 1)
+        return;
+
+    depth_recalibrate(msg->data);
 }
 
 // TODO: Add in node specific tasks here
@@ -428,8 +440,12 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                            SOLENOID_STATE_PUBLISHER_NAMES[2]));
 
+    RCRETCHECK(rclc_subscription_init_default(&br_depth_calibrate_subscription, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                              BR_DEPTH_RECALIBRATE_SUBSCRIPTION_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 4;
+    const int executor_num_handles = 5;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
@@ -442,6 +458,9 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[2], &solenoid_msgs[2],
                                               &solenoid2_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &br_depth_calibrate_subscription, &br_depth_calibrate_msg,
+                                              &br_depth_calibrate_cb, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -470,6 +489,7 @@ void ros_fini(void) {
         RCSOFTCHECK(rcl_publisher_fini(&solenoid_state_publishers[i], &node));
     }
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&br_depth_calibrate_subscription, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
