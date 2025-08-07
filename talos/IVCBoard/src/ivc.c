@@ -16,14 +16,19 @@
 #define FREQ_LOW_HZ 17000
 #define FREQ_HIGH_HZ 19000
 #define SYSCLK_HZ clock_get_hz(clk_sys)
-#define SYMBOL_PERIOD_MS 250
+#define SYMBOL_PERIOD_MS 50
+
+#define CRC_POLY 0x1B  // 0b11011 (x^4 + x^3 + x + 1)
+#define DATA_SIZE 8
+#define CRC_SIZE 4
+#define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
 #define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / 5000 / 255.0f) + 1.0f)
 static uint pwm_slice_num;
 static int tx_data_idx;
-static uint8_t tx_data;
+static uint16_t tx_data;
 static repeating_timer_t tx_timer = { 0 };
 
 #define TX_QUEUE_DEPTH 8
@@ -39,8 +44,8 @@ static struct QUEUE_DEFINE(tx_msg, TX_QUEUE_DEPTH) tx_queue = { 0 };
 #define NUM_BINS 2
 #define BIN_RANGE 500
 
-#define FREQ_LOW_THRESHOLD 3000
-#define FREQ_HIGH_THRESHOLD 3000
+#define FREQ_LOW_THRESHOLD 300
+#define FREQ_HIGH_THRESHOLD 300
 // float freqs[NUM_BINS] = { 18000.0f, 19000.0f };
 // static int dma_chan;
 
@@ -56,8 +61,27 @@ int fft_target = -1;
 bool packet_in_flight = false;
 bool rx_packet_in_flight = false;
 absolute_time_t next_rx_time = { 0 };
+uint8_t last_rx_val = -1;
+repeating_timer_t rx_timer = { 0 };
 uint8_t rx_idx = 0;
-uint8_t rx_packet;
+uint16_t rx_packet;
+
+uint8_t rx_arr[PACKET_SIZE];
+
+// Calculate CRC-4
+static uint8_t calculate_crc(uint8_t packet) {
+    // uint16_t packet_agumented = ((uint16_t) packet) << CRC_SIZE;
+    uint8_t crc = 0;
+    for (int i = DATA_SIZE - 1; i >= 0; i--) {
+        crc <<= 1;
+        crc |= (packet >> i) & 0x01;
+
+        if (crc & 0x10)
+            crc ^= CRC_POLY;
+    }
+
+    return crc & 0x0F;  // Only care about lower 4 bits; note: this will need changed if CRC_SIZE is different
+}
 
 static bool tx_cb(__unused repeating_timer_t *rt) {
     if (tx_data_idx < 0) {
@@ -74,8 +98,9 @@ static bool tx_cb(__unused repeating_timer_t *rt) {
 }
 
 void ivc_tx(uint8_t data) {
-    tx_data_idx = 7;  // Transmit one byte's worth of data
-    tx_data = data;
+    tx_data_idx = PACKET_SIZE - 1;  // Transmit one byte's worth of data + CRC
+    tx_data = ((uint16_t) data) << CRC_SIZE;
+    tx_data |= calculate_crc(data);
 
     packet_in_flight = true;
     pwm_set_enabled(pwm_slice_num, true);
@@ -154,6 +179,43 @@ static void sample_handler() {
     // LOG_INFO("Got IVC value as %d", val);
 }
 
+static bool rx_cb(__unused repeating_timer_t *rt) {
+    if (rx_idx >= PACKET_SIZE) {
+        uint8_t data = rx_packet >> CRC_SIZE;
+        uint8_t crc = rx_packet & 0x0F;  // Note: this will need changed if CRC_SIZE is different
+
+        LOG_INFO("Got IVC packet %hhd", data);
+        for (int i = 0; i < PACKET_SIZE; i++) {
+            LOG_INFO("%hhu", rx_arr[i]);
+        }
+
+        if (crc == calculate_crc(data)) {
+            LOG_INFO("Got CRC_GOOD");
+        }
+        else {
+            LOG_INFO("Got CRC_BAD, got %hhu and expected %hhu", crc, calculate_crc(data));
+        }
+
+        rx_packet_in_flight = false;
+        return false;
+    }
+
+    fft_process(sample_bufs[fft_target], bins, NUM_BINS);
+
+    int val = -1;
+
+    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+        val = 0;
+    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+        val = 1;
+
+    rx_packet |= val << ((PACKET_SIZE - 1) - rx_idx);
+    rx_arr[rx_idx] = val;
+    rx_idx++;
+
+    return true;
+}
+
 void ivc_tick() {
     // if (goertzel_target != -1) {
     //     goertzel(goertzel_target);
@@ -168,7 +230,7 @@ void ivc_tick() {
 
     // LOG_INFO("FIFO at: %hhu", adc_fifo_get_level());
 
-    if (fft_target != -1) {
+    if (fft_target != -1 && !rx_packet_in_flight) {
         fft_process(sample_bufs[fft_target], bins, NUM_BINS);
 
         int val = -1;
@@ -178,32 +240,43 @@ void ivc_tick() {
         if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
             val = 1;
 
-        if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude > FREQ_HIGH_THRESHOLD)
-            LOG_INFO("Both mags above threshold. Rejecting!");
+        last_rx_val = val;
 
-        if (rx_packet_in_flight && time_reached(next_rx_time)) {
-            if (rx_idx < 8) {
-                rx_packet |= val << (7 - rx_idx);
-                rx_idx++;
-                next_rx_time = make_timeout_time_ms(SYMBOL_PERIOD_MS);
-                LOG_INFO("Got IVC bit %d with mags %f, %f", val, bins[0].amplitude, bins[1].amplitude);
-            }
-            else {
-                LOG_INFO("Got IVC packet %hhu", rx_packet);
-                rx_packet_in_flight = false;
-            }
-        }
+        // if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude > FREQ_HIGH_THRESHOLD)
+        //     // LOG_INFO("Both mags above threshold. Rejecting!");
+        //     val = 2;
+
+        // if (rx_packet_in_flight && time_reached(next_rx_time)) {
+        //     if (rx_idx < 8) {
+        //         next_rx_time = make_timeout_time_ms(SYMBOL_PERIOD_MS);
+        //         rx_packet |= val << (7 - rx_idx);
+        //         rx_arr[rx_idx] = val;
+        //         rx_idx++;
+        //         // LOG_INFO("Got IVC bit %d with mags %f, %f", val, bins[0].amplitude, bins[1].amplitude);
+        //     }
+        //     else {
+        //         LOG_INFO("Got IVC packet %hhd", (int8_t) rx_packet);
+        //         for (int i = 0; i < 8; i++) {
+        //             LOG_INFO("%hhu", rx_arr[i]);
+        //         }
+        //         rx_packet_in_flight = false;
+        //     }
+        // }
 
         if (!rx_packet_in_flight && val == 1) {
             rx_packet_in_flight = true;
             rx_idx = rx_packet = 0;
-            next_rx_time = make_timeout_time_ms(1.25f * SYMBOL_PERIOD_MS);
+            // next_rx_time = make_timeout_time_ms(0.0f * SYMBOL_PERIOD_MS);
+            sleep_ms(0.3f * SYMBOL_PERIOD_MS);
+            add_repeating_timer_ms(-SYMBOL_PERIOD_MS, rx_cb, NULL, &rx_timer);
         }
 
         // LOG_INFO("Got IVC value as %d", val);
 
         // printf("%s: Amplitude = %f\n", bins[1].name, bins[1].amplitude);
-        printf("%f, %f\n", bins[0].amplitude, bins[1].amplitude);
+        // printf("%f, %f\n", bins[0].amplitude, bins[1].amplitude);
+
+        // printf("%d\n", bins[0].amplitude > 1000);
 
         fft_target = -1;
     }
