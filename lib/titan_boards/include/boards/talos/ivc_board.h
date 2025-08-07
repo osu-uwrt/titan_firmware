@@ -20,4 +20,6 @@
 #define OUTPUT_SELECT_PIN 3
 #define RX_PIN 26
 
+#define BOARD_ID_PIN 6
+
 #endif

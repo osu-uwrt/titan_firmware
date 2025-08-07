@@ -27,16 +27,21 @@
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
 #define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / 5000 / 255.0f) + 1.0f)
+#define HEARTBEAT_PERIOD_MS 10000
+#define HEARTBEAT_DATA 0x3F
 static uint pwm_slice_num;
 static int tx_data_idx;
 static uint16_t tx_data;
 static repeating_timer_t tx_timer = { 0 };
 static bool last_ack_good = false;
 static uint8_t link_established = 0;
+static bool is_talos;
+static absolute_time_t next_heartbeat_time = { 0 };
 
 #define TX_QUEUE_DEPTH 8
 typedef struct tx_msg_t {
     uint8_t data;
+    bool is_heartbeat;
 } tx_msg;
 static struct QUEUE_DEFINE(tx_msg, TX_QUEUE_DEPTH) tx_queue = { 0 };
 
@@ -47,8 +52,13 @@ static struct QUEUE_DEFINE(tx_msg, TX_QUEUE_DEPTH) tx_queue = { 0 };
 #define NUM_BINS 2
 #define BIN_RANGE 500
 
-#define FREQ_LOW_THRESHOLD 300
-#define FREQ_HIGH_THRESHOLD 300
+#define SSFB_FREQ_LOW_THRESHOLD 300
+#define SSFB_FREQ_HIGH_THRESHOLD 300
+#define TALOS_FREQ_LOW_THRESHOLD 300
+#define TALOS_FREQ_HIGH_THRESHOLD 300
+
+const int FREQ_LOW_THRESHOLD[] = { SSFB_FREQ_LOW_THRESHOLD, TALOS_FREQ_LOW_THRESHOLD };
+const int FREQ_HIGH_THRESHOLD[] = { SSFB_FREQ_HIGH_THRESHOLD, TALOS_FREQ_HIGH_THRESHOLD };
 // float freqs[NUM_BINS] = { 18000.0f, 19000.0f };
 // static int dma_chan;
 
@@ -69,7 +79,9 @@ repeating_timer_t rx_timer = { 0 };
 uint8_t rx_idx = 0;
 uint16_t rx_packet;
 
-uint8_t rx_arr[PACKET_SIZE];
+uint8_t rx_arr[PACKET_SIZE + 1];
+
+void ivc_tx(uint16_t data);
 
 // Calculate CRC-4
 static uint8_t calculate_crc(uint8_t packet) {
@@ -91,9 +103,9 @@ static int rx_single_sample() {
 
     int val = -1;
 
-    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+    if (bins[0].amplitude > FREQ_LOW_THRESHOLD[is_talos] && bins[1].amplitude < FREQ_HIGH_THRESHOLD[is_talos])
         val = 0;
-    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD[is_talos] && bins[0].amplitude < FREQ_LOW_THRESHOLD[is_talos])
         val = 1;
 
     return val;
@@ -106,7 +118,8 @@ static int64_t interframe_space_cb(__unused alarm_id_t id, __unused void *user_d
     }
     else if (link_established) {
         link_established--;
-        ivc_tx(tx_data >> CRC_SIZE);
+        // ivc_tx(tx_data >> CRC_SIZE);
+        ivc_tx(tx_data);
     }
     else {
         LOG_WARN("IVC Link broken!");
@@ -118,7 +131,7 @@ static int64_t interframe_space_cb(__unused alarm_id_t id, __unused void *user_d
 
 static int64_t ack_read(__unused alarm_id_t id, __unused void *user_data) {
     last_ack_good = (rx_single_sample() == 1);
-    add_alarm_in_ms(PACKET_SIZE * SYMBOL_PERIOD_MS, interframe_space_cb, NULL, true);
+    add_alarm_in_ms((PACKET_SIZE + 1) * SYMBOL_PERIOD_MS, interframe_space_cb, NULL, true);
 
     LOG_INFO("Got response of %d from receiver", last_ack_good);
 
@@ -147,10 +160,12 @@ static bool tx_cb(__unused repeating_timer_t *rt) {
     return true;
 }
 
-void ivc_tx(uint8_t data) {
-    tx_data_idx = PACKET_SIZE - 1;  // Transmit one byte's worth of data + CRC
-    tx_data = ((uint16_t) data) << CRC_SIZE;
-    tx_data |= calculate_crc(data);
+// This function requires data to be pre-shifted left by CRC_SIZE
+void ivc_tx(uint16_t data) {
+    tx_data_idx = PACKET_SIZE;  // Transmit one byte's worth of data + CRC + heartbeat flag
+    // tx_data = ((uint16_t) data) << CRC_SIZE;
+    tx_data = data;
+    tx_data |= calculate_crc(data >> CRC_SIZE);  // Shift the data back to LSB
 
     packet_in_flight = true;
     pwm_set_enabled(pwm_slice_num, true);
@@ -162,21 +177,23 @@ void ivc_tx(uint8_t data) {
     add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, NULL, &tx_timer);
 }
 
-void ivc_enqueue_packet(uint8_t data) {
+void ivc_enqueue_packet(uint8_t data, bool is_heartbeat) {
     if (QUEUE_FULL(&tx_queue))
         return;
 
     tx_msg *msg = QUEUE_CUR_WRITE_ENTRY(&tx_queue);
     msg->data = data;
+    msg->is_heartbeat = is_heartbeat;
     QUEUE_MARK_WRITE_DONE(&tx_queue);
 }
 
-static bool ivc_dequeue_packet(uint8_t *data) {
+static bool ivc_dequeue_packet(uint8_t *data, bool *is_heartbeat) {
     if (QUEUE_EMPTY(&tx_queue))
         return false;
 
     tx_msg *msg = QUEUE_CUR_READ_ENTRY(&tx_queue);
     *data = msg->data;
+    *is_heartbeat = msg->is_heartbeat;
     QUEUE_MARK_READ_DONE(&tx_queue);
 
     return true;
@@ -222,9 +239,9 @@ static void sample_handler() {
 
     // int val = -1;
 
-    // if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+    // if (bins[0].amplitude > FREQ_LOW_THRESHOLD[is_talos] && bins[1].amplitude < FREQ_HIGH_THRESHOLD[is_talos])
     //     val = 0;
-    // if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+    // if (bins[1].amplitude > FREQ_HIGH_THRESHOLD[is_talos] && bins[0].amplitude < FREQ_LOW_THRESHOLD[is_talos])
     //     val = 1;
 
     // LOG_INFO("Got IVC value as %d", val);
@@ -238,9 +255,9 @@ static int64_t ack_send_cb(__unused alarm_id_t id, __unused void *user_data) {
 }
 
 static bool rx_cb(__unused repeating_timer_t *rt) {
-    if (rx_idx >= PACKET_SIZE) {
-        uint8_t data = rx_packet >> CRC_SIZE;
-        uint8_t crc = rx_packet & 0x0F;  // Note: this will need changed if CRC_SIZE is different
+    if (rx_idx >= PACKET_SIZE + 1) {                    // PACKET_SIZE + 1 to include the heartbeat bit
+        uint8_t data = (rx_packet >> CRC_SIZE) & 0xFF;  // Remove heartbeat bit
+        uint8_t crc = rx_packet & 0x0F;                 // Note: this will need changed if CRC_SIZE is different
 
         // Send ACK or NACK based on crc
 
@@ -250,18 +267,26 @@ static bool rx_cb(__unused repeating_timer_t *rt) {
             LOG_INFO("Got CRC_GOOD");
         }
         else {
-            LOG_INFO("Got CRC_BAD, got %hhu and expected %hhu", crc, calculate_crc(data));
+            LOG_INFO("Got CRC_BAD: got %hhu and expected %hhu", crc, calculate_crc(data));
         }
 
         pwm_set_enabled(pwm_slice_num, true);
         tx_set_bitwise(crc_good & 0x01);
         add_alarm_in_ms(SYMBOL_PERIOD_MS, ack_send_cb, NULL, true);
 
+        if (rx_packet & (1 << PACKET_SIZE)) {
+            // Heartbeat bit is set. Ignore this packet
+            LOG_INFO("Got heartbeat");
+        }
+
         // LOG_INFO("Sending ACK as %d", crc_good & 0x01);
 
         // LOG_INFO("Got IVC packet %hhd", data);
-        // for (int i = 0; i < PACKET_SIZE; i++) {
+        // for (int i = 0; i < PACKET_SIZE + 1; i++) {
         //     LOG_INFO("%hhu", rx_arr[i]);
+        // }
+        // for (int i = 7; i >= 0; i--) {
+        //     LOG_INFO("%d", (data >> i) & 0x01);
         // }
 
         return false;
@@ -269,7 +294,7 @@ static bool rx_cb(__unused repeating_timer_t *rt) {
 
     int val = rx_single_sample();
 
-    rx_packet |= val << ((PACKET_SIZE - 1) - rx_idx);
+    rx_packet |= val << (PACKET_SIZE - rx_idx);
     rx_arr[rx_idx] = val;
     rx_idx++;
 
@@ -294,7 +319,7 @@ void ivc_tick() {
         int val = rx_single_sample();
         last_rx_val = val;
 
-        // if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude > FREQ_HIGH_THRESHOLD)
+        // if (bins[0].amplitude > FREQ_LOW_THRESHOLD[is_talos] && bins[1].amplitude > FREQ_HIGH_THRESHOLD[is_talos])
         //     // LOG_INFO("Both mags above threshold. Rejecting!");
         //     val = 2;
 
@@ -333,9 +358,17 @@ void ivc_tick() {
         fft_target = -1;
     }
 
+    // Only talos sends out heartbeat msgs and awaits response from SSFB
+    if (is_talos && time_reached(next_heartbeat_time)) {
+        ivc_enqueue_packet(HEARTBEAT_DATA, true);
+        next_heartbeat_time = make_timeout_time_ms(HEARTBEAT_PERIOD_MS);
+    }
+
     uint8_t tx_packet;
-    if (!packet_in_flight && ivc_dequeue_packet(&tx_packet)) {
-        ivc_tx(tx_packet);
+    bool is_heartbeat;
+    if (!packet_in_flight && !rx_packet_in_flight && ivc_dequeue_packet(&tx_packet, &is_heartbeat)) {
+        ivc_tx((tx_packet << CRC_SIZE) | (is_heartbeat << PACKET_SIZE));
+        // ivc_tx(tx_packet << CRC_SIZE);
     }
 }
 
@@ -384,4 +417,10 @@ static void rx_init() {
 void ivc_init() {
     tx_init();
     rx_init();
+
+    gpio_init(BOARD_ID_PIN);
+    gpio_set_dir(BOARD_ID_PIN, GPIO_IN);
+
+    is_talos = !gpio_get(BOARD_ID_PIN);
+    LOG_INFO("This board %s talos", is_talos ? "is" : "is not");
 }

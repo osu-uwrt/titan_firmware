@@ -3,9 +3,7 @@
 
 #include "pico/types.h"
 
-void ivc_tx(uint8_t data);
-
-void ivc_enqueue_packet(uint8_t data);
+void ivc_enqueue_packet(uint8_t data, bool is_heartbeat);
 
 void ivc_tick();
 
