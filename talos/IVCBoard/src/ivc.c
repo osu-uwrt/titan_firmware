@@ -22,6 +22,7 @@
 #define DATA_SIZE 8
 #define CRC_SIZE 4
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
+#define MAX_MISSED_PACKETS 5
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
@@ -30,6 +31,8 @@ static uint pwm_slice_num;
 static int tx_data_idx;
 static uint16_t tx_data;
 static repeating_timer_t tx_timer = { 0 };
+static bool last_ack_good = false;
+static uint8_t link_established = 0;
 
 #define TX_QUEUE_DEPTH 8
 typedef struct tx_msg_t {
@@ -83,15 +86,62 @@ static uint8_t calculate_crc(uint8_t packet) {
     return crc & 0x0F;  // Only care about lower 4 bits; note: this will need changed if CRC_SIZE is different
 }
 
+static int rx_single_sample() {
+    fft_process(sample_bufs[fft_target], bins, NUM_BINS);
+
+    int val = -1;
+
+    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
+        val = 0;
+    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
+        val = 1;
+
+    return val;
+}
+
+static int64_t interframe_space_cb(__unused alarm_id_t id, __unused void *user_data) {
+    if (last_ack_good) {
+        link_established = MAX_MISSED_PACKETS;
+        packet_in_flight = false;
+    }
+    else if (link_established) {
+        link_established--;
+        ivc_tx(tx_data >> CRC_SIZE);
+    }
+    else {
+        LOG_WARN("IVC Link broken!");
+        packet_in_flight = false;
+    }
+
+    return 0;
+}
+
+static int64_t ack_read(__unused alarm_id_t id, __unused void *user_data) {
+    last_ack_good = (rx_single_sample() == 1);
+    add_alarm_in_ms(PACKET_SIZE * SYMBOL_PERIOD_MS, interframe_space_cb, NULL, true);
+
+    LOG_INFO("Got response of %d from receiver", last_ack_good);
+
+    return 0;
+}
+
+// Note: the caller is responsible for enabling and disabling the transducer to use this function
+static void tx_set_bitwise(int bit) {
+    float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
+    pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
+}
+
 static bool tx_cb(__unused repeating_timer_t *rt) {
     if (tx_data_idx < 0) {
         pwm_set_enabled(pwm_slice_num, false);
-        packet_in_flight = false;
+        // packet_in_flight = false;
+        add_alarm_in_ms(1.5f * SYMBOL_PERIOD_MS, ack_read, NULL, true);
         return false;
     }
 
-    float freq = (tx_data >> tx_data_idx) & 0x01 ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
-    pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
+    // float freq = (tx_data >> tx_data_idx) & 0x01 ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
+    // pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
+    tx_set_bitwise((tx_data >> tx_data_idx) & 0x01);
 
     tx_data_idx--;
     return true;
@@ -106,7 +156,8 @@ void ivc_tx(uint8_t data) {
     pwm_set_enabled(pwm_slice_num, true);
 
     // Indicate start of packet with high frequency
-    pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_HIGH_HZ * PWM_WRAP_VALUE));
+    // pwm_set_clkdiv(pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_HIGH_HZ * PWM_WRAP_VALUE));
+    tx_set_bitwise(0x01);
 
     add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, NULL, &tx_timer);
 }
@@ -179,35 +230,44 @@ static void sample_handler() {
     // LOG_INFO("Got IVC value as %d", val);
 }
 
+static int64_t ack_send_cb(__unused alarm_id_t id, __unused void *user_data) {
+    pwm_set_enabled(pwm_slice_num, false);
+    rx_packet_in_flight = false;
+
+    return 0;
+}
+
 static bool rx_cb(__unused repeating_timer_t *rt) {
     if (rx_idx >= PACKET_SIZE) {
         uint8_t data = rx_packet >> CRC_SIZE;
         uint8_t crc = rx_packet & 0x0F;  // Note: this will need changed if CRC_SIZE is different
 
-        LOG_INFO("Got IVC packet %hhd", data);
-        for (int i = 0; i < PACKET_SIZE; i++) {
-            LOG_INFO("%hhu", rx_arr[i]);
-        }
+        // Send ACK or NACK based on crc
 
-        if (crc == calculate_crc(data)) {
+        bool crc_good = crc == calculate_crc(data);
+
+        if (crc_good) {
             LOG_INFO("Got CRC_GOOD");
         }
         else {
             LOG_INFO("Got CRC_BAD, got %hhu and expected %hhu", crc, calculate_crc(data));
         }
 
-        rx_packet_in_flight = false;
+        pwm_set_enabled(pwm_slice_num, true);
+        tx_set_bitwise(crc_good & 0x01);
+        add_alarm_in_ms(SYMBOL_PERIOD_MS, ack_send_cb, NULL, true);
+
+        // LOG_INFO("Sending ACK as %d", crc_good & 0x01);
+
+        // LOG_INFO("Got IVC packet %hhd", data);
+        // for (int i = 0; i < PACKET_SIZE; i++) {
+        //     LOG_INFO("%hhu", rx_arr[i]);
+        // }
+
         return false;
     }
 
-    fft_process(sample_bufs[fft_target], bins, NUM_BINS);
-
-    int val = -1;
-
-    if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
-        val = 0;
-    if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
-        val = 1;
+    int val = rx_single_sample();
 
     rx_packet |= val << ((PACKET_SIZE - 1) - rx_idx);
     rx_arr[rx_idx] = val;
@@ -230,16 +290,8 @@ void ivc_tick() {
 
     // LOG_INFO("FIFO at: %hhu", adc_fifo_get_level());
 
-    if (fft_target != -1 && !rx_packet_in_flight) {
-        fft_process(sample_bufs[fft_target], bins, NUM_BINS);
-
-        int val = -1;
-
-        if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude < FREQ_HIGH_THRESHOLD)
-            val = 0;
-        if (bins[1].amplitude > FREQ_HIGH_THRESHOLD && bins[0].amplitude < FREQ_LOW_THRESHOLD)
-            val = 1;
-
+    if (fft_target != -1 && !rx_packet_in_flight && !packet_in_flight) {
+        int val = rx_single_sample();
         last_rx_val = val;
 
         // if (bins[0].amplitude > FREQ_LOW_THRESHOLD && bins[1].amplitude > FREQ_HIGH_THRESHOLD)
