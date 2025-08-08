@@ -27,7 +27,7 @@
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
 #define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / 5000 / 255.0f) + 1.0f)
-#define HEARTBEAT_PERIOD_MS 10000
+#define HEARTBEAT_PERIOD_MS 5000
 #define HEARTBEAT_DATA 0x3F
 static uint pwm_slice_num;
 static int tx_data_idx;
@@ -37,6 +37,7 @@ static bool last_ack_good = false;
 static uint8_t link_established = 0;
 static bool is_talos;
 static absolute_time_t next_heartbeat_time = { 0 };
+static absolute_time_t ssfb_tx_time_bound = { 0 };
 
 #define TX_QUEUE_DEPTH 8
 typedef struct tx_msg_t {
@@ -122,7 +123,7 @@ static int64_t interframe_space_cb(__unused alarm_id_t id, __unused void *user_d
         ivc_tx(tx_data);
     }
     else {
-        LOG_WARN("IVC Link broken!");
+        LOG_WARN("IVC link broken!");
         packet_in_flight = false;
     }
 
@@ -249,6 +250,7 @@ static void sample_handler() {
 
 static int64_t ack_send_cb(__unused alarm_id_t id, __unused void *user_data) {
     pwm_set_enabled(pwm_slice_num, false);
+    ssfb_tx_time_bound = make_timeout_time_ms(DATA_SIZE * SYMBOL_PERIOD_MS);
     rx_packet_in_flight = false;
 
     return 0;
@@ -264,6 +266,7 @@ static bool rx_cb(__unused repeating_timer_t *rt) {
         bool crc_good = crc == calculate_crc(data);
 
         if (crc_good) {
+            link_established = MAX_MISSED_PACKETS;
             LOG_INFO("Got CRC_GOOD");
         }
         else {
@@ -366,7 +369,9 @@ void ivc_tick() {
 
     uint8_t tx_packet;
     bool is_heartbeat;
-    if (!packet_in_flight && !rx_packet_in_flight && ivc_dequeue_packet(&tx_packet, &is_heartbeat)) {
+    if (!packet_in_flight && !rx_packet_in_flight && (is_talos || !time_reached(ssfb_tx_time_bound)) &&
+        ivc_dequeue_packet(&tx_packet, &is_heartbeat)) {
+        // SSFB can only send messages for a pre-determined period after hearing one from Talos
         ivc_tx((tx_packet << CRC_SIZE) | (is_heartbeat << PACKET_SIZE));
         // ivc_tx(tx_packet << CRC_SIZE);
     }
