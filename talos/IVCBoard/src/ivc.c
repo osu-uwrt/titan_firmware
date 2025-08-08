@@ -1,6 +1,7 @@
 #include "ivc.h"
 
 #include "fft/fft.h"
+#include "ros.h"
 
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
@@ -23,6 +24,8 @@
 #define CRC_SIZE 4
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 #define MAX_MISSED_PACKETS 5
+
+#define CALIBRATION_MODE 0
 
 // Tx data
 // Define wrap such that clkdiv is on [0, 256)
@@ -265,22 +268,25 @@ static bool rx_cb(__unused repeating_timer_t *rt) {
 
         bool crc_good = crc == calculate_crc(data);
 
-        if (crc_good) {
-            link_established = MAX_MISSED_PACKETS;
-            LOG_INFO("Got CRC_GOOD");
-        }
-        else {
-            LOG_INFO("Got CRC_BAD: got %hhu and expected %hhu", crc, calculate_crc(data));
-        }
-
         pwm_set_enabled(pwm_slice_num, true);
         tx_set_bitwise(crc_good & 0x01);
         add_alarm_in_ms(SYMBOL_PERIOD_MS, ack_send_cb, NULL, true);
 
+        if (!crc_good) {
+            LOG_INFO("Got CRC_BAD: got %hhu and expected %hhu", crc, calculate_crc(data));
+            return false;
+        }
+
+        link_established = MAX_MISSED_PACKETS;
+        LOG_INFO("Got CRC_GOOD");
+
         if (rx_packet & (1 << PACKET_SIZE)) {
             // Heartbeat bit is set. Ignore this packet
             LOG_INFO("Got heartbeat");
+            return false;
         }
+
+        ros_publish_rx(data);
 
         // LOG_INFO("Sending ACK as %d", crc_good & 0x01);
 
@@ -322,7 +328,8 @@ void ivc_tick() {
         int val = rx_single_sample();
         last_rx_val = val;
 
-        // if (bins[0].amplitude > FREQ_LOW_THRESHOLD[is_talos] && bins[1].amplitude > FREQ_HIGH_THRESHOLD[is_talos])
+        // if (bins[0].amplitude > FREQ_LOW_THRESHOLD[is_talos] && bins[1].amplitude >
+        // FREQ_HIGH_THRESHOLD[is_talos])
         //     // LOG_INFO("Both mags above threshold. Rejecting!");
         //     val = 2;
 
@@ -343,6 +350,9 @@ void ivc_tick() {
         //     }
         // }
 
+#if CALIBRATION_MODE
+        ros_publish_rx_debug(bins[0].amplitude);
+#else
         if (!rx_packet_in_flight && val == 1) {
             rx_packet_in_flight = true;
             rx_idx = rx_packet = 0;
@@ -350,6 +360,7 @@ void ivc_tick() {
             sleep_ms(0.3f * SYMBOL_PERIOD_MS);
             add_repeating_timer_ms(-SYMBOL_PERIOD_MS, rx_cb, NULL, &rx_timer);
         }
+#endif
 
         // LOG_INFO("Got IVC value as %d", val);
 
@@ -405,7 +416,8 @@ static void rx_init() {
     // channel_config_set_write_increment(&cfg, true);
     // channel_config_set_dreq(&cfg, DREQ_ADC);
 
-    // dma_channel_configure(dma_chan, &cfg, &sample_bufs[0], &adc_hw->fifo, NUM_SAMPLES, false);  // Don't start yet
+    // dma_channel_configure(dma_chan, &cfg, &sample_bufs[0], &adc_hw->fifo, NUM_SAMPLES, false);  // Don't start
+    // yet
 
     // dma_channel_set_irq0_enabled(dma_chan, true);  // Set IRQ
     // irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);

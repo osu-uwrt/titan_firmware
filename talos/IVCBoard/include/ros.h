@@ -92,6 +92,9 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 // TODO: Add in any additional ROS tasks here
 
+rcl_ret_t ros_publish_rx(uint8_t rx);
+rcl_ret_t ros_publish_rx_debug(float32 mag);
+
 #undef MICRO_ROS_TRANSPORT_CAN
 #define MICRO_ROS_TRANSPORT_USB 1
 
