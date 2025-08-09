@@ -29,6 +29,8 @@
 // Global Definitions
 // ========================================
 
+#define ROS_TIMESYNC_TIMEOUT_TIME_MS 10
+
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "state/fw_heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
@@ -370,6 +372,9 @@ rcl_ret_t ros_init() {
     depth_msg.header.frame_id.capacity = sizeof(depth_frame);
     depth_msg.header.frame_id.size = strlen(depth_frame);
     depth_msg.variance = depth_variance;
+
+    // Fetch ROS timestamp on ROS init
+    rmw_uros_sync_session(ROS_TIMESYNC_TIMEOUT_TIME_MS);
 
     return RCL_RET_OK;
 }
