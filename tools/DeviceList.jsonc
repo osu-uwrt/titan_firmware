@@ -22,6 +22,16 @@
     // Contains map of all board serial numbers to board type, as well as providing a friendly name
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
+        {
+            "name": "SSFB IVC Board",
+            "boardType": "talos/ivc_board",
+            "serial": "E46211015B40222F"
+        },
+        {
+            "name": "Talos IVC Board",
+            "boardType": "talos/ivc_board",
+            "serial": "E46214B0630D2A32"
+        },
         // ========================================
         // Lilboat Boards
         // ========================================
@@ -82,7 +92,7 @@
         {
             "name": "Mark 2 Camera Cage BB",
             "boardType": "mk2/camera_cage_bb",
-            "serial": "E66214550758B927"
+            "serial": "E460CCB01B43482A"
         },
         {
             "name": "Mark 2 ESC Board 1",
