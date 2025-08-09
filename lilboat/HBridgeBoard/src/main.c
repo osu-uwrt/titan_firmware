@@ -129,13 +129,13 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_actuators_update_status());
-    }
+    // if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
+    //     RCSOFTRETVCHECK(ros_actuators_update_status());
+    // }
 
-    if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
-        RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
-    }
+    // if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
+    //     RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
+    // }
 
     // TODO: Put any additional ROS tasks added here
 }
@@ -192,7 +192,7 @@ int main() {
     // TODO: Put any additional hardware initialization code here
     multiplexer_init(MP_DATA_PIN, MP_S0_PIN, MP_S1_PIN, MP_S2_PIN);
 
-    init_servo();
+    init_servos();
     add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
 
     // NUM_BRIDGES set in hbridges.h
