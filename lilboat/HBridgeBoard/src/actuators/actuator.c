@@ -144,7 +144,7 @@ uint16_t servo_set_deg(servo_t *servo, float deg) {
     uint16_t move_time_ms = fabs(deg - servo->curr_deg) * (1.0 / SERVO_MAX_DPS) * 1000;
 
     split_uint16(target, &param_buf[0], &param_buf[1]);
-    split_uint16(move_time_ms, &param_buf[2], &param_buf[3]);  // TODO: calculate time based on max rotation speed
+    split_uint16(move_time_ms, &param_buf[2], &param_buf[3]);
 
     LOG_INFO("Set position to %hd in %hd ms", target, move_time_ms);
 
@@ -193,6 +193,37 @@ void servo_read_deg(servo_t *servo) {
 
     enqueue_packet(read_deg_packet);
 }
+
+// For now, just big trust this command goes through
+static int64_t servo_continuous_stop_cb(__unused alarm_id_t id, void *user_data) {
+    servo_t *servo = user_data;
+
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    split_uint16(0, &param_buf[0], &param_buf[1]);
+
+    ServoPacket_t stop_packet =
+        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+
+    enqueue_packet(stop_packet);
+
+    return 0;
+}
+
+// For now, just big trust this command goes through
+void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    split_uint16(speed, &param_buf[0], &param_buf[1]);
+
+    ServoPacket_t continuous_move_packet =
+        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+
+    enqueue_packet(continuous_move_packet);
+
+    add_alarm_in_ms(ms, servo_continuous_stop_cb, servo, true);
+}
+
+// For now, just big trust this command goes through
+void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
 void servo_set_id(uint8_t old_id, uint8_t new_id) {
     uint8_t param_buf[MAX_PACKET_SIZE];
@@ -283,13 +314,18 @@ static int parse_int(const char *str, long long *val_out) {
 
 static int debug_set_id_cb(size_t argc, const char *const *argv, FILE *fout) {
     if (argc != 3) {
-        fprintf(fout, "Incorrect number of arguments (%d)! Needs old and new ID", argc);
+        fprintf(fout, "Incorrect number of arguments (%d)! Needs old and new ID", argc - 1);
         return 1;
     }
 
-    uint old_id, new_id;
-    parse_int_with_bounds(argv[1], old_id, 1, 252);
-    parse_int_with_bounds(argv[2], new_id, 1, 252);
+    long long old_id = 0, new_id = 0;
+    parse_int(argv[1], &old_id);
+    parse_int(argv[2], &new_id);
+
+    if (old_id < SERVO_ID_MIN || old_id > SERVO_ID_MAX || new_id < SERVO_ID_MIN || new_id > SERVO_ID_MAX) {
+        fprintf(fout, "ID is invalid! It must be between %d and %d", SERVO_ID_MIN, SERVO_ID_MAX);
+        return 1;
+    }
 
     servo_set_id(old_id, new_id);
     return 0;
@@ -312,7 +348,39 @@ static int debug_discover_servo_cb(size_t argc, const char *const *argv, FILE *f
     return 0;
 }
 
-void init_servos() {
+static int debug_ping_servo(size_t argc, const char *const *argv, FILE *fout) {
+    if (argc != 2) {
+        fprintf(fout, "Incorrect number of arguments (%d)! Needs an ID to search for", argc - 1);
+        return 1;
+    }
+
+    long long id = 0;
+    parse_int(argv[1], &id);
+
+    if (id < SERVO_ID_MIN || id > SERVO_ID_MAX) {
+        fprintf(fout, "ID is invalid! It must be between %d and %d", SERVO_ID_MIN, SERVO_ID_MAX);
+        return 1;
+    }
+
+    servo_t tmp = { .id = id };
+    servo_ping(&tmp);
+
+    absolute_time_t packet_wait_time = make_timeout_time_ms(100);
+    while (!time_reached(packet_wait_time)) {
+        sleep_ms(1);
+    }
+
+    if (tmp.connected) {
+        fprintf(fout, "Servo with ID %lld found", id);
+    }
+    else {
+        fprintf(fout, "Servo not found");
+    }
+
+    return 0;
+}
+
+void servo_init_internal() {
     gpio_disable_pulls(SERVO_PIN);
     async_uart_init(pio0, 0, SERVO_PIN, UART_BAUD, UART_TIMEOUT_MS);
 
@@ -323,13 +391,16 @@ void init_servos() {
         "Discover the ID of a servo on the bus. Only one servo can be connected for this command to function.",
         debug_discover_servo_cb);
 
+    debug_remote_cmd_register("hwping", "[id]", "Check if a servo with [id] is connected", debug_ping_servo);
+
     // servo_go_home();
 }
 
-void make_servo(servo_t *servo, uint16_t home_deg) {
+void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
     servo->is_sethome_req = false;
     servo->return_home_after_move = false;
     servo->desired_armed_state = false;
 
+    servo->id = id;
     servo->home_deg = home_deg;
 }

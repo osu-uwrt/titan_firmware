@@ -1,6 +1,6 @@
 #include "actuators/actuator.h"
 #include "actuators/hiwonder_driver.h"
-#include "actuators/ros_torp.h"
+#include "actuators/ros_actuators.h"
 #include "hbridge.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -36,6 +36,7 @@
 #define SERVO_TRANSMIT_PERIOD_MS 10
 #define SERVO_PING_PERIOD_MS 1000
 #define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
+#define SERVO_UPDATE_DEGREES_PERIOD_MS 30
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -47,6 +48,7 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_actuator_status = { 0 };
 absolute_time_t next_servo_ping = { 0 };
 absolute_time_t next_cmd_feedback = { 0 };
+absolute_time_t next_degree_publish = { 0 };
 
 static repeating_timer_t uart_scheduler_timer;
 
@@ -97,6 +99,7 @@ static void start_ros_timers() {
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
     next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
+    next_degree_publish = make_timeout_time_ms(SERVO_UPDATE_DEGREES_PERIOD_MS);
 }
 
 /**
@@ -129,13 +132,17 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    // if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-    //     RCSOFTRETVCHECK(ros_actuators_update_status());
-    // }
+    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_actuators_update_status());
+    }
 
-    // if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
-    //     RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
-    // }
+    if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
+        RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
+    }
+
+    if (timer_ready(&next_degree_publish, SERVO_UPDATE_DEGREES_PERIOD_MS, false)) {
+        RCSOFTRETVCHECK(ros_update_actuator_degrees());
+    }
 
     // TODO: Put any additional ROS tasks added here
 }
@@ -168,7 +175,7 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        servo_ping();
+        // servo_ping_all();
         // servo_read_deg();
         // servo_set_armed(true);
     }
