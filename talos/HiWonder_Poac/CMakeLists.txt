@@ -30,7 +30,7 @@ add_executable(poac_board
 target_include_directories(poac_board PUBLIC include)
 
 # Required so we can register our own gpio interrupt for the kill switch (only one gpio interrupt supported)
-# target_compile_definitions(poac_board PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
+target_compile_definitions(poac_board PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
 
 # Set version: major minor (see titan/version.h for more info)
 titan_generate_version_tag(poac_board 1 0)
