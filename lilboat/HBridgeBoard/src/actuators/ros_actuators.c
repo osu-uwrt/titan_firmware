@@ -14,6 +14,8 @@
 #define MOVE_TIME_SUBSCRIPTION_NAME "command/actuator/move_speed_for_time"
 #define DEGREE_PUBLISHER_NAME "state/actuator/degrees"
 #define STATUS_TOPIC_NAME "state/actuator/status"
+#define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
+#define ACTUATOR_FEEDBACK_STATE_TOPIC_NAME "state/actuator/cmd_status"
 
 // ROS objects
 static rcl_subscription_t arm_subscription;
@@ -238,13 +240,25 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
     RCRETCHECK(rclc_publisher_init_default(&degree_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
                                            DEGREE_PUBLISHER_NAME));
 
+    // Command Feedback Pubishers
+    RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
+                                           ACTUATOR_FEEDBACK_MSG_TOPIC_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&cmd_status_publisher, node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           ACTUATOR_FEEDBACK_STATE_TOPIC_NAME));
+
     return RCL_RET_OK;
 }
 
 rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
     RCSOFTCHECK(rcl_subscription_fini(&arm_subscription, node));
     RCSOFTCHECK(rcl_subscription_fini(&move_time_subscription, node));
+    RCSOFTCHECK(rcl_publisher_fini(&status_publisher, node));
     RCSOFTCHECK(rcl_publisher_fini(&degree_publisher, node));
+    RCSOFTCHECK(rcl_publisher_fini(&cmd_feedback_publisher, node));
+    RCSOFTCHECK(rcl_publisher_fini(&cmd_status_publisher, node));
 
     return RCL_RET_OK;
 }
