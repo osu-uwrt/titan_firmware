@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#define SOLENOID_COUNT 3
+#define SOLENOID_COUNT 4
 
 /**
  * @brief Initializes the solenoid pins

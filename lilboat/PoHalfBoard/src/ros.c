@@ -40,11 +40,13 @@
 
 const char SOLENOID_SUBSCRIBER_NAMES[][50] = { [EXHAUST_SOLENOID_NUM] = "command/solenoid/exhaust",
                                                [PRESSURE_SOLENOID_NUM] = "command/solenoid/pressure",
-                                               [WATER_SOLENOID_NUM] = "command/solenoid/water" };
+                                               [WATER_SOLENOID_NUM] = "command/solenoid/water",
+                                               [PUMP_ACCESS_NUM] = "command/pump" };
 
 const char SOLENOID_STATE_PUBLISHER_NAMES[][50] = { [EXHAUST_SOLENOID_NUM] = "state/solenoid/exhaust",
                                                     [PRESSURE_SOLENOID_NUM] = "state/solenoid/pressure",
-                                                    [WATER_SOLENOID_NUM] = "state/solenoid/water" };
+                                                    [WATER_SOLENOID_NUM] = "state/solenoid/water",
+                                                    [PUMP_ACCESS_NUM] = "state/pump" };
 
 const char ADC_PRESSURE_PUBLISHER_NAMES[][50] = {
     [TANK_PRESSURE_ADC_NUM] = "state/pressure/tank", [REGULATED_PRESSURE_ADC_NUM] = "state/pressure/regulated"
@@ -164,6 +166,11 @@ static void solenoid1_subscription_callback(const void *msgin) {
 static void solenoid2_subscription_callback(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
     solenoid_set(3, msg->data);
+}
+
+static void pump_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+    solenoid_set(4, msg->data);
 }
 
 static void br_depth_calibrate_cb(const void *msgin) {
@@ -428,6 +435,10 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                                   SOLENOID_SUBSCRIBER_NAMES[2]));
 
+    RCRETCHECK(rclc_subscription_init_best_effort(&solenoid_subscribers[3], &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                                  SOLENOID_SUBSCRIBER_NAMES[3]));
+
     RCRETCHECK(rclc_publisher_init_default(&solenoid_state_publishers[0], &node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                            SOLENOID_STATE_PUBLISHER_NAMES[0]));
@@ -440,12 +451,16 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
                                            SOLENOID_STATE_PUBLISHER_NAMES[2]));
 
+    RCRETCHECK(rclc_publisher_init_default(&solenoid_state_publishers[3], &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                           SOLENOID_STATE_PUBLISHER_NAMES[3]));
+
     RCRETCHECK(rclc_subscription_init_default(&br_depth_calibrate_subscription, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                               BR_DEPTH_RECALIBRATE_SUBSCRIPTION_NAME));
 
     // Executor Initialization
-    const int executor_num_handles = 5;
+    const int executor_num_handles = 6;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
@@ -458,6 +473,9 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[2], &solenoid_msgs[2],
                                               &solenoid2_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_subscribers[3], &solenoid_msgs[3],
+                                              &pump_subscription_callback, ON_NEW_DATA));
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &br_depth_calibrate_subscription, &br_depth_calibrate_msg,
                                               &br_depth_calibrate_cb, ON_NEW_DATA));

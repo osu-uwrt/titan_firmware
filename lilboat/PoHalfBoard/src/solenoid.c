@@ -6,11 +6,7 @@
 #define SOLENOID_OPEN 1
 #define SOLENOID_CLOSED 0
 
-const int solenoid_pins[SOLENOID_COUNT] = {
-    SOLENOID0_PIN,
-    SOLENOID1_PIN,
-    SOLENOID2_PIN,
-};
+const int solenoid_pins[SOLENOID_COUNT] = { SOLENOID0_PIN, SOLENOID1_PIN, SOLENOID2_PIN, PUMP_PIN };
 
 bool solenoid_states[SOLENOID_COUNT] = { false, false, false };
 
