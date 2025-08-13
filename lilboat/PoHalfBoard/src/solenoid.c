@@ -10,7 +10,7 @@
 #define KILL_PRESSURE_OPEN_TIME_MS 1000
 #define KILL_WATER_OPEN_TIME_MS 3000
 #define KILL_SOLENOID_SPACING_TIME_MS 100
-#define KILL_NUM_CYCLES 3
+#define KILL_NUM_CYCLES 5
 
 const int solenoid_pins[SOLENOID_COUNT] = { SOLENOID0_PIN, SOLENOID1_PIN, SOLENOID2_PIN, PUMP_PIN };
 
@@ -86,7 +86,7 @@ void solenoid_tick_kill() {
             solenoid_set_ignoring_kill(i + 1, false);
         }
 
-        if (num_cycles > 5) {
+        if (num_cycles >= 2 * KILL_NUM_CYCLES) {
             next_pressure_time = at_the_end_of_time;
             next_water_time = at_the_end_of_time;
             next_wait_time = at_the_end_of_time;
