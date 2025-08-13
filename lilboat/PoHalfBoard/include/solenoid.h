@@ -17,3 +17,6 @@ void solenoid_init();
 void solenoid_set(int number, bool open);
 
 bool solenoid_get(int number);
+
+void solenoid_start_kill_routine();
+void solenoid_tick_kill();

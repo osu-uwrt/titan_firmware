@@ -1,5 +1,7 @@
 #include "safety_interface.h"
 
+#include "solenoid.h"
+
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "hardware/gpio.h"
@@ -63,6 +65,8 @@ void safety_handle_kill(void) {
         prev_kill_state = true;
         safety_interface_kill_switch_refreshed = true;
     }
+
+    solenoid_start_kill_routine();
 }
 
 void safety_handle_enable(void) {
