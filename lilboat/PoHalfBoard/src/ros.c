@@ -20,6 +20,7 @@
 #include <riptide_msgs2/msg/kill_switch_report.h>
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
+#include <std_msgs/msg/int32.h>
 #include <std_msgs/msg/int8.h>
 
 #include <time.h>
@@ -60,6 +61,8 @@ const char DEPTH_SENSOR_PUBLISHER_NAMES[][50] = {
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
 #define ELECTRICAL_READING_NAME "state/electrical"
+
+#define SOLENOID_CYCLE_SUBSCRIPTION_NAME "command/fart_for_ms"
 
 bool ros_connected = false;
 
@@ -106,6 +109,9 @@ rcl_publisher_t humidity_status_publisher;
 
 rcl_publisher_t electrical_reading_publisher;
 riptide_msgs2__msg__ElectricalReadings electrical_reading_msg = { 0 };
+
+rcl_subscription_t solenoid_cycle_subscriber;
+std_msgs__msg__Int32 solenoid_cycle_msg;
 
 // ========================================
 // Executor Callbacks
@@ -180,6 +186,12 @@ static void br_depth_calibrate_cb(const void *msgin) {
         return;
 
     depth_recalibrate(msg->data);
+}
+
+static void solenoid_cycle_subscription_cb(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+
+    solenoid_request_cycle(msg->data);
 }
 
 // TODO: Add in node specific tasks here
@@ -459,8 +471,12 @@ rcl_ret_t ros_init() {
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                               BR_DEPTH_RECALIBRATE_SUBSCRIPTION_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(&solenoid_cycle_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              SOLENOID_CYCLE_SUBSCRIPTION_NAME));
+
     // Executor Initialization
-    const int executor_num_handles = 6;
+    const int executor_num_handles = 7;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
@@ -479,6 +495,9 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &br_depth_calibrate_subscription, &br_depth_calibrate_msg,
                                               &br_depth_calibrate_cb, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &solenoid_cycle_subscriber, &solenoid_cycle_msg,
+                                              &solenoid_cycle_subscription_cb, ON_NEW_DATA));
 
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -508,6 +527,7 @@ void ros_fini(void) {
     }
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&br_depth_calibrate_subscription, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&solenoid_cycle_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));

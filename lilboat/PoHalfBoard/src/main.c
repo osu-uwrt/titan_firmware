@@ -205,7 +205,7 @@ static void tick_background_tasks() {
         pressure_adc_readings_valid = true;
     }
 
-    solenoid_tick_kill();
+    solenoid_tick();
 }
 
 static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
