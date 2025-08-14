@@ -199,7 +199,8 @@ static int64_t servo_continuous_stop_cb(__unused alarm_id_t id, void *user_data)
     servo_t *servo = user_data;
 
     uint8_t param_buf[MAX_PACKET_SIZE];
-    split_uint16(0, &param_buf[0], &param_buf[1]);
+    param_buf[0] = 1;  // Place into motor mode
+    split_uint16(0, &param_buf[2], &param_buf[3]);
 
     ServoPacket_t stop_packet =
         make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
@@ -212,7 +213,8 @@ static int64_t servo_continuous_stop_cb(__unused alarm_id_t id, void *user_data)
 // For now, just big trust this command goes through
 void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
     uint8_t param_buf[MAX_PACKET_SIZE];
-    split_uint16(speed, &param_buf[0], &param_buf[1]);
+    param_buf[0] = 1;  // Place into motor mode
+    split_uint16(speed, &param_buf[2], &param_buf[3]);
 
     ServoPacket_t continuous_move_packet =
         make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
