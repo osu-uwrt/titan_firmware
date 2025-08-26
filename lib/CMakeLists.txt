@@ -8,6 +8,7 @@ add_subdirectory(driver_sht41/)
 add_subdirectory(driver_ssd1306/)
 add_subdirectory(driver_status_strip/)
 add_subdirectory(driver_wiznet/)
+add_subdirectory(driver_cd74hc4051/)
 add_subdirectory(micro_ros_pico/)
 # pico-sdk/ is handled specially in global_defs.cmake
 # titan_boards/ is handled specially in global_defs.cmake
