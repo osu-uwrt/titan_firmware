@@ -3,6 +3,8 @@
 
 #include "safety_interface.h"
 
+#include "titan/logger.h"
+
 #include <rcl/error_handling.h>
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
@@ -98,6 +100,9 @@ rcl_ret_t ros_publish_auxswitch();
 
 rcl_ret_t ros_update_temp_humidity_publisher();
 
-rcl_ret_t ros_actuators_update_status(void);
+// TODO: Add in any additional ROS tasks here
+#define MICRO_ROS_TRANSPORT_CAN 1
+// #define MICRO_ROS_TRANSPORT_USB 1
+// #undef MICRO_ROS_TRANSPORT_CAN
 
 #endif

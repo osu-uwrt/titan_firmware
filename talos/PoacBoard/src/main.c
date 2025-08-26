@@ -1,18 +1,28 @@
-#include "actuators.h"
+#include "actuators/actuator.h"
+#include "actuators/hiwonder_driver.h"
+#include "actuators/ros_torp.h"
 #include "ros.h"
 #include "safety_interface.h"
 
 #include "driver/async_i2c.h"
-#include "driver/canbus.h"
 #include "driver/led.h"
 #include "driver/mcp3426.h"
 #include "driver/sht41.h"
-#include "micro_ros_pico/transport_can.h"
-#include "pico/binary_info.h"
 #include "pico/stdlib.h"
-#include "titan/binary_info.h"
 #include "titan/logger.h"
 #include "titan/version.h"
+
+#ifdef MICRO_ROS_TRANSPORT_USB
+#include "micro_ros_pico/transport_usb.h"
+#endif
+
+#ifdef MICRO_ROS_TRANSPORT_ETH
+#include "micro_ros_pico/transport_eth.h"
+#endif
+
+#include "driver/canbus.h"
+#include "micro_ros_pico/transport_can.h"
+#include "titan/binary_info.h"
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "main"
@@ -25,6 +35,9 @@
 #define ELECTRICAL_READINGS_INTERVAL 1000
 #define AUXSWITCH_INTERVAL 1000
 #define ACTUATOR_STATUS_TIME_MS 500
+#define SERVO_TRANSMIT_PERIOD_MS 10
+#define SERVO_PING_PERIOD_MS 1000
+#define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -36,7 +49,11 @@ absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_killswitch_publish = { 0 };
 absolute_time_t next_electrical_reading_publish = { 0 };
 absolute_time_t next_auxswitch_publish = { 0 };
+absolute_time_t next_servo_ping = { 0 };
 absolute_time_t next_actuator_status = { 0 };
+absolute_time_t next_cmd_feedback = { 0 };
+
+static repeating_timer_t uart_scheduler_timer;
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -87,6 +104,7 @@ static void start_ros_timers() {
     next_electrical_reading_publish = make_timeout_time_ms(ELECTRICAL_READINGS_INTERVAL);
     next_auxswitch_publish = make_timeout_time_ms(AUXSWITCH_INTERVAL);
     next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
+    next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
 }
 
 /**
@@ -104,7 +122,11 @@ static void tick_ros_tasks() {
 
     // If this is not followed, then the watchdog will reset if multiple timeouts occur within one tick
 
+    // #ifdef MICRO_ROS_TRANSPORT_CAN
     uint8_t client_id = CAN_BUS_CLIENT_ID;
+    // #else
+    //     uint8_t client_id = 1;
+    // #endif
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,
@@ -115,6 +137,7 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
+    // TODO: Put any additional ROS tasks added here
     if (timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ||
         safety_interface_kill_switch_refreshed) {
         safety_interface_kill_switch_refreshed = false;
@@ -129,21 +152,51 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
     }
 
-    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_actuators_update_status());
-    }
-
     if (sht41_temp_rh_set_on_read) {
         sht41_temp_rh_set_on_read = false;
         RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
     }
+
+    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
+        RCSOFTRETVCHECK(ros_actuators_update_status());
+    }
+
+    if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
+        RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
+    }
 }
 
 static void tick_background_tasks() {
+    // #if MICRO_ROS_TRANSPORT_CAN
+    // Tick canbus heartbeat/control interface
     canbus_tick();
 
+    // Update LED to report canbus status
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
+    }
+    // #elif MICRO_ROS_TRANSPORT_ETH
+    //     // Update the LED to report ethernet link status
+    //     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    //         led_network_online_set(ethernet_check_online());
+    //     }
+
+    //     // Tick ethernet heartbeat/control interface
+    //     ethernet_tick();
+
+    // #else
+    //     // Update the LED (so it can alternate between colors if a fault is present)
+    //     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for
+    //     us if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    //         led_update_pins();
+    //     }
+    // #endif
+
+    // TODO: Put any code that should periodically occur here
+    if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
+        servo_ping();
+        // servo_read_deg();
+        // servo_set_armed(true);
     }
 }
 
@@ -160,7 +213,12 @@ static void sht41_sensor_error_cb(const sht41_error_code error_type) {
 
 int main() {
     // Initialize stdio
+    // #ifdef MICRO_ROS_TRANSPORT_USB
+    //     // The USB transport is special since it initializes stdio for you already
+    //     transport_usb_serial_init_early();
+    // #else
     stdio_init_all();
+    // #endif
     LOG_INFO("%s", FULL_BUILD_TAG);
 
     // Perform all initializations
@@ -168,6 +226,7 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
+    // TODO: Put any additional hardware initialization code here
 
     // Turn on FAN to get cooling
     // TODO: Move to separate directory when tachometer added
@@ -186,7 +245,8 @@ int main() {
     gpio_disable_pulls(STBD_STAT_PIN);
     gpio_disable_pulls(PORT_STAT_PIN);
 
-    actuators_initialize();
+    init_servo();
+    add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
 
     // Initialize I2C
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
@@ -196,14 +256,33 @@ int main() {
     sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
 
     // Initialize ROS Transports
+    // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove
+    // it #ifdef MICRO_ROS_TRANSPORT_CAN
     uint can_id = CAN_BUS_CLIENT_ID;
     bi_decl_if_func_used(bi_client_id(CAN_BUS_CLIENT_ID));
     if (!transport_can_init(can_id)) {
         // No point in continuing onwards from here, if we can't initialize CAN hardware might as well panic and retry
         panic("Failed to initialize CAN bus hardware!");
     }
+    // #endif
+
+    // #ifdef MICRO_ROS_TRANSPORT_ETH
+    //     if (!transport_eth_init()) {
+    //         // No point in continuing onwards from here, if we can't initialize ETH hardware might as well panic and
+    //         retry panic("Failed to initialize Ethernet hardware!");
+    //     }
+    // #endif
+
+    // #ifdef MICRO_ROS_TRANSPORT_USB
+    //     transport_usb_init();
+    // #endif
 
     // Enter main loop
+    // This is split into two sections of timers
+    // Those running with ROS, and those in the background
+    // Note that both types of timers will need to conform to the minimal delay time, as there is around
+    //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
+    // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
     while (true) {
         // Do background tasks
@@ -214,7 +293,7 @@ int main() {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");
 
-                // Lower all ROS related faults as we've got a new ROS context
+                // TODO: Lower all ROS related faults as we've got a new ROS context
                 safety_lower_fault(FAULT_ROS_ERROR);
                 safety_lower_fault(FAULT_ROS_BAD_COMMAND);
 

@@ -17,12 +17,16 @@
     DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
     DEF(FAULT_ADC_ERROR, 6)                                                                                            \
     DEF(FAULT_SHT41_ERROR, 7)                                                                                          \
-    /* Raised if an actuator command could not successfully due to a hardware/firmware issue */                        \
-    DEF(FAULT_ACTUATOR_FAILURE, 8)                                                                                     \
-    /* Raised if the dynamixel reports that it has a hardware error */                                                 \
-    DEF(FAULT_ACTUATOR_HW_FAULT, 9)                                                                                    \
-    /* Raised if an actuator is unplugged, cleared when all actuators are plugged in */                                \
-    DEF(FAULT_ACTUATOR_UNPLUGGED, 10)
+// TODO: Define any additional faults here
+
+// ===== Kill Switch Definitions =====
+// If no kill switches defined, set NUM_KILL_SWITCHES = 0
+enum kill_switch {
+    ROS_KILL_SWITCH = 0,
+    // Used to automatically calculate number of kill switches
+    // This must be the last enum
+    NUM_KILL_SWITCHES
+};
 
 /**
  * @brief The state of the physical kill switch (true if asserting kill)

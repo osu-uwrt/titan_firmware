@@ -5,11 +5,12 @@
         "${workspaceFolder}/talos/PoacBoard/",
         "${workspaceFolder}/talos/SmartBattery/",
         "${workspaceFolder}/talos/LEDBoard/",
+        "${workspaceFolder}/talos/IVCBoard/",
         "${workspaceFolder}/puddles/Backplane/",
         "${workspaceFolder}/tools/upload_tool/",
         "${workspaceFolder}/tools/canmore_cli/",
         "${workspaceFolder}/SBCBoard",
-        "${workspaceFolder}/lilboat/HBridgeBoard/"
+        "${workspaceFolder}/lilboat/HBridgeBoard/",
         "${workspaceFolder}/lilboat/PoHalfBoard/"
     ],
     "cmake.configureOnOpen": true,

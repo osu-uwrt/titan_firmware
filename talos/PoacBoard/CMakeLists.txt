@@ -37,7 +37,10 @@ titan_generate_version_tag(poac_board 1 0)
 
 # Configure pico-sdk
 pico_enable_stdio_uart(poac_board 1)
-pico_set_program_name(poac_board "Poac Board FW")
+pico_set_program_name(poac_board "Actuator Board Firmware")
+
+# Add async UART (should be moved to separate lib)
+pico_generate_pio_header(poac_board ${CMAKE_CURRENT_LIST_DIR}/src/actuators/uart_multidrop.pio)
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(poac_board)
@@ -50,12 +53,17 @@ target_link_libraries(poac_board PUBLIC
     titan_logger        # A nice little logging library
     titan_safety        # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
     micro_ros_can       # Micro ros suppot (supports _can, _usb, _eth)
+    micro_ros_usb
 
     pico_stdlib         # Pico SDK Standard Library
+    hardware_dma
+    hardware_pio
+    hardware_irq
     hardware_adc
     driver_async_i2c
-    driver_dynamixel
     driver_mcp3426
     driver_sht41
+
+    titan_queue
 )
 

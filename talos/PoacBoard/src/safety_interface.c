@@ -1,7 +1,5 @@
 #include "safety_interface.h"
 
-#include "actuators.h"
-
 #include "driver/canbus.h"
 #include "driver/led.h"
 #include "hardware/gpio.h"
@@ -58,8 +56,9 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
 
-    actuators_disarm();
+    // TODO: Modify this function to add callbacks when system is killed
     led_killswitch_set(false);
+    // TODO: disarm actuators
     gpio_put(SOFT_KILLSWITCH_PIN, SOFTKILL_STATE_KILL);
 
     if (!prev_kill_state) {
@@ -69,6 +68,8 @@ void safety_handle_kill(void) {
 }
 
 void safety_handle_enable(void) {
+    // TODO: Modify this function to add callbacks for when system is enabled
+
     led_killswitch_set(true);
     gpio_put(SOFT_KILLSWITCH_PIN, SOFTKILL_STATE_RUN);
 
@@ -99,13 +100,17 @@ void safety_interface_setup(void) {
     canbus_set_internal_error_cb(safety_handle_can_internal_error);
 }
 
-void safety_interface_init(void) {}
+void safety_interface_init(void) {
+    // TODO: Modify this function to add code to be called during safety_init
+}
 
 void safety_interface_tick(void) {
     safety_interface_refresh_physical_kill_switch();
 }
 
-void safety_interface_deinit(void) {}
+void safety_interface_deinit(void) {
+    // TODO: Modify this function to add code to be called during safety_deinit
+}
 
 // ========================================
 // Constant Calculations

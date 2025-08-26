@@ -91,7 +91,7 @@ fi
 
 set -e
 
-images="talos/Actuator talos/CameraCageBB talos/ESCBoard talos/PowerBoard talos/SmartBattery talos/LEDBoard"
+images="talos/CameraCageBB talos/ESCBoard talos/SmartBattery talos/LEDBoard talos/PoacBoard lilboat/HBridgeBoard lilboat/PoHalfBoard"
 image_types=".elf _ota.uf2 _with_bl.uf2"
 
 for target in $images; do
