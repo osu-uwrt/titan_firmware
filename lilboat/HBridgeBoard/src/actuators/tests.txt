@@ -1,0 +1,2 @@
+Checksum calculations
+DMA buffer, check dma status, bits sent

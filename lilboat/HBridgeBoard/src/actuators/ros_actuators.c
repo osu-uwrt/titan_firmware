@@ -266,6 +266,6 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
 void init_servos() {
     servo_init_internal();
 
-    make_servo(&claw_grip, 3, 0);
+    make_servo(&claw_grip, 5, 0);  // 3
     make_servo(&claw_rack, 4, 0);
 }

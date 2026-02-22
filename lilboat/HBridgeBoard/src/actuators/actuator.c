@@ -43,7 +43,7 @@ static void servo_ping_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
     else {
         servo->num_errors = 0;
         servo->connected = true;
-        // LOG_INFO("Actuator connected!");
+        LOG_INFO("Actuator connected!");
     }
 }
 

@@ -1,12 +1,9 @@
-#include "actuators/actuator.h"
-#include "actuators/hiwonder_driver.h"
-#include "actuators/ros_actuators.h"
-#include "hbridge.h"
+#include "bridge.h"
 #include "ros.h"
 #include "safety_interface.h"
 
-#include "driver/cd74hc4051.h"
 #include "driver/led.h"
+#include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -32,11 +29,17 @@
 #define HEARTBEAT_TIME_MS 100
 #define FIRMWARE_STATUS_TIME_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
-#define ACTUATOR_STATUS_TIME_MS 500
-#define SERVO_TRANSMIT_PERIOD_MS 10
-#define SERVO_PING_PERIOD_MS 1000
-#define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
-#define SERVO_UPDATE_DEGREES_PERIOD_MS 30
+#define CHANNEL_TIME_MS 30
+
+#define N_SLEEP_PIN 25
+#define N_FAULT_PIN 11
+#define PH_PIN 0
+#define EN_PIN 1
+
+#define T_READY_US 600
+#define T_WAKEUP_US 10
+#define T_COM_US 400
+#define T_RESET_US 15
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -45,12 +48,7 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
-absolute_time_t next_actuator_status = { 0 };
-absolute_time_t next_servo_ping = { 0 };
-absolute_time_t next_cmd_feedback = { 0 };
-absolute_time_t next_degree_publish = { 0 };
-
-static repeating_timer_t uart_scheduler_timer;
+absolute_time_t next_channel_update = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -97,9 +95,6 @@ static bool timer_ready(absolute_time_t *next_fire_ptr, uint32_t interval_ms, bo
 static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
-    next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
-    next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
-    next_degree_publish = make_timeout_time_ms(SERVO_UPDATE_DEGREES_PERIOD_MS);
 }
 
 /**
@@ -132,18 +127,6 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
-    if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
-        RCSOFTRETVCHECK(ros_actuators_update_status());
-    }
-
-    if (timer_ready(&next_cmd_feedback, SERVO_UPDATE_CMD_STATUS_PERIOD_MS, false)) {
-        RCSOFTRETVCHECK(ros_actuators_update_cmd_feedback());
-    }
-
-    if (timer_ready(&next_degree_publish, SERVO_UPDATE_DEGREES_PERIOD_MS, false)) {
-        RCSOFTRETVCHECK(ros_update_actuator_degrees());
-    }
-
     // TODO: Put any additional ROS tasks added here
 }
 
@@ -174,14 +157,6 @@ static void tick_background_tasks() {
 #endif
 
     // TODO: Put any code that should periodically occur here
-    if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        // servo_ping_all();
-        // servo_read_deg(&claw_grip);
-        // servo_set_armed(true);
-        // servo_continuous_move_ms(&claw_grip, 100, 10000);
-
-        servo_ping(&claw_grip);
-    }
 }
 
 int main() {
@@ -199,18 +174,7 @@ int main() {
     safety_setup();
     led_init();
     micro_ros_init_error_handling();
-    // TODO: Put any additional hardware initialization code here
-    multiplexer_init(MP_DATA_PIN, MP_S0_PIN, MP_S1_PIN, MP_S2_PIN);
-
-    init_servos();
-    add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
-
-    // NUM_BRIDGES set in hbridges.h
-    hbridge_init(NUM_BRIDGES, NSLEEP_PIN, DRVOFF_PIN);
-    hbridge_create(H0PH_PIN, H0EN_PIN, H0_INVERTED, 0, true);
-    hbridge_create(H1PH_PIN, H1EN_PIN, H1_INVERTED, 1, true);
-    hbridge_create(H3PH_PIN, H3EN_PIN, H3_INVERTED, 2, true);
-    hbridge_create(H4PH_PIN, H4EN_PIN, H4_INVERTED, 11, false);
+// TODO: Put any additional hardware initialization code here
 
 // Initialize ROS Transports
 // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove it
@@ -234,6 +198,8 @@ int main() {
     transport_usb_init();
 #endif
 
+    hbridge_init();
+
     // Enter main loop
     // This is split into two sections of timers
     // Those running with ROS, and those in the background
@@ -241,13 +207,6 @@ int main() {
     //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
-
-    servo_t *test_servo;
-    for (int i = 1; i <= 253; i++) {
-        test_servo->id = i;
-        servo_ping(test_servo);
-    }
-
     while (true) {
         // Do background tasks
         tick_background_tasks();
