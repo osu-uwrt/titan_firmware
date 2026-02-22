@@ -1,0 +1,76 @@
+//this is here for alex to run test cases - feel free to delete if nessecary
+#include "ThrusterController.h"
+#include <iostream>
+
+using namespace std;
+
+int main(){
+    ThrusterController tc = ThrusterController();
+
+    cout << "Starting Thruster Control Test Cases!" << endl;
+
+    //base p controller + ff + 
+    int32_t control = tc.control(1000, 0, 100);
+    cout << "1: " << control << endl;
+
+    //base p controller + ff +
+    control = tc.control(10000, 0, 100);
+    cout << "2: " << control << endl;    
+    
+    //hard limit +
+    control = tc.control(100000, 0, 100);
+    cout << "3: " << control << endl;
+
+    //base p controller + ff -
+    control = tc.control(-1000, 0, 100);
+    cout << "4: " << control << endl;
+
+    //base p controller + ff -
+    control = tc.control(-10000, 0, 100);
+    cout << "5: " << control << endl;    
+    
+    //hard limit -
+    control = tc.control(-100000, 0, 100);
+    cout << "6: " << control << endl;
+
+    //ff only 1
+    control = tc.control(10000, 10000, 100);
+    cout << "7: " << control << endl;
+
+    //ff only 2
+    control = tc.control(-10000, -10000, 100);
+    cout << "8: " << control << endl;
+
+    //I Control
+    tc.sumOfError = 1000000;
+    control = tc.control(0, 0, 1000);
+    cout << "9: " << control << endl;
+
+    //I Control
+    tc.sumOfError = -2000000;
+    control = tc.control(0, 0, 1000);
+    cout << "10: " << control << endl;
+
+    //I Control
+    tc.sumOfError = 1000000;
+    control = tc.control(100, 0, 1000);
+    cout << "11: " << control << endl;
+
+    //I Control - 
+    tc.sumOfError = -1000000;
+    control = tc.control(100, 0, 1000);
+    cout << "12: " << control << endl;
+
+    //I Control - bound
+    tc.sumOfError = -2000000;
+    control = tc.control(1000, 0, 1000);
+    cout << "13: " << control << endl;
+
+    //I Control - bound
+    tc.sumOfError = 2000000;
+    control = tc.control(-1000, 0, 1000);
+    cout << "14: " << control << endl;
+
+
+    return 0;
+}
