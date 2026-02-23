@@ -65,13 +65,17 @@ bool actuators_arm(const char **errMsgOut) {
     // uint32_t prev_interrupts = save_and_disable_interrupts();
 
     // Don't allow arming if killed
+    /*
     if (safety_kill_get_asserting_kill()) {
         // restore_interrupts(prev_interrupts);
         *errMsgOut = "Kill Switch Removed";
         return false;
     }
+    */
 
     bool return_code = true;
+
+    printf("Here");
 
     for (int i = 0; i < NUM_SERVOS; i++) {
         // Don't allow arming if already armed
@@ -82,6 +86,7 @@ bool actuators_arm(const char **errMsgOut) {
             return_code = false;
         }
         else {
+            printf("Arming actuator");
             LOG_INFO("Arming actuator %d", i);
 
             // We're good to arm

@@ -134,8 +134,9 @@ void send_packet(ServoPacket_t packet) {
 }
 
 bool enqueue_packet(ServoPacket_t packet) {
-    if (QUEUE_FULL(&tx_queue))
+    if (QUEUE_FULL(&tx_queue)) {
         return false;
+    }
 
     ServoPacket_t *entry = QUEUE_CUR_WRITE_ENTRY(&tx_queue);
     // This copy is generally safe since there are no (non-function) pointers in ServoPacket

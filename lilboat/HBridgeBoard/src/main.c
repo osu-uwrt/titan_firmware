@@ -175,12 +175,12 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        // servo_ping_all();
+        servo_ping_all();
         // servo_read_deg(&claw_grip);
         // servo_set_armed(true);
         // servo_continuous_move_ms(&claw_grip, 100, 10000);
 
-        servo_ping(&claw_grip);
+        // servo_ping(&claw_grip);
     }
 }
 
@@ -241,12 +241,6 @@ int main() {
     //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
-
-    servo_t *test_servo;
-    for (int i = 1; i <= 253; i++) {
-        test_servo->id = i;
-        servo_ping(test_servo);
-    }
 
     while (true) {
         // Do background tasks
