@@ -12,7 +12,7 @@
 
 #define CLOCK_DIV 0
 #define FSAMP 500000
-#define CAPTURE_CHANNEL 0
+#define CAPTURE_CHANNEL 1
 #define NSAMP 500
 
 typedef struct {

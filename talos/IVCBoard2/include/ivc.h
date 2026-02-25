@@ -53,28 +53,39 @@ typedef struct {
 } signal_recv_t;
 
 typedef struct {
+    bool has_synced;
+    bool done_writing;
+    bool is_writing;
+} tx_flags_t;
+
+typedef struct {
     int32_t pwm_wrap_value;
     uint32_t pwm_slice_num;
     uint8_t data_to_write;
     uint8_t num_bits_written;
-    bool has_synced;
-    bool done_writing;
-    bool is_writing;
+    tx_flags_t flags;
 } tx_control_t;
 
-typedef struct {
-    uint8_t prev_rx_val;
-    bool packet_in_flight;
-    bool receiving_packet;
-} rx_control_t;
+// typedef struct {
+//     uint8_t prev_rx_val;
+//     bool packet_in_flight;
+//     bool receiving_packet;
+// } rx_control_t;
 
 typedef struct {
+    bool receiving_packet;
+    bool publish_last_rx;
+    bool buffer_full;
+} rx_flags_t;
+
+typedef struct {
+    signal_recv_t recv;
     uint8_t buffer[PACKET_SIZE];
     uint8_t write_pos;
     uint8_t mtu_data;
-    uint8_t last_rx_val;
-    bool buffer_full;
-} rx_capture_t;
+    uint8_t last_rx_value;
+    rx_flags_t flags;
+} rx_control_t;
 
 typedef struct {
     uint8_t data;

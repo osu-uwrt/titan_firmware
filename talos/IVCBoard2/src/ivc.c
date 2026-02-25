@@ -78,13 +78,31 @@ uint8_t calculate_crc(uint8_t packet) {
 //     }
 // }
 
+void log_sample(sample_t s) {
+    switch (s) {
+    case NONE:
+        LOG_INFO("SAMPLE = NONE");
+        break;
+    case HIGH:
+        LOG_INFO("SAMPLE = HIGH");
+        break;
+    case LOW:
+        LOG_INFO("SAMPLE = LOW");
+        break;
+    case SYNC:
+        LOG_INFO("SAMPLE = SYNC");
+        break;
+    }
+}
+
 void tick() {
     sample_t sample = rx_sample();
-    // sync denotes a packet is starting
+    // log_sample(sample);
+    //  sync denotes a packet is starting
     if (sample == SYNC) {
-        // LOG_INFO("got sync");
-        //  send ack probably
-        // handle_incoming_packet();
+        LOG_INFO("got sync");
+        //   send ack probably
+        //  handle_incoming_packet();
         attempt_packet_read();
     }
     else {

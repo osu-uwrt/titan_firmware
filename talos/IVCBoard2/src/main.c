@@ -203,6 +203,10 @@ int main() {
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
 
+    LOG_INFO("TIMER ADDRS. next_heartbeat = 0x%p, next_status_update = 0x%p, next_led_update = 0x%p, next_connect_ping "
+             "= 0x%p",
+             &next_heartbeat, &next_status_update, &next_led_update, &next_connect_ping);
+
     while (true) {
         // Do background tasks
         tick_background_tasks();
