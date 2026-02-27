@@ -113,6 +113,10 @@ typedef struct servo {
     uint16_t home_deg;
     uint16_t curr_deg;
 
+    bool is_moving;
+    int32_t target_pos_continuous;
+    bool target_pos_reached;
+
     // TODO: this is cursed
     bool is_sethome_req;
     bool return_home_after_move;
@@ -131,6 +135,9 @@ typedef struct servo {
     uint16_t target_pos;
     absolute_time_t move_timeout;
     uint16_t curr_move_time_ms;
+
+    int32_t absolute_pos;
+    int16_t last_position;
 
     // Alarms and timers
     alarm_id_t move_complete_alarm;

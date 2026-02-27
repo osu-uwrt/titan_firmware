@@ -123,9 +123,13 @@ void send_packet(ServoPacket_t packet) {
     raw_packet[4] = packet.command;
 
     // TODO: replace with memcpy?
-    for (uint8_t i = 0; i < 7 - 3; i++) {
+    /*
+    for (uint8_t i = 0; i < packet.command_length - 3; i++) {
         raw_packet[i + 5] = packet.param_buf[i];
     }
+    */
+
+    memcpy(&raw_packet[5], packet.param_buf, packet.command_length - 3);
 
     raw_packet[packet_size - 1] = calculate_checksum(&packet);
 

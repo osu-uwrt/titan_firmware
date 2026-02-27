@@ -12,6 +12,7 @@
 
 #define ARM_SUBSCRIPTION_NAME "command/actuator/arm"
 #define MOVE_TIME_SUBSCRIPTION_NAME "command/actuator/move_speed_for_time"
+#define MOVE_DEGREE_SUBSCRIPTION_NAME "command/actuator/move_speed_for_degrees"
 #define DEGREE_PUBLISHER_NAME "state/actuator/degrees"
 #define STATUS_TOPIC_NAME "state/actuator/status"
 #define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
@@ -35,8 +36,10 @@ static rcl_subscription_t move_time_subscription;
 static std_msgs__msg__Int32 move_time_msg;
 static rcl_publisher_t degree_publisher;
 
+static rcl_subscription_t move_degree_subscription;
+static std_msgs__msg__Int32 move_degree_msg;
+
 // Servo objects
-#define NUM_SERVOS 2
 servo_t claw_grip;
 servo_t claw_rack;
 servo_t *servos[NUM_SERVOS] = { &claw_grip, &claw_rack };
@@ -65,13 +68,11 @@ bool actuators_arm(const char **errMsgOut) {
     // uint32_t prev_interrupts = save_and_disable_interrupts();
 
     // Don't allow arming if killed
-    /*
     if (safety_kill_get_asserting_kill()) {
         // restore_interrupts(prev_interrupts);
         *errMsgOut = "Kill Switch Removed";
         return false;
     }
-    */
 
     bool return_code = true;
 
@@ -108,12 +109,30 @@ bool actuators_arm(const char **errMsgOut) {
 }
 
 bool grip_move_time(const char **errMsgOut, int32_t speed) {
+    if (!claw_grip.enabled) {
+        *errMsgOut = "Actuator not enabled";
+        return false;
+    }
     if (abs(speed) > SERVO_MAX_SPEED) {
         *errMsgOut = "Requested speed out of range";
         return false;
     }
 
     servo_continuous_move_ms(&claw_grip, speed, DEBUG_MOVE_TIME_MS);
+    return true;
+}
+
+bool claw_move_degree(const char **errMsgOut, int32_t target_deg, int16_t speed) {
+    if (!claw_grip.enabled) {  // Pass servo as parameter
+        *errMsgOut = "Actuator not enabled";
+        return false;
+    }
+    if (abs(speed) > SERVO_MAX_SPEED) {
+        *errMsgOut = "Requested speed out of range";
+        return false;
+    }
+
+    servo_continuous_move_deg(&claw_grip, target_deg, speed);
     return true;
 }
 
@@ -191,8 +210,10 @@ static void arm_subscription_callback(const void *msgin) {
     }
     // False, disarm
     else {
-        for (int i = 0; i < NUM_SERVOS; i++)
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            servo_config.abs_position[i] = servos[i]->absolute_pos;
             servo_set_armed(servos[i], false);
+        }
 
         cmd_status.data = true;
     }
@@ -215,6 +236,21 @@ static void move_time_subscription_callback(const void *msgin) {
     cmd_feedback.data.data = (char *) message;
     cmd_feedback.data.size = msg_len;
     cmd_feedback.data.capacity = msg_len + 1;  // Add null termination byte
+
+    new_cmd = true;
+}
+
+static void move_degree_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+
+    const char *message = "";
+    int16_t speed = msg->data > 0 ? SERVO_MAX_SPEED : -SERVO_MAX_SPEED;
+    cmd_status.data = claw_move_degree(&message, msg->data, speed);
+
+    size_t message_len = strlen(message);
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = message_len;
+    cmd_feedback.data.capacity = message_len + 1;
 
     new_cmd = true;
 }
@@ -245,6 +281,12 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
     RCRETCHECK(rclc_publisher_init_default(&degree_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
                                            DEGREE_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(&move_degree_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              MOVE_DEGREE_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &move_degree_subscription, &move_degree_msg,
+                                              move_degree_callback, ON_NEW_DATA));
+
     // Command Feedback Pubishers
     RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
@@ -271,6 +313,11 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
 void init_servos() {
     servo_init_internal();
 
-    make_servo(&claw_grip, 5, 0);  // 3
-    make_servo(&claw_rack, 4, 0);
+    if (read_from_flash(&servo_config)) {
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            servos[i]->absolute_pos = servo_config.abs_position[i];
+        }
+    }
+    make_servo(&claw_grip, 5, 0, servo_config.abs_position[0]);  // 3
+    make_servo(&claw_rack, 4, 0, servo_config.abs_position[1]);
 }
