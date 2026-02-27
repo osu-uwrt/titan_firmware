@@ -76,6 +76,7 @@ typedef struct {
     bool receiving_packet;
     bool publish_last_rx;
     bool buffer_full;
+    bool done_reading;
 } rx_flags_t;
 
 typedef struct {

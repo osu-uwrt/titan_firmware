@@ -32,6 +32,8 @@
 bool is_talos = false;
 comm_state_t state = IDLE;
 
+symbol_clock_t sym_clk = { 0 };
+
 void ivc_init() {
     tx_init();
     rx_init();
@@ -110,6 +112,18 @@ void tick() {
         attempt_writing();
     }
 }
+
+void new_tick() {
+    consensus_push_fast(rx_observe());
+
+    sample_t sample;
+    if (consensus_stable(&sample)) {
+        if (sample == SYNC) {
+            listen_for_packet();
+        }
+    }
+}
+
 // send wake tone
 // start listening
 // sample and add to consensus buf

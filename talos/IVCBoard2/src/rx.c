@@ -16,8 +16,9 @@ frequency_bin_t fft_bins[] = { { "freq_low", FREQ_LOW_HZ - FFT_BIN_RANGE, FREQ_L
                                { "freq_sync", FREQ_SYNC_HZ - FFT_BIN_RANGE, FREQ_SYNC_HZ + FFT_BIN_RANGE, 0 } };
 repeating_timer_t rx_timer = { 0 };
 rx_control_t rx = { 0 };
+rx_consensus_t consensus = { 0 };
 // rx_control_t rx_ctrl = { 0 };
-struct QUEUE_DEFINE(uint8_t, 8) rx_msg_queue = { 0 };
+// struct QUEUE_DEFINE(uint8_t, 8) rx_msg_queue = { 0 };
 
 bool rx_packet_in_flight = false;
 
@@ -34,26 +35,26 @@ bool rx_determine_valid_sample(float abs_conf_value) {
     return abs_conf_value >= 0.6f;
 }
 
-void rx_enqueue_received_data(uint8_t data) {
-    if (QUEUE_FULL(&rx_msg_queue)) {
-        return;
-    }
-    uint8_t *entry = QUEUE_CUR_WRITE_ENTRY(&rx_msg_queue);
-    *entry = data;
-    // LOG_INFO("enqueueing %hhu\n", *entry);
-    QUEUE_MARK_WRITE_DONE(&rx_msg_queue);
-    // data_ready = true;
-}
+// void rx_enqueue_received_data(uint8_t data) {
+//     if (QUEUE_FULL(&rx_msg_queue)) {
+//         return;
+//     }
+//     uint8_t *entry = QUEUE_CUR_WRITE_ENTRY(&rx_msg_queue);
+//     *entry = data;
+//     // LOG_INFO("enqueueing %hhu\n", *entry);
+//     QUEUE_MARK_WRITE_DONE(&rx_msg_queue);
+//     // data_ready = true;
+// }
 
-bool rx_dequeue_data(uint8_t *data) {
-    if (QUEUE_EMPTY(&rx_msg_queue)) {
-        return false;
-    }
-    uint8_t *read_data = QUEUE_CUR_READ_ENTRY(&rx_msg_queue);
-    *data = *read_data;
-    QUEUE_MARK_READ_DONE(&rx_msg_queue);
-    return true;
-}
+// bool rx_dequeue_data(uint8_t *data) {
+//     if (QUEUE_EMPTY(&rx_msg_queue)) {
+//         return false;
+//     }
+//     uint8_t *read_data = QUEUE_CUR_READ_ENTRY(&rx_msg_queue);
+//     *data = *read_data;
+//     QUEUE_MARK_READ_DONE(&rx_msg_queue);
+//     return true;
+// }
 
 bool rx_cb(__unused repeating_timer_t *rt) {
     // LOG_INFO("IN RXCB");
@@ -110,16 +111,6 @@ bool rx_cb(__unused repeating_timer_t *rt) {
     }
 }
 
-// void handle_incoming_packet() {
-//     if (!rx_ctrl.receiving_packet) {
-//         LOG_INFO("starting packet read");
-//         add_repeating_timer_ms(-SYMBOL_PERIOD_MS, rx_cb, NULL, &rx_timer);
-//         rx_ctrl.receiving_packet = true;
-//     }
-//     // making too many timers
-//     // recv_data.fft_target = -1;
-// }
-
 void attempt_packet_read() {
     // if (!rx_ctrl.receiving_packet) {
     //     sleep_ms(0.5 * SYMBOL_PERIOD_MS);
@@ -141,24 +132,6 @@ void attempt_packet_read() {
     }
 }
 
-// int8_t rx_handle_sample(float conf_value) {
-//     bool is_positive = conf_value >= 0.0f;
-//     float abs_conf_value = fabs(conf_value);
-//     int8_t value = -1;
-//     bool valid = rx_determine_valid_sample(abs_conf_value);
-//     if (valid) {
-//         if (is_positive) {
-//             value = 1;
-//             // ros_publish_rx_sample_debug(1);
-//         }
-//         else {
-//             value = 0;
-//             // ros_publish_rx_sample_debug(0);
-//         }
-//     }
-//     return value;
-// }
-
 sample_t get_sample(float conf_value) {
     sample_t sample = NONE;
 
@@ -176,24 +149,6 @@ sample_t get_sample(float conf_value) {
 
     return sample;
 }
-
-// void rx_single_sample() {
-//     fft_process(recv_data.swap_buffers[recv_data.fft_target], fft_bins, NUM_FFT_BINS);
-//     float energy_at_low = fft_bins[FFT_LOW_IDX].amplitude;
-//     float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
-//     float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
-//     LOG_INFO("low: %f", energy_at_low);
-//     LOG_INFO("high: %f", energy_at_high);
-//     LOG_INFO("sync: %f", energy_at_sync);
-
-//     bool sync_present = (energy_at_sync > (energy_at_low + energy_at_high));
-
-//     float sum = energy_at_low + energy_at_high + 1e-6f;
-//     float diff = energy_at_high - energy_at_low;
-//     float conf = diff / sum;
-
-//     sync_present ? (state = SYNC_FOUND) : rx_handle_sample(conf);
-// }
 
 bool is_idle(float e0, float e1, float e2) {
     return e0 < AMPLITUDE_IDLE_THRESHOLD && e1 < AMPLITUDE_IDLE_THRESHOLD && e2 < AMPLITUDE_IDLE_THRESHOLD;
@@ -234,21 +189,6 @@ sample_t rx_sample() {
     return get_sample(conf);
 }
 
-// void rx_single_sample_int() {
-//     fft_process(recv_data.swap_buffers[recv_data.fft_target], fft_bins, NUM_FFT_BINS);
-//     float energy_at_low = fft_bins[FFT_LOW_IDX].amplitude;
-//     float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
-//     float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
-
-//     bool sync_present = (energy_at_sync > (energy_at_low + energy_at_high));
-
-//     float sum = energy_at_low + energy_at_high + 1e-6f;
-//     float diff = energy_at_high - energy_at_low;
-//     int16_t conf = (diff / sum) * FLOAT_SCALE_MULTIPLIER;  // grab 3 decimal places as an integer
-
-//     sync_present ? (state = SYNC_FOUND) : rx_handle_sample(conf);
-// }
-
 // callback to mark a swap buffer ready for processing, its full
 void swap_buffer_handler() {
     // recv_data.fft_target = recv_data.buffer_select;
@@ -257,4 +197,305 @@ void swap_buffer_handler() {
     rx.recv.fft_target = rx.recv.buffer_select;
     rx.recv.buffer_select = !rx.recv.buffer_select;
     fft_sample(rx.recv.swap_buffers[rx.recv.buffer_select]);
+}
+
+// ============== with consensus =================
+
+sample_t rx_observe() {
+    // fft_process(recv_data.swap_buffers[recv_data.fft_target], fft_bins, NUM_FFT_BINS);
+    fft_process(rx.recv.swap_buffers[rx.recv.fft_target], fft_bins, NUM_FFT_BINS);
+    float energy_at_low = fft_bins[FFT_LOW_IDX].amplitude;
+    float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
+    float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
+    // LOG_INFO("low: %f, high: %f, sync: %f", energy_at_low, energy_at_high, energy_at_sync);
+    // if (energy_at_sync > 200.0f) {
+    //     LOG_INFO("sync was: %04f", energy_at_sync);
+    //     LOG_INFO("sync greater than threshold");
+    // }
+
+    if (is_idle(energy_at_low, energy_at_high, energy_at_sync)) {
+        return NONE;
+    }
+
+    if (energy_at_sync > (energy_at_low + energy_at_high)) {
+        // LOG_INFO("got sync pulse in sampling");
+        return SYNC;
+    }
+
+    float sum = energy_at_low + energy_at_high + 1e-6f;
+    float diff = energy_at_high - energy_at_low;
+    float conf = diff / sum;
+
+    return get_sample(conf);
+}
+
+void consensus_push(sample_t observation) {
+    if (observation == NONE) {
+        return;
+    }
+
+    consensus.buffer[consensus.write_idx] = observation;
+    consensus.write_idx = (consensus.write_idx + 1) % CONSENSUS_DEPTH;
+
+    if (consensus.num_samples < CONSENSUS_DEPTH) {
+        consensus.num_samples++;
+    }
+}
+
+void consensus_push_fast(sample_t observation) {
+    if (observation == NONE) {
+        return;
+    }
+
+    switch (observation) {
+    case HIGH:
+        consensus.votes.high++;
+        break;
+    case LOW:
+        consensus.votes.low++;
+        break;
+    case SYNC:
+        consensus.votes.sync++;
+        break;
+    }
+
+    consensus.num_samples++;
+}
+
+bool consensus_stable_fast(sample_t *out_sample) {
+    if (consensus.num_samples < CONSENSUS_DEPTH) {
+        return false;
+    }
+
+    sample_t candidate = NONE;
+
+    if (consensus.votes.sync >= MIN_CONSENSUS_VOTES) {
+        candidate = SYNC;
+    }
+    else if (consensus.votes.high >= MIN_CONSENSUS_VOTES) {
+        candidate = HIGH;
+    }
+    else if (consensus.votes.low >= MIN_CONSENSUS_VOTES) {
+        candidate = LOW;
+    }
+
+    if (candidate == NONE) {
+        return false;
+    }
+
+    *out_sample = candidate;
+    return true;
+}
+
+bool consensus_stable(sample_t *out_sample) {
+    if (consensus.num_samples < CONSENSUS_DEPTH) {
+        return false;
+    }
+
+    uint32_t num_sync_votes = 0, num_high_votes = 0, num_low_votes = 0;
+
+    for (uint32_t i = 0; i < CONSENSUS_DEPTH; i++) {
+        switch (consensus.buffer[i]) {
+        case HIGH:
+            num_high_votes++;
+            break;
+        case LOW:
+            num_low_votes++;
+            break;
+        case SYNC:
+            num_sync_votes++;
+            break;
+        }
+    }
+
+    sample_t candidate = NONE;
+
+    if (num_sync_votes >= MIN_CONSENSUS_VOTES) {
+        candidate = SYNC;
+    }
+    else if (num_high_votes >= MIN_CONSENSUS_VOTES) {
+        candidate = HIGH;
+    }
+    else if (num_low_votes >= MIN_CONSENSUS_VOTES) {
+        candidate = LOW;
+    }
+
+    if (candidate == NONE) {
+        return false;
+    }
+
+    // prevent repeated emissions
+    // if (candidate == consensus.last_sample_seen) {
+    //     return false;
+    // }
+
+    // consensus.last_sample_seen = candidate;
+    *out_sample = candidate;
+    return true;
+}
+
+sample_t new_rx_sample() {
+    consensus_push(rx_observe());
+    sample_t resolved_sample;
+    if (consensus_stable(&resolved_sample)) {
+        return resolved_sample;
+    }
+    return NONE;
+}
+
+void new_attempt_packet_read() {
+    if (!rx.flags.receiving_packet) {
+        // sleep_ms(0.5 * SYMBOL_PERIOD_MS);
+        add_repeating_timer_ms(-SYMBOL_PERIOD_MS, rx_cb, NULL, &rx_timer);
+        rx.flags.receiving_packet = true;
+    }
+    if (rx.flags.publish_last_rx) {
+        // ros_publish_rx(rx.last_rx_value);
+        rx.flags.publish_last_rx = false;
+    }
+}
+
+bool new_rx_cb(__unused repeating_timer_t *rt) {
+    // LOG_INFO("IN RXCB");
+    // if (rx.buffer_full) {
+    //     LOG_INFO("packet read complete with: %hhu", rx.mtu_data);
+    //     rx.last_rx_value = rx.mtu_data;
+    //     rx.publish_last_rx = true;
+    //     // check crc
+    //     rx.buffer_full = false;
+    //     // handle packet
+    //     // LOG_INFO("buffer full");
+    //     rx_ctrl.receiving_packet = false;
+    //     rx.mtu_data = 0;
+    //     return false;
+    // }
+    // else {
+    //     sample_t sample = rx_sample();
+    //     if (sample != NONE && sample != SYNC) {
+    //         rx.mtu_data |= (sample & 0x01) << rx.write_pos;
+    //         rx.buffer[rx.write_pos] = (uint8_t) sample;
+    //         rx.write_pos++;
+    //         if (rx.write_pos == 7) {  // fix this after
+    //             rx.buffer_full = true;
+    //         }
+    //         // LOG_INFO("building mtu data: [0x%X]\n", rx.mtu_data);
+    //     }
+
+    //     // handle bit: encode into mtu_data
+    //     return true;
+    // }
+    if (rx.flags.buffer_full) {
+        LOG_INFO("packet read complete with: %hhu", rx.mtu_data);
+        rx.last_rx_value = rx.mtu_data;
+        rx.flags.publish_last_rx = true;
+        // check crc!
+        rx.flags.buffer_full = false;
+        rx.flags.receiving_packet = false;
+        rx.mtu_data = 0;
+        rx.write_pos = 0;
+        return false;
+    }
+    else {
+        sample_t sample = new_rx_sample();
+
+        if (sample == NONE || sample == SYNC) {
+            return true;
+        }
+        rx.mtu_data |= (sample & 0x01) << rx.write_pos;
+        rx.buffer[rx.write_pos] = (uint8_t) sample;
+        rx.write_pos++;
+        if (rx.write_pos == 8) {
+            rx.flags.buffer_full = true;
+        }
+        // LOG_INFO("building mtu data: [0x%X]\n", rx.mtu_data);
+
+        return true;
+    }
+}
+
+// void resolve_symbol() {
+//     sample_t sample;
+//     if (consensus_stable(&sample)) {
+//         if (sample == SYNC) {
+//             rx.flags.receiving_packet = true;
+//             rx.write_pos = 0;
+//             rx.mtu_data = 0;
+//         }
+//         else if (rx.flags.receiving_packet) {
+//             // push bit (write into mtu data)
+//             rx.mtu_data |= (sample & 0x01) << rx.write_pos;
+//             rx.buffer[rx.write_pos] = (uint8_t) sample;
+//             rx.write_pos++;
+//             if (rx.write_pos == 8) {
+//                 rx.flags.buffer_full = true;
+//                 rx.flags.receiving_packet = false;
+//             }
+//         }
+//     }
+// }
+
+// ===================== take 2 ========================
+
+// in tick, take a sample every time and put it in the consensus buffer.
+// one consensus is made upon it having enough samples. that consensus will check sync
+// if sync is present, set a timer (symbol period) to grab another consensus.
+// at the end, publish last rx
+
+void consensus_reset() {
+    consensus.write_idx = 0;
+    consensus.num_samples = 0;
+}
+
+void consensus_reset_fast() {
+    consensus.num_samples = 0;
+    consensus.votes.high = consensus.votes.low = consensus.votes.sync = 0;
+}
+
+void rx_encode_sample(sample_t sample) {
+    rx.mtu_data |= (sample & 0x01) << rx.write_pos;
+    rx.buffer[rx.write_pos] = (uint8_t) sample;
+    rx.write_pos++;
+    if (rx.write_pos == 8) {
+        rx.flags.buffer_full = true;
+        rx.flags.receiving_packet = false;
+        rx.flags.done_reading = true;
+    }
+}
+
+void rx_reset() {
+    rx.last_rx_value = rx.mtu_data;
+    rx.mtu_data = 0;
+    rx.write_pos = 0;
+    rx.flags.publish_last_rx = true;
+}
+
+bool cb(__unused repeating_timer_t *rt) {
+    if (rx.flags.done_reading) {
+        consensus_reset_fast();
+        rx_reset();
+        return false;
+    }
+    else {
+        sample_t sample;
+        if (consensus_stable_fast(&sample)) {
+            if (sample != NONE && sample != SYNC) {
+                rx_encode_sample(sample);
+            }
+            else {
+                // consensus has failed
+            }
+        }
+        return true;
+    }
+}
+
+void listen_for_packet() {
+    if (!rx.flags.receiving_packet) {
+        add_repeating_timer_ms(-SYMBOL_PERIOD_MS, cb, NULL, &rx_timer);
+        rx.flags.receiving_packet = true;
+    }
+    if (rx.flags.publish_last_rx) {
+        rx.flags.publish_last_rx = false;
+        // publish
+    }
 }
