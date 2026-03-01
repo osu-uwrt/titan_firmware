@@ -104,6 +104,7 @@ bool tx_cb(__unused repeating_timer_t *rt) {
         tx.flags.has_synced = false;
         tx.flags.is_writing = false;
         tx.flags.done_writing = false;
+        return false;
     }
     else {
         if (!tx.flags.has_synced) {

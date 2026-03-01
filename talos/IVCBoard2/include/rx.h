@@ -12,7 +12,7 @@
 // scale floats to chop off decimal places with an integer cast ()
 #define FLOAT_SCALE_MULTIPLIER 1000.0f
 
-#define CONSENSUS_DEPTH 50
+#define CONSENSUS_DEPTH 5
 #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
 
 extern comm_state_t state;
@@ -50,9 +50,11 @@ void consensus_push(sample_t observation);
 void consensus_push_fast(sample_t observation);
 bool consensus_stable(sample_t *out_sample);
 bool consensus_stable_fast(sample_t *out_sample);
+void consensus_reset_fast();
 sample_t new_rx_sample();
 void new_attempt_packet_read();
 
 void listen_for_packet();
+void listen_for_packet_no_timer();
 
 #endif  // RX_H

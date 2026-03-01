@@ -50,8 +50,8 @@ void fft_setup(irq_handler_t dma_irq_cb) {
 }
 
 void fft_sample(uint8_t *capture_buf) {
-    // adc_run(false);
-    // adc_fifo_drain();
+    adc_run(false);
+    adc_fifo_drain();
 
     // LOG_INFO("Starting DMA");
 

@@ -77,6 +77,7 @@ typedef struct {
     bool publish_last_rx;
     bool buffer_full;
     bool done_reading;
+    bool on_new_symbol;
 } rx_flags_t;
 
 typedef struct {
@@ -113,5 +114,6 @@ typedef enum {
 void ivc_init();
 uint8_t calculate_crc(uint8_t packet);
 void tick();
+void new_tick();
 
 #endif  // IVC_H

@@ -9,6 +9,7 @@
 #include "titan/queue.h"
 
 #include <math.h>
+#include <string.h>
 // make ring buffer of samples and have associated functions for pulling from it, getting a packet
 // signal_recv_t recv_data = { 0 };
 frequency_bin_t fft_bins[] = { { "freq_low", FREQ_LOW_HZ - FFT_BIN_RANGE, FREQ_LOW_HZ + FFT_BIN_RANGE, 0 },
@@ -197,6 +198,9 @@ void swap_buffer_handler() {
     rx.recv.fft_target = rx.recv.buffer_select;
     rx.recv.buffer_select = !rx.recv.buffer_select;
     fft_sample(rx.recv.swap_buffers[rx.recv.buffer_select]);
+    // sample_t sample = rx_observe();
+    // LOG_INFO("pushing %hhu", sample);
+    // consensus_push(sample);
 }
 
 // ============== with consensus =================
@@ -230,9 +234,11 @@ sample_t rx_observe() {
 }
 
 void consensus_push(sample_t observation) {
-    if (observation == NONE) {
-        return;
-    }
+    // if (observation == NONE) {
+    //     return;
+    // }
+
+    // LOG_INFO("pushing %hhu", observation);
 
     consensus.buffer[consensus.write_idx] = observation;
     consensus.write_idx = (consensus.write_idx + 1) % CONSENSUS_DEPTH;
@@ -240,6 +246,7 @@ void consensus_push(sample_t observation) {
     if (consensus.num_samples < CONSENSUS_DEPTH) {
         consensus.num_samples++;
     }
+    // consensus.num_samples++;
 }
 
 void consensus_push_fast(sample_t observation) {
@@ -263,6 +270,9 @@ void consensus_push_fast(sample_t observation) {
 }
 
 bool consensus_stable_fast(sample_t *out_sample) {
+    // LOG_INFO("CONSENSUS: \n\t sample count: %hhu \n\t votes: \n\t\thigh: %hhu, low: %hhu, sync: %hhu",
+    //          consensus.num_samples, consensus.votes.high, consensus.votes.low, consensus.votes.sync);
+
     if (consensus.num_samples < CONSENSUS_DEPTH) {
         return false;
     }
@@ -306,30 +316,44 @@ bool consensus_stable(sample_t *out_sample) {
             num_sync_votes++;
             break;
         }
+        // consensus.buffer[i] = NONE;
     }
 
     sample_t candidate = NONE;
 
-    if (num_sync_votes >= MIN_CONSENSUS_VOTES) {
+    // if (num_sync_votes >= MIN_CONSENSUS_VOTES) {
+    //     candidate = SYNC;
+    // }
+    // else if (num_high_votes >= MIN_CONSENSUS_VOTES) {
+    //     candidate = HIGH;
+    // }
+    // else if (num_low_votes >= MIN_CONSENSUS_VOTES) {
+    //     candidate = LOW;
+    // }
+
+    // if (candidate == NONE) {
+    //     return false;
+    // }
+
+    if (num_sync_votes > num_high_votes && num_sync_votes > num_low_votes) {
         candidate = SYNC;
     }
-    else if (num_high_votes >= MIN_CONSENSUS_VOTES) {
+    else if (num_high_votes > num_sync_votes && num_high_votes > num_low_votes) {
         candidate = HIGH;
     }
-    else if (num_low_votes >= MIN_CONSENSUS_VOTES) {
+    else if (num_low_votes > num_sync_votes && num_low_votes > num_high_votes) {
         candidate = LOW;
-    }
-
-    if (candidate == NONE) {
-        return false;
     }
 
     // prevent repeated emissions
     // if (candidate == consensus.last_sample_seen) {
     //     return false;
     // }
+    if (candidate != consensus.last_sample_seen) {
+        rx.flags.on_new_symbol = true;
+    }
 
-    // consensus.last_sample_seen = candidate;
+    consensus.last_sample_seen = candidate;
     *out_sample = candidate;
     return true;
 }
@@ -444,6 +468,7 @@ bool new_rx_cb(__unused repeating_timer_t *rt) {
 void consensus_reset() {
     consensus.write_idx = 0;
     consensus.num_samples = 0;
+    // memset(consensus.buffer, NONE, sizeof(consensus.buffer));
 }
 
 void consensus_reset_fast() {
@@ -453,11 +478,11 @@ void consensus_reset_fast() {
 
 void rx_encode_sample(sample_t sample) {
     rx.mtu_data |= (sample & 0x01) << rx.write_pos;
-    rx.buffer[rx.write_pos] = (uint8_t) sample;
+    LOG_INFO("encoding into mtu data: 0x%X", rx.mtu_data);
+    // rx.buffer[rx.write_pos] = (uint8_t) sample;
     rx.write_pos++;
     if (rx.write_pos == 8) {
         rx.flags.buffer_full = true;
-        rx.flags.receiving_packet = false;
         rx.flags.done_reading = true;
     }
 }
@@ -467,23 +492,28 @@ void rx_reset() {
     rx.mtu_data = 0;
     rx.write_pos = 0;
     rx.flags.publish_last_rx = true;
+    rx.flags.done_reading = false;
 }
 
 bool cb(__unused repeating_timer_t *rt) {
     if (rx.flags.done_reading) {
-        consensus_reset_fast();
+        consensus_reset();
         rx_reset();
+        rx.flags.receiving_packet = false;
+        LOG_INFO("PACKET READ COMPLETE WITH: %hhu", rx.last_rx_value);
         return false;
     }
     else {
         sample_t sample;
-        if (consensus_stable_fast(&sample)) {
-            if (sample != NONE && sample != SYNC) {
-                rx_encode_sample(sample);
+        if (consensus_stable(&sample)) {
+            // LOG_INFO("consensus stable in rx callback");
+            LOG_INFO("sample in rx cb: %hhu", sample);
+            if (sample == NONE || sample == SYNC) {
+                consensus_reset();
+                return false;
             }
-            else {
-                // consensus has failed
-            }
+            rx_encode_sample(sample);
+            consensus_reset();
         }
         return true;
     }
@@ -491,11 +521,39 @@ bool cb(__unused repeating_timer_t *rt) {
 
 void listen_for_packet() {
     if (!rx.flags.receiving_packet) {
+        // consensus_wait();
+        sleep_ms(0.9 * SYMBOL_PERIOD_MS);
         add_repeating_timer_ms(-SYMBOL_PERIOD_MS, cb, NULL, &rx_timer);
         rx.flags.receiving_packet = true;
     }
     if (rx.flags.publish_last_rx) {
         rx.flags.publish_last_rx = false;
-        // publish
+        // ros_publish_rx(rx.last_rx_value);
+    }
+}
+
+void listen_for_packet_no_timer() {
+    if (!rx.flags.receiving_packet) {
+        sample_t sample;
+        if (consensus_stable(&sample)) {
+            if (rx.flags.on_new_symbol) {
+                LOG_INFO("on new symbol in listen: %hhu", sample);
+                if (sample == NONE || sample == SYNC) {
+                    consensus_reset();
+                }
+                rx_encode_sample(sample);
+                consensus_reset();
+                rx.flags.on_new_symbol = false;
+            }
+            else {
+                rx_encode_sample(consensus.last_sample_seen);
+                consensus_reset();
+            }
+            // LOG_INFO("consensus stable in rx callback");
+        }
+    }
+
+    if (rx.flags.publish_last_rx) {
+        rx.flags.publish_last_rx = false;
     }
 }

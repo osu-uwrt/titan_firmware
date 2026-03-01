@@ -114,14 +114,17 @@ void tick() {
 }
 
 void new_tick() {
-    consensus_push_fast(rx_observe());
+    consensus_push(rx_observe());
 
     sample_t sample;
     if (consensus_stable(&sample)) {
         if (sample == SYNC) {
+            consensus_reset();
+            //   LOG_INFO("RECEIVED SYNC PULSE");
             listen_for_packet();
         }
     }
+    attempt_writing();
 }
 
 // send wake tone

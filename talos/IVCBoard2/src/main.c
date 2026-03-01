@@ -212,7 +212,8 @@ int main() {
         tick_background_tasks();
 
         // ivc
-        tick();
+        // tick();
+        new_tick();
 
         // Handle ROS state logic
         if (is_ros_connected()) {
