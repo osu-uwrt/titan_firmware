@@ -13,4 +13,8 @@ extern rcl_ret_t ros_actuators_update_status(void);
 
 extern rcl_ret_t ros_actuators_update_cmd_feedback(void);
 
+extern void torpedo_init_servo(void);
+
+extern void torpedo_ping_servo(void);
+
 #endif  // ROS_TORP_H

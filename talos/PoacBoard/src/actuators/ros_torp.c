@@ -82,8 +82,15 @@ static bool new_cmd = false;
 #define MARKER_2_DEG 50
 #define MARKER_1_DEG 0
 
-uint8_t num_torp = TORP_NUMBER;
-uint8_t num_marker = DROPPER_NUMBER;
+// Servo objects
+#define TORP_SERVO_ID 5
+#define TORP_HOME_DEG 120
+
+static servo_t torp_servo;
+
+static uint8_t num_torp = TORP_NUMBER;
+static uint8_t num_marker = DROPPER_NUMBER;
+
 //
 // Actuator functions
 //
@@ -95,7 +102,7 @@ bool torpedo_fire(const char **errMsgOut) {
     }
 
     // Make sure that actuators are armed
-    if (!enabled) {
+    if (!torp_servo.enabled) {
         *errMsgOut = "Not Armed";
         return false;
     }
@@ -107,7 +114,7 @@ bool torpedo_fire(const char **errMsgOut) {
     }
 
     // Make sure we're not already firing a torpedo
-    if (move_active) {
+    if (torp_servo.move_active) {
         *errMsgOut = "Already Firing";
         return false;
     }
@@ -162,9 +169,9 @@ bool torpedo_fire(const char **errMsgOut) {
     LOG_INFO("Firing Torpedo %d", num_torp);
 
     if (num_torp == 2)
-        servo_set_deg_then_home(TORP_2_DEG);
+        servo_set_deg_then_home(&torp_servo, TORP_2_DEG);
     else if (num_torp == 1)
-        servo_set_deg_then_home(TORP_1_DEG);
+        servo_set_deg_then_home(&torp_servo, TORP_1_DEG);
 
     num_torp--;
     return true;
@@ -177,13 +184,13 @@ uint8_t torpedo_get_state(void) {
     // if (!torpedo_timings_valid) {
     //     return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
     // }
-    if (!connected || !homed) {
+    if (!torp_servo.connected || !torp_servo.homed) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_ERROR;
     }
-    if (!enabled) {
+    if (!torp_servo.enabled) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_DISARMED;
     }
-    else if (move_active) {
+    else if (torp_servo.move_active) {
         return riptide_msgs2__msg__ActuatorStatus__TORPEDO_FIRING;
     }
     else if (num_torp > 0) {
@@ -199,7 +206,7 @@ uint8_t torpedo_get_state(void) {
 }
 
 bool torpedo_notify_reload(const char **errMsgOut) {
-    if (move_active) {
+    if (torp_servo.move_active) {
         *errMsgOut = "Busy";
         return false;
     }
@@ -212,10 +219,10 @@ bool torpedo_notify_reload(const char **errMsgOut) {
 
 bool dropper_drop_marker(const char **errMsgOut) {
     if (num_marker == 2) {
-        servo_set_deg_then_home(MARKER_2_DEG);
+        servo_set_deg_then_home(&torp_servo, MARKER_2_DEG);
     }
     else if (num_marker == 1) {
-        servo_set_deg_then_home(MARKER_1_DEG);
+        servo_set_deg_then_home(&torp_servo, MARKER_1_DEG);
     }
     else {
         *errMsgOut = "All Dropped";
@@ -227,13 +234,13 @@ bool dropper_drop_marker(const char **errMsgOut) {
 }
 
 uint8_t dropper_get_state(void) {
-    if (!connected || !homed) {
+    if (!torp_servo.connected || !torp_servo.homed) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_ERROR;
     }
-    else if (!enabled) {
+    else if (!torp_servo.enabled) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DISARMED;
     }
-    else if (move_active) {
+    else if (torp_servo.move_active) {
         return riptide_msgs2__msg__ActuatorStatus__DROPPER_DROPPING;
     }
     else if (num_marker > 0) {
@@ -245,7 +252,7 @@ uint8_t dropper_get_state(void) {
 }
 
 bool dropper_notify_reload(const char **errMsgOut) {
-    if (move_active) {
+    if (torp_servo.move_active) {
         *errMsgOut = "Busy";
         return false;
     }
@@ -261,7 +268,7 @@ bool actuators_arm(const char **errMsgOut) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
 
     // Don't allow arming if already armed
-    if (enabled) {
+    if (torp_servo.enabled) {
         restore_interrupts(prev_interrupts);
         *errMsgOut = "Already Armed";
         return false;
@@ -277,7 +284,7 @@ bool actuators_arm(const char **errMsgOut) {
     LOG_INFO("Arming Actuators");
 
     // We're good to arm
-    servo_set_armed(true);
+    servo_set_armed(&torp_servo, true);
     restore_interrupts(prev_interrupts);
 
     // Perform individual arm actions for actuators
@@ -293,7 +300,7 @@ bool actuators_arm(const char **errMsgOut) {
 }
 
 bool torpedo_marker_set_home(const char **errMsgOut) {
-    if (!connected) {
+    if (!torp_servo.connected) {
         *errMsgOut = "Not Connected";
         return false;
     }
@@ -303,7 +310,7 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
     //     return false;
     // }
 
-    if (enabled) {
+    if (torp_servo.enabled) {
         *errMsgOut = "Must be disarmed";
         return false;
     }
@@ -329,7 +336,7 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
     // dynamixel_set_homing_offset(torpedo_marker_state->id, new_homing_offset);
     // dynamixel_request_eeprom_rescan(torpedo_marker_state->id);
 
-    servo_set_home();
+    servo_set_home(&torp_servo);
 
     LOG_INFO("Seting home to current position");
 
@@ -337,7 +344,7 @@ bool torpedo_marker_set_home(const char **errMsgOut) {
 }
 
 bool torpedo_marker_move_home(const char **errMsgOut) {
-    if (!connected) {
+    if (!torp_servo.connected) {
         *errMsgOut = "Not Connected";
         return false;
     }
@@ -347,21 +354,25 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
     //     return false;
     // }
 
-    if (!enabled) {
+    if (!torp_servo.enabled) {
         *errMsgOut = "Not Armed";
         return false;
     }
 
-    if (move_active) {
+    if (torp_servo.move_active) {
         *errMsgOut = "Busy";
         return false;
     }
 
     // dynamixel_set_target_position(torpedo_marker_state->id, POSITION_HOME);
-    servo_go_home();
+    servo_go_home(&torp_servo);
     LOG_INFO("Manually moving torpedo home");
 
     return true;
+}
+
+void torpedo_ping_servo() {
+    servo_ping(&torp_servo);
 }
 
 // ========================================
@@ -369,11 +380,11 @@ bool torpedo_marker_move_home(const char **errMsgOut) {
 // ========================================
 
 rcl_ret_t ros_actuators_update_status(void) {
-    std_msgs__msg__Bool busy_msg = { .data = move_active };
+    std_msgs__msg__Bool busy_msg = { .data = torp_servo.move_active };
     RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
 
     riptide_msgs2__msg__ActuatorStatus status_msg;
-    status_msg.actuators_armed = enabled;
+    status_msg.actuators_armed = torp_servo.enabled;
     status_msg.claw_state = 0;
     status_msg.torpedo_state = torpedo_get_state();
     status_msg.torpedo_available_count = num_torp;
@@ -458,7 +469,7 @@ static void arm_subscription_callback(const void *msgin) {
     }
     // False, disarm
     else {
-        servo_set_armed(false);
+        servo_set_armed(&torp_servo, false);
         cmd_status.data = true;
     }
 
@@ -588,4 +599,8 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
     RCSOFTCHECK(rcl_subscription_fini(&set_home_subscription, node));
 
     return RCL_RET_OK;
+}
+
+void torpedo_init_servo() {
+    make_servo(&torp_servo, TORP_SERVO_ID, TORP_HOME_DEG);
 }

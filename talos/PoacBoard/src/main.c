@@ -1,5 +1,6 @@
 #include "actuators/actuator.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/ros_claw.h"
 #include "actuators/ros_torp.h"
 #include "ros.h"
 #include "safety_interface.h"
@@ -36,7 +37,7 @@
 #define AUXSWITCH_INTERVAL 1000
 #define ACTUATOR_STATUS_TIME_MS 500
 #define SERVO_TRANSMIT_PERIOD_MS 10
-#define SERVO_PING_PERIOD_MS 1000
+#define SERVO_PING_PERIOD_MS 5000
 #define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
 
 // Initialize all to nil time
@@ -194,7 +195,8 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        servo_ping();
+        torpedo_ping_servo();
+        // claw_ping_servo();
         // servo_read_deg();
         // servo_set_armed(true);
     }
@@ -245,7 +247,9 @@ int main() {
     gpio_disable_pulls(STBD_STAT_PIN);
     gpio_disable_pulls(PORT_STAT_PIN);
 
-    init_servo();
+    servo_init_internal();
+    torpedo_init_servo();
+    // claw_init_servo();
     add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
 
     // Initialize I2C

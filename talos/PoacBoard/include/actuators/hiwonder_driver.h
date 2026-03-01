@@ -79,6 +79,9 @@
 #define SERVO_LED_CTRL_READ_RESPONSE_LEN 4
 #define SERVO_LED_ERROR_READ_RESPONSE_LEN 4
 
+#define SERVO_ID_MIN 1
+#define SERVO_ID_MAX 252
+
 #define UART_PIN 20
 #define UART_BAUD 115200u
 #define UART_TIMEOUT_MS 50
@@ -103,8 +106,39 @@ struct ServoPacket;
 
 typedef void (*servo_read_cb)(struct ServoPacket rx_packet, enum servo_read_err err);
 
+typedef struct servo {
+    uint8_t id;
+    uint32_t max_move_time_ms;
+
+    uint16_t home_deg;
+    uint16_t curr_deg;
+
+    // TODO: this is cursed
+    bool is_sethome_req;
+    bool return_home_after_move;
+    bool desired_armed_state;
+
+    // Internal state tracking, safe to modify in interrupts
+    volatile bool connected;
+    volatile bool move_active;
+    volatile bool enabled;
+    volatile bool homed;
+    volatile bool hardware_err;
+    volatile uint8_t num_errors;
+
+    // Only valid when move_active is true
+    int16_t target_deg;
+    uint16_t target_pos;
+    absolute_time_t move_timeout;
+    uint16_t curr_move_time_ms;
+
+    // Alarms and timers
+    alarm_id_t move_complete_alarm;
+    alarm_id_t start_go_home_alarm;
+} servo_t;
+
 typedef struct ServoPacket {
-    uint8_t target_id;
+    servo_t *servo;
     uint8_t command_length;
     uint8_t command;
     uint8_t param_buf[PARAMETER_MTU];
@@ -112,7 +146,7 @@ typedef struct ServoPacket {
     servo_read_cb on_read;
 } ServoPacket_t;
 
-extern ServoPacket_t make_servo_packet(uint8_t target_id, uint8_t command, uint8_t command_length,
+extern ServoPacket_t make_servo_packet(servo_t *servo, uint8_t command, uint8_t command_length,
                                        uint8_t param_buf[PARAMETER_MTU]);
 
 extern bool enqueue_packet(ServoPacket_t packet);

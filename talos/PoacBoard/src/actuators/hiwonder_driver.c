@@ -37,18 +37,16 @@ uint8_t raw_rx_packet[MAX_PACKET_SIZE];
 
 uint8_t raw_packet[MAX_PACKET_SIZE];
 
-ServoPacket_t make_servo_packet(uint8_t target_id, uint8_t command, uint8_t command_length,
+ServoPacket_t make_servo_packet(servo_t *servo, uint8_t command, uint8_t command_length,
                                 uint8_t param_buf[PARAMETER_MTU]) {
-    ServoPacket_t tmp = {
-        .target_id = target_id, .command_length = command_length, .command = command, .on_read = NULL
-    };
+    ServoPacket_t tmp = { .servo = servo, .command_length = command_length, .command = command, .on_read = NULL };
     memcpy(tmp.param_buf, param_buf, PARAMETER_MTU);
 
     return tmp;
 }
 
 static uint8_t calculate_checksum(ServoPacket_t *packet) {
-    uint data_sum = packet->target_id + packet->command_length + packet->command;
+    uint data_sum = packet->servo->id + packet->command_length + packet->command;
     for (uint8_t i = 0; i < packet->command_length - 3; i++) {
         data_sum += packet->param_buf[i];
     }
@@ -66,7 +64,10 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
         return;
     }
 
-    ServoPacket_t rx_packet = { .target_id = raw_packet[2], .command_length = raw_packet[3], .command = raw_packet[4] };
+    uint8_t id = raw_packet[2];
+    ServoPacket_t rx_packet = { .servo = most_recent_sent.servo,
+                                .command_length = raw_packet[3],
+                                .command = raw_packet[4] };
     rx_packet.checksum = raw_packet[rx_packet.command_length + HEADER_SIZE + CHECKSUM_SIZE - 1];
 
     for (uint8_t i = 0; i < rx_packet.command_length - 3; i++) {
@@ -90,9 +91,8 @@ static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *r
                   calculate_checksum(&rx_packet));
         err = SERVO_BAD_CHECKSUM;
     }
-    else if (rx_packet.target_id != most_recent_sent.target_id) {
-        LOG_WARN("Response packet source (%x) didn't match target (%x)\n", rx_packet.target_id,
-                 most_recent_sent.target_id);
+    else if (id != most_recent_sent.servo->id) {
+        LOG_WARN("Response packet source (%x) didn't match target (%x)\n", id, most_recent_sent.servo->id);
         // This can happen in some commands, so don't return early
         err = SERVO_INCORRECT_RESPONDER;
     }
@@ -118,7 +118,7 @@ void send_packet(ServoPacket_t packet) {
     uint packet_size = packet.command_length + HEADER_SIZE + CHECKSUM_SIZE;
 
     raw_packet[0] = raw_packet[1] = HEADER_CODE;
-    raw_packet[2] = packet.target_id;
+    raw_packet[2] = packet.servo->id;
     raw_packet[3] = packet.command_length;
     raw_packet[4] = packet.command;
 
