@@ -1,5 +1,6 @@
 #include "ros.h"
 
+#include "actuators/ros_claw.h"
 #include "actuators/ros_torp.h"
 
 #include "driver/mcp3426.h"
@@ -327,7 +328,7 @@ rcl_ret_t ros_init() {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 2 + ros_actuators_num_executor_handles;
+    const int executor_num_handles = 2 + ros_actuators_num_executor_handles + ros_claw_num_executor_handles;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
@@ -335,7 +336,8 @@ rcl_ret_t ros_init() {
                                               &elec_command_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
-    RCRETCHECK(ros_actuators_init(&executor, &node));
+    // RCRETCHECK(ros_actuators_init(&executor, &node));
+    RCRETCHECK(ros_claw_init(&executor, &node));
 
     // Populate messages
     software_kill_msg.sender_id.data = software_kill_frame_str;
@@ -359,7 +361,8 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-    RCSOFTCHECK(ros_actuators_fini(&node));
+    // RCSOFTCHECK(ros_actuators_fini(&node));
+    RCSOFTCHECK(ros_claw_fini(&node));
 
     RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
