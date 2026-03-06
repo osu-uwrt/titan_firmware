@@ -22,11 +22,44 @@
 
 #define AMPLITUDE_IDLE_THRESHOLD 300.0f
 
+#define CONSENSUS_DEPTH 5
+#define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
+// #define MIN_STABLE_SAMPLES ((CONSENSUS_DEPTH / 2) + 1)
+#define MIN_STABLE_SAMPLES 3
+#define MAX_SAMPLE_GAP 2
+
 #define LOW ((uint8_t) 0)
 #define HIGH ((uint8_t) 1)
 #define SYNC ((uint8_t) 2)
 #define NONE ((uint8_t) 3)
 typedef uint8_t sample_t;
+
+typedef struct {
+    uint8_t high;
+    uint8_t low;
+    uint8_t sync;
+} votes_t;
+
+typedef struct {
+    bool on_new_symbol;
+    bool sample_ready;
+    bool initialized;
+} consensus_flags_t;
+
+typedef struct {
+    votes_t votes;
+    sample_t buffer[CONSENSUS_DEPTH];
+    sample_t last_sample_seen;
+    uint8_t num_samples;
+    uint8_t write_idx;
+
+    uint8_t stable_count;
+    uint8_t gap_count;
+    sample_t pending_sample;
+    sample_t previous_sample;
+    sample_t current_sample;
+    consensus_flags_t flags;
+} rx_consensus_t;
 
 // typedef enum {
 //     LOW,
@@ -56,6 +89,7 @@ typedef struct {
     bool has_synced;
     bool done_writing;
     bool is_writing;
+    bool can_write;
 } tx_flags_t;
 
 typedef struct {
@@ -78,6 +112,7 @@ typedef struct {
     bool buffer_full;
     bool done_reading;
     bool on_new_symbol;
+    bool can_read;
 } rx_flags_t;
 
 typedef struct {
@@ -88,6 +123,13 @@ typedef struct {
     uint8_t last_rx_value;
     rx_flags_t flags;
 } rx_control_t;
+
+typedef struct {
+    tx_control_t tx;
+    rx_control_t rx;
+    rx_consensus_t consensus;
+
+} ivc_context_t;
 
 typedef struct {
     uint8_t data;
@@ -115,5 +157,6 @@ void ivc_init();
 uint8_t calculate_crc(uint8_t packet);
 void tick();
 void new_tick();
+void test_tick();
 
 #endif  // IVC_H

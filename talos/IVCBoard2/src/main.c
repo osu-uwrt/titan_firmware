@@ -213,7 +213,8 @@ int main() {
 
         // ivc
         // tick();
-        new_tick();
+        // new_tick();
+        ivc_tick();
 
         // Handle ROS state logic
         if (is_ros_connected()) {

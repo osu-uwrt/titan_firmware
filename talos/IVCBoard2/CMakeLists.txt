@@ -40,7 +40,7 @@ pico_set_program_name(IVCBoard2 "IVCBoard2")  # TODO: Set the project name
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(IVCBoard2)
-#titan_enable_bootloader(IVCBoard2 can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_enable_bootloader(IVCBoard2 can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
 pico_add_extra_outputs(IVCBoard2)

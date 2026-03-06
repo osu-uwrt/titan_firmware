@@ -9,8 +9,8 @@
 
 #include <math.h>
 #include <stdio.h>
-
-#define CLOCK_DIV 0
+#define CLOCK_DIV 1000
+// #define CLOCK_DIV 0
 #define FSAMP 500000
 #define CAPTURE_CHANNEL 1
 #define NSAMP 500

@@ -86,10 +86,10 @@ rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx) {
     return RCL_RET_OK;
 }
 
-void tx_debug_subscription_callback(void *msg_in) {
-    std_msgs__msg__UInt8 *bit = (std_msgs__msg__UInt8 *) msg_in;
-    tx_debug(bit->data);
-}
+// void tx_debug_subscription_callback(void *msg_in) {
+//     std_msgs__msg__UInt8 *bit = (std_msgs__msg__UInt8 *) msg_in;
+//     tx_debug(bit->data);
+// }
 
 void tx_enqueue_data_callback(void *msg_in) {
     std_msgs__msg__UInt8 *tx_data = (std_msgs__msg__UInt8 *) msg_in;
@@ -191,8 +191,8 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
                                            FIRMWARE_STATUS_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(
-        &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
+    // RCRETCHECK(rclc_subscription_init_default(
+    //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(&tx_enqueue_data_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
@@ -207,8 +207,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
 
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_debug_subscriber, &tx_msg, &tx_debug_subscription_callback,
-                                              ON_NEW_DATA));
+    // RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_debug_subscriber, &tx_msg,
+    // &tx_debug_subscription_callback,
+    //                                           ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_enqueue_data_subscriber, &tx_msg,
                                               &tx_enqueue_data_callback, ON_NEW_DATA));
     // TODO: Modify this method with node specific objects
@@ -231,7 +232,7 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-    RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
+    // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&tx_enqueue_data_subscriber, &node));
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));

@@ -6,15 +6,23 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-extern comm_state_t state;
+//
+// void tx_init();
+// void tx_encode_bit(uint8_t bit);
+// void tx_encode_sync();
+// void tx_debug(uint8_t bit);
+// void tx_enqueue_data(uint8_t data);
+// bool tx_dequeue_data(uint8_t *data);
+// void tx_encode_data();
+// void attempt_writing();
+// void unlock_writing(tx_control_t *tx);
+// void lock_writing(tx_control_t *tx);
 
-void tx_init();
-void tx_encode_bit(uint8_t bit);
-void tx_encode_sync();
-void tx_debug(uint8_t bit);
-void tx_enqueue_data(uint8_t data);
+void attempt_writing(ivc_context_t *ctx);
 bool tx_dequeue_data(uint8_t *data);
-void tx_encode_data();
-void attempt_writing();
+void tx_enqueue_data(uint8_t data);
+void tx_encode_sync(ivc_context_t *ctx);
+void tx_encode_bit(ivc_context_t *ctx, uint8_t bit);
+void tx_init(ivc_context_t *ctx);
 
 #endif  // TX_H
