@@ -268,22 +268,6 @@ int main() {
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
 
-    /*
-    if (read_from_flash(&servo_config)) {
-        for (int i = 0; i < NUM_SERVOS; i++) {
-            printf("Flash read value: %d\n", servo_config.abs_position[i]);
-        }
-    }
-    else {
-        printf("ERROR: Read from flash");
-    }
-
-    servo_config.abs_position[0] = 300;
-    write_to_flash(&servo_config);
-    */
-
-    servo_continuous_move_deg(&claw_grip, 360, 200);
-
     while (true) {
         //  Do background tasks
         // servo_continuous_move_deg(&claw_grip, 360, 1000);

@@ -211,7 +211,7 @@ static void arm_subscription_callback(const void *msgin) {
     // False, disarm
     else {
         for (int i = 0; i < NUM_SERVOS; i++) {
-            servo_config.abs_position[i] = servos[i]->absolute_pos;
+            update_servo_persistent_position(servos[i], &servo_config);
             servo_set_armed(servos[i], false);
         }
 
@@ -313,11 +313,16 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
 void init_servos() {
     servo_init_internal();
 
+    make_servo(&claw_grip, 5, 0);  // 3
+    make_servo(&claw_rack, 4, 0);
+
+    servo_config.servo_info[0].id = 5;
+    servo_config.servo_info[1].id = 4;
+
     if (read_from_flash(&servo_config)) {
         for (int i = 0; i < NUM_SERVOS; i++) {
-            servos[i]->absolute_pos = servo_config.abs_position[i];
+            read_servo_persistent_position(servos[i], &servo_config);
+            printf("Absolute positions: %d\n", servos[i]->absolute_pos);
         }
     }
-    make_servo(&claw_grip, 5, 0, servo_config.abs_position[0]);  // 3
-    make_servo(&claw_rack, 4, 0, servo_config.abs_position[1]);
 }

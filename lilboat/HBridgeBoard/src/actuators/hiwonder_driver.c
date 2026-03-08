@@ -57,7 +57,7 @@ static uint8_t calculate_checksum(ServoPacket_t *packet) {
 static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *raw_packet, __unused size_t len) {
     // Any operatiosn on raw_packet are invalid if error is set, so check that first
     if (error != ASYNC_UART_RX_OK) {
-        LOG_ERROR("Async UART reported RX error: %u\n", error);
+        // LOG_ERROR("Async UART reported RX error: %u\n", error);
         ServoPacket_t dummy_packet;
         most_recent_sent.on_read(dummy_packet, SERVO_INTERNAL_UART_ERROR);
         packet_in_flight = false;

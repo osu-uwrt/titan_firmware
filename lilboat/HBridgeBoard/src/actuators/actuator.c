@@ -16,10 +16,13 @@
 #define SERVO_POSTMOVE_DELAY_MS 250
 #define MAX_NUM_ERRORS 10
 #define SERVO_MAX_TARGET_ERROR 5
+#define UNITS_PER_DEGREE 4096 / 360
 
 uint8_t discovered_id = 0;
 
-config_t servo_config;
+flash_config_t servo_config;
+
+// static void write_to_flash(flash_config_t *config);
 
 // Handlers
 // dxlact_idle_position_handler_t idle_handler;
@@ -89,7 +92,6 @@ void servo_set_armed(servo_t *servo, bool armed) {
     ServoPacket_t read_packet =
         make_servo_packet(servo, SERVO_LOAD_OR_UNLOAD_READ_CMD, SERVO_LOAD_OR_UNLOAD_READ_LEN, param_buf);
     read_packet.on_read = servo_is_armed_cb;
-
     enqueue_packet(read_packet);
 }
 
@@ -145,6 +147,15 @@ uint16_t servo_set_deg(servo_t *servo, float deg) {
 
     // float bound_deg = min(max(deg, SERVO_MIN_DEG), SERVO_MAX_DEG);  // TODO: actually do something like this
     uint16_t target = deg * (1000.0 / 240.0);
+    if (read_from_flash(&servo_config)) {
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            printf("Servo id: %d\nServo position: %d", servo_config.servo_info[i].id,
+                   servo_config.servo_info[i].absolute_pos);
+        }
+    }
+    else {
+        printf("ERROR: Read from flash");
+    }
     uint16_t move_time_ms = fabs(deg - servo->curr_deg) * (1.0 / SERVO_MAX_DPS) * 1000;
 
     split_uint16(target, &param_buf[0], &param_buf[1]);
@@ -233,16 +244,21 @@ void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
 void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
 void servo_stop_check(servo_t *servo) {
-    const int32_t STOPPING_TOLERANCE = 10;  // Adjust value
+    const int32_t STOPPING_TOLERANCE = 300;  // Adjust value
+
+    // printf("Position difference: %d\n", abs(servo->absolute_pos - servo->target_pos_continuous));
 
     if (abs(servo->absolute_pos - servo->target_pos_continuous) < STOPPING_TOLERANCE) {
         // Stop servo
         uint8_t param_buf[MAX_PACKET_SIZE];  // Is MAX_PACKET_SIZE necessary
         ServoPacket_t stop_servo_packet = make_servo_packet(servo, SERVO_MOVE_STOP_CMD, SERVO_MOVE_STOP_LEN, param_buf);
-        write_to_flash(&servo_config);
 
         if (enqueue_packet(stop_servo_packet)) {
             servo->is_moving = false;
+            if (!update_servo_persistent_position(servo, &servo_config)) {
+                LOG_WARN("Error updating servo position");
+            }
+            write_to_flash(&servo_config);
         }
     }
 }
@@ -269,6 +285,8 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     }
     servo_t *servo = rx_packet.servo;
 
+    // printf("Servo id: %d", servo_config.servo_info[0].id);
+
     /*
     if (!servo->is_moving) {
         return;
@@ -278,6 +296,8 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     if (err != SERVO_READ_OK) {
         LOG_WARN("Servo read error");
     }
+
+    printf("Servo absolute position: %d\n", servo->absolute_pos);
 
     const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
     const int32_t FULL_RANGE = 1400;
@@ -296,21 +316,6 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     else if (position_change >= ROLLOVER_THRESHOLD) {
         servo->absolute_pos -= FULL_RANGE;
     }
-
-    /*
-    uint16_t last_position = (uint16_t) servo->absolute_pos;
-    uint16_t curr_position = rx_packet.param_buf[3] << 8 | rx_packet.param_buf[2];
-
-    if (last_position >= HALF_RANGE && curr_position <= HALF_RANGE) {
-        servo->absolute_pos += FULL_RANGE;
-    }
-
-    else if (last_position <= HALF_RANGE && curr_position >= HALF_RANGE) {
-        servo->absolute_pos -= FULL_RANGE
-    }
-    */
-
-    printf("Servo position: %d", servo->absolute_pos);
 
     servo->absolute_pos += position_change;
     servo->last_position = curr_position;
@@ -498,33 +503,53 @@ void servo_init_internal() {
     // servo_go_home();
 }
 
-void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg, int32_t abs_position) {
+void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
     servo->is_sethome_req = false;
     servo->return_home_after_move = false;
     servo->desired_armed_state = false;
-    servo->absolute_pos = abs_position;
 
     servo->id = id;
     servo->home_deg = home_deg;
+
+    printf("Servo id: %d\n", servo->id);
 }
 
-void write_to_flash(config_t *config) {
+bool update_servo_persistent_position(servo_t *servo, flash_config_t *config) {
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        if (config->servo_info[i].id == servo->id) {
+            config->servo_info[i].absolute_pos = servo->absolute_pos;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void read_servo_persistent_position(servo_t *servo, flash_config_t *config) {
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        if (config->servo_info[i].id == servo->id) {
+            servo->absolute_pos = config->servo_info[i].absolute_pos;
+        }
+    }
+}
+
+void write_to_flash(flash_config_t *config) {
     uint32_t prev_interrupt = save_and_disable_interrupts();
 
-    flash_range_erase(FLASH_OFFSET, FLASH_SECTOR_BYTES);
+    flash_range_erase(FLASH_OFFSET, FLASH_SECTOR_BYTES);  // Clear last sector of flash
 
-    uint8_t buffer[FLASH_PAGE_SIZE] = { 0 };
-    config->magic_number = ROBOT_MAGIC_NUMBER;
-    memcpy(buffer, config, sizeof(config_t));
-    printf("Magic number: %d", buffer[0]);
+    uint8_t buffer[PAGE_SIZE_BYTES] = { 0 };
+    config->servo_position_marker = SERVO_POSITION_DATA_MARKER;
+    memcpy(buffer, config, sizeof(flash_config_t));
     flash_range_program(FLASH_OFFSET, buffer, PAGE_SIZE_BYTES);
 
     restore_interrupts(prev_interrupt);
+    printf("Magic number: %d", buffer[0]);
 }
 
-bool read_from_flash(config_t *data) {
-    const config_t *flash_contents = (config_t *) (XIP_BASE_ADDRESS + FLASH_OFFSET);
-    memcpy(data, flash_contents, sizeof(config_t));
+bool read_from_flash(flash_config_t *data) {
+    const flash_config_t *flash_contents = (flash_config_t *) (XIP_BASE_ADDRESS + FLASH_OFFSET);
+    memcpy(data, flash_contents, sizeof(flash_config_t));
 
-    return data->magic_number == ROBOT_MAGIC_NUMBER;
+    return data->servo_position_marker == SERVO_POSITION_DATA_MARKER;
 }
