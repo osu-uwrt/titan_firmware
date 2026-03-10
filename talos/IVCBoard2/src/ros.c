@@ -61,7 +61,7 @@ rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
 std_msgs__msg__Int8 tx_msg;
 
-void set_ros_names() {}
+void set_topic_names() {}
 
 // ========================================
 // Executor Callbacks
@@ -210,7 +210,7 @@ rcl_ret_t ros_init() {
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -243,12 +243,12 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
     // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&tx_enqueue_data_subscriber, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&rx_data_publisher, &node));
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
-    RCSOFTCHECK(rcl_publisher_fini(&rx_data_publisher, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
+    // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));
