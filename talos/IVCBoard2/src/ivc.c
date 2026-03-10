@@ -18,33 +18,8 @@
 // #define SYSCLK_HZ clock_get_hz(clk_sys)
 // #define PWM_WRAP_VALUE ((int) (((float) SYSCLK_HZ) / 5000 / 255.0f) + 1.0f)
 
-// each robot sends a ping to initiate comms
-// each robot has a different ping frequency
-// talos has precedence
-
-// calc crc before send and upon receive
-
-// before transmission, listen for comm init tone.
-// if comm init tone, dont transmit message and listen.
-// else transmit
-
-// maintain ring buffer of samples and do consensus sampling at 7 times the symbol frequency
-// uint8_t sample_buffers[2][NSAMP] = { 0 };
 bool is_talos = false;
-rx_consensus_t consensus2 = { 0 };
-rx_control_t rx2 = { 0 };
 ivc_context_t context = { 0 };
-
-// void ivc_init() {
-//     tx_init();
-//     rx_init();
-//
-//     gpio_init(BOARD_ID_PIN);
-//     gpio_set_dir(BOARD_ID_PIN, GPIO_IN);
-//
-//     is_talos = !gpio_get(BOARD_ID_PIN);
-//     LOG_INFO("This board %s talos", is_talos ? "is" : "is not");
-// }
 
 void swap_buffer_handler() {
     // recv_data.fft_target = recv_data.buffer_select;
@@ -84,26 +59,6 @@ uint8_t calculate_crc(uint8_t packet) {
     return crc & 0x0F;  // Only care about lower 4 bits; note: this will need changed if CRC_SIZE is different
 }
 
-// void tick() {
-//     switch (state) {
-//     case IDLE:
-//         break;  // nothing to do
-//     case SYNC_FOUND:
-//         // send ack
-//         break;
-//     case LINK_ESTABLISHED:
-//         // set stuff
-//         break;
-//     case PACKET_IN_FLIGHT:
-//         // read samples
-//         break;
-//     case TRANSMITTING:
-//         break;
-//     case RECEIVING:
-//         break;
-//     }
-// }
-
 void log_sample(sample_t s) {
     switch (s) {
     case NONE:
@@ -137,24 +92,11 @@ void log_sample(sample_t s) {
 //     }
 // }
 
-// void new_tick() {
-//     consensus_push(rx_observe());
-//
-//     sample_t sample;
-//     if (consensus_stable(&sample)) {
-//         if (sample == SYNC) {
-//             consensus_reset();
-//             //   LOG_INFO("RECEIVED SYNC PULSE");
-//             listen_for_packet();
-//         }
-//     }
-//     attempt_writing();
-// }
-
 void ivc_tick() {
     consensus_update(&context.consensus, rx_observe(&context));
     attempt_reading(&context);
     attempt_writing(&context);
+    // hello
 }
 
 // send wake tone

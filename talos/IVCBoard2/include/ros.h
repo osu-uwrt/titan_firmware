@@ -9,6 +9,8 @@
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 
+#define MICRO_ROS_TRANSPORT_CAN 1
+
 #define RCRETCHECK(fn)                                                                                                 \
     {                                                                                                                  \
         rcl_ret_t temp_rc = fn;                                                                                        \

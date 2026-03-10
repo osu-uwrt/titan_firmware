@@ -34,6 +34,12 @@
 #define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
 #define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
 
+// #define MAX_ROS_NAME 50
+
+// char tx_debug_name[MAX_ROS_NAME] = { 0 };
+// char rx_packet_name[MAX_ROS_NAME] = { 0 };
+// char tx_enqueue_name[MAX_ROS_NAME] = { 0 };
+
 bool ros_connected = false;
 
 // Core Variables
@@ -53,7 +59,9 @@ rcl_publisher_t rx_data_publisher;
 rcl_publisher_t rx_debug_sample_publisher;
 rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
-std_msgs__msg__UInt8 tx_msg;
+std_msgs__msg__Int8 tx_msg;
+
+void set_ros_names() {}
 
 // ========================================
 // Executor Callbacks
@@ -69,31 +77,31 @@ static void killswitch_subscription_callback(const void *msgin) {
 // ========= IVC ============
 
 rcl_ret_t ros_publish_rx(uint8_t rx) {
-    std_msgs__msg__UInt8 rx_msg;
-    rx_msg.data = rx;
+    std_msgs__msg__Int8 rx_msg;
+    rx_msg.data = (int8_t) rx;
 
     RCSOFTRETCHECK(rcl_publish(&rx_data_publisher, &rx_msg, NULL));
 
     return RCL_RET_OK;
 }
 
-rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx) {
-    std_msgs__msg__UInt8 rx_msg;
-    rx_msg.data = rx;
+// rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx) {
+//     std_msgs__msg__UInt8 rx_msg;
+//     rx_msg.data = rx;
 
-    RCSOFTRETCHECK(rcl_publish(&rx_debug_sample_publisher, &rx_msg, NULL));
+//     RCSOFTRETCHECK(rcl_publish(&rx_debug_sample_publisher, &rx_msg, NULL));
 
-    return RCL_RET_OK;
-}
-
+//     return RCL_RET_OK;
+// }
+//
 // void tx_debug_subscription_callback(void *msg_in) {
 //     std_msgs__msg__UInt8 *bit = (std_msgs__msg__UInt8 *) msg_in;
 //     tx_debug(bit->data);
 // }
 
 void tx_enqueue_data_callback(void *msg_in) {
-    std_msgs__msg__UInt8 *tx_data = (std_msgs__msg__UInt8 *) msg_in;
-    tx_enqueue_data(tx_data->data);
+    const std_msgs__msg__Int8 *tx_data = (const std_msgs__msg__Int8 *) msg_in;
+    tx_enqueue_data((uint8_t) tx_data->data);
 }
 
 // ========= END IVC ============
@@ -195,7 +203,7 @@ rcl_ret_t ros_init() {
     //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(&tx_enqueue_data_subscriber, &node,
-                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                               TX_ENQUEUE_DATA_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
@@ -206,17 +214,18 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
-
+    //
     // RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_debug_subscriber, &tx_msg,
     // &tx_debug_subscription_callback,
     //                                           ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_enqueue_data_subscriber, &tx_msg,
                                               &tx_enqueue_data_callback, ON_NEW_DATA));
     // TODO: Modify this method with node specific objects
-    RCRETCHECK(rclc_publisher_init_default(&rx_debug_sample_publisher, &node,
-                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
-                                           RX_SAMPLE_DEBUG_PUBLISHER));
-    RCRETCHECK(rclc_publisher_init_default(&rx_data_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
+    // RCRETCHECK(rclc_publisher_init_default(&rx_debug_sample_publisher, &node,
+    //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
+    //                                        RX_SAMPLE_DEBUG_PUBLISHER));
+
+    RCRETCHECK(rclc_publisher_init_default(&rx_data_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                            RX_DATA_PUBLISHER_NAME));
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
@@ -239,6 +248,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&rx_data_publisher, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));
     RCSOFTCHECK(rclc_support_fini(&support));

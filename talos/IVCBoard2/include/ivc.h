@@ -20,14 +20,25 @@
 #define CRC_SIZE 4
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 
-#define AMPLITUDE_IDLE_THRESHOLD 300.0f
+// #define AMPLITUDE_IDLE_THRESHOLD 300.0f
+#define AMPLITUDE_IDLE_THRESHOLD 40.0f
+// #define CONSENSUS_DEPTH 5
+// #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
 
-#define CONSENSUS_DEPTH 5
-#define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
-// #define MIN_STABLE_SAMPLES ((CONSENSUS_DEPTH / 2) + 1)
+/**
+ * minimum consecutive sample observations needed
+ * to determine a sample is stable
+ */
 #define MIN_STABLE_SAMPLES 3
+/**
+ * maximum amount of sample observations that are different than the most
+ * recent observation needed to determine a symbol transition
+ */
 #define MAX_SAMPLE_GAP 2
 
+/**
+ * enumerate symbol values
+ */
 #define LOW ((uint8_t) 0)
 #define HIGH ((uint8_t) 1)
 #define SYNC ((uint8_t) 2)
@@ -35,53 +46,44 @@
 typedef uint8_t sample_t;
 
 typedef struct {
-    uint8_t high;
-    uint8_t low;
-    uint8_t sync;
-} votes_t;
-
-typedef struct {
     bool on_new_symbol;
     bool sample_ready;
     bool initialized;
 } consensus_flags_t;
 
+/**
+ * values and flags needed to enable consensus/debounce
+ * focused sampling
+ *
+ * works by waiting for a transition in sampling to determine valid symbols
+ *
+ * symbol transition is forced by the preceding sync symbol accompanying every 0 or 1
+ */
 typedef struct {
-    votes_t votes;
-    sample_t buffer[CONSENSUS_DEPTH];
-    sample_t last_sample_seen;
-    uint8_t num_samples;
-    uint8_t write_idx;
-
+    // counts the number of sample observations that equal current_sample
     uint8_t stable_count;
+    // counts the number of sample observations different than current_sample
     uint8_t gap_count;
+    // the last sample found before a symbol transition
+    sample_t last_sample_seen;
+    // value to track the sample observation not equal to current_sample
     sample_t pending_sample;
+    // the last sample found before a symbol transition
     sample_t previous_sample;
+    // the current sample that is being tracked for stability
     sample_t current_sample;
     consensus_flags_t flags;
 } rx_consensus_t;
 
-// typedef enum {
-//     LOW,
-//     HIGH,
-//     SYNC,
-//     NONE,
-// } sample_t;
-
+/**
+ * holds the buffers and swap logic for running FFT
+ */
 typedef struct {
-    uint8_t buffer[7];
-    uint8_t correct_sample;
-} consensus_t;
-
-// typedef struct {
-//     uint8_t buffers[2][NSAMP];
-//     int8_t fft_target;
-//     bool buffer_select;
-// } sampling_t;
-
-typedef struct {
+    // one buffer to get ADC samples written to via DMA, one buffer for processing
     uint8_t swap_buffers[2][NSAMP];
+    // buffer index for fft samples
     int8_t fft_target;
+    // buffer index for processing
     bool buffer_select;
 } signal_recv_t;
 
@@ -90,8 +92,12 @@ typedef struct {
     bool done_writing;
     bool is_writing;
     bool can_write;
+    bool need_final_sync;
 } tx_flags_t;
 
+/**
+ * data relevant to processing and control flow for TX
+ */
 typedef struct {
     int32_t pwm_wrap_value;
     uint32_t pwm_slice_num;
@@ -99,12 +105,6 @@ typedef struct {
     uint8_t num_bits_written;
     tx_flags_t flags;
 } tx_control_t;
-
-// typedef struct {
-//     uint8_t prev_rx_val;
-//     bool packet_in_flight;
-//     bool receiving_packet;
-// } rx_control_t;
 
 typedef struct {
     bool receiving_packet;
@@ -115,6 +115,9 @@ typedef struct {
     bool can_read;
 } rx_flags_t;
 
+/**
+ * data relevant to processing and control flow for RX
+ */
 typedef struct {
     signal_recv_t recv;
     uint8_t buffer[PACKET_SIZE];
@@ -124,39 +127,21 @@ typedef struct {
     rx_flags_t flags;
 } rx_control_t;
 
+/**
+ * top level structure containing all relevant information
+ * for the IVC board
+ */
 typedef struct {
     tx_control_t tx;
     rx_control_t rx;
     rx_consensus_t consensus;
-
 } ivc_context_t;
-
-typedef struct {
-    uint8_t data;
-    bool is_sync_ping;
-} tx_data_t;
-
-// typedef struct {
-//     bool packet_in_flight;
-//     bool link_established;
-//     bool sync_found;
-// } comm_state_t;
-
-// 001 = packet_in_flight, 010 = link_established, 100 = sync_found
-// typedef uint8_t comm_state_t;
-typedef enum {
-    IDLE,
-    PACKET_IN_FLIGHT,
-    LINK_ESTABLISHED,
-    SYNC_FOUND,
-    TRANSMITTING,
-    RECEIVING,
-} comm_state_t;
 
 void ivc_init();
 uint8_t calculate_crc(uint8_t packet);
 void tick();
 void new_tick();
 void test_tick();
+void ivc_tick();
 
 #endif  // IVC_H

@@ -35,31 +35,67 @@ void tx_init(ivc_context_t *ctx) {
     gpio_put(OUTPUT_SELECT_PIN, 1);
 }
 
-// void tx_disable() {
-//     pwm_set_enabled(tx.pwm_slice_num, false);
-//     tx.flags.is_writing = false;
-// }
+void tx_disable(ivc_context_t *ctx) {
+    pwm_set_enabled(ctx->tx.pwm_slice_num, false);
+    ctx->tx.flags.is_writing = false;
+}
 
-
-// void tx_debug(uint8_t bit) {
-//     pwm_set_enabled(tx.pwm_slice_num, true);
-//     tx_encode_bit(bit);
-//     add_alarm_in_ms(50, tx_disable, NULL, true);
-// }
-
+void tx_debug(ivc_context_t *ctx, uint8_t bit) {
+    pwm_set_enabled(ctx->tx.pwm_slice_num, true);
+    tx_encode_bit(ctx, bit);
+    add_alarm_in_ms(50, tx_disable, NULL, true);
+}
 
 void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
     float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
+    // LOG_INFO("should be writing");
     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
 }
 
 void tx_encode_sync(ivc_context_t *ctx) {
+    // LOG_INFO("syncing");
     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_SYNC_HZ * PWM_WRAP_VALUE));
 }
 
+// bool tx_cb(repeating_timer_t *rt) {
+//     ivc_context_t *ctx = (ivc_context_t *) rt->user_data;
+//     if (ctx->tx.flags.done_writing) {
+//         pwm_set_enabled(ctx->tx.pwm_slice_num, false);
+//         ctx->tx.num_bits_written = 0;
+//         ctx->tx.data_to_write = 0;
+//         ctx->tx.flags.has_synced = false;
+//         ctx->tx.flags.is_writing = false;
+//         ctx->tx.flags.done_writing = false;
+//         return false;
+//     }
+//     else {
+//         if (!ctx->tx.flags.has_synced) {
+//             tx_encode_sync(ctx);
+//             ctx->tx.flags.has_synced = true;
+//             if (ctx->tx.flags.need_final_sync) {
+//                 // ctx->tx.flags.done_writing = true;
+//                 ctx->tx.flags.need_final_sync = false;
+//                 ctx->tx.flags.has_synced = false;
+//             }
+//             return true;
+//         }
+//         LOG_INFO("writing out: %hhu", ctx->tx.data_to_write);
+//         tx_encode_bit(ctx, ctx->tx.data_to_write & 0x01);
+//         ctx->tx.flags.has_synced = false;
+//         ctx->tx.data_to_write >>= 1;
+//         ctx->tx.num_bits_written++;
+//         if (ctx->tx.num_bits_written == 8) {
+//             // ctx->tx.flags.done_writing = true;
+//             ctx->tx.flags.need_final_sync = true;
+//             //  return false
+//         }
+//         return true;
+//     }
+// }
+
 bool tx_cb(repeating_timer_t *rt) {
     ivc_context_t *ctx = (ivc_context_t *) rt->user_data;
-    if (ctx->tx.flags.done_writing) {
+    if (ctx->tx.flags.done_writing && !ctx->tx.flags.need_final_sync) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, false);
         ctx->tx.num_bits_written = 0;
         ctx->tx.data_to_write = 0;
@@ -72,15 +108,25 @@ bool tx_cb(repeating_timer_t *rt) {
         if (!ctx->tx.flags.has_synced) {
             tx_encode_sync(ctx);
             ctx->tx.flags.has_synced = true;
+            if (ctx->tx.flags.need_final_sync) {
+                LOG_INFO("wrote out last sync");
+                ctx->tx.flags.done_writing = true;
+                ctx->tx.flags.need_final_sync = false;
+                ctx->tx.flags.has_synced = false;
+            }
             return true;
         }
+        LOG_INFO("writing out: %hhu", ctx->tx.data_to_write);
         tx_encode_bit(ctx, ctx->tx.data_to_write & 0x01);
         ctx->tx.flags.has_synced = false;
         ctx->tx.data_to_write >>= 1;
         ctx->tx.num_bits_written++;
+        LOG_INFO("num bits written: %hhu", ctx->tx.num_bits_written);
         if (ctx->tx.num_bits_written == 8) {
-            ctx->tx.flags.done_writing = true;
-            // return false
+            LOG_INFO("last bit written, need to sync");
+            // ctx->tx.flags.done_writing = true;
+            ctx->tx.flags.need_final_sync = true;
+            //  return false
         }
         return true;
     }
@@ -112,6 +158,7 @@ bool tx_dequeue_data(uint8_t *data) {
 
 void attempt_writing(ivc_context_t *ctx) {
     if (ctx->rx.flags.receiving_packet) {
+        // LOG_INFO("CANT WRITE");
         return;
     }
     // implement backoff tick count via randint % MAX_BACKOFFS
@@ -119,11 +166,13 @@ void attempt_writing(ivc_context_t *ctx) {
     if (!tx_dequeue_data(&data)) {
         return;
     }
+    LOG_INFO("dequeeud: %hhu ", data);
     ctx->tx.data_to_write = data;
     if (!ctx->tx.flags.is_writing) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, true);
-        add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, NULL, &tx_timer);
+        add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, (void *) ctx, &tx_timer);
         // tx_debug_khz(8);
         ctx->tx.flags.is_writing = true;
     }
+    // tx_debug(ctx, 1);
 }

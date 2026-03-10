@@ -7,6 +7,7 @@
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/queue.h"
+#include "consensus.h"
 
 #include <math.h>
 #include <string.h>
@@ -53,10 +54,10 @@ sample_t rx_observe(ivc_context_t *ctx) {
     float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
     float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
     // LOG_INFO("low: %f, high: %f, sync: %f", energy_at_low, energy_at_high, energy_at_sync);
-    //  if (energy_at_sync > 200.0f) {
-    //      LOG_INFO("sync was: %04f", energy_at_sync);
-    //      LOG_INFO("sync greater than threshold");
-    //  }
+    //     if (energy_at_sync > 200.0f) {
+    //         LOG_INFO("sync was: %04f", energy_at_sync);
+    //         LOG_INFO("sync greater than threshold");
+    //     }
 
     if (is_idle(energy_at_low, energy_at_high, energy_at_sync)) {
         return NONE;
@@ -80,8 +81,7 @@ void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
     // rx.buffer[rx.write_pos] = (uint8_t) sample;
     ctx->rx.write_pos++;
     if (ctx->rx.write_pos == 8) {
-        ctx->rx.flags.buffer_full = true;
-        ctx->rx.flags.done_reading = true;
+        rx_reset(ctx);
     }
 }
 
@@ -95,6 +95,7 @@ void rx_reset(ivc_context_t *ctx) {
 
 void attempt_reading(ivc_context_t *ctx) {
     if (ctx->tx.flags.is_writing) {
+        // LOG_INFO("CANT READ");
         return;
     }
     sample_t sample;
@@ -104,29 +105,17 @@ void attempt_reading(ivc_context_t *ctx) {
 
     if (ctx->rx.flags.publish_last_rx) {
         ctx->rx.flags.publish_last_rx = false;
-        // ros_publish_rx(rx.mtu_data);
+        LOG_INFO("packet read complete with: %hhu", ctx->rx.last_rx_value);
+        ros_publish_rx(ctx->rx.last_rx_value);
     }
 }
 
 void handle_sample(ivc_context_t *ctx, sample_t sample) {
-    // if (sample == SYNC) {
-    //     if (!ctx->rx.flags.receiving_packet) {
-    //         ctx->rx.flags.receiving_packet = true;
-    //     }
-    //     else {
-    //         // currently receiving a packet, handle this
-    //         return;
-    //     }
-    // }
-    // else {
-    //     if (ctx->rx.flags.receiving_packet) {
-    //         rx_encode_sample(sample);
-    //     }
-    // }
     if (sample == SYNC && !ctx->rx.flags.receiving_packet) {
         ctx->rx.flags.receiving_packet = true;
     }
     else if (ctx->rx.flags.receiving_packet) {
+        // LOG_INFO("sample in handler: %hhu", sample);
         if (sample != SYNC && sample != NONE) {
             rx_encode_sample(ctx, sample);
         }

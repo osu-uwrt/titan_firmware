@@ -24,5 +24,6 @@ void tx_enqueue_data(uint8_t data);
 void tx_encode_sync(ivc_context_t *ctx);
 void tx_encode_bit(ivc_context_t *ctx, uint8_t bit);
 void tx_init(ivc_context_t *ctx);
+void tx_debug(ivc_context_t *ctx, uint8_t bit);
 
 #endif  // TX_H
