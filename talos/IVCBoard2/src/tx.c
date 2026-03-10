@@ -35,7 +35,34 @@ void tx_init(ivc_context_t *ctx) {
     gpio_put(OUTPUT_SELECT_PIN, 1);
 }
 
-void tx_disable(ivc_context_t *ctx) {
+/**
+ * @brief transmits a bit over tx
+ *
+ * @param ctx pointer to the main context struct
+ * @param bit the bit to be encoded/transmitted
+ */
+static void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
+    float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
+    // LOG_INFO("should be writing");
+    pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
+}
+
+/**
+ * @brief transmits a sync symbol over tx
+ *
+ * @param ctx pointer to the main context struct
+ */
+static void tx_encode_sync(ivc_context_t *ctx) {
+    // LOG_INFO("syncing");
+    pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_SYNC_HZ * PWM_WRAP_VALUE));
+}
+
+/**
+ * @brief disables tx
+ *
+ * @param ctx pointer to the main context struct
+ */
+static void tx_disable(ivc_context_t *ctx) {
     pwm_set_enabled(ctx->tx.pwm_slice_num, false);
     ctx->tx.flags.is_writing = false;
 }
@@ -44,17 +71,6 @@ void tx_debug(ivc_context_t *ctx, uint8_t bit) {
     pwm_set_enabled(ctx->tx.pwm_slice_num, true);
     tx_encode_bit(ctx, bit);
     add_alarm_in_ms(50, tx_disable, NULL, true);
-}
-
-void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
-    float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
-    // LOG_INFO("should be writing");
-    pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
-}
-
-void tx_encode_sync(ivc_context_t *ctx) {
-    // LOG_INFO("syncing");
-    pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_SYNC_HZ * PWM_WRAP_VALUE));
 }
 
 // bool tx_cb(repeating_timer_t *rt) {
@@ -93,7 +109,14 @@ void tx_encode_sync(ivc_context_t *ctx) {
 //     }
 // }
 
-bool tx_cb(repeating_timer_t *rt) {
+/**
+ * @brief every symbol period, transmits a bit of data and a sync, until completion
+ *
+ * @param rt the repeating timer struct containing the context struct
+ * @return true if callback needs to execute again
+ * @return false if callback shouldn't fire again
+ */
+static bool tx_cb(repeating_timer_t *rt) {
     ivc_context_t *ctx = (ivc_context_t *) rt->user_data;
     if (ctx->tx.flags.done_writing && !ctx->tx.flags.need_final_sync) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, false);
@@ -143,8 +166,14 @@ void tx_enqueue_data(uint8_t data) {
     // data_ready = true;
 }
 
-// caller will pass a pointer where the data will be put
-bool tx_dequeue_data(uint8_t *data) {
+/**
+ * @brief dequeues a packet to be transmitted over tx
+ *
+ * @param data pointer to the callers undefined byte to be written to if data is dequeued
+ * @return true if data has been dequeued
+ * @return false if queue is empty
+ */
+static bool tx_dequeue_data(uint8_t *data) {
     if (QUEUE_EMPTY(&tx_msg_queue)) {
         // LOG_INFO("no data to pull");
         // data_ready = false;

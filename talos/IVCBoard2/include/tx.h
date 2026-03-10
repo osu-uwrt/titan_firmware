@@ -6,24 +6,33 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-//
-// void tx_init();
-// void tx_encode_bit(uint8_t bit);
-// void tx_encode_sync();
-// void tx_debug(uint8_t bit);
-// void tx_enqueue_data(uint8_t data);
-// bool tx_dequeue_data(uint8_t *data);
-// void tx_encode_data();
-// void attempt_writing();
-// void unlock_writing(tx_control_t *tx);
-// void lock_writing(tx_control_t *tx);
-
+/**
+ * @brief will attempt to write out a queued packet
+ *
+ * @param ctx pointer to the main context struct
+ */
 void attempt_writing(ivc_context_t *ctx);
-bool tx_dequeue_data(uint8_t *data);
+
+/**
+ * @brief enqueues data that will be transmitted over tx
+ *
+ * @param data the data to be transmitted
+ */
 void tx_enqueue_data(uint8_t data);
-void tx_encode_sync(ivc_context_t *ctx);
-void tx_encode_bit(ivc_context_t *ctx, uint8_t bit);
+
+/**
+ * @brief initalize tx hardware
+ *
+ * @param ctx pointer to the main context struct
+ */
 void tx_init(ivc_context_t *ctx);
+
+/**
+ * @brief function to debug tx with a single frequency transmission
+ *
+ * @param ctx pointer to the main context struct
+ * @param bit the bit to be transmitted
+ */
 void tx_debug(ivc_context_t *ctx, uint8_t bit);
 
 #endif  // TX_H

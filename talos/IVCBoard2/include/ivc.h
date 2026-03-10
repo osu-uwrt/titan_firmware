@@ -68,8 +68,6 @@ typedef struct {
     sample_t last_sample_seen;
     // value to track the sample observation not equal to current_sample
     sample_t pending_sample;
-    // the last sample found before a symbol transition
-    sample_t previous_sample;
     // the current sample that is being tracked for stability
     sample_t current_sample;
     consensus_flags_t flags;
@@ -135,13 +133,18 @@ typedef struct {
     tx_control_t tx;
     rx_control_t rx;
     rx_consensus_t consensus;
+    bool is_talos;
 } ivc_context_t;
 
+/**
+ * @brief initialize ivc hardware including rx and tx
+ */
 void ivc_init();
-uint8_t calculate_crc(uint8_t packet);
-void tick();
-void new_tick();
-void test_tick();
+
+/**
+ * @brief tick function that will be called repeatedly by main
+ *        updates consensus with a sample and attempts reading or writing
+ */
 void ivc_tick();
 
 #endif  // IVC_H

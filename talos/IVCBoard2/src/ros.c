@@ -99,7 +99,7 @@ rcl_ret_t ros_publish_rx(uint8_t rx) {
 //     tx_debug(bit->data);
 // }
 
-void tx_enqueue_data_callback(void *msg_in) {
+static void tx_enqueue_data_callback(void *msg_in) {
     const std_msgs__msg__Int8 *tx_data = (const std_msgs__msg__Int8 *) msg_in;
     tx_enqueue_data((uint8_t) tx_data->data);
 }

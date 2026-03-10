@@ -1,5 +1,6 @@
 #include "rx.h"
 
+#include "consensus.h"
 #include "fft/fft.h"
 #include "ivc.h"
 #include "ros.h"
@@ -7,7 +8,6 @@
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/queue.h"
-#include "consensus.h"
 
 #include <math.h>
 #include <string.h>
@@ -25,7 +25,13 @@ void rx_init(ivc_context_t *ctx, void (*swap_buffer_handler)()) {
     // recv_data.fft_target = -1;
 }
 
-sample_t get_sample(float conf_value) {
+/**
+ * @brief determines a samples value based on a confidence value -1.0 < conf_value < 1.0
+ *
+ * @param conf_value the confidence value
+ * @return sample_t the interpretation of the confidence value
+ */
+static sample_t get_sample(float conf_value) {
     sample_t sample = NONE;
 
     bool is_positive = conf_value >= 0.0f;
@@ -43,7 +49,16 @@ sample_t get_sample(float conf_value) {
     return sample;
 }
 
-bool is_idle(float e0, float e1, float e2) {
+/**
+ * @brief determines if rx is idle based on a static threshold
+ *
+ * @param e0 amplitude 0
+ * @param e1 amplitude 1
+ * @param e2 amplitude 2
+ * @return true if an amplitude is greater than AMPLITUDE_IDLE_THRESHOLD
+ * @return false if all values fall below AMPLITUDUE_IDLE_THRESHOLD
+ */
+static bool is_idle(float e0, float e1, float e2) {
     return e0 < AMPLITUDE_IDLE_THRESHOLD && e1 < AMPLITUDE_IDLE_THRESHOLD && e2 < AMPLITUDE_IDLE_THRESHOLD;
 }
 
@@ -75,7 +90,26 @@ sample_t rx_observe(ivc_context_t *ctx) {
     return get_sample(conf);
 }
 
-void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
+/**
+ * @brief resets rx state after packet read complete
+ *
+ * @param ctx pointer to the main context struct
+ */
+static void rx_reset(ivc_context_t *ctx) {
+    ctx->rx.last_rx_value = ctx->rx.mtu_data;
+    ctx->rx.mtu_data = 0;
+    ctx->rx.write_pos = 0;
+    ctx->rx.flags.publish_last_rx = true;
+    ctx->rx.flags.done_reading = false;
+}
+
+/**
+ * @brief encodes a valid sample into a packet
+ *
+ * @param ctx pointer to the main context struct
+ * @param sample the valid sample
+ */
+static void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
     ctx->rx.mtu_data |= (sample & 0x01) << ctx->rx.write_pos;
     LOG_INFO("encoding into mtu data: 0x%X", ctx->rx.mtu_data);
     // rx.buffer[rx.write_pos] = (uint8_t) sample;
@@ -85,12 +119,22 @@ void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
     }
 }
 
-void rx_reset(ivc_context_t *ctx) {
-    ctx->rx.last_rx_value = ctx->rx.mtu_data;
-    ctx->rx.mtu_data = 0;
-    ctx->rx.write_pos = 0;
-    ctx->rx.flags.publish_last_rx = true;
-    ctx->rx.flags.done_reading = false;
+/**
+ * @brief determines how to handle a valid sample based on value and flags set
+ *
+ * @param ctx pointer to the main context struct
+ * @param sample the valid sample
+ */
+static void handle_sample(ivc_context_t *ctx, sample_t sample) {
+    if (sample == SYNC && !ctx->rx.flags.receiving_packet) {
+        ctx->rx.flags.receiving_packet = true;
+    }
+    else if (ctx->rx.flags.receiving_packet) {
+        // LOG_INFO("sample in handler: %hhu", sample);
+        if (sample != SYNC && sample != NONE) {
+            rx_encode_sample(ctx, sample);
+        }
+    }
 }
 
 void attempt_reading(ivc_context_t *ctx) {
@@ -107,17 +151,5 @@ void attempt_reading(ivc_context_t *ctx) {
         ctx->rx.flags.publish_last_rx = false;
         LOG_INFO("packet read complete with: %hhu", ctx->rx.last_rx_value);
         ros_publish_rx(ctx->rx.last_rx_value);
-    }
-}
-
-void handle_sample(ivc_context_t *ctx, sample_t sample) {
-    if (sample == SYNC && !ctx->rx.flags.receiving_packet) {
-        ctx->rx.flags.receiving_packet = true;
-    }
-    else if (ctx->rx.flags.receiving_packet) {
-        // LOG_INFO("sample in handler: %hhu", sample);
-        if (sample != SYNC && sample != NONE) {
-            rx_encode_sample(ctx, sample);
-        }
     }
 }

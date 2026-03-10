@@ -94,7 +94,6 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 rcl_ret_t ros_publish_rx(uint8_t rx);
-rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx);
 
 // TODO: Add in any additional ROS tasks here
 
