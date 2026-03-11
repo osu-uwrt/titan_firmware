@@ -22,6 +22,9 @@ uint8_t discovered_id = 0;
 
 flash_config_t servo_config;
 
+const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
+const int32_t FULL_RANGE = 1400;
+
 // static void write_to_flash(flash_config_t *config);
 
 // Handlers
@@ -244,6 +247,10 @@ void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
 void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
 void servo_stop_check(servo_t *servo) {
+    if (!servo->is_moving) {
+        return;
+    }
+
     const int32_t STOPPING_TOLERANCE = 300;  // Adjust value
 
     // printf("Position difference: %d\n", abs(servo->absolute_pos - servo->target_pos_continuous));
@@ -251,7 +258,12 @@ void servo_stop_check(servo_t *servo) {
     if (abs(servo->absolute_pos - servo->target_pos_continuous) < STOPPING_TOLERANCE) {
         // Stop servo
         uint8_t param_buf[MAX_PACKET_SIZE];  // Is MAX_PACKET_SIZE necessary
-        ServoPacket_t stop_servo_packet = make_servo_packet(servo, SERVO_MOVE_STOP_CMD, SERVO_MOVE_STOP_LEN, param_buf);
+        param_buf[0] = 1;
+        param_buf[2] = 0x00;
+        param_buf[3] = 0x00;
+
+        ServoPacket_t stop_servo_packet =
+            make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
 
         if (enqueue_packet(stop_servo_packet)) {
             servo->is_moving = false;
@@ -298,9 +310,6 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     }
 
     printf("Servo absolute position: %d\n", servo->absolute_pos);
-
-    const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
-    const int32_t FULL_RANGE = 1400;
 
     // int16_t last_position = (int16_t) servo->absolute_pos;
     int16_t last_position = servo->last_position;
