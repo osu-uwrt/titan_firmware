@@ -16,14 +16,14 @@
 #define SERVO_POSTMOVE_DELAY_MS 250
 #define MAX_NUM_ERRORS 10
 #define SERVO_MAX_TARGET_ERROR 5
-#define UNITS_PER_DEGREE 4096 / 360
+#define UNITS_PER_DEGREE 1000 / 240
 
 uint8_t discovered_id = 0;
 
 flash_config_t servo_config;
 
 const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
-const int32_t FULL_RANGE = 1400;
+const int32_t FULL_RANGE = 1500;
 
 // static void write_to_flash(flash_config_t *config);
 
