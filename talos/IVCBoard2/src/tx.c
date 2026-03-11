@@ -34,6 +34,15 @@ void tx_init(ivc_context_t *ctx) {
     gpio_set_dir(OUTPUT_SELECT_PIN, GPIO_OUT);
     gpio_put(OUTPUT_SELECT_PIN, 1);
 }
+// TODO: test on hardware
+// static void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
+//     float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
+//     // LOG_INFO("should be writing");
+//     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
+//     ctx->tx.flags.has_synced = false;
+//     ctx->tx.data_to_write >>= 1;
+//     ctx->tx.num_bits_written++;
+// }
 
 /**
  * @brief transmits a bit over tx
@@ -73,40 +82,54 @@ void tx_debug(ivc_context_t *ctx, uint8_t bit) {
     add_alarm_in_ms(50, tx_disable, NULL, true);
 }
 
-// bool tx_cb(repeating_timer_t *rt) {
+/**
+ * @brief reset tx state after transmission complete
+ *
+ * @param ctx pointer to the main context struct
+ */
+static void tx_reset(ivc_context_t *ctx) {
+    ctx->tx.num_bits_written = 0;
+    ctx->tx.data_to_write = 0;
+    ctx->tx.flags.has_synced = false;
+    ctx->tx.flags.is_writing = false;
+    ctx->tx.flags.done_writing = false;
+}
+
+// TODO: test on hardware
+// static bool tx_cb(repeating_timer_t *rt) {
 //     ivc_context_t *ctx = (ivc_context_t *) rt->user_data;
-//     if (ctx->tx.flags.done_writing) {
+//     tx_flags_t *flags = &ctx->tx.flags;
+
+//     if (flags->done_writing && !flags->need_final_sync) {
 //         pwm_set_enabled(ctx->tx.pwm_slice_num, false);
-//         ctx->tx.num_bits_written = 0;
-//         ctx->tx.data_to_write = 0;
-//         ctx->tx.flags.has_synced = false;
-//         ctx->tx.flags.is_writing = false;
-//         ctx->tx.flags.done_writing = false;
+//         tx_reset(ctx);
 //         return false;
 //     }
-//     else {
-//         if (!ctx->tx.flags.has_synced) {
-//             tx_encode_sync(ctx);
-//             ctx->tx.flags.has_synced = true;
-//             if (ctx->tx.flags.need_final_sync) {
-//                 // ctx->tx.flags.done_writing = true;
-//                 ctx->tx.flags.need_final_sync = false;
-//                 ctx->tx.flags.has_synced = false;
-//             }
-//             return true;
-//         }
-//         LOG_INFO("writing out: %hhu", ctx->tx.data_to_write);
-//         tx_encode_bit(ctx, ctx->tx.data_to_write & 0x01);
-//         ctx->tx.flags.has_synced = false;
-//         ctx->tx.data_to_write >>= 1;
-//         ctx->tx.num_bits_written++;
-//         if (ctx->tx.num_bits_written == 8) {
-//             // ctx->tx.flags.done_writing = true;
-//             ctx->tx.flags.need_final_sync = true;
-//             //  return false
+
+//     if (!flags->has_synced) {
+//         tx_encode_sync(ctx);
+//         flags->has_synced = true;
+
+//         if (flags->need_final_sync) {  // just wrote out last sync, we're good to reset
+//             LOG_INFO("wrote out last sync");
+//             flags->done_writing = true;
+//             flags->need_final_sync = false;
 //         }
 //         return true;
 //     }
+
+//     LOG_INFO("writing out: %hhu", ctx->tx.data_to_write);
+
+//     tx_encode_bit(ctx, ctx->tx.data_to_write & 0x01);
+
+//     LOG_INFO("num bits written: %hhu", ctx->tx.num_bits_written);
+
+//     if (ctx->tx.num_bits_written == DATA_SIZE) {
+//         LOG_INFO("last bit written, need final sync");
+//         flags->need_final_sync = true;
+//     }
+
+//     return true;
 // }
 
 /**
@@ -120,11 +143,7 @@ static bool tx_cb(repeating_timer_t *rt) {
     ivc_context_t *ctx = (ivc_context_t *) rt->user_data;
     if (ctx->tx.flags.done_writing && !ctx->tx.flags.need_final_sync) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, false);
-        ctx->tx.num_bits_written = 0;
-        ctx->tx.data_to_write = 0;
-        ctx->tx.flags.has_synced = false;
-        ctx->tx.flags.is_writing = false;
-        ctx->tx.flags.done_writing = false;
+        tx_reset(ctx);
         return false;
     }
     else {
@@ -163,7 +182,6 @@ void tx_enqueue_data(uint8_t data) {
     *entry = data;
     LOG_INFO("enqueueing %hhu\n", *entry);
     QUEUE_MARK_WRITE_DONE(&tx_msg_queue);
-    // data_ready = true;
 }
 
 /**
@@ -200,8 +218,6 @@ void attempt_writing(ivc_context_t *ctx) {
     if (!ctx->tx.flags.is_writing) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, true);
         add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, (void *) ctx, &tx_timer);
-        // tx_debug_khz(8);
         ctx->tx.flags.is_writing = true;
     }
-    // tx_debug(ctx, 1);
 }

@@ -91,7 +91,7 @@ sample_t rx_observe(ivc_context_t *ctx) {
 }
 
 /**
- * @brief resets rx state after packet read complete
+ * @brief resets rx state after packet read completes
  *
  * @param ctx pointer to the main context struct
  */
