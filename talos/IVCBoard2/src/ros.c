@@ -34,11 +34,11 @@
 #define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
 #define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
 
-// #define MAX_ROS_NAME 50
+#define MAX_ROS_NAME 13  // including null
 
-// char tx_debug_name[MAX_ROS_NAME] = { 0 };
-// char rx_packet_name[MAX_ROS_NAME] = { 0 };
-// char tx_enqueue_name[MAX_ROS_NAME] = { 0 };
+char tx_debug_name[MAX_ROS_NAME] = { 0 };
+char rx_packet_publisher_name[MAX_ROS_NAME] = { 0 };
+char tx_data_subscriber_name[MAX_ROS_NAME] = { 0 };
 
 bool ros_connected = false;
 
@@ -61,7 +61,10 @@ rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
 std_msgs__msg__Int8 tx_msg;
 
-void set_topic_names() {}
+void set_topic_names(ivc_context_t *ctx) {
+    snprintf(rx_packet_publisher_name, MAX_ROS_NAME, "ivc/rx%s", ctx->is_talos ? "_talos" : "_other");
+    snprintf(tx_data_subscriber_name, MAX_ROS_NAME, "ivc/tx%s", ctx->is_talos ? "_talos" : "_other");
+}
 
 // ========================================
 // Executor Callbacks
