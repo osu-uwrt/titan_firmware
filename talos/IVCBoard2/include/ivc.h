@@ -71,7 +71,7 @@ typedef struct {
     // the current sample that is being tracked for stability
     sample_t current_sample;
     consensus_flags_t flags;
-} rx_consensus_t;
+} rx_consensus_t;  // make a was_stable field for seeing stability before disruption
 
 /**
  * holds the buffers and swap logic for running FFT
@@ -99,6 +99,8 @@ typedef struct {
 typedef struct {
     int32_t pwm_wrap_value;
     uint32_t pwm_slice_num;
+    uint16_t packet_to_write_copy; // in case of retransmission needed
+    uint16_t packet_to_write;
     uint8_t data_to_write;
     uint8_t num_bits_written;
     tx_flags_t flags;
@@ -111,6 +113,7 @@ typedef struct {
     bool done_reading;
     bool on_new_symbol;
     bool can_read;
+    bool awaiting_ack;
 } rx_flags_t;
 
 /**
@@ -118,12 +121,20 @@ typedef struct {
  */
 typedef struct {
     signal_recv_t recv;
+    uint16_t current_packet;     // new
+    uint16_t packet_to_process;  // new
     uint8_t buffer[PACKET_SIZE];
     uint8_t write_pos;
     uint8_t mtu_data;
+    uint8_t crc_data;
     uint8_t last_rx_value;
     rx_flags_t flags;
 } rx_control_t;
+
+// typedef struct {
+//     bool is_talos;
+//     bool awaiting_ack;
+// } ivc_flags_t;
 
 /**
  * top level structure containing all relevant information
@@ -133,6 +144,7 @@ typedef struct {
     tx_control_t tx;
     rx_control_t rx;
     rx_consensus_t consensus;
+    // ivc_flags_t flags;
     bool is_talos;
 } ivc_context_t;
 

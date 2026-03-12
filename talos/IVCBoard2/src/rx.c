@@ -96,12 +96,24 @@ sample_t rx_observe(ivc_context_t *ctx) {
  * @param ctx pointer to the main context struct
  */
 static void rx_reset(ivc_context_t *ctx) {
+    ctx->rx.packet_to_process = ctx->rx.current_packet;
+
     ctx->rx.last_rx_value = ctx->rx.mtu_data;
     ctx->rx.mtu_data = 0;
     ctx->rx.write_pos = 0;
     ctx->rx.flags.publish_last_rx = true;
     ctx->rx.flags.done_reading = false;
 }
+
+// TODO: test on hardware
+// static void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
+//     ctx->rx.current_packet |= (sample & 0x01) << ctx->rx.write_pos++;
+//     LOG_INFO("encoding into mtu data: 0x%X", ctx->rx.mtu_data);
+//     // rx.buffer[rx.write_pos] = (uint8_t) sample;
+//     if (ctx->rx.write_pos == DATA_SIZE + CRC_SIZE) {
+//         rx_reset(ctx);
+//     }
+// }
 
 /**
  * @brief encodes a valid sample into a packet
@@ -114,13 +126,14 @@ static void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
     LOG_INFO("encoding into mtu data: 0x%X", ctx->rx.mtu_data);
     // rx.buffer[rx.write_pos] = (uint8_t) sample;
     ctx->rx.write_pos++;
-    if (ctx->rx.write_pos == 8) {
+    if (ctx->rx.write_pos == DATA_SIZE) {
         rx_reset(ctx);
     }
 }
 
 /**
- * @brief determines how to handle a valid sample based on value and flags set
+ * @brief determines how to handle a valid sample based on value and flags set, will set receiving packet flag to true
+ *        if sample is a sync and we aren't currently receiving a packet
  *
  * @param ctx pointer to the main context struct
  * @param sample the valid sample
@@ -142,6 +155,7 @@ void attempt_reading(ivc_context_t *ctx) {
         // LOG_INFO("CANT READ");
         return;
     }
+
     sample_t sample;
     if (sample_ready(&ctx->consensus, &sample)) {
         handle_sample(ctx, sample);
@@ -151,5 +165,11 @@ void attempt_reading(ivc_context_t *ctx) {
         ctx->rx.flags.publish_last_rx = false;
         LOG_INFO("packet read complete with: %hhu", ctx->rx.last_rx_value);
         ros_publish_rx(ctx->rx.last_rx_value);
+        // TODO: new packet structure and acking
+        //  ros_publish_rx(ctx->rx.packet_to_process & 0xFF); // trash crc
+        //  if (ctx->rx.flags.awaiting_ack && ctx->rx.packet_to_process & 0xFF) {
+        //      tx_enqueue_data(ctx->tx.packet_to_write_copy & 0xFF);
+        //  }
+        // ctx->rx.flags.awaiting_ack = false;
     }
 }

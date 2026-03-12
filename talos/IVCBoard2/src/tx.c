@@ -2,6 +2,7 @@
 
 #include "fft/fft.h"
 #include "ivc.h"
+#include "protocol.h"
 
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
@@ -40,7 +41,7 @@ void tx_init(ivc_context_t *ctx) {
 //     // LOG_INFO("should be writing");
 //     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
 //     ctx->tx.flags.has_synced = false;
-//     ctx->tx.data_to_write >>= 1;
+//     ctx->tx.packet_to_write >>= 1;
 //     ctx->tx.num_bits_written++;
 // }
 
@@ -93,6 +94,7 @@ static void tx_reset(ivc_context_t *ctx) {
     ctx->tx.flags.has_synced = false;
     ctx->tx.flags.is_writing = false;
     ctx->tx.flags.done_writing = false;
+    ctx->tx.packet_to_write = 0;
 }
 
 // TODO: test on hardware
@@ -118,13 +120,13 @@ static void tx_reset(ivc_context_t *ctx) {
 //         return true;
 //     }
 
-//     LOG_INFO("writing out: %hhu", ctx->tx.data_to_write);
+//     LOG_INFO("writing out: %hu", ctx->tx.packet_to_write);
 
-//     tx_encode_bit(ctx, ctx->tx.data_to_write & 0x01);
+//     tx_encode_bit(ctx, ctx->tx.packet_to_write & 0x01);
 
 //     LOG_INFO("num bits written: %hhu", ctx->tx.num_bits_written);
 
-//     if (ctx->tx.num_bits_written == DATA_SIZE) {
+//     if (ctx->tx.num_bits_written == DATA_SIZE + CRC_SIZE) {
 //         LOG_INFO("last bit written, need final sync");
 //         flags->need_final_sync = true;
 //     }
@@ -215,6 +217,9 @@ void attempt_writing(ivc_context_t *ctx) {
     }
     LOG_INFO("dequeeud: %hhu ", data);
     ctx->tx.data_to_write = data;
+    // TODO: test on hardware
+    // ctx->tx.packet_to_write = (uint16_t) (data | calculate_crc(data) << DATA_SIZE);
+    // ctx->tx.packet_to_write_copy = ctx->tx.packet_to_write;
     if (!ctx->tx.flags.is_writing) {
         pwm_set_enabled(ctx->tx.pwm_slice_num, true);
         add_repeating_timer_ms(-SYMBOL_PERIOD_MS, tx_cb, (void *) ctx, &tx_timer);
