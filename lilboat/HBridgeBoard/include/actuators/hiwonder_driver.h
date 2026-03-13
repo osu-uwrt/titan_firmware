@@ -138,6 +138,9 @@ typedef struct servo {
 
     int32_t absolute_pos;
     int16_t last_position;
+    int16_t curr_position;
+
+    bool is_homing;
 
     // Alarms and timers
     alarm_id_t move_complete_alarm;

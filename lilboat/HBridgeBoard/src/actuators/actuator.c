@@ -150,15 +150,7 @@ uint16_t servo_set_deg(servo_t *servo, float deg) {
 
     // float bound_deg = min(max(deg, SERVO_MIN_DEG), SERVO_MAX_DEG);  // TODO: actually do something like this
     uint16_t target = deg * (1000.0 / 240.0);
-    if (read_from_flash(&servo_config)) {
-        for (int i = 0; i < NUM_SERVOS; i++) {
-            printf("Servo id: %d\nServo position: %d", servo_config.servo_info[i].id,
-                   servo_config.servo_info[i].absolute_pos);
-        }
-    }
-    else {
-        printf("ERROR: Read from flash");
-    }
+
     uint16_t move_time_ms = fabs(deg - servo->curr_deg) * (1.0 / SERVO_MAX_DPS) * 1000;
 
     split_uint16(target, &param_buf[0], &param_buf[1]);
@@ -246,6 +238,10 @@ void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
 // For now, just big trust this command goes through
 void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
+void servo_set_absolute_home(servo_t *servo) {
+    servo->is_homing = true;
+}
+
 void servo_stop_check(servo_t *servo) {
     if (!servo->is_moving) {
         return;
@@ -305,15 +301,20 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     }
     */
 
-    if (err != SERVO_READ_OK) {
-        LOG_WARN("Servo read error");
-    }
-
-    printf("Servo absolute position: %d\n", servo->absolute_pos);
+    // printf("Servo absolute position: %d\n", servo->absolute_pos);
 
     // int16_t last_position = (int16_t) servo->absolute_pos;
+
     int16_t last_position = servo->last_position;
     int16_t curr_position = rx_packet.param_buf[1] << 8 | rx_packet.param_buf[0];
+
+    if (servo->is_homing) {
+        servo->absolute_pos = 0;
+        servo->last_position = curr_position;
+
+        servo->is_homing = false;
+        return;
+    }
 
     // printf("Current position: %d", curr_position);
 
@@ -327,8 +328,12 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     }
 
     servo->absolute_pos += position_change;
+    // printf("Servo absolute position: %d\n", servo->absolute_pos);
+    // servo->curr_position = curr_position;
     servo->last_position = curr_position;
     servo_stop_check(servo);
+
+    printf("Servo absolute position: %d\nServo last position: %d\n", servo->absolute_pos, servo->last_position);
 }
 
 void servo_read_continuous(servo_t *servo) {
