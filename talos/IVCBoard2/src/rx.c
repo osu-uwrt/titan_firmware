@@ -69,10 +69,10 @@ sample_t rx_observe(ivc_context_t *ctx) {
     float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
     float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
     // LOG_INFO("low: %f, high: %f, sync: %f", energy_at_low, energy_at_high, energy_at_sync);
-    //     if (energy_at_sync > 200.0f) {
-    //         LOG_INFO("sync was: %04f", energy_at_sync);
-    //         LOG_INFO("sync greater than threshold");
-    //     }
+    //      if (energy_at_sync > 200.0f) {
+    //          LOG_INFO("sync was: %04f", energy_at_sync);
+    //          LOG_INFO("sync greater than threshold");
+    //      }
 
     if (is_idle(energy_at_low, energy_at_high, energy_at_sync)) {
         return NONE;

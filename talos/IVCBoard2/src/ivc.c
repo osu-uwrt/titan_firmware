@@ -36,7 +36,7 @@ void ivc_init() {
 
     context.is_talos = !gpio_get(BOARD_ID_PIN);
     LOG_INFO("This board %s talos", context.is_talos ? "is" : "is not");
-    //set_topic_names(&ctx);
+    // set_topic_names(&ctx);
 }
 
 void ivc_tick() {

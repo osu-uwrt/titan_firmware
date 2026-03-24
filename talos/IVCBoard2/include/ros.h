@@ -1,6 +1,7 @@
 #ifndef ROS_H
 #define ROS_H
 
+#include "ivc.h"
 #include "safety_interface.h"
 
 #include <rcl/error_handling.h>
@@ -9,8 +10,8 @@
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 
-#undef MICRO_ROS_TRANSPORT_USB
-#define MICRO_ROS_TRANSPORT_CAN 1
+// #undef MICRO_ROS_TRANSPORT_USB
+// #define MICRO_ROS_TRANSPORT_CAN 1
 
 #define RCRETCHECK(fn)                                                                                                 \
     {                                                                                                                  \

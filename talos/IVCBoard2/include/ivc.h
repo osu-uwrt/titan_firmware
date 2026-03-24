@@ -21,9 +21,9 @@
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 
 // #define AMPLITUDE_IDLE_THRESHOLD 300.0f
-#define AMPLITUDE_IDLE_THRESHOLD 40.0f
-// #define CONSENSUS_DEPTH 5
-// #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
+#define AMPLITUDE_IDLE_THRESHOLD 50.0f  // was 40
+//   #define CONSENSUS_DEPTH 5
+//   #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
 
 /**
  * minimum consecutive sample observations needed
@@ -99,7 +99,7 @@ typedef struct {
 typedef struct {
     int32_t pwm_wrap_value;
     uint32_t pwm_slice_num;
-    uint16_t packet_to_write_copy; // in case of retransmission needed
+    uint16_t packet_to_write_copy;  // in case of retransmission needed
     uint16_t packet_to_write;
     uint8_t data_to_write;
     uint8_t num_bits_written;
@@ -121,7 +121,7 @@ typedef struct {
  */
 typedef struct {
     signal_recv_t recv;
-    uint16_t current_packet;     // new
+    uint16_t current_packet;     // new, INCLUDES CRC
     uint16_t packet_to_process;  // new
     uint8_t buffer[PACKET_SIZE];
     uint8_t write_pos;

@@ -1,5 +1,6 @@
 #include "ros.h"
 
+// #include "ivc.h"
 #include "tx.h"
 
 #include "pico/stdlib.h"
@@ -28,10 +29,10 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 
-#define RX_DATA_PUBLISHER_NAME "ivc/rx"
+#define RX_DATA_PUBLISHER_NAME "ivc/rx_ss"
 #define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample"
 #define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx"
-#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
+#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data_ss"
 #define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
 
 #define MAX_ROS_NAME 13  // including null
