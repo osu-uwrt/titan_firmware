@@ -263,10 +263,8 @@ void servo_stop_check(servo_t *servo) {
 
         if (enqueue_packet(stop_servo_packet)) {
             servo->is_moving = false;
-            if (!update_servo_persistent_position(servo, &servo_config)) {
-                LOG_WARN("Error updating servo position");
-            }
-            write_to_flash(&servo_config);
+            servo->flash_write_pending = true;
+            servo->still_count = 0;
         }
     }
 }
@@ -326,6 +324,24 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
 
         servo->needs_sync = false;
         return;
+    }
+
+    if (servo->flash_write_pending) {  // TODO: Get rid of magic number
+        if (abs(curr_position - last_position) <= 1) {
+            servo->still_count++;
+            if (servo->still_count < 4) {  // TODO: Get rid of magic number
+                return;
+            }
+            if (!update_servo_persistent_position(servo, &servo_config)) {
+                LOG_WARN("Error updating servo position");
+            }
+            write_to_flash(&servo_config);
+
+            servo->flash_write_pending = false;
+        }
+        else {  // External forces
+            servo->still_count = 0;
+        }
     }
 
     printf("Absolute positions: %d\n", servo->absolute_pos);

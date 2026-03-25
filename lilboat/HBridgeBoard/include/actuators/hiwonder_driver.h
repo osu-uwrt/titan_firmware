@@ -142,6 +142,8 @@ typedef struct servo {
 
     bool is_homing;
     bool needs_sync;
+    bool flash_write_pending;
+    uint8_t still_count;
 
     // Alarms and timers
     alarm_id_t move_complete_alarm;
