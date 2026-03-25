@@ -312,9 +312,23 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
         servo->absolute_pos = 0;
         servo->last_position = curr_position;
 
+        update_servo_persistent_position(servo, &servo_config);
+        write_to_flash(&servo_config);
+
         servo->is_homing = false;
         return;
     }
+
+    if (servo->needs_sync) {
+        servo->last_position = curr_position;
+
+        printf("Servo last position: %d", servo->last_position);
+
+        servo->needs_sync = false;
+        return;
+    }
+
+    printf("Absolute positions: %d\n", servo->absolute_pos);
 
     // printf("Current position: %d", curr_position);
 
@@ -333,7 +347,7 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     servo->last_position = curr_position;
     servo_stop_check(servo);
 
-    printf("Servo absolute position: %d\nServo last position: %d\n", servo->absolute_pos, servo->last_position);
+    // printf("Servo absolute position: %d\nServo last position: %d\n", servo->absolute_pos, servo->last_position);
 }
 
 void servo_read_continuous(servo_t *servo) {

@@ -322,6 +322,8 @@ void init_servos() {
     if (read_from_flash(&servo_config)) {
         for (int i = 0; i < NUM_SERVOS; i++) {
             read_servo_persistent_position(servos[i], &servo_config);
+            printf("Reading data");
+            servos[i]->needs_sync = true;
             printf("Absolute positions: %d\n", servos[i]->absolute_pos);
         }
     }

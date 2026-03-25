@@ -141,6 +141,7 @@ typedef struct servo {
     int16_t curr_position;
 
     bool is_homing;
+    bool needs_sync;
 
     // Alarms and timers
     alarm_id_t move_complete_alarm;
