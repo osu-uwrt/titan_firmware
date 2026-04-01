@@ -1,4 +1,4 @@
-
+#include "driver_depth/depth.h"
 #include "ros.h"
 #include "safety_interface.h"
 
@@ -173,6 +173,11 @@ static void tick_background_tasks() {
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
+
+    if (depth_set_on_read[0]) {
+        depth_set_on_read[0] = false;
+        RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
     // #elif MICRO_ROS_TRANSPORT_ETH
     //     // Update the LED to report ethernet link status
     //     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
@@ -209,6 +214,15 @@ static void sht41_sensor_error_cb(const sht41_error_code error_type) {
     safety_raise_fault_with_arg(FAULT_SHT41_ERROR, error_type);
 }
 
+static void depth_sensor_error_cb(enum depth_error_event event, bool recoverable) {
+    if (recoverable) {
+        safety_raise_fault_with_arg(FAULT_DEPTH_ERROR, event);
+    }
+    else {
+        safety_raise_fault_with_arg(FAULT_DEPTH_INIT_ERROR, event);
+    }
+}
+
 int main() {
     // Initialize stdio
     // #ifdef MICRO_ROS_TRANSPORT_USB
@@ -226,32 +240,15 @@ int main() {
     micro_ros_init_error_handling();
     // TODO: Put any additional hardware initialization code here
 
-    // Turn on FAN to get cooling
-    // TODO: Move to separate directory when tachometer added
-    // bi_decl_if_func_used(bi_1pin_with_name(FAN_SWITCH_PIN, "Fan Control"));
-    // gpio_init(FAN_SWITCH_PIN);
-    // gpio_put(FAN_SWITCH_PIN, true);
-    // gpio_set_dir(FAN_SWITCH_PIN, true);
-
     gpio_init(AUX_SWITCH_PIN);
     gpio_set_dir(AUX_SWITCH_PIN, false);
 
-    // gpio_init(STBD_STAT_PIN);
-    // gpio_init(PORT_STAT_PIN);
-    // gpio_set_dir(STBD_STAT_PIN, GPIO_IN);
-    // gpio_set_dir(PORT_STAT_PIN, GPIO_IN);
-    // gpio_disable_pulls(STBD_STAT_PIN);
-    // gpio_disable_pulls(PORT_STAT_PIN);
-
-    // init_servo();
-    // add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
-
-    // Initialize I2C
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
     async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
     mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
     sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
+    depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
     // Initialize ROS Transports
     // TODO: If a transport won't be needed for your specific build (like it's lacking the proper port), you can remove

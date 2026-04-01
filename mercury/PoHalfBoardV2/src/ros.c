@@ -1,5 +1,7 @@
 #include "ros.h"
 
+#include "driver_depth/depth.h"
+
 #include "driver/mcp3426.h"
 #include "driver/sht41.h"
 #include "pico/stdlib.h"
@@ -11,6 +13,7 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
+#include <riptide_msgs2/msg/depth.h>
 #include <riptide_msgs2/msg/electrical_command.h>
 #include <riptide_msgs2/msg/electrical_readings.h>
 #include <riptide_msgs2/msg/firmware_status.h>
@@ -18,6 +21,8 @@
 #include <std_msgs/msg/bool.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int8.h>
+
+#include <time.h>
 
 #undef LOGGING_UNIT_NAME
 #define LOGGING_UNIT_NAME "ros"
@@ -29,6 +34,7 @@
 #define MAX_MISSSED_HEARTBEATS 7
 #define HEARTBEAT_PUBLISHER_NAME "heartbeat"
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
+
 #define KILLSWITCH_PUBLISHER_NAME "state/kill"
 #define SOFT_KILL_SUBSCRIBER_NAME "command/software_kill"
 #define ELECTRICAL_READING_NAME "state/electrical"
@@ -37,6 +43,8 @@
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
+#define DEPTH_PUBLISHER_NAME "state/depth"
+#define DEPTH_RECALIBRATE_SUBSCRIPTION_NAME "command/depth/recalibrate"
 // #define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
 bool ros_connected = false;
@@ -59,6 +67,10 @@ rcl_publisher_t aux_switch_publisher;
 // rcl_publisher_t balancing_feedback_publisher;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
+rcl_publisher_t depth_publisher;
+rcl_subscription_t depth_calibrate_subscription;
+std_msgs__msg__Int8 depth_calibrate_msg;
+riptide_msgs2__msg__Depth depth_msg;
 
 // Kill switch
 rcl_publisher_t killswitch_publisher;
@@ -114,13 +126,16 @@ static void software_kill_subscription_callback(const void *msgin) {
     safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
+static void depth_calibrate_cb(const void *msgin) {
+    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
+
+    depth_recalibrate(0);
+}
+
 // static void elec_command_subscription_callback(const void *msgin) {
 //     const riptide_msgs2__msg__ElectricalCommand *msg = (const riptide_msgs2__msg__ElectricalCommand *) msgin;
-//     if (msg->command == riptide_msgs2__msg__ElectricalCommand__ENABLE_FANS) {
-//         gpio_put(FAN_SWITCH_PIN, true);
-//     }
-//     else if (msg->command == riptide_msgs2__msg__ElectricalCommand__DISABLE_FANS) {
-//         gpio_put(FAN_SWITCH_PIN, false);
+//     if (msg->command == riptide_msgs2__msg__ElectricalCommand__CLEAR_DEPTH) {
+//         depth_
 //     }
 // }
 
@@ -171,6 +186,25 @@ rcl_ret_t ros_publish_auxswitch() {
     std_msgs__msg__Bool auxswitch_msg;
     auxswitch_msg.data = gpio_get(AUX_SWITCH_PIN);
     RCSOFTRETCHECK(rcl_publish(&aux_switch_publisher, &auxswitch_msg, NULL));
+
+    return RCL_RET_OK;
+}
+
+static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
+    ts->tv_sec = time_nanos / 1000000000;
+    ts->tv_nsec = time_nanos % 1000000000;
+}
+
+rcl_ret_t ros_update_depth_publisher() {
+    if (depth_reading_valid(0)) {
+        struct timespec ts;
+        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+        depth_msg.header.stamp.sec = ts.tv_sec;
+        depth_msg.header.stamp.nanosec = ts.tv_nsec;
+
+        depth_msg.depth = -depth_read(0);
+        RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
+    }
 
     return RCL_RET_OK;
 }
@@ -305,6 +339,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(
         &aux_switch_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), AUX_SWITCH_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth),
+                                   DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
+
     // RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_publisher, &node,
     //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
     //                                        BALANCING_FEEDBACK_PUBLISHER_NAME));
@@ -325,10 +362,13 @@ rcl_ret_t ros_init() {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 1;
+    const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_calibrate_subscription, &depth_calibrate_msg,
+                                              &depth_calibrate_cb, ON_NEW_DATA));
+
     // RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
     //                                           &elec_command_subscription_callback, ON_NEW_DATA));
 
@@ -357,10 +397,11 @@ void ros_spin_executor(void) {
 
 void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-    //RCSOFTCHECK(ros_actuators_fini(&node));
+    // RCSOFTCHECK(ros_actuators_fini(&node));
 
     // RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&depth_calibrate_subscription, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));

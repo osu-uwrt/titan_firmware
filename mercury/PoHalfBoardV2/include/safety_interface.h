@@ -17,6 +17,8 @@
     DEF(FAULT_ROS_BAD_COMMAND, 5)                                                                                      \
     DEF(FAULT_ADC_ERROR, 6)                                                                                            \
     DEF(FAULT_SHT41_ERROR, 7)                                                                                          \
+    DEF(FAULT_DEPTH_INIT_ERROR, 6)                                                                                     \
+    DEF(FAULT_DEPTH_ERROR, 7)                                                                                          \
 // TODO: Define any additional faults here
 
 // ===== Kill Switch Definitions =====

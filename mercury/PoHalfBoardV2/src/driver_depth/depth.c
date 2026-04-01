@@ -30,7 +30,7 @@ static int64_t depth1_read_alarm_callback(__unused alarm_id_t id, __unused void 
 /**
  * @brief The number of bad reads. Used as a counter before erroring on a comm error
  */
-static int depth_num_bad_reads[NUM_DEPTH] = { 0, 0 };
+static int depth_num_bad_reads[NUM_DEPTH] = { 0 };
 
 static depth_error_cb depth_error_cb_func[NUM_DEPTH] = { NULL, NULL };
 void depth_recoverable_err_cb(uint idx, enum depth_error_event event) {
