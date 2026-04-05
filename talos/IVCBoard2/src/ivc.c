@@ -3,6 +3,7 @@
 #include "consensus.h"
 #include "fft/fft.h"
 #include "rx.h"
+#include "storage.h"
 #include "tx.h"
 
 #include "hardware/adc.h"
@@ -24,6 +25,13 @@ ivc_context_t context = { 0 };
 static void swap_buffer_handler() {
     context.rx.recv.fft_target = context.rx.recv.buffer_select;
     context.rx.recv.buffer_select = !context.rx.recv.buffer_select;
+    fft_sample(context.rx.recv.swap_buffers[context.rx.recv.buffer_select]);
+}
+
+static void swap_buffer_handler_data_ingest() {
+    context.rx.recv.fft_target = context.rx.recv.buffer_select;
+    context.rx.recv.buffer_select = !context.rx.recv.buffer_select;
+    storage_write(context.rx.recv.swap_buffers[context.rx.recv.fft_target], NSAMP);
     fft_sample(context.rx.recv.swap_buffers[context.rx.recv.buffer_select]);
 }
 

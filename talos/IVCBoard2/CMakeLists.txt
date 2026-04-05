@@ -56,6 +56,8 @@ target_link_libraries(IVCBoard2 PUBLIC
     hardware_pwm
     hardware_adc
     hardware_dma
+    hardware_flash
+    hardware_sync
     titan_queue
     micro_ros_usb
 )
