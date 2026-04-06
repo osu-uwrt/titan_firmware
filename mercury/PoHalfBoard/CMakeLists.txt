@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.13)
 # For example, if you want to use lib/titan_boards/include/boards/mk2/esc_board.h, set this to mk2/esc_board
 # Is is preferred to define pins in the board header file and refer to that name rather than hardcoding names
 # This also impacts the upload_tool for automatic device selection
-set(PICO_BOARD mercury/po_half_v2)  # TODO: Set this to your target board
+set(PICO_BOARD mercury/po_half)  # TODO: Set this to your target board
 
 # The Target Robot
 # These can be found in lib/titan_boards/include/robots
@@ -21,33 +21,33 @@ include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
 # TODO: Rename project and executable to your project name
-project(po_half_v2 C CXX ASM)
+project(po_half C CXX ASM)
 titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
-add_executable(po_half_v2
+add_executable(po_half
     ${SOURCES}
 )
-target_include_directories(po_half_v2 PUBLIC include)
+target_include_directories(po_half PUBLIC include)
 
 # Required so we can register our own gpio interrupt for the kill switch (only one gpio interrupt supported)
-target_compile_definitions(po_half_v2 PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
+target_compile_definitions(po_half PUBLIC CAN_MCP251XFD_USE_EXTERNAL_INTERRUPT_CB=1)
 
 # Set version: major minor (see titan/version.h for more info)
-titan_generate_version_tag(po_half_v2 1 0)
+titan_generate_version_tag(po_half 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(po_half_v2 1)
-pico_set_program_name(po_half_v2 "po_half_v2")  # TODO: Set the project name
+pico_enable_stdio_uart(po_half 1)
+pico_set_program_name(po_half "po_half")  # TODO: Set the project name
 
 # Enable the 'make upload' and 'make info' commands for project
-titan_use_upload_tool(po_half_v2)
-titan_enable_bootloader(po_half_v2 can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_use_upload_tool(po_half)
+titan_enable_bootloader(po_half can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
-pico_add_extra_outputs(po_half_v2)
-target_link_libraries(po_half_v2 PUBLIC
+pico_add_extra_outputs(po_half)
+target_link_libraries(po_half PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
 
