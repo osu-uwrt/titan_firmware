@@ -131,12 +131,13 @@ static void depth_calibrate_cb(const void *msgin) {
     depth_recalibrate();
 }
 
-// static void elec_command_subscription_callback(const void *msgin) {
-//     const mercury_msgs__msg__ElectricalCommand *msg = (const mercury_msgs__msg__ElectricalCommand *) msgin;
-//     if (msg->command == mercury_msgs__msg__ElectricalCommand__CLEAR_DEPTH) {
-//         depth_
-//     }
-// }
+static void elec_command_subscription_callback(const void *msgin) {
+    const mercury_msgs__msg__ElectricalCommand *msg = (const mercury_msgs__msg__ElectricalCommand *) msgin;
+
+    if (msg->command == mercury_msgs__msg__ElectricalCommand__CLEAR_DEPTH) {
+        depth_recalibrate();
+    }
+}
 
 // ========================================
 // Public Task Methods (called in main tick)
@@ -349,9 +350,9 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, KillSwitchReport),
                                                   SOFT_KILL_SUBSCRIBER_NAME));
 
-    // RCRETCHECK(rclc_subscription_init_default(&elec_command_subscriber, &node,
-    //                                           ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, ElectricalCommand),
-    //                                           ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(&elec_command_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, ElectricalCommand),
+                                              ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
@@ -361,15 +362,15 @@ rcl_ret_t ros_init() {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_calibrate_subscription, &depth_calibrate_msg,
                                               &depth_calibrate_cb, ON_NEW_DATA));
 
-    // RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
-    //                                           &elec_command_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
+                                              &elec_command_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
     // RCRETCHECK(ros_actuators_init(&executor, &node));
