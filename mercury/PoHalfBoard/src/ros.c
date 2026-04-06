@@ -1,7 +1,6 @@
 #include "ros.h"
 
-#include "driver_depth/depth.h"
-
+#include "driver/depth.h"
 #include "driver/mcp3426.h"
 #include "driver/sht41.h"
 #include "pico/stdlib.h"
@@ -43,7 +42,7 @@
 #define TEMP_STATUS_PUBLISHER_NAME "state/temp/pohalf"
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
-#define DEPTH_PUBLISHER_NAME "state/depth"
+#define DEPTH_PUBLISHER_NAME "state/depth/raw"
 #define DEPTH_RECALIBRATE_SUBSCRIPTION_NAME "command/depth/recalibrate"
 // #define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
@@ -129,7 +128,7 @@ static void software_kill_subscription_callback(const void *msgin) {
 static void depth_calibrate_cb(const void *msgin) {
     const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
 
-    depth_recalibrate(0);
+    depth_recalibrate();
 }
 
 // static void elec_command_subscription_callback(const void *msgin) {
@@ -196,13 +195,13 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
 }
 
 rcl_ret_t ros_update_depth_publisher() {
-    if (depth_reading_valid(0)) {
+    if (depth_reading_valid()) {
         struct timespec ts;
         nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
         depth_msg.header.stamp.sec = ts.tv_sec;
         depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
-        depth_msg.depth = -depth_read(0);
+        depth_msg.depth = -depth_read();
         RCSOFTRETCHECK(rcl_publish(&depth_publisher, &depth_msg, NULL));
     }
 

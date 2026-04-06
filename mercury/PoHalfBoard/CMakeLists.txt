@@ -62,6 +62,7 @@ target_link_libraries(po_half PUBLIC
     hardware_irq
     hardware_adc
     driver_async_i2c
+    driver_depth
     driver_mcp3426
     driver_sht41
 

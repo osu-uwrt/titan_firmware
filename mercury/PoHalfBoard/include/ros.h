@@ -92,6 +92,14 @@ rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 rcl_ret_t ros_update_depth_publisher();
 
+rcl_ret_t ros_publish_killswitch();
+
+rcl_ret_t ros_publish_electrical_readings();
+
+rcl_ret_t ros_publish_auxswitch();
+
+rcl_ret_t ros_update_temp_humidity_publisher();
+
 // TODO: Add in any additional ROS tasks here
 
 #endif

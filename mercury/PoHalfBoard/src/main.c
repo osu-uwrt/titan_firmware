@@ -1,8 +1,8 @@
-#include "driver_depth/depth.h"
 #include "ros.h"
 #include "safety_interface.h"
 
 #include "driver/async_i2c.h"
+#include "driver/depth.h"
 #include "driver/led.h"
 #include "driver/mcp3426.h"
 #include "driver/sht41.h"
@@ -135,6 +135,12 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
 
+    // Send depth as soon as a new reading comes in
+    if (depth_set_on_read) {
+        depth_set_on_read = false;
+        RCSOFTRETVCHECK(ros_update_depth_publisher());
+    }
+
     // TODO: Put any additional ROS tasks added here
     if (timer_ready(&next_killswitch_publish, KILLSWITCH_PUBLISH_TIME_MS, true) ||
         safety_interface_kill_switch_refreshed) {
@@ -150,10 +156,10 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_publish_auxswitch());
     }
 
-    if (sht41_temp_rh_set_on_read) {
-        sht41_temp_rh_set_on_read = false;
-        RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
-    }
+    // if (sht41_temp_rh_set_on_read) {
+    //     sht41_temp_rh_set_on_read = false;
+    //     RCSOFTRETVCHECK(ros_update_temp_humidity_publisher());
+    // }
 
     // if (timer_ready(&next_actuator_status, ACTUATOR_STATUS_TIME_MS, true)) {
     //     RCSOFTRETVCHECK(ros_actuators_update_status());
@@ -174,10 +180,6 @@ static void tick_background_tasks() {
         led_network_online_set(canbus_check_online());
     }
 
-    if (depth_set_on_read[0]) {
-        depth_set_on_read[0] = false;
-        RCSOFTRETVCHECK(ros_update_depth_publisher());
-    }
     // #elif MICRO_ROS_TRANSPORT_ETH
     //     // Update the LED to report ethernet link status
     //     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
@@ -243,11 +245,18 @@ int main() {
     gpio_init(AUX_SWITCH_PIN);
     gpio_set_dir(AUX_SWITCH_PIN, false);
 
+    // bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
+    // static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
+    // async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
+    // mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
+    // sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
+    // depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
+
+    // I2C Initialization
     bi_decl_if_func_used(bi_2pins_with_func(BOARD_SDA_PIN, BOARD_SCL_PIN, GPIO_FUNC_I2C));
     static_assert(BOARD_I2C == 0, "Board i2c expected on i2c0");
-    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 2000000, 10);
-    mcp3426_init(BOARD_I2C, 0x68, mcp3426_error_callback);
-    sht41_init(&sht41_sensor_error_cb, BOARD_I2C);
+    async_i2c_init(BOARD_SDA_PIN, BOARD_SCL_PIN, -1, -1, 200000, 10);
+
     depth_init(BOARD_I2C, MS5837_02BA, &depth_sensor_error_cb);
 
     // Initialize ROS Transports

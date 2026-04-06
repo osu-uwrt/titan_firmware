@@ -24,10 +24,9 @@
 #define SOLENOID_3_SW_PIN 1
 
 // i2c bus with temp sensor, adc, depth sensor
+#define BOARD_I2C 0
 #define BOARD_SDA_PIN 24
 #define BOARD_SCL_PIN 25
-
-#define BOARD_I2C 0
 
 #define LEAK_DETECT_PIN 9  // DONT USE
 
