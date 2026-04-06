@@ -34,6 +34,11 @@ pushd firmware/mcu_ws > /dev/null
     cp -R riptide_core/riptide_msgs ros2/riptide_msgs
     rm -rf riptide_core
 
+    # The software team really likes pain
+    git clone https://github.com/osu-uwrt/mercury_common -b dev
+    cp -R mercury_common/mercury_msgs ros2/mercury_msgs
+    rm -rf mercury_common
+
 popd > /dev/null
 
 ######## Clean old builds ########
