@@ -139,6 +139,8 @@ typedef struct servo {
     int32_t absolute_pos;
     int16_t last_position;
     int16_t curr_position;
+    int32_t position_start_frame;
+    int16_t commanded_speed;
 
     bool is_homing;
     bool needs_sync;

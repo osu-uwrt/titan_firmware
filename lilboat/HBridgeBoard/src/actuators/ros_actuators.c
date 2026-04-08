@@ -13,6 +13,7 @@
 #define ARM_SUBSCRIPTION_NAME "command/actuator/arm"
 #define MOVE_TIME_SUBSCRIPTION_NAME "command/actuator/move_speed_for_time"
 #define MOVE_DEGREE_SUBSCRIPTION_NAME "command/actuator/move_speed_for_degrees"
+#define HOME_ACTUATOR_SUBSCRIPTION_NAME "command/actuator/home_actuator"
 #define DEGREE_PUBLISHER_NAME "state/actuator/degrees"
 #define STATUS_TOPIC_NAME "state/actuator/status"
 #define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
@@ -38,6 +39,9 @@ static rcl_publisher_t degree_publisher;
 
 static rcl_subscription_t move_degree_subscription;
 static std_msgs__msg__Int32 move_degree_msg;
+
+static rcl_subscription_t home_actuator_subscription;
+static std_msgs__msg__Bool home_actuator_msg;
 
 // Servo objects
 servo_t claw_grip;
@@ -133,6 +137,17 @@ bool claw_move_degree(const char **errMsgOut, int32_t target_deg, int16_t speed)
     }
 
     servo_continuous_move_deg(&claw_grip, target_deg, speed);
+    return true;
+}
+
+bool home_claw(const char **errMsgOut, bool home_state) {
+    if (claw_grip.is_moving) {
+        *errMsgOut = "Actuator is moving";
+        return false;
+    }
+
+    servo_set_absolute_home(&claw_grip, home_state);
+
     return true;
 }
 
@@ -255,6 +270,13 @@ static void move_degree_callback(const void *msgin) {
     new_cmd = true;
 }
 
+static void home_actuator_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+
+    const char *message = "";
+    home_claw(&message, msg->data);
+}
+
 // ========================================
 // Initialization
 // ========================================
@@ -286,6 +308,12 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
                                               MOVE_DEGREE_SUBSCRIPTION_NAME));
     RCRETCHECK(rclc_executor_add_subscription(executor, &move_degree_subscription, &move_degree_msg,
                                               move_degree_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_subscription_init_default(&home_actuator_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              HOME_ACTUATOR_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &home_actuator_subscription, &home_actuator_msg,
+                                              home_actuator_callback, ON_NEW_DATA));
 
     // Command Feedback Pubishers
     RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,

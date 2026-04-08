@@ -238,8 +238,21 @@ void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
 // For now, just big trust this command goes through
 void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
-void servo_set_absolute_home(servo_t *servo) {
-    servo->is_homing = true;
+void servo_set_absolute_home(servo_t *servo, bool val) {
+    servo->is_homing = val;
+}
+
+void servo_direct_stop(servo_t *servo) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    param_buf[0] = 1;
+    param_buf[2] = 0x00;
+    param_buf[3] = 0x00;
+
+    ServoPacket_t stop_servo_packet =
+        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+    enqueue_packet(stop_servo_packet);
+
+    servo->is_moving = false;
 }
 
 void servo_stop_check(servo_t *servo) {
@@ -253,7 +266,7 @@ void servo_stop_check(servo_t *servo) {
 
     if (abs(servo->absolute_pos - servo->target_pos_continuous) < STOPPING_TOLERANCE) {
         // Stop servo
-        uint8_t param_buf[MAX_PACKET_SIZE];  // Is MAX_PACKET_SIZE necessary
+        uint8_t param_buf[MAX_PACKET_SIZE];
         param_buf[0] = 1;
         param_buf[2] = 0x00;
         param_buf[3] = 0x00;
@@ -275,6 +288,8 @@ void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed
     param_buf[2] = (uint8_t) (speed & 0x00FF);
     param_buf[3] = (uint8_t) (speed >> 8);
 
+    servo->commanded_speed = speed;
+
     servo->target_pos_continuous = (servo->absolute_pos + (UNITS_PER_DEGREE * target_deg));
 
     ServoPacket_t write_continuous_deg_packet =
@@ -283,6 +298,17 @@ void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed
     if (enqueue_packet(write_continuous_deg_packet)) {
         servo->is_moving = true;
     }
+}
+
+bool stall_detected(servo_t *servo) {
+    float avg_speed = abs(servo->absolute_pos - servo->position_start_frame) / 200;
+    float speed = avg_speed * (1 / UNITS_PER_DEGREE);
+
+    if (speed < servo->commanded_speed) {
+        return true;
+    }
+
+    return false;
 }
 
 void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
@@ -305,6 +331,8 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
 
     int16_t last_position = servo->last_position;
     int16_t curr_position = rx_packet.param_buf[1] << 8 | rx_packet.param_buf[0];
+
+    static int16_t ms_counter;
 
     if (servo->is_homing) {
         servo->absolute_pos = 0;
@@ -341,6 +369,19 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
         }
         else {  // External forces
             servo->still_count = 0;
+        }
+    }
+
+    if (servo->is_moving) {
+        ms_counter += 10;
+
+        if (ms_counter == 200) {  // Change to #define
+            if (stall_detected(servo)) {
+                // Stop servo
+                servo_direct_stop(servo);
+            }
+            ms_counter = 0;
+            servo->position_start_frame = servo->absolute_pos;
         }
     }
 
