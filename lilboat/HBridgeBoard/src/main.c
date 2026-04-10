@@ -268,8 +268,8 @@ int main() {
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
 
-    // servo_set_absolute_home(&claw_grip);
-    // servo_continuous_move_deg(&claw_grip, 100, 200);
+    servo_set_absolute_home(&claw_grip, true);
+    servo_continuous_move_deg(&claw_grip, 360, 200);
 
     /*
     servo_config.servo_info[0].id = 5;

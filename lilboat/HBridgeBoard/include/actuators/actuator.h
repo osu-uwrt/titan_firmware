@@ -2,6 +2,7 @@
 #define ACTUATOR_H
 
 #include "hiwonder_driver.h"
+#include "persistence.h"
 
 #include "pico/stdlib.h"
 
@@ -11,25 +12,6 @@
 #define SERVO_MAX_DEG 240
 
 #define UNITS_PER_DEGREE 65536.0f / 360.0f
-
-#define FLASH_SIZE_BYTES 2097152
-#define FLASH_SECTOR_BYTES 4096
-#define FLASH_OFFSET FLASH_SIZE_BYTES - FLASH_SECTOR_BYTES
-#define PAGE_SIZE_BYTES 256
-#define XIP_BASE_ADDRESS 0x10000000
-#define SERVO_POSITION_DATA_MARKER 1
-
-typedef struct {
-    uint8_t id;
-    int32_t absolute_pos;
-} servo_persistent_data;
-
-typedef struct {
-    uint32_t servo_position_marker;
-    servo_persistent_data servo_info[NUM_SERVOS];
-} flash_config_t;
-
-extern flash_config_t servo_config;
 
 extern void servo_ping(servo_t *servo);
 
@@ -60,13 +42,5 @@ extern void servo_set_home(servo_t *servo);
 extern void servo_init_internal();
 
 extern void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg);
-
-bool update_servo_persistent_position(servo_t *servo, flash_config_t *config);
-
-extern void read_servo_persistent_position(servo_t *servo, flash_config_t *config);
-
-extern bool read_from_flash(flash_config_t *data);
-
-extern void write_to_flash(flash_config_t *config);
 
 #endif  // ACTUATOR_H

@@ -2,10 +2,9 @@
 
 #include "actuators/async_uart.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/persistence.h"
 
-#include "hardware/flash.h"
 #include "hardware/pio.h"
-#include "hardware/sync.h"
 #include "titan/debug.h"
 #include "titan/logger.h"
 
@@ -16,16 +15,13 @@
 #define SERVO_POSTMOVE_DELAY_MS 250
 #define MAX_NUM_ERRORS 10
 #define SERVO_MAX_TARGET_ERROR 5
-#define UNITS_PER_DEGREE 1000 / 240
+#define UNITS_PER_DEGREE 1000 / 240.0f  // Should I move this to hiwonder_driver.h since it's spedific to the servo?
+#define DEGREES_PER_SECOND 60 / 0.18f   // Should I move this to hiwonder_driver.h since it's spedific to the servo?
 
 uint8_t discovered_id = 0;
 
-flash_config_t servo_config;
-
 const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
 const int32_t FULL_RANGE = 1500;
-
-// static void write_to_flash(flash_config_t *config);
 
 // Handlers
 // dxlact_idle_position_handler_t idle_handler;
@@ -301,10 +297,15 @@ void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed
 }
 
 bool stall_detected(servo_t *servo) {
-    float avg_speed = abs(servo->absolute_pos - servo->position_start_frame) / 200;
-    float speed = avg_speed * (1 / UNITS_PER_DEGREE);
+    float measured_speed = abs(servo->absolute_pos - servo->position_start_frame) / 0.2f;
+    float current_speed_degrees = measured_speed * (1 / UNITS_PER_DEGREE);
 
-    if (speed < servo->commanded_speed) {
+    float expected_speed_degrees = (abs(servo->commanded_speed) / 1000.0f) * DEGREES_PER_SECOND;
+    float stall_threshold = expected_speed_degrees * 0.10f;
+
+    printf("Expected speed: %f Current speed: %f", expected_speed_degrees, current_speed_degrees);
+
+    if (current_speed_degrees < stall_threshold) {
         return true;
     }
 
@@ -385,7 +386,7 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
         }
     }
 
-    printf("Absolute positions: %d\n", servo->absolute_pos);
+    // printf("Absolute positions: %d\n", servo->absolute_pos);
 
     // printf("Current position: %d", curr_position);
 
@@ -597,44 +598,4 @@ void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
     servo->home_deg = home_deg;
 
     printf("Servo id: %d\n", servo->id);
-}
-
-bool update_servo_persistent_position(servo_t *servo, flash_config_t *config) {
-    for (int i = 0; i < NUM_SERVOS; i++) {
-        if (config->servo_info[i].id == servo->id) {
-            config->servo_info[i].absolute_pos = servo->absolute_pos;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void read_servo_persistent_position(servo_t *servo, flash_config_t *config) {
-    for (int i = 0; i < NUM_SERVOS; i++) {
-        if (config->servo_info[i].id == servo->id) {
-            servo->absolute_pos = config->servo_info[i].absolute_pos;
-        }
-    }
-}
-
-void write_to_flash(flash_config_t *config) {
-    uint32_t prev_interrupt = save_and_disable_interrupts();
-
-    flash_range_erase(FLASH_OFFSET, FLASH_SECTOR_BYTES);  // Clear last sector of flash
-
-    uint8_t buffer[PAGE_SIZE_BYTES] = { 0 };
-    config->servo_position_marker = SERVO_POSITION_DATA_MARKER;
-    memcpy(buffer, config, sizeof(flash_config_t));
-    flash_range_program(FLASH_OFFSET, buffer, PAGE_SIZE_BYTES);
-
-    restore_interrupts(prev_interrupt);
-    printf("Magic number: %d", buffer[0]);
-}
-
-bool read_from_flash(flash_config_t *data) {
-    const flash_config_t *flash_contents = (flash_config_t *) (XIP_BASE_ADDRESS + FLASH_OFFSET);
-    memcpy(data, flash_contents, sizeof(flash_config_t));
-
-    return data->servo_position_marker == SERVO_POSITION_DATA_MARKER;
 }

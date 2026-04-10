@@ -2,6 +2,7 @@
 
 #include "actuators/actuator.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/persistence.h"
 
 #include "titan/logger.h"
 
