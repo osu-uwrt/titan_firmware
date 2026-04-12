@@ -96,7 +96,7 @@ typedef union sio_fifo_req {
             // Must be last
             CONTROLLER_PARAM__COUNT
         } type;
-        uint32_t value : FIFO_REQ_VALUE_WIDTH;
+        uint32_t value:FIFO_REQ_VALUE_WIDTH;
     };
     uint32_t raw;
 } sio_fifo_req_t;
@@ -497,11 +497,11 @@ void core1_init(uint8_t board_id) {
     uint8_t inverted_mask;
     if (board_id == 0) {
         // Thrusters 4321
-        inverted_mask = 0b1001;
+        inverted_mask = 0b0000;
     }
     else {
         // Thrusters 8765
-        inverted_mask = 0b1001;
+        inverted_mask = 0b0000;
     }
     core1_set_thruster_inverted_mask(inverted_mask);
 
