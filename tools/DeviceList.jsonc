@@ -22,6 +22,27 @@
     // Contains map of all board serial numbers to board type, as well as providing a friendly name
     // Used by various Titan Firmware tools to properly identify boards by serial number
     "serialMap": [
+        // ========================================
+        // Triton boards
+        // ========================================
+        {
+            "name": "Triton ESC Board 1",
+            "boardType": "mercury/esc_board",
+            "serial": "E46214B0630E3B32"
+        },
+        {
+            "name": "Triton ESC Board 0",
+            "boardType": "mercury/esc_board",
+            "serial": "E66214550758B927"
+        },
+        {
+            "name": "Triton PoHalf Board",
+            "boardType": "mercury/po_half",
+            "serial": "E4654841CF251C38"
+        },
+        // ========================================
+        // IVC Boards
+        // ========================================
         {
             "name": "SSFB IVC Board",
             "boardType": "talos/ivc_board",
