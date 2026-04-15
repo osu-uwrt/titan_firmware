@@ -15,13 +15,15 @@
 #define SERVO_POSTMOVE_DELAY_MS 250
 #define MAX_NUM_ERRORS 10
 #define SERVO_MAX_TARGET_ERROR 5
-#define UNITS_PER_DEGREE 1000 / 240.0f  // Should I move this to hiwonder_driver.h since it's spedific to the servo?
-#define DEGREES_PER_SECOND 60 / 0.18f   // Should I move this to hiwonder_driver.h since it's spedific to the servo?
+#define UNITS_PER_DEGREE (1000 / 240.0f)  // Should I move this to hiwonder_driver.h since it's spedific to the servo?
+#define DEGREES_PER_SECOND (60 / 0.18f)   // Should I move this to hiwonder_driver.h since it's spedific to the servo?
 
 uint8_t discovered_id = 0;
 
 const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
 const int32_t FULL_RANGE = 1500;
+
+static int16_t ms_counter;
 
 // Handlers
 // dxlact_idle_position_handler_t idle_handler;
@@ -285,6 +287,8 @@ void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed
     param_buf[3] = (uint8_t) (speed >> 8);
 
     servo->commanded_speed = speed;
+    servo->position_start_frame = servo->absolute_pos;
+    ms_counter = 0;
 
     servo->target_pos_continuous = (servo->absolute_pos + (UNITS_PER_DEGREE * target_deg));
 
@@ -302,6 +306,11 @@ bool stall_detected(servo_t *servo) {
 
     float expected_speed_degrees = (abs(servo->commanded_speed) / 1000.0f) * DEGREES_PER_SECOND;
     float stall_threshold = expected_speed_degrees * 0.10f;
+
+    printf("Servo position start frame: %d Servo absolute position: %d", servo->position_start_frame,
+           servo->absolute_pos);
+
+    printf("Measured speed: %f", measured_speed);
 
     printf("Expected speed: %f Current speed: %f", expected_speed_degrees, current_speed_degrees);
 
@@ -325,15 +334,12 @@ void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
         return;
     }
     */
-
     // printf("Servo absolute position: %d\n", servo->absolute_pos);
 
     // int16_t last_position = (int16_t) servo->absolute_pos;
 
     int16_t last_position = servo->last_position;
     int16_t curr_position = rx_packet.param_buf[1] << 8 | rx_packet.param_buf[0];
-
-    static int16_t ms_counter;
 
     if (servo->is_homing) {
         servo->absolute_pos = 0;

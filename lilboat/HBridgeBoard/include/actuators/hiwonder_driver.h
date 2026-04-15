@@ -115,7 +115,6 @@ typedef struct servo {
 
     bool is_moving;
     int32_t target_pos_continuous;
-    bool target_pos_reached;
 
     // TODO: this is cursed
     bool is_sethome_req;

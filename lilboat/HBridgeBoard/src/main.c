@@ -195,21 +195,6 @@ static void tick_background_tasks() {
     }
 }
 
-void write_callback(enum async_uart_tx_err err) {
-    if (err == ASYNC_UART_TX_OK) {
-        printf("Finished writen");
-    }
-}
-
-void read_callback(enum async_uart_rx_err err, uint8_t *data, size_t len) {
-    if (err == ASYNC_UART_RX_OK) {
-        printf("Servo Answered! ID: %d\n", data[2]);
-    }
-    else {
-        printf("Read failed with error code: %d\n", err);
-    }
-}
-
 int main() {
 // Initialize stdio
 #ifdef MICRO_ROS_TRANSPORT_USB
