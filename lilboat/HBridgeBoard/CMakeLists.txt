@@ -43,7 +43,7 @@ pico_generate_pio_header(hbridge_board ${CMAKE_CURRENT_LIST_DIR}/src/actuators/u
 
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(hbridge_board)
-titan_enable_bootloader(hbridge_board can)  # TODO: Select the same transport as below, or remove this line if using USB
+#titan_enable_bootloader(hbridge_board can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
 pico_add_extra_outputs(hbridge_board)
@@ -51,9 +51,10 @@ target_link_libraries(hbridge_board PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
-    micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_usb   # Micro ros support (supports _can, _usb, _eth)
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
+    titan_debug
 
     # TODO: Add any additional hardware here (ex. hardware_adc)
     hardware_pwm
@@ -61,6 +62,8 @@ target_link_libraries(hbridge_board PUBLIC
     hardware_pio
     hardware_irq
     hardware_adc
+    hardware_flash
+    hardware_sync
     driver_async_i2c
     titan_queue
     driver_cd74hc4051

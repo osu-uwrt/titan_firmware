@@ -2,6 +2,7 @@
 
 #include "actuators/actuator.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/persistence.h"
 
 #include "titan/logger.h"
 
@@ -12,6 +13,8 @@
 
 #define ARM_SUBSCRIPTION_NAME "command/actuator/arm"
 #define MOVE_TIME_SUBSCRIPTION_NAME "command/actuator/move_speed_for_time"
+#define MOVE_DEGREE_SUBSCRIPTION_NAME "command/actuator/move_speed_for_degrees"
+#define HOME_ACTUATOR_SUBSCRIPTION_NAME "command/actuator/home_actuator"
 #define DEGREE_PUBLISHER_NAME "state/actuator/degrees"
 #define STATUS_TOPIC_NAME "state/actuator/status"
 #define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
@@ -35,8 +38,13 @@ static rcl_subscription_t move_time_subscription;
 static std_msgs__msg__Int32 move_time_msg;
 static rcl_publisher_t degree_publisher;
 
+static rcl_subscription_t move_degree_subscription;
+static std_msgs__msg__Int32 move_degree_msg;
+
+static rcl_subscription_t home_actuator_subscription;
+static std_msgs__msg__Bool home_actuator_msg;
+
 // Servo objects
-#define NUM_SERVOS 2
 servo_t claw_grip;
 servo_t claw_rack;
 servo_t *servos[NUM_SERVOS] = { &claw_grip, &claw_rack };
@@ -73,6 +81,8 @@ bool actuators_arm(const char **errMsgOut) {
 
     bool return_code = true;
 
+    printf("Here");
+
     for (int i = 0; i < NUM_SERVOS; i++) {
         // Don't allow arming if already armed
         if (servos[i]->enabled) {
@@ -82,6 +92,7 @@ bool actuators_arm(const char **errMsgOut) {
             return_code = false;
         }
         else {
+            printf("Arming actuator");
             LOG_INFO("Arming actuator %d", i);
 
             // We're good to arm
@@ -103,12 +114,41 @@ bool actuators_arm(const char **errMsgOut) {
 }
 
 bool grip_move_time(const char **errMsgOut, int32_t speed) {
+    if (!claw_grip.enabled) {
+        *errMsgOut = "Actuator not enabled";
+        return false;
+    }
     if (abs(speed) > SERVO_MAX_SPEED) {
         *errMsgOut = "Requested speed out of range";
         return false;
     }
 
     servo_continuous_move_ms(&claw_grip, speed, DEBUG_MOVE_TIME_MS);
+    return true;
+}
+
+bool claw_move_degree(const char **errMsgOut, int32_t target_deg, int16_t speed) {
+    if (!claw_grip.enabled) {  // Pass servo as parameter
+        *errMsgOut = "Actuator not enabled";
+        return false;
+    }
+    if (abs(speed) > SERVO_MAX_SPEED) {
+        *errMsgOut = "Requested speed out of range";
+        return false;
+    }
+
+    servo_continuous_move_deg(&claw_grip, target_deg, speed);
+    return true;
+}
+
+bool home_claw(const char **errMsgOut, bool home_state) {
+    if (claw_grip.is_moving) {
+        *errMsgOut = "Actuator is moving";
+        return false;
+    }
+
+    servo_set_absolute_home(&claw_grip, home_state);
+
     return true;
 }
 
@@ -186,8 +226,10 @@ static void arm_subscription_callback(const void *msgin) {
     }
     // False, disarm
     else {
-        for (int i = 0; i < NUM_SERVOS; i++)
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            update_servo_persistent_position(servos[i], &servo_config);
             servo_set_armed(servos[i], false);
+        }
 
         cmd_status.data = true;
     }
@@ -212,6 +254,28 @@ static void move_time_subscription_callback(const void *msgin) {
     cmd_feedback.data.capacity = msg_len + 1;  // Add null termination byte
 
     new_cmd = true;
+}
+
+static void move_degree_callback(const void *msgin) {
+    const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *) msgin;
+
+    const char *message = "";
+    int16_t speed = msg->data > 0 ? SERVO_MAX_SPEED : -SERVO_MAX_SPEED;
+    cmd_status.data = claw_move_degree(&message, msg->data, speed);
+
+    size_t message_len = strlen(message);
+    cmd_feedback.data.data = (char *) message;
+    cmd_feedback.data.size = message_len;
+    cmd_feedback.data.capacity = message_len + 1;
+
+    new_cmd = true;
+}
+
+static void home_actuator_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *) msgin;
+
+    const char *message = "";
+    home_claw(&message, msg->data);
 }
 
 // ========================================
@@ -240,6 +304,18 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
     RCRETCHECK(rclc_publisher_init_default(&degree_publisher, node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
                                            DEGREE_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_default(&move_degree_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              MOVE_DEGREE_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &move_degree_subscription, &move_degree_msg,
+                                              move_degree_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_subscription_init_default(&home_actuator_subscription, node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              HOME_ACTUATOR_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &home_actuator_subscription, &home_actuator_msg,
+                                              home_actuator_callback, ON_NEW_DATA));
+
     // Command Feedback Pubishers
     RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
@@ -266,6 +342,18 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
 void init_servos() {
     servo_init_internal();
 
-    make_servo(&claw_grip, 3, 0);
+    make_servo(&claw_grip, 5, 0);  // 3
     make_servo(&claw_rack, 4, 0);
+
+    servo_config.servo_info[0].id = 5;
+    servo_config.servo_info[1].id = 4;
+
+    if (read_from_flash(&servo_config)) {
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            read_servo_persistent_position(servos[i], &servo_config);
+            printf("Reading data");
+            servos[i]->needs_sync = true;
+            printf("Absolute positions: %d\n", servos[i]->absolute_pos);
+        }
+    }
 }

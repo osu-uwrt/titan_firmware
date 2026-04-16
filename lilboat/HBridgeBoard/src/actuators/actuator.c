@@ -2,6 +2,7 @@
 
 #include "actuators/async_uart.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/persistence.h"
 
 #include "hardware/pio.h"
 #include "titan/debug.h"
@@ -14,8 +15,15 @@
 #define SERVO_POSTMOVE_DELAY_MS 250
 #define MAX_NUM_ERRORS 10
 #define SERVO_MAX_TARGET_ERROR 5
+#define UNITS_PER_DEGREE (1000 / 240.0f)  // Should I move this to hiwonder_driver.h since it's spedific to the servo?
+#define DEGREES_PER_SECOND (60 / 0.18f)   // Should I move this to hiwonder_driver.h since it's spedific to the servo?
 
 uint8_t discovered_id = 0;
+
+const int32_t ROLLOVER_THRESHOLD = 500;  // 32768
+const int32_t FULL_RANGE = 1500;
+
+static int16_t ms_counter;
 
 // Handlers
 // dxlact_idle_position_handler_t idle_handler;
@@ -43,7 +51,7 @@ static void servo_ping_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
     else {
         servo->num_errors = 0;
         servo->connected = true;
-        // LOG_INFO("Actuator connected!");
+        LOG_INFO("Actuator connected!");
     }
 }
 
@@ -85,7 +93,6 @@ void servo_set_armed(servo_t *servo, bool armed) {
     ServoPacket_t read_packet =
         make_servo_packet(servo, SERVO_LOAD_OR_UNLOAD_READ_CMD, SERVO_LOAD_OR_UNLOAD_READ_LEN, param_buf);
     read_packet.on_read = servo_is_armed_cb;
-
     enqueue_packet(read_packet);
 }
 
@@ -141,6 +148,7 @@ uint16_t servo_set_deg(servo_t *servo, float deg) {
 
     // float bound_deg = min(max(deg, SERVO_MIN_DEG), SERVO_MAX_DEG);  // TODO: actually do something like this
     uint16_t target = deg * (1000.0 / 240.0);
+
     uint16_t move_time_ms = fabs(deg - servo->curr_deg) * (1.0 / SERVO_MAX_DPS) * 1000;
 
     split_uint16(target, &param_buf[0], &param_buf[1]);
@@ -176,6 +184,7 @@ static void servo_read_deg_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
 
     uint16_t pos = rx_packet.param_buf[0] | rx_packet.param_buf[1] << 8;
     pos = pos > 1000 ? 1000 : pos;
+    pos = pos < 0 ? 0 : pos;
     servo->curr_deg = pos * (240.0 / 1000.0);
 
     LOG_INFO("Read %hd pos as %hd deg", pos, servo->curr_deg);
@@ -227,10 +236,198 @@ void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
 // For now, just big trust this command goes through
 void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg) {}
 
+void servo_set_absolute_home(servo_t *servo, bool val) {
+    servo->is_homing = val;
+}
+
+void servo_direct_stop(servo_t *servo) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    param_buf[0] = 1;
+    param_buf[2] = 0x00;
+    param_buf[3] = 0x00;
+
+    ServoPacket_t stop_servo_packet =
+        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+    enqueue_packet(stop_servo_packet);
+
+    servo->is_moving = false;
+}
+
+void servo_stop_check(servo_t *servo) {
+    if (!servo->is_moving) {
+        return;
+    }
+
+    const int32_t STOPPING_TOLERANCE = 300;  // Adjust value
+
+    // printf("Position difference: %d\n", abs(servo->absolute_pos - servo->target_pos_continuous));
+
+    if (abs(servo->absolute_pos - servo->target_pos_continuous) < STOPPING_TOLERANCE) {
+        // Stop servo
+        uint8_t param_buf[MAX_PACKET_SIZE];
+        param_buf[0] = 1;
+        param_buf[2] = 0x00;
+        param_buf[3] = 0x00;
+
+        ServoPacket_t stop_servo_packet =
+            make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+
+        if (enqueue_packet(stop_servo_packet)) {
+            servo->is_moving = false;
+            servo->flash_write_pending = true;
+            servo->still_count = 0;
+        }
+    }
+}
+
+void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    param_buf[0] = 1;
+    param_buf[2] = (uint8_t) (speed & 0x00FF);
+    param_buf[3] = (uint8_t) (speed >> 8);
+
+    servo->commanded_speed = speed;
+    servo->position_start_frame = servo->absolute_pos;
+    ms_counter = 0;
+
+    servo->target_pos_continuous = (servo->absolute_pos + (UNITS_PER_DEGREE * target_deg));
+
+    ServoPacket_t write_continuous_deg_packet =
+        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
+
+    if (enqueue_packet(write_continuous_deg_packet)) {
+        servo->is_moving = true;
+    }
+}
+
+bool stall_detected(servo_t *servo) {
+    float measured_speed = abs(servo->absolute_pos - servo->position_start_frame) / 0.2f;
+    float current_speed_degrees = measured_speed * (1 / UNITS_PER_DEGREE);
+
+    float expected_speed_degrees = (abs(servo->commanded_speed) / 1000.0f) * DEGREES_PER_SECOND;
+    float stall_threshold = expected_speed_degrees * 0.10f;
+
+    printf("Servo position start frame: %d Servo absolute position: %d", servo->position_start_frame,
+           servo->absolute_pos);
+
+    printf("Measured speed: %f", measured_speed);
+
+    printf("Expected speed: %f Current speed: %f", expected_speed_degrees, current_speed_degrees);
+
+    if (current_speed_degrees < stall_threshold) {
+        return true;
+    }
+
+    return false;
+}
+
+void servo_read_continuous_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
+    if (err != SERVO_READ_OK) {
+        return;
+    }
+    servo_t *servo = rx_packet.servo;
+
+    // printf("Servo id: %d", servo_config.servo_info[0].id);
+
+    /*
+    if (!servo->is_moving) {
+        return;
+    }
+    */
+    // printf("Servo absolute position: %d\n", servo->absolute_pos);
+
+    // int16_t last_position = (int16_t) servo->absolute_pos;
+
+    int16_t last_position = servo->last_position;
+    int16_t curr_position = rx_packet.param_buf[1] << 8 | rx_packet.param_buf[0];
+
+    if (servo->is_homing) {
+        servo->absolute_pos = 0;
+        servo->last_position = curr_position;
+
+        update_servo_persistent_position(servo, &servo_config);
+        write_to_flash(&servo_config);
+
+        servo->is_homing = false;
+        return;
+    }
+
+    if (servo->needs_sync) {
+        servo->last_position = curr_position;
+
+        printf("Servo last position: %d", servo->last_position);
+
+        servo->needs_sync = false;
+        return;
+    }
+
+    if (servo->flash_write_pending) {  // TODO: Get rid of magic number
+        if (abs(curr_position - last_position) <= 1) {
+            servo->still_count++;
+            if (servo->still_count < 4) {  // TODO: Get rid of magic number
+                return;
+            }
+            if (!update_servo_persistent_position(servo, &servo_config)) {
+                LOG_WARN("Error updating servo position");
+            }
+            write_to_flash(&servo_config);
+
+            servo->flash_write_pending = false;
+        }
+        else {  // External forces
+            servo->still_count = 0;
+        }
+    }
+
+    if (servo->is_moving) {
+        ms_counter += 10;
+
+        if (ms_counter == 200) {  // Change to #define
+            if (stall_detected(servo)) {
+                // Stop servo
+                servo_direct_stop(servo);
+            }
+            ms_counter = 0;
+            servo->position_start_frame = servo->absolute_pos;
+        }
+    }
+
+    // printf("Absolute positions: %d\n", servo->absolute_pos);
+
+    // printf("Current position: %d", curr_position);
+
+    int32_t position_change = curr_position - last_position;
+
+    if (position_change <= -ROLLOVER_THRESHOLD) {
+        servo->absolute_pos += FULL_RANGE;
+    }
+    else if (position_change >= ROLLOVER_THRESHOLD) {
+        servo->absolute_pos -= FULL_RANGE;
+    }
+
+    servo->absolute_pos += position_change;
+    // printf("Servo absolute position: %d\n", servo->absolute_pos);
+    // servo->curr_position = curr_position;
+    servo->last_position = curr_position;
+    servo_stop_check(servo);
+
+    // printf("Servo absolute position: %d\nServo last position: %d\n", servo->absolute_pos, servo->last_position);
+}
+
+void servo_read_continuous(servo_t *servo) {
+    uint8_t param_buf[MAX_PACKET_SIZE];
+    //  param_buf[0] = 1;
+    //  param_buf[1] = 0;
+
+    ServoPacket_t read_continuous_packet = make_servo_packet(servo, SERVO_POS_READ_CMD, SERVO_POS_READ_LEN, param_buf);
+    read_continuous_packet.on_read = servo_read_continuous_cb;
+
+    enqueue_packet(read_continuous_packet);
+}
+
 void servo_set_id(uint8_t old_id, uint8_t new_id) {
     uint8_t param_buf[MAX_PACKET_SIZE];
     param_buf[0] = new_id;
-
     servo_t tmp = { .id = old_id };
     ServoPacket_t set_id_packet = make_servo_packet(&tmp, SERVO_ID_WRITE_CMD, SERVO_ID_WRITE_LEN, param_buf);
 
@@ -405,4 +602,6 @@ void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
 
     servo->id = id;
     servo->home_deg = home_deg;
+
+    printf("Servo id: %d\n", servo->id);
 }

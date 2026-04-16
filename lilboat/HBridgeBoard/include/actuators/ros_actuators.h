@@ -1,9 +1,15 @@
 #ifndef ROS_ACTUATORS_H
 #define ROS_ACTUATORS_H
 
+#include "actuator.h"
+#include "actuators/hiwonder_driver.h"
 #include "ros.h"
 
 extern const size_t ros_actuators_num_executor_handles;
+
+extern servo_t claw_grip;
+extern servo_t claw_rack;
+extern servo_t *servos[NUM_SERVOS];
 
 extern void servo_ping_all();
 
