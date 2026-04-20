@@ -79,6 +79,15 @@ extern volatile bool depth_set_on_read;
 double depth_read(void);
 
 /**
+ * @brief Reads the pressure value from the depth sensor.
+ *
+ * @attention depth_reading_valid must return true before calling this function
+ *
+ * @return double The raw pressure reading
+ */
+double pressure_read(void);
+
+/**
  * @brief Returns the current temperature read from the depth sensor.
  *
  * @attention depth_reading_valid must return true before calling this function
