@@ -36,7 +36,7 @@ static std_msgs__msg__Float32 move_time_msg;
 static rcl_publisher_t degree_publisher;
 
 // Servo objects
-#define CLAW_SERVO_ID 1
+#define CLAW_SERVO_ID 2
 #define CLAW_HOME_DEG 0
 
 servo_t claw_servo;
