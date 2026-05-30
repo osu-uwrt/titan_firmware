@@ -25,4 +25,10 @@ void consensus_update(rx_consensus_t *c, sample_t observation);
  */
 bool sample_ready(rx_consensus_t *c, sample_t *sample);
 
+/**
+ * @brief
+ */
+typedef struct {
+} ema_t;
+
 #endif  // CONSENSUS_H

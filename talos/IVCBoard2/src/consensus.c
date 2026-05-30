@@ -11,17 +11,17 @@ void consensus_update(rx_consensus_t *c, sample_t observation) {
     // LOG_INFO("CONSENSUS: stable: %hhu, gap: %hhu, current sample: %hhu, last_sample_seen: %hhu, ready?: %hhu",
     //  c->stable_count, c->gap_count, c->current_sample, c->last_sample_seen, c->flags.sample_ready);
     if (observation == c->current_sample) {
-        LOG_INFO("STABLE COUNT: %hhu", c->stable_count);
+        // LOG_INFO("STABLE COUNT: %hhu", c->stable_count);
         c->stable_count++;
         c->gap_count = 0;
     }
     else if (c->stable_count >= MIN_STABLE_SAMPLES) {
         if (observation == c->pending_sample) {
-            LOG_INFO("OBS MATCHES PENDING, GAP = %hhu", c->gap_count);
+            // LOG_INFO("OBS MATCHES PENDING, GAP = %hhu", c->gap_count);
             c->gap_count++;
         }
         else {
-            LOG_INFO("OBS DOESNT MATCH PENDING");
+            // LOG_INFO("OBS DOESNT MATCH PENDING");
             c->pending_sample = observation;
             c->gap_count = 1;
         }

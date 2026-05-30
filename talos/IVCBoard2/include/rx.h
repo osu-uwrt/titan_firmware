@@ -36,4 +36,10 @@ sample_t rx_observe(ivc_context_t *ctx);
  */
 void rx_init(ivc_context_t *ctx, void (*swap_buffer_handler)());
 
+float rx_observe_amplitude(ivc_context_t *ctx);
+float get_low_amp();
+float get_sync_amp();
+float get_high_amp();
+void process_fft(ivc_context_t *ctx);
+
 #endif  // RX_H

@@ -14,7 +14,10 @@
 #include <rmw_microros/rmw_microros.h>
 #include <riptide_msgs2/msg/firmware_status.h>
 #include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/float32.h>
+#include <std_msgs/msg/int32.h>
 #include <std_msgs/msg/int8.h>
+#include <std_msgs/msg/u_int32.h>
 #include <std_msgs/msg/u_int8.h>
 
 #undef LOGGING_UNIT_NAME
@@ -29,11 +32,13 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 
-#define RX_DATA_PUBLISHER_NAME "ivc/rx_ss"
+#define RX_DATA_PUBLISHER_NAME "ivc/rx"
 #define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample"
 #define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx"
-#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data_ss"
+#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
 #define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
+#define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump"
+#define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer"
 
 #define MAX_ROS_NAME 13  // including null
 
@@ -58,9 +63,16 @@ std_msgs__msg__Bool killswitch_msg;
 // TODO: Add node specific items here
 rcl_publisher_t rx_data_publisher;
 rcl_publisher_t rx_debug_sample_publisher;
+
+rcl_publisher_t adc_flash_sample_publisher;
+rcl_publisher_t amplitude_publisher;
+
 rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
 std_msgs__msg__Int8 tx_msg;
+
+// std_msgs__msg__Float32 amplitude_msg;
+std_msgs__msg__Int32 amplitude_msg;
 
 void set_topic_names(ivc_context_t *ctx) {
     snprintf(rx_packet_publisher_name, MAX_ROS_NAME, "ivc/rx%s", ctx->is_talos ? "_talos" : "_other");
@@ -86,6 +98,20 @@ rcl_ret_t ros_publish_rx(uint8_t rx) {
 
     RCSOFTRETCHECK(rcl_publish(&rx_data_publisher, &rx_msg, NULL));
 
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_adc_sample(uint8_t sample) {
+    std_msgs__msg__Int8 sample_msg;
+    sample_msg.data = (int8_t) sample;
+    RCSOFTRETCHECK(rcl_publish(&adc_flash_sample_publisher, &sample_msg, NULL));
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_amplitude(float amp) {
+    std_msgs__msg__UInt32 amp_msg;
+    amp_msg.data = (int32_t) amp;
+    RCSOFTRETCHECK(rcl_publish(&amplitude_publisher, &amplitude_msg, NULL));
     return RCL_RET_OK;
 }
 
@@ -203,6 +229,13 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
                                            FIRMWARE_STATUS_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&adc_flash_sample_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                           ADC_SAMPLE_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(
+        &amplitude_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), AMPLITUDE_PUBLISHER_NAME));
+
     // RCRETCHECK(rclc_subscription_init_default(
     //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
 
@@ -252,6 +285,8 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&adc_flash_sample_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&amplitude_publisher, &node));
     // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));

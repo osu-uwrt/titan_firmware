@@ -32,6 +32,8 @@
 #define LED_UPTIME_INTERVAL_MS 250
 #define SAMPLE_TIME_MS 50
 
+#define AMPLITUDE_CHECK_TIME_MS 100
+
 // Initialize all to nil time
 // For background timers, they will fire immediately
 // For ros timers, they will be reset before being ticked by start_ros_timers
@@ -39,6 +41,8 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+
+absolute_time_t next_amplitude_check = { 0 };
 
 // absolute_time_t next_rx_sample = { 0 };
 
@@ -123,6 +127,9 @@ static void tick_ros_tasks() {
     // if (timer_ready(&next_rx_sample, SAMPLE_TIME_MS, true)) {
     //     rx_single_sample();
     // }
+    // if (timer_ready(&next_amplitude_check, AMPLITUDE_CHECK_TIME_MS, false)) {
+    //     RCSOFTRETVCHECK(ros_publish_amplitude(rx_observe_amplitude());
+    // }
 }
 
 static void tick_background_tasks() {
@@ -170,6 +177,7 @@ int main() {
     led_init();
     micro_ros_init_error_handling();
 
+    // data_ingest_init();
     ivc_init();
 // TODO: Put any additional hardware initialization code here
 
@@ -214,9 +222,11 @@ int main() {
         // ivc
         // tick();
         // new_tick();
-        ivc_tick();
-
-        // Handle ROS state logic
+        // ivc_tick();
+        amplitude_check_tick();
+        //  data_ingest_tick();
+        //  adc_sample_dump_tick();
+        //   Handle ROS state logic
         if (is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");

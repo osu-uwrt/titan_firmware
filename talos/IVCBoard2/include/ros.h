@@ -10,8 +10,8 @@
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 
-// #undef MICRO_ROS_TRANSPORT_USB
-// #define MICRO_ROS_TRANSPORT_CAN 1
+#undef MICRO_ROS_TRANSPORT_USB
+#define MICRO_ROS_TRANSPORT_CAN 1
 
 #define RCRETCHECK(fn)                                                                                                 \
     {                                                                                                                  \
@@ -97,6 +97,9 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
 rcl_ret_t ros_publish_rx(uint8_t rx);
+
+rcl_ret_t ros_publish_adc_sample(uint8_t sample);
+rcl_ret_t ros_publish_amplitude(float amp);
 
 // TODO: Add in any additional ROS tasks here
 

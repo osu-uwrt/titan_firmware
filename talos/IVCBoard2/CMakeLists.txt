@@ -48,7 +48,7 @@ target_link_libraries(IVCBoard2 PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
-    #micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
+    micro_ros_can   # Micro ros support (supports _can, _usb, _eth)
     titan_logger    # A nice little logging library
     titan_safety    # Handles critical code (Watchdog, Kill Switch, Fault Reporting)
 
@@ -59,6 +59,6 @@ target_link_libraries(IVCBoard2 PUBLIC
     hardware_flash
     hardware_sync
     titan_queue
-    micro_ros_usb
+    #micro_ros_usb
 )
 

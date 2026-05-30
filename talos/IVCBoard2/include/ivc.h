@@ -7,11 +7,34 @@
 #include <stdint.h>
 
 #define NUM_FFT_BINS 3
-#define FFT_BIN_RANGE 500
+// #define FFT_BIN_RANGE 500
 
-#define FREQ_SYNC_HZ 15000
-#define FREQ_LOW_HZ 17000
-#define FREQ_HIGH_HZ 19000
+// #define FREQ_SYNC_HZ 15000
+// #define FREQ_SYNC_HZ 37000 // pinger
+// #define FREQ_SYNC_HZ 51000
+// #define FREQ_LOW_HZ 17000
+// #define FREQ_HIGH_HZ 19000
+
+// #define FREQ_SYNC_HZ 49000
+// #define FREQ_LOW_HZ 51000
+// #define FREQ_HIGH_HZ 53000
+
+// #define FREQ_SYNC_HZ 50000
+// #define FREQ_LOW_HZ 51000
+// #define FREQ_HIGH_HZ 52000
+
+// #define FREQ_SYNC_HZ 51000
+// #define FREQ_LOW_HZ 61000
+// #define FREQ_HIGH_HZ 71000
+
+// #define FREQ_SYNC_HZ 51000
+// #define FREQ_LOW_HZ 61000
+// #define FREQ_HIGH_HZ 71000
+
+#define FFT_BIN_RANGE 200
+#define FREQ_SYNC_HZ 50500
+#define FREQ_LOW_HZ 51000
+#define FREQ_HIGH_HZ 51500
 
 #define SYMBOL_PERIOD_MS 200  // lower as progress
 
@@ -20,10 +43,10 @@
 #define CRC_SIZE 4
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 
-// #define AMPLITUDE_IDLE_THRESHOLD 300.0f
-#define AMPLITUDE_IDLE_THRESHOLD 50.0f  // was 40
-//   #define CONSENSUS_DEPTH 5
-//   #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
+#define AMPLITUDE_IDLE_THRESHOLD 1000.0f
+// #define AMPLITUDE_IDLE_THRESHOLD 50.0f  // was 40
+//    #define CONSENSUS_DEPTH 5
+//    #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
 
 /**
  * minimum consecutive sample observations needed
@@ -116,10 +139,17 @@ typedef struct {
     bool awaiting_ack;
 } rx_flags_t;
 
+typedef struct {
+    float signal[NUM_FFT_BINS];  // less resistant to noise
+    float noise[NUM_FFT_BINS];   // more resistant to noise
+    bool initialized;
+} amplitude_ema_t;
+
 /**
  * data relevant to processing and control flow for RX
  */
 typedef struct {
+    amplitude_ema_t ema;
     signal_recv_t recv;
     uint16_t current_packet;     // new, INCLUDES CRC
     uint16_t packet_to_process;  // new
@@ -158,5 +188,10 @@ void ivc_init();
  *        updates consensus with a sample and attempts reading or writing
  */
 void ivc_tick();
+
+void data_ingest_tick();
+void data_ingest_init();
+void adc_sample_dump_tick();
+void amplitude_check_tick();
 
 #endif  // IVC_H

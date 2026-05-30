@@ -12,6 +12,23 @@
 #include <math.h>
 #include <string.h>
 
+#define MIN_SYMBOL_SNR 3.0f
+#define MIN_DOMINANCE 1.5f
+
+#define FRAME_MS (NSAMP * 1000.0f / FSAMP)  // 1.0ms
+#define FRAMES_SYMBOL (200.0f / FRAME_MS)   // 200 frames
+
+#define BIN_RES (FSAMP / NSAMP)             // 1000 Hz/bin
+#define FRAME_MS (NSAMP * 1000.0f / FSAMP)  // 1.0ms
+#define FRAMES_SYMBOL (200.0f / FRAME_MS)   // 200 frames
+
+// typedef struct {
+//     float baseline_sync;
+//     float baseline_high;
+//     float baseline_low;
+//     bool locked;
+// } ema_t;
+
 frequency_bin_t fft_bins[] = { { "freq_low", FREQ_LOW_HZ - FFT_BIN_RANGE, FREQ_LOW_HZ + FFT_BIN_RANGE, 0 },
                                { "freq_high", FREQ_HIGH_HZ - FFT_BIN_RANGE, FREQ_HIGH_HZ + FFT_BIN_RANGE, 0 },
                                { "freq_sync", FREQ_SYNC_HZ - FFT_BIN_RANGE, FREQ_SYNC_HZ + FFT_BIN_RANGE, 0 } };
@@ -62,17 +79,81 @@ static bool is_idle(float e0, float e1, float e2) {
     return e0 < AMPLITUDE_IDLE_THRESHOLD && e1 < AMPLITUDE_IDLE_THRESHOLD && e2 < AMPLITUDE_IDLE_THRESHOLD;
 }
 
+static sample_t detect_symbol(float snr_low, float snr_high, float snr_sync) {
+    bool low_present = snr_low >= MIN_SYMBOL_SNR;
+    bool high_present = snr_high >= MIN_SYMBOL_SNR;
+    bool sync_present = snr_sync >= MIN_SYMBOL_SNR;
+
+    // nothing clears threshold
+    if (!low_present && !high_present && !sync_present)
+        return NONE;
+
+    // find the dominant tone
+    float best = fmaxf(snr_sync, fmaxf(snr_low, snr_high));
+
+    // winner must clearly dominate all others
+    if (best == snr_sync) {
+        if (snr_sync / snr_low >= MIN_DOMINANCE && snr_sync / snr_high >= MIN_DOMINANCE)
+            return SYNC;
+    }
+    else if (best == snr_low) {
+        if (snr_low / snr_sync >= MIN_DOMINANCE && snr_low / snr_high >= MIN_DOMINANCE)
+            return LOW;
+    }
+    else {
+        if (snr_high / snr_sync >= MIN_DOMINANCE && snr_high / snr_low >= MIN_DOMINANCE)
+            return HIGH;
+    }
+
+    return NONE;  // ambiguous
+}
+
+sample_t rx_observe_2(ivc_context_t *ctx) {
+    ema_update(ctx->rx.ema, fft_bins);
+
+    float high_snr = ema_snr(ctx->rx.ema, FFT_HIGH_IDX);
+    float low_snr = ema_snr(ctx->rx.ema, FFT_LOW_IDX);
+    float sync_snr = ema_snr(ctx->rx.ema, FFT_SYNC_IDX);
+
+    return detect_symbol(low_snr, high_snr, sync_snr);
+}
+
+float rx_observe_amplitude(ivc_context_t *ctx) {
+    // fft_process(recv_data.swap_buffers[recv_data.fft_target], fft_bins, NUM_FFT_BINS);
+    fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], fft_bins, NUM_FFT_BINS);
+    return fft_bins[FFT_SYNC_IDX].amplitude;
+}
+
+float get_low_amp() {
+    return fft_bins[FFT_LOW_IDX].amplitude;
+}
+
+float get_sync_amp() {
+    // return fft_bins[FFT_SYNC_IDX].amplitude;
+    return 5.0f;
+}
+
+float get_high_amp() {
+    return fft_bins[FFT_HIGH_IDX].amplitude;
+}
+
+void process_fft(ivc_context_t *ctx) {
+    fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], fft_bins, NUM_FFT_BINS);
+}
+
 sample_t rx_observe(ivc_context_t *ctx) {
     // fft_process(recv_data.swap_buffers[recv_data.fft_target], fft_bins, NUM_FFT_BINS);
     fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], fft_bins, NUM_FFT_BINS);
     float energy_at_low = fft_bins[FFT_LOW_IDX].amplitude;
     float energy_at_high = fft_bins[FFT_HIGH_IDX].amplitude;
     float energy_at_sync = fft_bins[FFT_SYNC_IDX].amplitude;
-    // LOG_INFO("low: %f, high: %f, sync: %f", energy_at_low, energy_at_high, energy_at_sync);
-    //      if (energy_at_sync > 200.0f) {
-    //          LOG_INFO("sync was: %04f", energy_at_sync);
-    //          LOG_INFO("sync greater than threshold");
-    //      }
+    LOG_INFO("low: %f, high: %f, sync: %f", energy_at_low, energy_at_high, energy_at_sync);
+
+    if (energy_at_sync > 400.0f) {
+        // LOG_INFO("sync was: %04f", energy_at_sync);
+        // LOG_INFO("sync greater than threshold");
+        LOG_INFO("\nSAW THE PINGERRRRRRRRRRR WITH %f\n", energy_at_sync);
+    }
 
     if (is_idle(energy_at_low, energy_at_high, energy_at_sync)) {
         return NONE;
@@ -150,6 +231,31 @@ static void handle_sample(ivc_context_t *ctx, sample_t sample) {
     }
 }
 
+// void attempt_reading(ivc_context_t *ctx) {
+//     if (ctx->tx.flags.is_writing) {
+//         // LOG_INFO("CANT READ");
+//         return;
+//     }
+
+//     sample_t sample;
+//     if (sample_ready(&ctx->consensus, &sample)) {
+//         LOG_INFO("SAMPLE FOUND: %hhu", sample);
+//         handle_sample(ctx, sample);
+//     }
+
+//     if (ctx->rx.flags.publish_last_rx) {
+//         ctx->rx.flags.publish_last_rx = false;
+//         LOG_INFO("packet read complete with: %hhu", ctx->rx.last_rx_value);
+//         ros_publish_rx(ctx->rx.last_rx_value);
+//         // TODO: new packet structure and acking
+//         //  ros_publish_rx(ctx->rx.packet_to_process & 0xFF); // trash crc
+//         //  if (ctx->rx.flags.awaiting_ack && ctx->rx.packet_to_process & 0xFF) {
+//         //      tx_enqueue_data(ctx->tx.packet_to_write_copy & 0xFF);
+//         //  }
+//         // ctx->rx.flags.awaiting_ack = false;
+//     }
+// }
+
 void attempt_reading(ivc_context_t *ctx) {
     if (ctx->tx.flags.is_writing) {
         // LOG_INFO("CANT READ");
@@ -158,6 +264,7 @@ void attempt_reading(ivc_context_t *ctx) {
 
     sample_t sample;
     if (sample_ready(&ctx->consensus, &sample)) {
+        LOG_INFO("SAMPLE FOUND: %hhu", sample);
         handle_sample(ctx, sample);
     }
 
@@ -173,3 +280,5 @@ void attempt_reading(ivc_context_t *ctx) {
         // ctx->rx.flags.awaiting_ack = false;
     }
 }
+
+// void attempt_reading() {}
