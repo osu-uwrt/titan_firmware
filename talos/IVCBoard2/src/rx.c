@@ -129,8 +129,7 @@ float get_low_amp() {
 }
 
 float get_sync_amp() {
-    // return fft_bins[FFT_SYNC_IDX].amplitude;
-    return 5.0f;
+    return fft_bins[FFT_SYNC_IDX].amplitude;
 }
 
 float get_high_amp() {

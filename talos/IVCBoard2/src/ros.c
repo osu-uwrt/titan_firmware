@@ -109,9 +109,9 @@ rcl_ret_t ros_publish_adc_sample(uint8_t sample) {
 }
 
 rcl_ret_t ros_publish_amplitude(float amp) {
-    std_msgs__msg__UInt32 amp_msg;
-    amp_msg.data = (int32_t) amp;
-    RCSOFTRETCHECK(rcl_publish(&amplitude_publisher, &amplitude_msg, NULL));
+    std_msgs__msg__Float32 amp_msg;
+    amp_msg.data = amp;
+    RCSOFTRETCHECK(rcl_publish(&amplitude_publisher, &amp_msg, NULL));
     return RCL_RET_OK;
 }
 
@@ -234,7 +234,7 @@ rcl_ret_t ros_init() {
                                            ADC_SAMPLE_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_publisher_init_default(
-        &amplitude_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), AMPLITUDE_PUBLISHER_NAME));
+        &amplitude_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), AMPLITUDE_PUBLISHER_NAME));
 
     // RCRETCHECK(rclc_subscription_init_default(
     //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
