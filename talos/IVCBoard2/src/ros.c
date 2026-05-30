@@ -109,7 +109,7 @@ rcl_ret_t ros_publish_adc_sample(uint8_t sample) {
 }
 
 rcl_ret_t ros_publish_amplitude(float amp) {
-    std_msgs__msg__UInt32 amp_msg;
+    std_msgs__msg__Int32 amp_msg;
     amp_msg.data = (int32_t) amp;
     RCSOFTRETCHECK(rcl_publish(&amplitude_publisher, &amplitude_msg, NULL));
     return RCL_RET_OK;
