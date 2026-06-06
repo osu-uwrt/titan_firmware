@@ -125,12 +125,6 @@ static void software_kill_subscription_callback(const void *msgin) {
     safety_kill_switch_update(msg->kill_switch_id, msg->switch_asserting_kill, msg->switch_needs_update);
 }
 
-static void depth_calibrate_cb(const void *msgin) {
-    const std_msgs__msg__Int8 *msg = (const std_msgs__msg__Int8 *) msgin;
-
-    depth_recalibrate();
-}
-
 static void elec_command_subscription_callback(const void *msgin) {
     const mercury_msgs__msg__ElectricalCommand *msg = (const mercury_msgs__msg__ElectricalCommand *) msgin;
 
@@ -362,13 +356,10 @@ rcl_ret_t ros_init() {
                                                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
                                                HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &software_kill_subscriber, &software_kill_msg,
                                               &software_kill_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_calibrate_subscription, &depth_calibrate_msg,
-                                              &depth_calibrate_cb, ON_NEW_DATA));
-
     RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
                                               &elec_command_subscription_callback, ON_NEW_DATA));
 
@@ -399,14 +390,14 @@ void ros_fini(void) {
     // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
     // RCSOFTCHECK(ros_actuators_fini(&node));
 
-    // RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
-    RCSOFTCHECK(rcl_subscription_fini(&depth_calibrate_subscription, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&humidity_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&electrical_reading_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&aux_switch_publisher, &node));
     // RCSOFTCHECK(rcl_publisher_fini(&balancing_feedback_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
