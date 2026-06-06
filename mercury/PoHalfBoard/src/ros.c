@@ -43,8 +43,6 @@
 #define HUMIDITY_STATUS_PUBLISHER_NAME "state/humidity/pohalf"
 #define AUX_SWITCH_PUBLISHER_NAME "state/aux"
 #define DEPTH_PUBLISHER_NAME "state/depth/raw"
-#define DEPTH_RECALIBRATE_SUBSCRIPTION_NAME "command/depth/recalibrate"
-// #define BALANCING_FEEDBACK_PUBLISHER_NAME "state/batteries_balanced"
 
 bool ros_connected = false;
 
@@ -63,12 +61,9 @@ mercury_msgs__msg__ElectricalReadings electrical_reading_msg = { 0 };
 rcl_subscription_t elec_command_subscriber;
 mercury_msgs__msg__ElectricalCommand elec_command_msg;
 rcl_publisher_t aux_switch_publisher;
-// rcl_publisher_t balancing_feedback_publisher;
 rcl_publisher_t temp_status_publisher;
 rcl_publisher_t humidity_status_publisher;
 rcl_publisher_t depth_publisher;
-rcl_subscription_t depth_calibrate_subscription;
-std_msgs__msg__Int8 depth_calibrate_msg;
 mercury_msgs__msg__Depth depth_msg;
 
 // Kill switch
@@ -151,27 +146,12 @@ static float calc_actual_voltage(float adc_voltage, bool is_3v3) {
 }
 
 rcl_ret_t ros_publish_electrical_readings() {
-    // bool stbd_pwring = gpio_get(STBD_STAT_PIN);
-    // bool port_pwring = gpio_get(PORT_STAT_PIN);
-    // electrical_reading_msg.port_voltage = 0;
-    // electrical_reading_msg.stbd_voltage = 0;
     electrical_reading_msg.three_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_1), true);
     electrical_reading_msg.balanced_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_2), false);
     electrical_reading_msg.twelve_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_3), false);
     electrical_reading_msg.five_volt_voltage = calc_actual_voltage(mcp3426_read_voltage(MCP3426_CHANNEL_4), false);
-    // electrical_reading_msg.port_powering = port_pwring;
-    // electrical_reading_msg.stbd_powering = stbd_pwring;
 
     RCSOFTRETCHECK(rcl_publish(&electrical_reading_publisher, &electrical_reading_msg, NULL));
-
-    // std_msgs__msg__Bool balancing_feedback_msg;
-    // if (port_pwring && stbd_pwring) {
-    //     balancing_feedback_msg.data = true;
-    // }
-    // else {
-    //     balancing_feedback_msg.data = false;
-    // }
-    // RCSOFTRETCHECK(rcl_publish(&balancing_feedback_publisher, &balancing_feedback_msg, NULL));
 
     return RCL_RET_OK;
 }
@@ -336,9 +316,13 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init(&depth_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, Depth),
                                    DEPTH_PUBLISHER_NAME, &rmw_qos_profile_sensor_data));
 
-    // RCRETCHECK(rclc_publisher_init_default(&balancing_feedback_publisher, &node,
-    //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-    //                                        BALANCING_FEEDBACK_PUBLISHER_NAME));
+    RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               TEMP_STATUS_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
+                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                               HUMIDITY_STATUS_PUBLISHER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(&software_kill_subscriber, &node,
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, KillSwitchReport),
@@ -347,14 +331,6 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_default(&elec_command_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(mercury_msgs, msg, ElectricalCommand),
                                               ELECTRICAL_COMMAND_SUBSCRIBER_NAME));
-
-    RCRETCHECK(rclc_publisher_init_best_effort(&temp_status_publisher, &node,
-                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                               TEMP_STATUS_PUBLISHER_NAME));
-
-    RCRETCHECK(rclc_publisher_init_best_effort(&humidity_status_publisher, &node,
-                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-                                               HUMIDITY_STATUS_PUBLISHER_NAME));
     // Executor Initialization
     const int executor_num_handles = 2;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
@@ -362,9 +338,6 @@ rcl_ret_t ros_init() {
                                               &software_kill_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &elec_command_subscriber, &elec_command_msg,
                                               &elec_command_subscription_callback, ON_NEW_DATA));
-
-    // TODO: Modify this method with node specific objects
-    // RCRETCHECK(ros_actuators_init(&executor, &node));
 
     // Populate messages
     software_kill_msg.sender_id.data = software_kill_frame_str;
@@ -387,9 +360,6 @@ void ros_spin_executor(void) {
 }
 
 void ros_fini(void) {
-    // TODO: Modify to clean up anything you have opened in init here to avoid memory leaks
-    // RCSOFTCHECK(ros_actuators_fini(&node));
-
     RCSOFTCHECK(rcl_subscription_fini(&elec_command_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&software_kill_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&temp_status_publisher, &node));
@@ -398,7 +368,6 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&killswitch_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&physkill_notify_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&aux_switch_publisher, &node));
-    // RCSOFTCHECK(rcl_publisher_fini(&balancing_feedback_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node))
     RCSOFTCHECK(rclc_executor_fini(&executor));
