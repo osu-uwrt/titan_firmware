@@ -62,6 +62,17 @@ void ivc_init() {
     // set_topic_names(&ctx);
 }
 
+void debug_tx(uint8_t bit) {
+    pwm_set_enabled(context.tx.pwm_slice_num, true);
+    if (bit == SYNC) {
+        tx_encode_sync(&context);
+    }
+    else {
+        tx_encode_bit(&context, bit);
+    }
+    add_alarm_in_ms(500, tx_disable, (void *) &context, true);
+}
+
 void adc_sample_dump_tick() {
     static uint32_t pos = 0;
     static bool has_started = false;
@@ -116,11 +127,16 @@ void data_ingest_tick() {
 
 bool amplitude_cb() {
     process_fft(&context);
-    // float amp_low = get_low_amp();
-    // float amp_sync = get_sync_amp();
-    // float amp_high = get_high_amp();
-    // LOG_INFO("\nHIGH: %.2f\nLOW: %.2f\nSYNC: %.2f\n", amp_high, amp_low, amp_sync);
-    publish_amplitude = true;
+    float amp_low = get_low_amp();
+    float amp_sync = get_sync_amp();
+    float amp_high = get_high_amp();
+    float ref1 = get_ref1_amp();
+    float ref2 = get_ref2_amp();
+    float ref3 = get_ref3_amp();
+    float ref4 = get_ref4_amp();
+    LOG_INFO("\nREF1: %0.2f\nREF2: %0.2f\nHIGH: %.2f\nLOW: %.2f\nSYNC: %.2f\nREF3: %0.2f\nREF4: %0.2f\n", ref1, ref2,
+             amp_high, amp_low, amp_sync, ref3, ref4);
+    // publish_amplitude = true;
     return true;
 }
 
@@ -128,16 +144,19 @@ void amplitude_check_tick() {
     // process_fft(&context);
     if (!started_listening_for_amplitude) {
         started_listening_for_amplitude = true;
-        add_repeating_timer_ms(200, amplitude_cb, NULL, &amplitude_check_timer);
+        add_repeating_timer_ms(100, amplitude_cb, NULL, &amplitude_check_timer);
     }
     if (publish_amplitude) {
         publish_amplitude = false;
-        ros_publish_amplitude(get_sync_amp());
+        ros_publish_amplitude(get_high_amp());
     }
 }
 
 void ivc_tick() {
-    consensus_update(&context.consensus, rx_observe(&context));
+    // consensus_update(&context.consensus, rx_observe(&context));
+    consensus_update(&context.consensus, rx_observe_3(&context));
     attempt_reading(&context);
     attempt_writing(&context);
 }
+
+void nop_tick() {}

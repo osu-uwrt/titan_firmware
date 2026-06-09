@@ -222,11 +222,12 @@ int main() {
         // ivc
         // tick();
         // new_tick();
-        // ivc_tick();
-        amplitude_check_tick();
-        //  data_ingest_tick();
-        //  adc_sample_dump_tick();
-        //   Handle ROS state logic
+        ivc_tick();
+        // nop_tick();
+        //amplitude_check_tick();
+        //     data_ingest_tick();
+        //     adc_sample_dump_tick();
+        //      Handle ROS state logic
         if (is_ros_connected()) {
             if (!ros_initialized) {
                 LOG_INFO("ROS connected");

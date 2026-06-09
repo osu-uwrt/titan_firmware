@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define NUM_FFT_BINS 3
+// #define NUM_FFT_BINS 3
 // #define FFT_BIN_RANGE 500
 
 // #define FREQ_SYNC_HZ 15000
@@ -31,19 +31,28 @@
 // #define FREQ_LOW_HZ 61000
 // #define FREQ_HIGH_HZ 71000
 
-#define FFT_BIN_RANGE 200
+#define FFT_BIN_RANGE 61
 #define FREQ_SYNC_HZ 50500
 #define FREQ_LOW_HZ 51000
 #define FREQ_HIGH_HZ 51500
+#define FREQ_NOISE_REF_1 49000  // low end of passband
+#define FREQ_NOISE_REF_2 49500  // mid low
+#define FREQ_NOISE_REF_3 52000  // mid high
+#define FREQ_NOISE_REF_4 52500  // high end of passband
 
-#define SYMBOL_PERIOD_MS 200  // lower as progress
+// #define FREQ_SYNC_HZ 51300
+// #define FREQ_LOW_HZ 51500
+// #define FREQ_HIGH_HZ 51700
+
+#define SYMBOL_PERIOD_MS 500  // lower as progress
+#define N_ACCUMULATE 4
 
 #define CRC_POLY 0x1B  // 0b11011 (x^4 + x^3 + x + 1)
 #define DATA_SIZE 8
 #define CRC_SIZE 4
 #define PACKET_SIZE (DATA_SIZE + CRC_SIZE)  // 1-byte MTU + 4-bit CRC
 
-#define AMPLITUDE_IDLE_THRESHOLD 1000.0f
+#define AMPLITUDE_IDLE_THRESHOLD 200.0f
 // #define AMPLITUDE_IDLE_THRESHOLD 50.0f  // was 40
 //    #define CONSENSUS_DEPTH 5
 //    #define MIN_CONSENSUS_VOTES ((CONSENSUS_DEPTH / 2) + 1)
@@ -52,12 +61,14 @@
  * minimum consecutive sample observations needed
  * to determine a sample is stable
  */
-#define MIN_STABLE_SAMPLES 3
+#define MIN_STABLE_SAMPLES 1
 /**
  * maximum amount of sample observations that are different than the most
  * recent observation needed to determine a symbol transition
  */
-#define MAX_SAMPLE_GAP 2
+#define MAX_SAMPLE_GAP 1
+
+#define IDLE_TIMEOUT 5
 
 /**
  * enumerate symbol values
@@ -145,11 +156,17 @@ typedef struct {
     bool initialized;
 } amplitude_ema_t;
 
+typedef struct {
+    float accum_buffer[NUM_FFT_BINS];
+    uint32_t counter;
+} fft_window_accumulate_t;
+
 /**
  * data relevant to processing and control flow for RX
  */
 typedef struct {
     amplitude_ema_t ema;
+    fft_window_accumulate_t window_accum;
     signal_recv_t recv;
     uint16_t current_packet;     // new, INCLUDES CRC
     uint16_t packet_to_process;  // new
@@ -193,5 +210,7 @@ void data_ingest_tick();
 void data_ingest_init();
 void adc_sample_dump_tick();
 void amplitude_check_tick();
+void debug_tx(uint8_t bit);
+void nop_tick();
 
 #endif  // IVC_H

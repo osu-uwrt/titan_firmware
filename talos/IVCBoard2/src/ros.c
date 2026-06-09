@@ -32,13 +32,14 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 
-#define RX_DATA_PUBLISHER_NAME "ivc/rx"
-#define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample"
-#define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx"
-#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
-#define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
-#define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump"
-#define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer"
+#define RX_DATA_PUBLISHER_NAME "ivc/rx_new_talos"
+#define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample_talos"
+#define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx_talos"
+#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data_talos"
+#define RX_PACKET_PUBLISHER_NAME "ivc/rx_data_talos"
+#define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump_talos"
+#define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer_talos"
+#define SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME "ivc/debug/send_freq_talos"
 
 #define MAX_ROS_NAME 13  // including null
 
@@ -69,10 +70,12 @@ rcl_publisher_t amplitude_publisher;
 
 rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
+rcl_subscription_t send_freq_for_time_subscriber;
 std_msgs__msg__Int8 tx_msg;
 
 // std_msgs__msg__Float32 amplitude_msg;
 std_msgs__msg__Int32 amplitude_msg;
+std_msgs__msg__Int8 freq_msg;
 
 void set_topic_names(ivc_context_t *ctx) {
     snprintf(rx_packet_publisher_name, MAX_ROS_NAME, "ivc/rx%s", ctx->is_talos ? "_talos" : "_other");
@@ -128,6 +131,11 @@ rcl_ret_t ros_publish_amplitude(float amp) {
 //     std_msgs__msg__UInt8 *bit = (std_msgs__msg__UInt8 *) msg_in;
 //     tx_debug(bit->data);
 // }
+
+void send_freq_subscription_callback(void *msg_in) {
+    std_msgs__msg__Int8 *bit = (std_msgs__msg__Int8 *) msg_in;
+    debug_tx((uint8_t) bit->data);
+}
 
 static void tx_enqueue_data_callback(void *msg_in) {
     const std_msgs__msg__Int8 *tx_data = (const std_msgs__msg__Int8 *) msg_in;
@@ -246,8 +254,11 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
+    RCRETCHECK(rclc_subscription_init_best_effort(&send_freq_for_time_subscriber, &node,
+                                                  ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                                  SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 2;
+    const int executor_num_handles = 3;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -257,6 +268,9 @@ rcl_ret_t ros_init() {
     //                                           ON_NEW_DATA));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &tx_enqueue_data_subscriber, &tx_msg,
                                               &tx_enqueue_data_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &send_freq_for_time_subscriber, &freq_msg,
+                                              &send_freq_subscription_callback, ON_NEW_DATA));
     // TODO: Modify this method with node specific objects
     // RCRETCHECK(rclc_publisher_init_default(&rx_debug_sample_publisher, &node,
     //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
@@ -283,6 +297,7 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_publisher_fini(&rx_data_publisher, &node));
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&send_freq_for_time_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_flash_sample_publisher, &node));

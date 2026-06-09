@@ -51,7 +51,7 @@ void tx_init(ivc_context_t *ctx) {
  * @param ctx pointer to the main context struct
  * @param bit the bit to be encoded/transmitted
  */
-static void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
+void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
     float freq = (bit) ? FREQ_HIGH_HZ : FREQ_LOW_HZ;
     // LOG_INFO("should be writing");
     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (freq * PWM_WRAP_VALUE));
@@ -62,7 +62,7 @@ static void tx_encode_bit(ivc_context_t *ctx, uint8_t bit) {
  *
  * @param ctx pointer to the main context struct
  */
-static void tx_encode_sync(ivc_context_t *ctx) {
+void tx_encode_sync(ivc_context_t *ctx) {
     // LOG_INFO("syncing");
     pwm_set_clkdiv(ctx->tx.pwm_slice_num, clock_get_hz(clk_sys) / (FREQ_SYNC_HZ * PWM_WRAP_VALUE));
 }
@@ -72,7 +72,8 @@ static void tx_encode_sync(ivc_context_t *ctx) {
  *
  * @param ctx pointer to the main context struct
  */
-static void tx_disable(ivc_context_t *ctx) {
+void tx_disable(void *data) {
+    ivc_context_t *ctx = (ivc_context_t *) data;
     pwm_set_enabled(ctx->tx.pwm_slice_num, false);
     ctx->tx.flags.is_writing = false;
 }
@@ -80,7 +81,7 @@ static void tx_disable(ivc_context_t *ctx) {
 void tx_debug(ivc_context_t *ctx, uint8_t bit) {
     pwm_set_enabled(ctx->tx.pwm_slice_num, true);
     tx_encode_bit(ctx, bit);
-    add_alarm_in_ms(50, tx_disable, NULL, true);
+    add_alarm_in_ms(500, tx_disable, NULL, true);
 }
 
 /**
