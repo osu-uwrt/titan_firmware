@@ -336,7 +336,7 @@ rcl_ret_t ros_init() {
                                               &elec_command_subscription_callback, ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
-    // RCRETCHECK(ros_actuators_init(&executor, &node));
+    RCRETCHECK(ros_actuators_init(&executor, &node));
     RCRETCHECK(ros_claw_init(&executor, &node));
 
     // Populate messages

@@ -83,7 +83,7 @@ static bool new_cmd = false;
 #define MARKER_1_DEG 0
 
 // Servo objects
-#define TORP_SERVO_ID 5
+#define TORP_SERVO_ID 1
 #define TORP_HOME_DEG 120
 
 static servo_t torp_servo;
@@ -603,4 +603,5 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
 
 void torpedo_init_servo() {
     make_servo(&torp_servo, TORP_SERVO_ID, TORP_HOME_DEG);
+    servo_go_home(&torp_servo);
 }

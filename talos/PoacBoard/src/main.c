@@ -195,7 +195,7 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        // torpedo_ping_servo();
+        torpedo_ping_servo();
         claw_ping_servo();
         // servo_read_deg();
         // servo_set_armed(true);
@@ -248,7 +248,7 @@ int main() {
     gpio_disable_pulls(PORT_STAT_PIN);
 
     servo_init_internal();
-    // torpedo_init_servo();
+    torpedo_init_servo();
     claw_init_servo();
     add_repeating_timer_ms(SERVO_TRANSMIT_PERIOD_MS, uart_scheduler, NULL, &uart_scheduler_timer);
 

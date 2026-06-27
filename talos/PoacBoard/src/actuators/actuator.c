@@ -394,8 +394,6 @@ void servo_init_internal() {
         debug_discover_servo_cb);
 
     debug_remote_cmd_register("hwping", "[id]", "Check if a servo with [id] is connected", debug_ping_servo);
-
-    // servo_go_home();
 }
 
 void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
