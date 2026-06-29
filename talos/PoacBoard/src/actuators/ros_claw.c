@@ -36,7 +36,7 @@ static std_msgs__msg__Float32 move_time_msg;
 static rcl_publisher_t degree_publisher;
 
 // Servo objects
-#define CLAW_SERVO_ID 2
+#define CLAW_SERVO_ID 3
 #define CLAW_HOME_DEG 0
 
 servo_t claw_servo;
@@ -226,7 +226,7 @@ rcl_ret_t ros_claw_init(rclc_executor_t *executor, rcl_node_t *node) {
     RCRETCHECK(rclc_executor_add_subscription(executor, &move_time_subscription, &move_time_msg,
                                               move_time_subscription_callback, ON_NEW_DATA));
 
-    // // Command Feedback Pubishers
+    // Command Feedback Pubishers
     RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
                                            ACTUATOR_FEEDBACK_MSG_TOPIC_NAME));
