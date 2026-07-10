@@ -32,6 +32,13 @@
 // #define FREQ_HIGH_HZ 71000
 
 #define FFT_BIN_RANGE 61
+#define FREQ_PINGER_HZ 37000
+#define FREQ_PINGER_37K_HZ 37000
+#define FREQ_PINGER_20K_HZ 20000
+#define FREQ_PINGER_25K_HZ 25000
+#define FREQ_PINGER_30K_HZ 30000
+#define FREQ_PINGER_35K_HZ 35000
+#define FREQ_PINGER_40K_HZ 40000
 #define FREQ_SYNC_HZ 50500
 #define FREQ_LOW_HZ 51000
 #define FREQ_HIGH_HZ 51500
@@ -40,12 +47,40 @@
 #define FREQ_NOISE_REF_3 52000  // mid high
 #define FREQ_NOISE_REF_4 52500  // high end of passband
 
+#define FREQ_NOISE_REF_1_20K 19000
+#define FREQ_NOISE_REF_2_20K 19500
+#define FREQ_NOISE_REF_3_20K 20500
+#define FREQ_NOISE_REF_4_20K 21000
+
+#define FREQ_NOISE_REF_1_25K 24000
+#define FREQ_NOISE_REF_2_25K 24500
+#define FREQ_NOISE_REF_3_25K 25500
+#define FREQ_NOISE_REF_4_25K 26000
+
+#define FREQ_NOISE_REF_1_30K 29000
+#define FREQ_NOISE_REF_2_30K 29500
+#define FREQ_NOISE_REF_3_30K 30500
+#define FREQ_NOISE_REF_4_30K 31000
+
+#define FREQ_NOISE_REF_1_35K 34000
+#define FREQ_NOISE_REF_2_35K 34500
+#define FREQ_NOISE_REF_3_35K 35500
+#define FREQ_NOISE_REF_4_35K 36000
+
+#define FREQ_NOISE_REF_1_37K 36000
+#define FREQ_NOISE_REF_2_37K 36500
+#define FREQ_NOISE_REF_3_37K 37500
+#define FREQ_NOISE_REF_4_37K 38000
+
+#define FREQ_NOISE_REF_1_40K 39000
+#define FREQ_NOISE_REF_2_40K 39500
+#define FREQ_NOISE_REF_3_40K 40500
+#define FREQ_NOISE_REF_4_40K 41000
 // #define FREQ_SYNC_HZ 51300
 // #define FREQ_LOW_HZ 51500
 // #define FREQ_HIGH_HZ 51700
 
 #define SYMBOL_PERIOD_MS 500  // lower as progress
-#define N_ACCUMULATE 4
 
 #define CRC_POLY 0x1B  // 0b11011 (x^4 + x^3 + x + 1)
 #define DATA_SIZE 8
@@ -61,14 +96,16 @@
  * minimum consecutive sample observations needed
  * to determine a sample is stable
  */
-#define MIN_STABLE_SAMPLES 1
+#define MIN_STABLE_SAMPLES 3
 /**
  * maximum amount of sample observations that are different than the most
  * recent observation needed to determine a symbol transition
  */
-#define MAX_SAMPLE_GAP 1
+#define MAX_SAMPLE_GAP 2
 
 #define IDLE_TIMEOUT 5
+
+#define N_PINGER_AMPS 5
 
 /**
  * enumerate symbol values
@@ -77,6 +114,7 @@
 #define HIGH ((uint8_t) 1)
 #define SYNC ((uint8_t) 2)
 #define NONE ((uint8_t) 3)
+#define PINGER ((uint8_t) 4)
 typedef uint8_t sample_t;
 
 typedef struct {
@@ -148,6 +186,7 @@ typedef struct {
     bool on_new_symbol;
     bool can_read;
     bool awaiting_ack;
+    bool is_pinger_mode;
 } rx_flags_t;
 
 typedef struct {
@@ -166,7 +205,6 @@ typedef struct {
  */
 typedef struct {
     amplitude_ema_t ema;
-    fft_window_accumulate_t window_accum;
     signal_recv_t recv;
     uint16_t current_packet;     // new, INCLUDES CRC
     uint16_t packet_to_process;  // new
@@ -175,6 +213,7 @@ typedef struct {
     uint8_t mtu_data;
     uint8_t crc_data;
     uint8_t last_rx_value;
+    pinger_freq_t pinger_mode;
     rx_flags_t flags;
 } rx_control_t;
 
@@ -212,5 +251,6 @@ void adc_sample_dump_tick();
 void amplitude_check_tick();
 void debug_tx(uint8_t bit);
 void nop_tick();
+void set_pinger_mode(int32_t khz);
 
 #endif  // IVC_H

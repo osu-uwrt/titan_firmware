@@ -100,6 +100,7 @@ rcl_ret_t ros_publish_rx(uint8_t rx);
 
 rcl_ret_t ros_publish_adc_sample(uint8_t sample);
 rcl_ret_t ros_publish_amplitude(float amp);
+rcl_ret_t ros_publish_pinger_amp(float amp);
 
 // TODO: Add in any additional ROS tasks here
 

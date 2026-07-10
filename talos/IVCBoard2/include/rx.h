@@ -13,16 +13,16 @@
 // #define FFT_HIGH_IDX 4
 // #define FFT_SYNC_IDX 2
 
-#define FFT_LOW_IDX 2
-#define FFT_HIGH_IDX 3
-#define FFT_SYNC_IDX 4
-#define FFT_REF1_IDX 0
-#define FFT_REF2_IDX 1
-#define FFT_REF3_IDX 5
-#define FFT_REF4_IDX 6
+#define FFT_LOW_IDX 3
+#define FFT_HIGH_IDX 4
+#define FFT_SYNC_IDX 5
+#define FFT_REF1_IDX 1
+#define FFT_REF2_IDX 2
+#define FFT_REF3_IDX 6
+#define FFT_REF4_IDX 7
+#define FFT_PINGER_IDX 0
 
-// scale floats to chop off decimal places with an integer cast ()
-#define FLOAT_SCALE_MULTIPLIER 1000.0f
+#define FFT_PINGER_SIGNAL_IDX 2
 
 /**
  * @brief will attempt to read an incoming packet
@@ -56,7 +56,16 @@ float get_ref1_amp();
 float get_ref2_amp();
 float get_ref3_amp();
 float get_ref4_amp();
+float get_pinger_amp();
 sample_t rx_observe_3(ivc_context_t *ctx);
 void process_fft(ivc_context_t *ctx);
+void rx_timeout_start();
+void rx_timeout_advance();
+bool rx_timeout_expired();
+void rx_timeout(ivc_context_t *ctx);
+bool rx_observe_pinger(ivc_context_t *ctx, float *avg);
+bool push_pinger_amp(float amp);
+void rx_set_pinger_bins(ivc_context_t *ctx, pinger_freq_t freq);
+void rx_handle_pinger(ivc_context_t *ctx);
 
 #endif  // RX_H

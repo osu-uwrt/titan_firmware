@@ -1,5 +1,6 @@
 #include "ivc.h"
 
+#include "canmore.h"
 #include "consensus.h"
 #include "fft/fft.h"
 #include "ros.h"
@@ -18,12 +19,16 @@
 #include <stdint.h>
 #include <string.h>
 
+#define TIMEOUT_COUNT 5
+
 bool is_talos = false;
 ivc_context_t context = { 0 };
 
 bool started_listening_for_amplitude = false;
 bool publish_amplitude = false;
 repeating_timer_t amplitude_check_timer = { 0 };
+
+static uint32_t none_observation_count = 0;
 
 // testing flash
 uint8_t test_write_buffer[NSAMP] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF };
@@ -40,7 +45,7 @@ static void swap_buffer_handler() {
 // if collecting adc samples to write to flash, call this in main
 void data_ingest_init() {
     // storage_init(true);
-    fft_setup(swap_buffer_handler);
+    fft_setup(swap_buffer_handler, &context.rx.flags.is_pinger_mode, &context.rx.pinger_mode);
     fft_sample(context.rx.recv.swap_buffers[context.rx.recv.buffer_select]);
 
     gpio_init(BOARD_ID_PIN);
@@ -53,6 +58,13 @@ void data_ingest_init() {
 void ivc_init() {
     tx_init(&context);
     rx_init(&context, swap_buffer_handler);
+
+#ifdef MICRO_ROS_TRANSPORT_CAN
+    register_canmore_commands(&context);
+#endif
+    // #ifdef MICRO_ROS_TRANSPORT_USB
+    //     context.rx.flags.is_pinger_mode = true;
+    // #endif
 
     gpio_init(BOARD_ID_PIN);
     gpio_set_dir(BOARD_ID_PIN, GPIO_IN);
@@ -71,6 +83,38 @@ void debug_tx(uint8_t bit) {
         tx_encode_bit(&context, bit);
     }
     add_alarm_in_ms(500, tx_disable, (void *) &context, true);
+}
+
+void set_pinger_mode(int32_t khz) {
+    if (khz == 0) {
+        context.rx.flags.is_pinger_mode = false;
+    }
+    else if (!context.rx.flags.is_pinger_mode) {
+        context.rx.flags.is_pinger_mode = true;
+    }
+
+    switch (khz) {
+    case 20:
+        context.rx.pinger_mode = FREQ_20KHZ;
+        break;
+    case 25:
+        context.rx.pinger_mode = FREQ_25KHZ;
+        break;
+    case 30:
+        context.rx.pinger_mode = FREQ_30KHZ;
+        break;
+    case 35:
+        context.rx.pinger_mode = FREQ_35KHZ;
+        break;
+    case 37:
+        context.rx.pinger_mode = FREQ_37KHZ;
+        break;
+    case 40:
+        context.rx.pinger_mode = FREQ_40KHZ;
+        break;
+    default:
+        break;
+    }
 }
 
 void adc_sample_dump_tick() {
@@ -134,8 +178,9 @@ bool amplitude_cb() {
     float ref2 = get_ref2_amp();
     float ref3 = get_ref3_amp();
     float ref4 = get_ref4_amp();
-    LOG_INFO("\nREF1: %0.2f\nREF2: %0.2f\nHIGH: %.2f\nLOW: %.2f\nSYNC: %.2f\nREF3: %0.2f\nREF4: %0.2f\n", ref1, ref2,
-             amp_high, amp_low, amp_sync, ref3, ref4);
+    float pinger = get_pinger_amp();
+    LOG_INFO("\nPINGER: %0.2f\nREF1: %0.2f\nREF2: %0.2f\nHIGH: %.2f\nLOW: %.2f\nSYNC: %.2f\nREF3: %0.2f\nREF4: %0.2f\n",
+             pinger, ref1, ref2, amp_high, amp_low, amp_sync, ref3, ref4);
     // publish_amplitude = true;
     return true;
 }
@@ -154,9 +199,34 @@ void amplitude_check_tick() {
 
 void ivc_tick() {
     // consensus_update(&context.consensus, rx_observe(&context));
-    consensus_update(&context.consensus, rx_observe_3(&context));
-    attempt_reading(&context);
-    attempt_writing(&context);
+    // if (rx_timeout_expired()) {
+    //     rx_timeout(&context);
+    // }
+
+    // rx_timeout_start();
+    // sample_t sample = rx_observe_3(&context);
+    // if (sample == NONE) {
+    //     rx_timeout_advance();
+    // }
+    // context.rx.flags.is_pinger_mode = true;
+
+    if (context.rx.flags.is_pinger_mode) {
+        //float avg;
+        // if (rx_observe_pinger(&context, &avg)) {
+        //     // LOG_INFO("PINGER AVG: %.2f", avg);
+        //     ros_publish_pinger_amp(avg);
+        // }
+        rx_handle_pinger(&context);
+
+        // LOG_INFO("is_pinger_mode: %s\ncurrent pinger mode: %d\n", context.rx.flags.is_pinger_mode ? "true" : "false",
+        //          context.rx.pinger_mode);
+    }
+    else {
+        consensus_update(&context.consensus, rx_observe_3(&context));
+        // consensus_update(&context.consensus, sample);
+        attempt_reading(&context);
+        attempt_writing(&context);
+    }
 }
 
 void nop_tick() {}

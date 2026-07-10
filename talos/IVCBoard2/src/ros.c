@@ -1,6 +1,7 @@
 #include "ros.h"
 
 // #include "ivc.h"
+#include "fft/fft.h"
 #include "tx.h"
 
 #include "pico/stdlib.h"
@@ -32,14 +33,16 @@
 #define FIRMWARE_STATUS_PUBLISHER_NAME "state/firmware"
 #define KILLSWITCH_SUBCRIBER_NAME "state/kill"
 
-#define RX_DATA_PUBLISHER_NAME "ivc/rx_new_talos"
-#define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample_talos"
-#define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx_talos"
-#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data_talos"
-#define RX_PACKET_PUBLISHER_NAME "ivc/rx_data_talos"
-#define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump_talos"
-#define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer_talos"
-#define SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME "ivc/debug/send_freq_talos"
+#define RX_DATA_PUBLISHER_NAME "ivc/rx_new"
+#define RX_SAMPLE_DEBUG_PUBLISHER "ivc/debug/sample"
+#define TX_DEBUG_SUBSCRIBER_NAME "ivc/debug/tx"
+#define TX_ENQUEUE_DATA_SUBSCRIBER_NAME "ivc/enqueue_data"
+#define RX_PACKET_PUBLISHER_NAME "ivc/rx_data"
+#define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump"
+#define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer"
+#define SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME "ivc/debug/send_freq"
+#define PINGER_MODE_SUBSCRIBER_NAME "ivc/pinger/set_mode"
+#define PINGER_AMP_PUBLISHER_NAME "ivc/pinger/selected_amp"
 
 #define MAX_ROS_NAME 13  // including null
 
@@ -67,14 +70,17 @@ rcl_publisher_t rx_debug_sample_publisher;
 
 rcl_publisher_t adc_flash_sample_publisher;
 rcl_publisher_t amplitude_publisher;
+rcl_publisher_t pinger_amp_publisher;
 
 rcl_subscription_t tx_debug_subscriber;
 rcl_subscription_t tx_enqueue_data_subscriber;
 rcl_subscription_t send_freq_for_time_subscriber;
+rcl_subscription_t pinger_mode_subscriber;
+std_msgs__msg__Int32 pinger_freq_select_msg;
 std_msgs__msg__Int8 tx_msg;
 
-// std_msgs__msg__Float32 amplitude_msg;
-std_msgs__msg__Int32 amplitude_msg;
+std_msgs__msg__Float32 amplitude_msg;
+// std_msgs__msg__Int32 amplitude_msg;
 std_msgs__msg__Int8 freq_msg;
 
 void set_topic_names(ivc_context_t *ctx) {
@@ -118,6 +124,13 @@ rcl_ret_t ros_publish_amplitude(float amp) {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_publish_pinger_amp(float amp) {
+    std_msgs__msg__Float32 amp_msg;
+    amp_msg.data = amp;
+    RCSOFTRETCHECK(rcl_publish(&pinger_amp_publisher, &amp_msg, NULL));
+    return RCL_RET_OK;
+}
+
 // rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx) {
 //     std_msgs__msg__UInt8 rx_msg;
 //     rx_msg.data = rx;
@@ -140,6 +153,11 @@ void send_freq_subscription_callback(void *msg_in) {
 static void tx_enqueue_data_callback(void *msg_in) {
     const std_msgs__msg__Int8 *tx_data = (const std_msgs__msg__Int8 *) msg_in;
     tx_enqueue_data((uint8_t) tx_data->data);
+}
+
+static void set_pinger_mode_callback(void *msg_in) {
+    const std_msgs__msg__Int32 *khz_msg = (const std_msgs__msg__Int32 *) msg_in;
+    set_pinger_mode((int32_t) khz_msg->data);
 }
 
 // ========= END IVC ============
@@ -244,12 +262,21 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(
         &amplitude_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), AMPLITUDE_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&rx_data_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                           RX_DATA_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(
+        &pinger_amp_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), PINGER_AMP_PUBLISHER_NAME));
+
     // RCRETCHECK(rclc_subscription_init_default(
     //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_default(&tx_enqueue_data_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                               TX_ENQUEUE_DATA_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(&pinger_mode_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                              PINGER_MODE_SUBSCRIBER_NAME));
 
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
@@ -258,7 +285,7 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                                   SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 3;
+    const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -271,13 +298,14 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &send_freq_for_time_subscriber, &freq_msg,
                                               &send_freq_subscription_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &pinger_mode_subscriber, &pinger_freq_select_msg,
+                                              &set_pinger_mode_callback, ON_NEW_DATA));
     // TODO: Modify this method with node specific objects
     // RCRETCHECK(rclc_publisher_init_default(&rx_debug_sample_publisher, &node,
     //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
     //                                        RX_SAMPLE_DEBUG_PUBLISHER));
 
-    RCRETCHECK(rclc_publisher_init_default(&rx_data_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
-                                           RX_DATA_PUBLISHER_NAME));
     // Note: Code in executor callbacks should be kept to a minimum
     // It should set whatever flags are necessary and get out
     // And it should *NOT* try to perform any communiations over ROS, as this can lead to watchdog timeouts
@@ -298,10 +326,12 @@ void ros_fini(void) {
 
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&send_freq_for_time_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&pinger_mode_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_flash_sample_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&amplitude_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&pinger_amp_publisher, &node));
     // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));

@@ -38,5 +38,6 @@ void tx_debug(ivc_context_t *ctx, uint8_t bit);
 void tx_disable(void *data);
 void tx_encode_bit(ivc_context_t *ctx, uint8_t bit);
 void tx_encode_sync(ivc_context_t *ctx);
+bool tx_queue_empty();
 
 #endif  // TX_H

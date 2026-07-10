@@ -10,6 +10,13 @@ static dma_channel_config cfg;
 static uint dma_chan;
 static float freqs[NSAMP];
 static irq_handler_t dma_cb;
+static bool *is_pinger_mode;
+static pinger_freq_t *pinger_mode;
+
+filter_func filter_map[] = {
+    [FREQ_20KHZ] = fir_filter_pinger_20k, [FREQ_25KHZ] = fir_filter_pinger_25k, [FREQ_30KHZ] = fir_filter_pinger_30k,
+    [FREQ_35KHZ] = fir_filter_pinger_35k, [FREQ_37KHZ] = fir_filter_pinger_37k, [FREQ_40KHZ] = fir_filter_pinger_40k,
+};
 
 // precomputed at init
 static float hann_window[NSAMP_DEC] = { 0 };
@@ -34,7 +41,10 @@ static void dma_handler();
 
 static void calculate_frequencies_dec();
 
-void fft_setup(irq_handler_t dma_irq_cb) {
+void fft_setup(irq_handler_t dma_irq_cb, bool *is_pinger, pinger_freq_t *mode) {
+    is_pinger_mode = is_pinger;
+    pinger_mode = mode;
+
     stdio_init_all();
     adc_gpio_init(26 + CAPTURE_CHANNEL);
     adc_init();
@@ -83,7 +93,15 @@ static void process_capture_buffer(uint8_t capture_buf[], kiss_fft_scalar fft_in
     uint32_t decimated_idx = 0;
 
     for (uint32_t i = 0; i < NSAMP; i++) {
-        float filtered_sample = (float) fir_filter_int(capture_buf[i]);
+        float filtered_sample;
+        if (*is_pinger_mode) {
+            // LOG_INFO("DOING PINGER");
+            // filtered_sample = fir_filter_pinger(capture_buf[i]);
+            filtered_sample = (float) fir_filter_pinger_int(capture_buf[i], *pinger_mode);
+        }
+        else {
+            filtered_sample = (float) fir_filter_int(capture_buf[i]);
+        }
         // float filtered_sample = 4;
         if (decimation_counter == 0) {
             fft_in[decimated_idx++] = filtered_sample;
@@ -268,7 +286,7 @@ void fft_process(uint8_t capture_buf[], frequency_bin_t bins[], int bin_count) {
         reset_accum_window();
         accum_counter = 0;
         num_frames_processed++;
-        if (num_frames_processed >= 20) {
+        if (num_frames_processed >= 50) {
             noise_floor_settled = true;
         }
     }

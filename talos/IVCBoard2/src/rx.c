@@ -21,13 +21,23 @@
 // #define BIN_RES (FSAMP / NSAMP)
 // #define FRAME_MS (NSAMP * 1000.0f / FSAMP)
 // #define FRAMES_SYMBOL (200.0f / FRAME_MS)
-#define NOISE_FLOOR_EMA_ALPHA 0.05f
-#define MIN_SYMBOL_SNR 4.0f
-#define MIN_SYMBOL_DOMINANCE 1.5f
+#define NOISE_FLOOR_EMA_ALPHA 0.15f
+#define MIN_SYMBOL_SNR 2.0f
+#define MIN_SYMBOL_DOMINANCE 1.0f
+
+#define N_AVG_PINGER 5
+
+static float pinger_avg_amp = 0.0f;
+static uint32_t pinger_avg_count = 0;
 
 static uint32_t none_observation_count = 0;
+static bool timeout_started = false;
+
+static float pinger_amp_history[N_PINGER_AMPS] = { 0 };
+static uint8_t pinger_amp_history_idx = 0;
 
 frequency_bin_t fft_bins[] = {
+    { "freq_pinger", FREQ_PINGER_HZ - FFT_BIN_RANGE, FREQ_PINGER_HZ + FFT_BIN_RANGE, 0, false },
     { "ema_ref_1", FREQ_NOISE_REF_1 - FFT_BIN_RANGE, FREQ_NOISE_REF_1 + FFT_BIN_RANGE, 0, true },
     { "ema_ref_2", FREQ_NOISE_REF_2 - FFT_BIN_RANGE, FREQ_NOISE_REF_2 + FFT_BIN_RANGE, 0, true },
     { "freq_low", FREQ_LOW_HZ - FFT_BIN_RANGE, FREQ_LOW_HZ + FFT_BIN_RANGE, 0, false },
@@ -35,6 +45,55 @@ frequency_bin_t fft_bins[] = {
     { "freq_sync", FREQ_SYNC_HZ - FFT_BIN_RANGE, FREQ_SYNC_HZ + FFT_BIN_RANGE, 0, false },
     { "ema_ref_3", FREQ_NOISE_REF_3 - FFT_BIN_RANGE, FREQ_NOISE_REF_3 + FFT_BIN_RANGE, 0, true },
     { "ema_ref_4", FREQ_NOISE_REF_4 - FFT_BIN_RANGE, FREQ_NOISE_REF_4 + FFT_BIN_RANGE, 0, true },
+};
+
+frequency_bin_t fft_bins_pinger_20k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_20K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_20K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_20K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_20K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_20K_HZ - FFT_BIN_RANGE, FREQ_PINGER_20K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_20K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_20K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_20K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_20K + FFT_BIN_RANGE, 0, true },
+};
+frequency_bin_t fft_bins_pinger_25k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_25K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_25K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_25K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_25K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_25K_HZ - FFT_BIN_RANGE, FREQ_PINGER_25K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_25K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_25K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_25K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_25K + FFT_BIN_RANGE, 0, true },
+};
+frequency_bin_t fft_bins_pinger_30k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_30K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_30K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_30K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_30K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_30K_HZ - FFT_BIN_RANGE, FREQ_PINGER_30K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_30K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_30K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_30K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_30K + FFT_BIN_RANGE, 0, true },
+};
+frequency_bin_t fft_bins_pinger_35k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_35K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_35K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_35K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_35K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_35K_HZ - FFT_BIN_RANGE, FREQ_PINGER_35K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_35K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_35K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_35K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_35K + FFT_BIN_RANGE, 0, true },
+};
+
+frequency_bin_t fft_bins_pinger_37k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_37K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_37K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_37K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_37K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_37K_HZ - FFT_BIN_RANGE, FREQ_PINGER_37K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_37K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_37K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_37K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_37K + FFT_BIN_RANGE, 0, true },
+};
+frequency_bin_t fft_bins_pinger_40k[] = {
+    { "ema_ref_1", FREQ_NOISE_REF_1_40K - FFT_BIN_RANGE, FREQ_NOISE_REF_1_40K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_2", FREQ_NOISE_REF_2_40K - FFT_BIN_RANGE, FREQ_NOISE_REF_2_40K + FFT_BIN_RANGE, 0, true },
+    { "freq_pinger", FREQ_PINGER_40K_HZ - FFT_BIN_RANGE, FREQ_PINGER_40K_HZ + FFT_BIN_RANGE, 0, false },
+    { "ema_ref_3", FREQ_NOISE_REF_3_40K - FFT_BIN_RANGE, FREQ_NOISE_REF_3_40K + FFT_BIN_RANGE, 0, true },
+    { "ema_ref_4", FREQ_NOISE_REF_4_40K - FFT_BIN_RANGE, FREQ_NOISE_REF_4_40K + FFT_BIN_RANGE, 0, true },
+};
+
+frequency_bin_t *pinger_bin_map[] = {
+    [FREQ_20KHZ] = fft_bins_pinger_20k, [FREQ_25KHZ] = fft_bins_pinger_25k, [FREQ_30KHZ] = fft_bins_pinger_30k,
+    [FREQ_35KHZ] = fft_bins_pinger_35k, [FREQ_37KHZ] = fft_bins_pinger_37k, [FREQ_40KHZ] = fft_bins_pinger_40k,
 };
 
 // frequency_bin_t fft_bins[] = {
@@ -47,9 +106,29 @@ frequency_bin_t fft_bins[] = {
 //     { "ema_ref_4", FREQ_NOISE_REF_4 - FFT_BIN_RANGE, FREQ_NOISE_REF_4 + FFT_BIN_RANGE, 0, true },
 // };
 
+bool push_pinger_amp(float amp) {
+    pinger_amp_history[pinger_amp_history_idx] = amp;
+    pinger_amp_history_idx++;
+    if (pinger_amp_history_idx >= N_AVG_PINGER) {
+        pinger_amp_history_idx = 0;
+        return true;
+    }
+    return false;
+}
+
+float get_max_pinger_amp() {
+    float max = 0.0f;
+    for (uint8_t i = 0; i < N_PINGER_AMPS; i++) {
+        if (pinger_amp_history[i] > max) {
+            max = pinger_amp_history[i];
+        }
+    }
+    return max;
+}
+
 void rx_init(ivc_context_t *ctx, void (*swap_buffer_handler)()) {
     // set the callback that fires when dma fills a swap buffer with data
-    fft_setup(swap_buffer_handler);
+    fft_setup(swap_buffer_handler, &ctx->rx.flags.is_pinger_mode, &ctx->rx.pinger_mode);
     // start sampling on a swap buffer
     // fft_sample(recv_data.swap_buffers[recv_data.buffer_select]);
     fft_sample(ctx->rx.recv.swap_buffers[ctx->rx.recv.buffer_select]);
@@ -141,6 +220,46 @@ sample_t rx_observe_3(ivc_context_t *ctx) {
     return NONE;
 }
 
+// bool rx_observe_pinger(ivc_context_t *ctx, float *avg) {
+//     fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], fft_bins, NUM_FFT_BINS);
+//     if (pinger_avg_count < N_AVG_PINGER) {
+//         pinger_avg_amp += fft_bins[FFT_PINGER_IDX].amplitude;
+//         pinger_avg_count++;
+//         return false;
+//     }
+//     else {
+//         pinger_avg_count = 0;
+//         *avg = pinger_avg_amp / N_AVG_PINGER;
+//         pinger_avg_amp = 0.0f;
+//         return true;
+//     }
+// }
+
+bool rx_observe_pinger(ivc_context_t *ctx, float *avg) {
+    frequency_bin_t *bins = pinger_bin_map[ctx->rx.pinger_mode];
+    fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], bins, NUM_PINGER_FFT_BINS);
+    if (pinger_avg_count < N_AVG_PINGER) {
+        pinger_avg_amp += bins[FFT_PINGER_SIGNAL_IDX].amplitude;
+        pinger_avg_count++;
+        return false;
+    }
+    else {
+        pinger_avg_count = 0;
+        *avg = pinger_avg_amp / N_AVG_PINGER;
+        pinger_avg_amp = 0.0f;
+        return true;
+    }
+}
+
+void rx_handle_pinger(ivc_context_t *ctx) {
+    frequency_bin_t *bins = pinger_bin_map[ctx->rx.pinger_mode];
+    fft_process(ctx->rx.recv.swap_buffers[ctx->rx.recv.fft_target], bins, NUM_PINGER_FFT_BINS);
+    float amp = bins[FFT_PINGER_SIGNAL_IDX].amplitude;
+    if (push_pinger_amp(amp)) {
+        ros_publish_pinger_amp(get_max_pinger_amp());
+    }
+}
+
 // sample_t rx_observe_2(ivc_context_t *ctx) {
 //     ema_update(ctx->rx.ema, fft_bins);
 
@@ -183,6 +302,10 @@ float get_ref3_amp() {
 
 float get_ref4_amp() {
     return fft_bins[FFT_REF4_IDX].amplitude;
+}
+
+float get_pinger_amp() {
+    return fft_bins[FFT_PINGER_IDX].amplitude;
 }
 
 void process_fft(ivc_context_t *ctx) {
@@ -298,15 +421,15 @@ static void handle_sample(ivc_context_t *ctx, sample_t sample) {
             rx_encode_sample(ctx, sample);
         }
 
-        if (sample == NONE) {
-            none_observation_count++;
-        }
+        // if (sample == NONE) {
+        //     none_observation_count++;
+        // }
 
-        if (none_observation_count >= IDLE_TIMEOUT) {
-            LOG_INFO("CONNECTION TIMED OUT\n");
-            none_observation_count = 0;
-            rx_reset(ctx);
-        }
+        // if (none_observation_count >= IDLE_TIMEOUT) {
+        //     LOG_INFO("CONNECTION TIMED OUT\n");
+        //     none_observation_count = 0;
+        //     rx_reset(ctx);
+        // }
     }
 }
 
@@ -359,6 +482,29 @@ void attempt_reading(ivc_context_t *ctx) {
         //  }
         // ctx->rx.flags.awaiting_ack = false;
     }
+}
+
+void rx_timeout_start() {
+    if (!timeout_started) {
+        timeout_started = true;
+        none_observation_count = 0;
+    }
+}
+
+void rx_timeout_advance() {
+    none_observation_count++;
+}
+
+bool rx_timeout_expired() {
+    if (none_observation_count >= 5) {
+        return true;
+    }
+    return false;
+}
+
+void rx_timeout(ivc_context_t *ctx) {
+    timeout_started = false;
+    rx_reset(ctx);
 }
 
 // void attempt_reading() {}

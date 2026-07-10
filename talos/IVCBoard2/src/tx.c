@@ -177,6 +177,10 @@ static bool tx_cb(repeating_timer_t *rt) {
     }
 }
 
+bool tx_queue_empty() {
+    return QUEUE_EMPTY(&tx_msg_queue);
+}
+
 void tx_enqueue_data(uint8_t data) {
     if (QUEUE_FULL(&tx_msg_queue)) {
         return;
