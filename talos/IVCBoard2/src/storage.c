@@ -51,6 +51,10 @@ void storage_write(uint8_t *data, size_t len) {
     }
 }
 
+bool storage_done_writing() {
+    return write_offset >= STORAGE_SIZE;
+}
+
 void storage_flush() {
     if (page_buffer_pos == 0) {
         return;

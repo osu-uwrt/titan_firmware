@@ -67,5 +67,6 @@ bool rx_observe_pinger(ivc_context_t *ctx, float *avg);
 bool push_pinger_amp(float amp);
 void rx_set_pinger_bins(ivc_context_t *ctx, pinger_freq_t freq);
 void rx_handle_pinger(ivc_context_t *ctx);
+int32_t rx_get_pinger_mode_khz(ivc_context_t *ctx);
 
 #endif  // RX_H

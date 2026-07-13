@@ -41,8 +41,17 @@
 #define ADC_SAMPLE_PUBLISHER_NAME "ivc/adc_dump"
 #define AMPLITUDE_PUBLISHER_NAME "ivc/new_transducer"
 #define SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME "ivc/debug/send_freq"
-#define PINGER_MODE_SUBSCRIBER_NAME "ivc/pinger/set_mode"
-#define PINGER_AMP_PUBLISHER_NAME "ivc/pinger/selected_amp"
+#define PINGER_ENABLE_SUBSCRIBER_NAME "ivc/pinger/enable"
+#define PINGER_MODE_SUBSCRIBER_NAME "ivc/pinger/set_freq_khz"
+#define PINGER_AMP_PUBLISHER_NAME "ivc/pinger/selected_freq_amp_stream"
+#define PINGER_SET_FREQ_PUBLISHER_NAME "ivc/pinger/selected_freq_khz"
+#define SAVE_ADC_SAMPLES_SUBSCRIBER_NAME "ivc/save_adc_samples"
+#define STORAGE_CONFIGURE_SUBSCRIBER_NAME "ivc/storage/configure"
+#define STORAGE_WRITE_COMPLETE_PUBLISHER_NAME "ivc/storage/write_complete"
+#define RX_SET_EMA_ALPHA_SUBSCRIBER_NAME "ivc/set_noise_ema_alpha"
+#define RX_SET_MIN_SYMBOL_SNR_SUBSCRIBER_NAME "ivc/set_min_snr"
+#define RX_SAMPLE_PUBLISHER_NAME "ivc/rx_sample_stream"
+#define RX_SAMPLE_SNR_PUBLISHER_NAME "ivc/rx_sample_snr_stream"
 
 #define MAX_ROS_NAME 13  // including null
 
@@ -82,6 +91,32 @@ std_msgs__msg__Int8 tx_msg;
 std_msgs__msg__Float32 amplitude_msg;
 // std_msgs__msg__Int32 amplitude_msg;
 std_msgs__msg__Int8 freq_msg;
+
+rcl_subscription_t configure_storage_subscriber;
+std_msgs__msg__Int8 storage_config_msg;
+
+rcl_publisher_t pinger_mode_publisher;
+std_msgs__msg__Int32 mode_msg;
+
+rcl_subscription_t enable_pinger_subscriber;
+std_msgs__msg__Bool enable_pinger_msg;
+
+rcl_subscription_t noise_ema_subscriber;
+std_msgs__msg__Float32 ema_alpha_msg;
+
+rcl_subscription_t set_min_snr_subscriber;
+std_msgs__msg__Float32 min_snr_msg;
+
+rcl_publisher_t sample_snr_publisher;
+rcl_publisher_t sample_publisher;
+std_msgs__msg__Float32 sample_amp_msg;
+std_msgs__msg__Int8 sample_msg;
+
+// rcl_subscription_t save_adc_samples_subscriber;
+// std_msgs__msg__Bool save_adc_msg;
+
+// rcl_subscription_t read_adc_samples_subscriber;
+// std_msgs__msg__Bool read_adc_msg;
 
 void set_topic_names(ivc_context_t *ctx) {
     snprintf(rx_packet_publisher_name, MAX_ROS_NAME, "ivc/rx%s", ctx->is_talos ? "_talos" : "_other");
@@ -131,6 +166,27 @@ rcl_ret_t ros_publish_pinger_amp(float amp) {
     return RCL_RET_OK;
 }
 
+rcl_ret_t ros_publish_set_pinger_mode(int32_t khz) {
+    std_msgs__msg__Int32 freq_msg;
+    freq_msg.data = khz;
+    RCSOFTRETCHECK(rcl_publish(&pinger_mode_publisher, &freq_msg, NULL));
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_sample_snr(float amp) {
+    std_msgs__msg__Float32 amp_msg;
+    amp_msg.data = amp;
+    RCSOFTRETCHECK(rcl_publish(&sample_snr_publisher, &amp_msg, NULL));
+    return RCL_RET_OK;
+}
+
+rcl_ret_t ros_publish_sample(int8_t sample) {
+    std_msgs__msg__Int8 sample_msg;
+    sample_msg.data = sample;
+    RCSOFTRETCHECK(rcl_publish(&sample_publisher, &sample_msg, NULL));
+    return RCL_RET_OK;
+}
+
 // rcl_ret_t ros_publish_rx_sample_debug(uint8_t rx) {
 //     std_msgs__msg__UInt8 rx_msg;
 //     rx_msg.data = rx;
@@ -158,6 +214,39 @@ static void tx_enqueue_data_callback(void *msg_in) {
 static void set_pinger_mode_callback(void *msg_in) {
     const std_msgs__msg__Int32 *khz_msg = (const std_msgs__msg__Int32 *) msg_in;
     set_pinger_mode((int32_t) khz_msg->data);
+}
+
+static void enable_pinger_callback(void *msg_in) {
+    const std_msgs__msg__Bool *enable_msg = (const std_msgs__msg__Bool *) msg_in;
+    pinger_enable(enable_msg->data);
+}
+
+static void configure_storage_callback(void *msg_in) {
+    const std_msgs__msg__Int8 *config_msg = (const std_msgs__msg__Int8 *) msg_in;
+    int8_t config = config_msg->data;
+    switch (config) {
+    case 0:
+        storage_configure(false, false, false);
+        break;
+    case 1:
+        storage_configure(true, true, false);
+        break;
+    case 2:
+        storage_configure(true, false, true);
+        break;
+    default:
+        break;
+    }
+}
+
+static void set_noise_ema_alpha_callback(void *msg_in) {
+    const std_msgs__msg__Float32 *alpha_msg = (const std_msgs__msg__Float32 *) msg_in;
+    set_noise_ema_alpha(alpha_msg->data);
+}
+
+static void set_min_snr_callback(void *msg_in) {
+    const std_msgs__msg__Float32 *snr_msg = (const std_msgs__msg__Float32 *) msg_in;
+    set_min_symbol_snr(snr_msg->data);
 }
 
 // ========= END IVC ============
@@ -268,6 +357,16 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_publisher_init_default(
         &pinger_amp_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), PINGER_AMP_PUBLISHER_NAME));
 
+    RCRETCHECK(rclc_publisher_init_default(&pinger_mode_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+                                           PINGER_SET_FREQ_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&sample_snr_publisher, &node,
+                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                           RX_SAMPLE_SNR_PUBLISHER_NAME));
+
+    RCRETCHECK(rclc_publisher_init_default(&sample_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                           RX_SAMPLE_PUBLISHER_NAME));
     // RCRETCHECK(rclc_subscription_init_default(
     //     &tx_debug_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8), TX_DEBUG_SUBSCRIBER_NAME));
 
@@ -277,7 +376,15 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_subscription_init_default(&pinger_mode_subscriber, &node,
                                               ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
                                               PINGER_MODE_SUBSCRIBER_NAME));
-
+    RCRETCHECK(rclc_subscription_init_default(&configure_storage_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
+                                              STORAGE_CONFIGURE_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(&enable_pinger_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+                                              PINGER_ENABLE_SUBSCRIBER_NAME));
+    RCRETCHECK(rclc_subscription_init_default(&set_min_snr_subscriber, &node,
+                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                                              RX_SET_MIN_SYMBOL_SNR_SUBSCRIBER_NAME));
     RCRETCHECK(rclc_subscription_init_best_effort(
         &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
@@ -285,7 +392,7 @@ rcl_ret_t ros_init() {
                                                   ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8),
                                                   SEND_FREQ_FOR_TIME_SUBSCRIBER_NAME));
     // Executor Initialization
-    const int executor_num_handles = 4;
+    const int executor_num_handles = 7;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
     RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
                                               &killswitch_subscription_callback, ON_NEW_DATA));
@@ -301,6 +408,15 @@ rcl_ret_t ros_init() {
 
     RCRETCHECK(rclc_executor_add_subscription(&executor, &pinger_mode_subscriber, &pinger_freq_select_msg,
                                               &set_pinger_mode_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &configure_storage_subscriber, &storage_config_msg,
+                                              &configure_storage_callback, ON_NEW_DATA));
+
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &enable_pinger_subscriber, &enable_pinger_msg,
+                                              &enable_pinger_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_executor_add_subscription(&executor, &set_min_snr_subscriber, &min_snr_msg, &set_min_snr_callback,
+                                              ON_NEW_DATA));
+
     // TODO: Modify this method with node specific objects
     // RCRETCHECK(rclc_publisher_init_default(&rx_debug_sample_publisher, &node,
     //                                        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8),
@@ -327,11 +443,16 @@ void ros_fini(void) {
     RCSOFTCHECK(rcl_subscription_fini(&killswtich_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&send_freq_for_time_subscriber, &node));
     RCSOFTCHECK(rcl_subscription_fini(&pinger_mode_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&configure_storage_subscriber, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&enable_pinger_subscriber, &node));
     RCSOFTCHECK(rcl_publisher_fini(&heartbeat_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&firmware_status_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&adc_flash_sample_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&amplitude_publisher, &node));
     RCSOFTCHECK(rcl_publisher_fini(&pinger_amp_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&pinger_mode_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&sample_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&sample_snr_publisher, &node));
     // RCSOFTCHECK(rcl_subscription_fini(&tx_debug_subscriber, &node));
     RCSOFTCHECK(rclc_executor_fini(&executor));
     RCSOFTCHECK(rcl_node_fini(&node));

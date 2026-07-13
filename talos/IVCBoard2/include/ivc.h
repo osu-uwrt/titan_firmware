@@ -107,6 +107,8 @@
 
 #define N_PINGER_AMPS 5
 
+#define PINGER_HISTORY_SIZE 1
+
 /**
  * enumerate symbol values
  */
@@ -200,12 +202,23 @@ typedef struct {
     uint32_t counter;
 } fft_window_accumulate_t;
 
+typedef struct {
+    bool enabled;
+    bool write;
+    bool read;
+    bool done_writing;
+    bool done_reading;
+    bool initialized_for_write;
+} storage_flags_t;
+
 /**
  * data relevant to processing and control flow for RX
  */
 typedef struct {
     amplitude_ema_t ema;
     signal_recv_t recv;
+    float ema_alpha;
+    float ema_min_snr;
     uint16_t current_packet;     // new, INCLUDES CRC
     uint16_t packet_to_process;  // new
     uint8_t buffer[PACKET_SIZE];
@@ -231,6 +244,7 @@ typedef struct {
     rx_control_t rx;
     rx_consensus_t consensus;
     // ivc_flags_t flags;
+    storage_flags_t storage_flags;
     bool is_talos;
 } ivc_context_t;
 
@@ -252,5 +266,9 @@ void amplitude_check_tick();
 void debug_tx(uint8_t bit);
 void nop_tick();
 void set_pinger_mode(int32_t khz);
+void storage_configure(bool enabled, bool will_write, bool will_read);
+void pinger_enable(bool enable);
+void set_noise_ema_alpha(float alpha);
+void set_min_symbol_snr(float snr);
 
 #endif  // IVC_H

@@ -30,8 +30,15 @@ repeating_timer_t amplitude_check_timer = { 0 };
 
 static uint32_t none_observation_count = 0;
 
+static bool publish_pinger_mode = false;
+static bool pinger_mode_alarm_set = false;
+
+static repeating_timer_t pub_pinger_mode_timer;
+static bool pinger_mode_timer_made = false;
+
 // testing flash
-uint8_t test_write_buffer[NSAMP] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF };
+// uint8_t test_write_buffer[NSAMP] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF };
+uint8_t test_write_buffer[NSAMP] = { 0 };
 uint8_t test_read_buffer[8] = { 0 };
 /**
  * @brief the interupt handler for swapping the process/fill buffers and resume fft sampling
@@ -85,13 +92,17 @@ void debug_tx(uint8_t bit) {
     add_alarm_in_ms(500, tx_disable, (void *) &context, true);
 }
 
+void pinger_enable(bool enable) {
+    context.rx.flags.is_pinger_mode = enable;
+}
+
 void set_pinger_mode(int32_t khz) {
-    if (khz == 0) {
-        context.rx.flags.is_pinger_mode = false;
-    }
-    else if (!context.rx.flags.is_pinger_mode) {
-        context.rx.flags.is_pinger_mode = true;
-    }
+    // if (khz == 0) {
+    //     context.rx.flags.is_pinger_mode = false;
+    // }
+    // else if (!context.rx.flags.is_pinger_mode) {
+    //     context.rx.flags.is_pinger_mode = true;
+    // }
 
     switch (khz) {
     case 20:
@@ -169,6 +180,38 @@ void data_ingest_tick() {
     }
 }
 
+void storage_tick() {
+    static uint32_t read_pos = 0;
+    static uint32_t data = 1;
+    if (context.storage_flags.write) {
+        if (!context.storage_flags.initialized_for_write) {
+            context.storage_flags.initialized_for_write = true;
+            storage_init(true);
+        }
+        if (storage_done_writing()) {
+            context.storage_flags.done_writing = true;
+            storage_flush();
+            // publish done
+            LOG_INFO("DONE WRITING\n");
+        }
+        else {
+            // storage_write(context.rx.recv.swap_buffers[context.rx.recv.fft_target], NSAMP);
+            // test
+            memset(test_write_buffer, data++, NSAMP);
+            storage_write(test_write_buffer, NSAMP);
+        }
+    }
+    else if (context.storage_flags.read) {
+        if (read_pos < (512 * 1024)) {  // im sorry
+            uint8_t sample = storage_read_byte_at(read_pos++);
+            printf("%d:%X\n", read_pos, sample);
+        }
+        else {
+            printf("DONE READING\n");
+        }
+    }
+}
+
 bool amplitude_cb() {
     process_fft(&context);
     float amp_low = get_low_amp();
@@ -197,6 +240,25 @@ void amplitude_check_tick() {
     }
 }
 
+void storage_configure(bool enabled, bool will_write, bool will_read) {
+    context.storage_flags.enabled = enabled;
+    context.storage_flags.write = will_write;
+    context.storage_flags.read = will_read;
+}
+
+void pinger_mode_pub_cb() {
+    publish_pinger_mode = true;
+    pinger_mode_alarm_set = false;
+}
+
+void set_noise_ema_alpha(float alpha) {
+    context.rx.ema_alpha = alpha;
+}
+
+void set_min_symbol_snr(float snr) {
+    context.rx.ema_min_snr = snr;
+}
+
 void ivc_tick() {
     // consensus_update(&context.consensus, rx_observe(&context));
     // if (rx_timeout_expired()) {
@@ -211,15 +273,36 @@ void ivc_tick() {
     // context.rx.flags.is_pinger_mode = true;
 
     if (context.rx.flags.is_pinger_mode) {
-        //float avg;
-        // if (rx_observe_pinger(&context, &avg)) {
-        //     // LOG_INFO("PINGER AVG: %.2f", avg);
-        //     ros_publish_pinger_amp(avg);
-        // }
+        // float avg;
+        //  if (rx_observe_pinger(&context, &avg)) {
+        //      // LOG_INFO("PINGER AVG: %.2f", avg);
+        //      ros_publish_pinger_amp(avg);
+        //  }
+        if (publish_pinger_mode) {
+            publish_pinger_mode = false;
+            ros_publish_set_pinger_mode(rx_get_pinger_mode_khz(&context));
+        }
+
         rx_handle_pinger(&context);
+
+        if (!pinger_mode_timer_made) {
+            pinger_mode_timer_made = true;
+            add_repeating_timer_ms(1000, pinger_mode_pub_cb, NULL, &pub_pinger_mode_timer);
+        }
+        // if (!pinger_mode_alarm_set) {
+        //     pinger_mode_alarm_set = true;
+        //     add_alarm_in_ms(1000, pinger_mode_pub_cb, NULL, false);
+        // }
 
         // LOG_INFO("is_pinger_mode: %s\ncurrent pinger mode: %d\n", context.rx.flags.is_pinger_mode ? "true" : "false",
         //          context.rx.pinger_mode);
+    }
+    else if (!context.rx.flags.is_pinger_mode && pinger_mode_timer_made) {
+        cancel_repeating_timer(&pub_pinger_mode_timer);
+        pinger_mode_timer_made = false;
+    }
+    else if (context.storage_flags.enabled) {
+        storage_tick();
     }
     else {
         consensus_update(&context.consensus, rx_observe_3(&context));

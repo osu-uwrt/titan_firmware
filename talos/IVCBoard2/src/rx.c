@@ -25,6 +25,9 @@
 #define MIN_SYMBOL_SNR 2.0f
 #define MIN_SYMBOL_DOMINANCE 1.0f
 
+#define DEFAULT_NOISE_FLOOR_EMA_ALPHA 0.05f
+#define DEFAULT_MIN_SYMBOL_SNR 4.0f
+
 #define N_AVG_PINGER 5
 
 static float pinger_avg_amp = 0.0f;
@@ -109,7 +112,7 @@ frequency_bin_t *pinger_bin_map[] = {
 bool push_pinger_amp(float amp) {
     pinger_amp_history[pinger_amp_history_idx] = amp;
     pinger_amp_history_idx++;
-    if (pinger_amp_history_idx >= N_AVG_PINGER) {
+    if (pinger_amp_history_idx >= PINGER_HISTORY_SIZE) {
         pinger_amp_history_idx = 0;
         return true;
     }
@@ -118,7 +121,7 @@ bool push_pinger_amp(float amp) {
 
 float get_max_pinger_amp() {
     float max = 0.0f;
-    for (uint8_t i = 0; i < N_PINGER_AMPS; i++) {
+    for (uint8_t i = 0; i < PINGER_HISTORY_SIZE; i++) {
         if (pinger_amp_history[i] > max) {
             max = pinger_amp_history[i];
         }
@@ -126,7 +129,29 @@ float get_max_pinger_amp() {
     return max;
 }
 
+int32_t rx_get_pinger_mode_khz(ivc_context_t *ctx) {
+    switch (ctx->rx.pinger_mode) {
+    case FREQ_20KHZ:
+        return 20;
+    case FREQ_25KHZ:
+        return 25;
+    case FREQ_30KHZ:
+        return 30;
+    case FREQ_35KHZ:
+        return 35;
+    case FREQ_37KHZ:
+        return 37;
+    case FREQ_40KHZ:
+        return 40;
+    default:
+        return -1;
+    }
+}
+
 void rx_init(ivc_context_t *ctx, void (*swap_buffer_handler)()) {
+    ctx->rx.ema_alpha = DEFAULT_NOISE_FLOOR_EMA_ALPHA;
+    ctx->rx.ema_min_snr = DEFAULT_MIN_SYMBOL_SNR;
+    ctx->rx.pinger_mode = FREQ_30KHZ;
     // set the callback that fires when dma fills a swap buffer with data
     fft_setup(swap_buffer_handler, &ctx->rx.flags.is_pinger_mode, &ctx->rx.pinger_mode);
     // start sampling on a swap buffer
@@ -172,10 +197,13 @@ static bool is_idle(float e0, float e1, float e2) {
     return e0 < AMPLITUDE_IDLE_THRESHOLD && e1 < AMPLITUDE_IDLE_THRESHOLD && e2 < AMPLITUDE_IDLE_THRESHOLD;
 }
 
-static sample_t detect_symbol(float snr_low, float snr_high, float snr_sync) {
-    bool low_present = snr_low >= MIN_SYMBOL_SNR;
-    bool high_present = snr_high >= MIN_SYMBOL_SNR;
-    bool sync_present = snr_sync >= MIN_SYMBOL_SNR;
+static sample_t detect_symbol(float snr_low, float snr_high, float snr_sync, float min_snr) {
+    // bool low_present = snr_low >= MIN_SYMBOL_SNR;
+    // bool high_present = snr_high >= MIN_SYMBOL_SNR;
+    // bool sync_present = snr_sync >= MIN_SYMBOL_SNR;
+    bool low_present = snr_low >= min_snr;
+    bool high_present = snr_high >= min_snr;
+    bool sync_present = snr_sync >= min_snr;
 
     // nothing clears threshold
     if (!low_present && !high_present && !sync_present)
@@ -183,6 +211,7 @@ static sample_t detect_symbol(float snr_low, float snr_high, float snr_sync) {
 
     // find the dominant tone
     float best = fmaxf(snr_sync, fmaxf(snr_low, snr_high));
+    // ros_publish_sample_snr(best);
 
     // winner must clearly dominate all others
     if (best == snr_sync) {
@@ -213,7 +242,7 @@ sample_t rx_observe_3(ivc_context_t *ctx) {
         float sync_snr = fft_bins[FFT_SYNC_IDX].amplitude / (noise_floor + 1e-6f);
         // LOG_INFO("\nNOISE FLOOR: %0.5f\n", noise_floor);
         // LOG_INFO("\nSNR RATIOS:\nLOW: %0.5f\nHIGH:%0.5f\nSYNC: %0.5f\n", low_snr, high_snr, sync_snr);
-        sample_t sample = detect_symbol(low_snr, high_snr, sync_snr);
+        sample_t sample = detect_symbol(low_snr, high_snr, sync_snr, ctx->rx.ema_min_snr);
         // LOG_INFO("SAMPLE OBTAINED IN OBSERVATION: %hhu\n", sample);
         return sample;
     }
@@ -396,7 +425,8 @@ static void rx_reset(ivc_context_t *ctx) {
 static void rx_encode_sample(ivc_context_t *ctx, sample_t sample) {
     ctx->rx.mtu_data |= (sample & 0x01) << ctx->rx.write_pos;
     LOG_INFO("encoding into mtu data: 0x%X", ctx->rx.mtu_data);
-    // rx.buffer[rx.write_pos] = (uint8_t) sample;
+    // ros_publish_sample((int8_t) sample);
+    //  rx.buffer[rx.write_pos] = (uint8_t) sample;
     ctx->rx.write_pos++;
     if (ctx->rx.write_pos == DATA_SIZE) {
         rx_reset(ctx);

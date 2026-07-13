@@ -9,5 +9,6 @@ void storage_read(uint8_t *dest, size_t len);
 void storage_flush();
 void storage_write(uint8_t *data, size_t len);
 uint8_t storage_read_byte_at(uint8_t offset);
+bool storage_done_writing();
 
 #endif  // STORAGE_H
