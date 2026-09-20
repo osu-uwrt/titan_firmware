@@ -1,3 +1,14 @@
+/**
+ * @file ledc_driver.c
+ * @author Ohio State Underwater Robotic Team (UWRT)
+ * @brief Main Implementation File for describing the LED drivers for Talos.
+ * @version 0.1
+ * @date 2026-09-18
+ *
+ * @copyright Copyright (c) 2026
+ *
+ */
+
 #include "ledc_driver.h"
 
 #include "ledc_commands.h"
@@ -54,37 +65,45 @@
 
 #define NORMAL_OPERATION_PEAK_CURRENT 45  // See LED controller datasheet
 
+// Abstraction of internal implementation of squaring an unsigned integer
+#define SQUARE(x) _led_square_value(x)
+
 static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
     temperature_monitor_timer;
+
+typedef struct led_rgb_values_saved_t {
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+} led_rgb_values_saved_t;
+
+typedef struct led_rgb_values_runtime_t {
+    uint red;
+    uint green;
+    uint blue;
+} led_rgb_values_runtime_t;
 
 // LED state config
 volatile bool led_enabled;
 enum status_mode led_mode;
-uint8_t red_target;
-uint8_t green_target;
-uint8_t blue_target;
+static led_rgb_values_saved_t *rgb_target;
+
 uint led_timer;
 
 // Flash State Config
-volatile bool flash_active;  // Voltaile as this is used to protect the flashing state, rather than disabling interrupts
+volatile bool flash_active;  // Volatile as this is used to protect the flashing state, rather than disabling interrupts
 uint flash_timer;
 uint flash_count;
-uint8_t red_flash_target;
-uint8_t green_flash_target;
-uint8_t blue_flash_target;
+static led_rgb_values_saved_t *rgb_flash_target;
 
 // Short singleton flash (vision detections)
 volatile bool do_singleton;
 uint next_singleton = LOOPS_PER_SINGLETON;
 bool is_in_singleton = false;
-uint8_t red_singleton_target;
-uint8_t green_singleton_target;
-uint8_t blue_singleton_target;
+static led_rgb_values_saved_t *rgb_singleton_target;
 
 // Track the last values set by the driver so they can be restored later
-uint8_t last_red;
-uint8_t last_green;
-uint8_t last_blue;
+static led_rgb_values_saved_t *rgb_last;
 float last_max_brightness;
 
 // Depth status
@@ -96,46 +115,157 @@ bool em_overtemp = false;
 bool high_temp = false;
 float curr_al_temp = 0.0f;
 
+/**
+ * @brief Object Function Wrapper Macro.
+ *
+ * @note inline is debatable since compiler will (pretty likely) ignore it,
+ *       especially if the function itself somehow becomes more complex or looped.
+ */
+#define led_force_inline static inline
+
+/**
+ * @brief Executes the squaring of parameter x and returns it.
+ *
+ * @note Although pow() does exist, doing integer promotion and bit shifting often is more efficient and faster to
+ * execute.
+ *
+ * @param x The number that you want to have squared.
+ * @return (uint) The value that will be the result of that squaring.
+ */
+led_force_inline uint _led_square_value(uint x) {
+    return ((((uint32_t) x) * ((uint32_t) x)) >> 8);
+}
+
+/**
+ * @brief Calculates and returns the new color value based on the color rising and the breathe mode of the LED driver.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param color The current color value that you have.
+ * @param timer The value that will be taken as the time that you want to find the new color at.
+ *
+ * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
+ */
+led_force_inline uint _calculate_breathe_rising_fade(uint8_t color, uint timer) {
+    return (((uint32_t) color) * timer) / (LED_TIMER_PERIOD_TICKS / 2);
+}
+
+/**
+ * @brief Calculates and returns the new color value based on the color rising and the flash mode of the LED driver.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param color The current color value that you have.
+ * @param timer The value that will be taken as the time that you want to find the new color at.
+ *
+ * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
+ */
+led_force_inline uint _calculate_flash_rising_fade(uint8_t color, uint timer) {
+    return (((uint32_t) color) * timer / (LED_FLASH_PULSE_PERIOD / 2));
+}
+
+/**
+ * @brief Calculates and returns the new color value based on the color fading and the breathe mode of the LED driver.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param color The current color value that you have.
+ * @param timer The value that will be taken as the time that you want to find the new color at.
+ *
+ * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
+ */
+led_force_inline uint _calculate_breathe_falling_fade(uint8_t color, uint timer) {
+    return (color) - (((uint32_t) color) * (timer - (LED_TIMER_PERIOD_TICKS / 2)) / (LED_TIMER_PERIOD_TICKS / 2));
+}
+
+/**
+ * @brief Calculates and returns the new color value based on the color fading and the fade mode of the LED driver.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param color The current color value that you have.
+ * @param timer The value that will be taken as the time that you want to find the new color at.
+ *
+ * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
+ */
+led_force_inline uint _calculate_flash_falling_fade(uint8_t color, uint timer) {
+    return (color) - (((uint32_t) color) * (timer - (LED_FLASH_PULSE_PERIOD / 2)) / (LED_FLASH_PULSE_PERIOD / 2));
+}
+
+/**
+ * @brief Updates the ```obj``` pointer variable to have its member variables be equal to the values argued as red,
+ *        green, and blue.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param obj[in,out] The pointer of the rgb saved values that will be modified.
+ * @param red The new red color value.
+ * @param green The new green color value.
+ * @param blue The new blue color value.
+ */
+led_force_inline void _update_saved_rgb_values(led_rgb_values_saved_t *obj, uint8_t red, uint8_t green, uint8_t blue) {
+    obj->red = red;
+    obj->green = green;
+    obj->blue = blue;
+}
+
+/**
+ * @brief Predicts the temperature factor that will affect the brightness of the LEDs.
+ *
+ * @note Internal function. The exact implementation is subject to change if deemed worthy.
+ *
+ * @param current_temperature The current temperature that is recorded from the Aluminum LED board.
+ *
+ * @return float The temperature factor that will affect the lights, unclamped.
+ */
+led_force_inline float _led_calculate_new_tmp_factor(float current_temperature) {
+    return (float) (-1.0f / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C)) * current_temperature +
+           (MAX_OPERATING_TEMPERATURE_C * 1.0f) / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C);
+}
+
+/**
+ * @brief Callback function that overlooks and handles LED RGB values based of the led_mode, the definitions of the
+ *        different rising and falling methods, the current temperature of the LED aluminum board, and the current
+ *        underwater depth.
+ *
+ * @note param ```rt``` is unused
+ *
+ * @return Always returns @c true to indicate a successful packet transfer.
+ */
 static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
     uint red, green, blue;
 
     if (led_mode == MODE_SOLID) {
-        red = red_target;
-        green = green_target;
-        blue = blue_target;
+        red = rgb_target->red;
+        green = rgb_target->green;
+        blue = rgb_target->blue;
     }
     else if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
         uint flash_period = (led_mode == MODE_FAST_FLASH ? LED_FAST_FLASH_PERIOD : LED_SLOW_FLASH_PERIOD);
         if (led_timer % flash_period < (flash_period / 2)) {
-            red = red_target;
-            green = green_target;
-            blue = blue_target;
+            red = rgb_target->red;
+            green = rgb_target->green;
+            blue = rgb_target->blue;
         }
         else {
             // Set blank
-            red = blue = green = 0;
+            red = green = blue = 0;
         }
     }
     else if (led_mode == MODE_BREATH) {
         if (led_timer % LED_TIMER_PERIOD_TICKS < (LED_TIMER_PERIOD_TICKS / 2)) {
-            // Handle rising fade
-            red = (((uint32_t) red_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
-            green = (((uint32_t) green_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
-            blue = (((uint32_t) blue_target) * led_timer) / (LED_TIMER_PERIOD_TICKS / 2);
+            red = _calculate_breathe_rising_fade(rgb_target->red, led_timer);
+            green = _calculate_breathe_rising_fade(rgb_target->green, led_timer);
+            blue = _calculate_breathe_rising_fade(rgb_target->blue, led_timer);
         }
         else {
-            // Handle falling fade
-            red = (red_target) -
-                  (((uint32_t) red_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) / (LED_TIMER_PERIOD_TICKS / 2));
-            green = (green_target) - (((uint32_t) green_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
-                                      (LED_TIMER_PERIOD_TICKS / 2));
-            blue = (blue_target) - (((uint32_t) blue_target) * (led_timer - (LED_TIMER_PERIOD_TICKS / 2)) /
-                                    (LED_TIMER_PERIOD_TICKS / 2));
+            red = _calculate_breathe_falling_fade(rgb_target->red, led_timer);
+            green = _calculate_breathe_falling_fade(rgb_target->green, led_timer);
+            blue = _calculate_breathe_falling_fade(rgb_target->blue, led_timer);
         }
-        // Square it to make fading look smoother
-        red = (((uint32_t) red) * ((uint32_t) red)) >> 8;
-        green = (((uint32_t) green) * ((uint32_t) green)) >> 8;
-        blue = (((uint32_t) blue) * ((uint32_t) blue)) >> 8;
+        red = SQUARE(red);
+        green = SQUARE(green);
+        blue = SQUARE(blue);
     }
     else {
         // Set blank
@@ -147,20 +277,14 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     if (flash_active) {
         // First compute color for this round of flashing
         if (flash_timer % LED_FLASH_PULSE_PERIOD < (LED_FLASH_PULSE_PERIOD / 2)) {
-            // Handle rising fade
-            red = (((uint32_t) red_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
-            green = (((uint32_t) green_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
-            blue = (((uint32_t) blue_flash_target) * flash_timer) / (LED_FLASH_PULSE_PERIOD / 2);
+            red = _calculate_flash_rising_fade(rgb_flash_target->red, flash_timer);
+            green = _calculate_flash_rising_fade(rgb_flash_target->green, flash_timer);
+            blue = _calculate_flash_rising_fade(rgb_flash_target->blue, flash_timer);
         }
         else {
-            // Handle falling fade
-            red = (red_flash_target) - (((uint32_t) red_flash_target) * (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) /
-                                        (LED_FLASH_PULSE_PERIOD / 2));
-            green =
-                (green_flash_target) - (((uint32_t) green_flash_target) * (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) /
-                                        (LED_FLASH_PULSE_PERIOD / 2));
-            blue = (blue_flash_target) - (((uint32_t) blue_flash_target) *
-                                          (flash_timer - (LED_FLASH_PULSE_PERIOD / 2)) / (LED_FLASH_PULSE_PERIOD / 2));
+            red = _calculate_flash_falling_fade(rgb_flash_target->red, flash_timer);
+            green = _calculate_flash_falling_fade(rgb_flash_target->green, flash_timer);
+            blue = _calculate_flash_falling_fade(rgb_flash_target->blue, flash_timer);
         }
 
         // Then compute the next timer and count values
@@ -183,9 +307,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
 
     // Scale brightness based on temperature
-    float temp_adjust =
-        (-1.0f / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C)) * curr_al_temp +
-        (MAX_OPERATING_TEMPERATURE_C * 1.0f) / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C);
+    float temp_adjust = _led_calculate_new_tmp_factor(curr_al_temp);
     // Clamp to [0, 1]
     temp_adjust = temp_adjust < 0.0f ? 0.0f : temp_adjust;
     temp_adjust = temp_adjust > 1.0f ? 1.0f : temp_adjust;
@@ -194,9 +316,8 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     if (em_overtemp)
         max_brightness = 0.0f;
 
-    last_red = red;
-    last_green = green;
-    last_blue = blue;
+    _update_saved_rgb_values(rgb_last, red, green, blue);
+
     last_max_brightness = max_brightness;
 
     // Allow singleton flashes every LOOPS_PER_SINGLETON iterations
@@ -209,6 +330,13 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
     return true;
 }
 
+/**
+ * @brief Callback function to monitor the current depth and set to low brightness if we lose depth.
+ *
+ * @note param ```rt``` is unused
+ *
+ * @return Always returns @c true to indicate a successful packet transfer.
+ */
 static bool monitor_depth(__unused repeating_timer_t *rt) {
     // Set to low brightness if we lose depth
     depth_stale = !got_new_depth;
@@ -217,16 +345,24 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
     return true;
 }
 
+/**
+ * @brief
+ *
+ * @note param ```rt``` is unused
+ *
+ * @return Always returns @c true to indicate a successful packet transfer.
+ */
 static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
     if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
         return true;
 
     if (is_in_singleton) {  // Set back to pre-flash color
-        led_set_rgb(last_red, last_green, last_blue, last_max_brightness);
+        led_set_rgb(rgb_last->red, rgb_last->green, rgb_last->blue, last_max_brightness);
         is_in_singleton = false;
     }
     else {  // Set to flash color, to be reset the next loop
-        led_set_rgb(red_singleton_target, green_singleton_target, blue_singleton_target, last_max_brightness);
+        led_set_rgb(rgb_singleton_target->red, rgb_singleton_target->green, rgb_singleton_target->blue,
+                    last_max_brightness);
         is_in_singleton = true;
     }
 
@@ -237,8 +373,16 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
     return true;
 }
 
-// Get aluminum board thermistor temps and raise/lower faults accordingly
-// Also adjusts peak current based on temp
+/**
+ * @brief Callback function for getting the current temperature of the Aluminum LED board.
+ *
+ * @note Get aluminum board thermistor temps and raise/lower faults accordingly
+ *       Also adjusts peak current based on temp
+ *
+ * @note param ```rt``` is unused
+ *
+ * @return Always returns @c true to indicate a successful packet transfer.
+ */
 static bool monitor_temperature(__unused repeating_timer_t *rt) {
     curr_al_temp = al_read_temp();
 
@@ -254,7 +398,6 @@ static bool monitor_temperature(__unused repeating_timer_t *rt) {
     return true;
 }
 
-// Configure, set inital states, start repeating timers
 void ledc_init() {
     init_spi_and_gpio();
     register_canmore_commands();
@@ -285,46 +428,28 @@ void ledc_init() {
         add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL, &temperature_monitor_timer));
 }
 
-// Set local persistent driver mode
-void led_set(enum status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
+void led_set(status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     uint32_t prev_interrupts = save_and_disable_interrupts();
     led_timer = 0;
     led_mode = mode;
-    red_target = red;
-    green_target = green;
-    blue_target = blue;
+    _update_saved_rgb_values(rgb_target, red, green, blue);
     restore_interrupts(prev_interrupts);
 }
 
-// Flash (on kill switch insertion), not persistent
 void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = false;
-    red_flash_target = red;
-    green_flash_target = green;
-    blue_flash_target = blue;
+    _update_saved_rgb_values(rgb_flash_target, red, green, blue);
     flash_timer = 0;
     flash_count = 0;
     flash_active = true;
 }
 
-// Short flash (on vision detection), not persistent
 void led_singleton(uint8_t red, uint8_t green, uint8_t blue) {
     do_singleton = false;
-    red_singleton_target = red;
-    green_singleton_target = green;
-    blue_singleton_target = blue;
+    _update_saved_rgb_values(rgb_singleton_target, red, green, blue);
     do_singleton = true;
 }
 
-void led_enable(void) {
-    led_enabled = true;
-}
-
-void led_disable(void) {
-    led_enabled = false;
-}
-
-// Use underwater brightness if below threshold
 void led_depth_set(float depth) {
     is_underwater = depth < UNDERWATER_MIN_DEPTH;
     got_new_depth = true;
