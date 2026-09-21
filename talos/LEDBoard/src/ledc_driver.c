@@ -127,7 +127,7 @@ float curr_al_temp = 0.0f;
  * @brief Executes the squaring of parameter x and returns it.
  *
  * @note Although pow() does exist, doing integer promotion and bit shifting often is more efficient and faster to
- * execute.
+ *       execute.
  *
  * @param x The number that you want to have squared.
  * @return (uint) The value that will be the result of that squaring.
@@ -228,7 +228,7 @@ led_force_inline float _led_calculate_new_tmp_factor(float current_temperature) 
  *        different rising and falling methods, the current temperature of the LED aluminum board, and the current
  *        underwater depth.
  *
- * @note param ```rt``` is unused
+ * @note param ```rt``` is unused.
  *
  * @return Always returns @c true to indicate a successful packet transfer.
  */
@@ -333,7 +333,7 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 /**
  * @brief Callback function to monitor the current depth and set to low brightness if we lose depth.
  *
- * @note param ```rt``` is unused
+ * @note param ```rt``` is unused.
  *
  * @return Always returns @c true to indicate a successful packet transfer.
  */
@@ -346,9 +346,9 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
 }
 
 /**
- * @brief
+ * @brief Callback function to set the singleton flash for the LED Board.
  *
- * @note param ```rt``` is unused
+ * @note param ```rt``` is unused.
  *
  * @return Always returns @c true to indicate a successful packet transfer.
  */
@@ -377,9 +377,9 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
  * @brief Callback function for getting the current temperature of the Aluminum LED board.
  *
  * @note Get aluminum board thermistor temps and raise/lower faults accordingly
- *       Also adjusts peak current based on temp
+ *       Also adjusts peak current based on temp.
  *
- * @note param ```rt``` is unused
+ * @note param ```rt``` is unused.
  *
  * @return Always returns @c true to indicate a successful packet transfer.
  */
