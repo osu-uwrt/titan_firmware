@@ -66,10 +66,13 @@ static void servo_is_armed_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
         return;
     }
 
-    if (rx_packet.param_buf[0])
+    if (rx_packet.param_buf[0]) {
         servo->enabled = true;
-    else
+        LOG_INFO("servo enabled");
+    } else {
         servo->enabled = false;
+        LOG_INFO("servo failed to arm");
+    }
 }
 
 void servo_set_armed(servo_t *servo, bool armed) {
@@ -194,34 +197,52 @@ void servo_read_deg(servo_t *servo) {
     enqueue_packet(read_deg_packet);
 }
 
-// For now, just big trust this command goes through
-static int64_t servo_continuous_stop_cb(__unused alarm_id_t id, void *user_data) {
-    servo_t *servo = user_data;
+static void servo_read_voltage_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
+    servo_t *servo = rx_packet.servo;
+    servo->voltage_valid = err == SERVO_READ_OK;
+    if (err)
+        return;
 
-    uint8_t param_buf[MAX_PACKET_SIZE];
-    param_buf[0] = 1;  // Place into motor mode
-    split_uint16(0, &param_buf[2], &param_buf[3]);
-
-    ServoPacket_t stop_packet =
-        make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
-
-    enqueue_packet(stop_packet);
-
-    return 0;
+    servo->voltage = rx_packet.param_buf[0] | (uint16_t) rx_packet.param_buf[1] << 8;
+    servo->voltage_read_time = get_absolute_time();
 }
 
-// For now, just big trust this command goes through
-void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms) {
+bool servo_read_voltage(servo_t *servo) {
+    uint8_t param_buf[MAX_PACKET_SIZE] = { 0 };
+    ServoPacket_t packet = make_servo_packet(servo, SERVO_VIN_READ_CMD, SERVO_VIN_READ_LEN, param_buf);
+    packet.on_read = servo_read_voltage_cb;
+    return enqueue_packet(packet);
+}
+
+bool servo_get_voltage(servo_t *servo, uint16_t *voltage_out) {
+    if (!voltage_out)
+        return false;
+
+    bool valid = servo->voltage_valid && absolute_time_diff_us(servo->voltage_read_time, get_absolute_time()) < 2500000;
+    if (valid)
+        *voltage_out = servo->voltage;
+    return valid;
+}
+
+bool servo_read_position(servo_t *servo, const servo_read_cb callback) {
+    uint8_t param_buf[MAX_PACKET_SIZE] = { 0 };
+
+    ServoPacket_t packet = make_servo_packet(servo, SERVO_POS_READ_CMD, SERVO_POS_READ_LEN, param_buf);
+    packet.on_read = callback;
+
+    return enqueue_packet(packet);
+}
+
+bool servo_set_motor_speed(servo_t *servo, const int16_t speed) {
     uint8_t param_buf[MAX_PACKET_SIZE];
-    param_buf[0] = 1;  // Place into motor mode
+    param_buf[0] = 1;  // set motor mode
+    param_buf[1] = 0;  // null on docs
     split_uint16(speed, &param_buf[2], &param_buf[3]);
 
     ServoPacket_t continuous_move_packet =
         make_servo_packet(servo, SERVO_OR_MOTOR_MODE_WRITE_CMD, SERVO_OR_MOTOR_MODE_WRITE_LEN, param_buf);
 
-    enqueue_packet(continuous_move_packet);
-
-    add_alarm_in_ms(ms, servo_continuous_stop_cb, servo, true);
+    return enqueue_packet(continuous_move_packet);
 }
 
 // For now, just big trust this command goes through
@@ -403,6 +424,7 @@ void make_servo(servo_t *servo, uint8_t id, uint16_t home_deg) {
     servo->return_home_after_move = false;
     servo->desired_armed_state = false;
 
+    servo->voltage_valid = false;
     servo->id = id;
     servo->home_deg = home_deg;
 }

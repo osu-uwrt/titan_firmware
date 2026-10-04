@@ -1,6 +1,7 @@
 #include "safety_interface.h"
 
 #include "hbridge.h"
+#include "actuators/claw.h"
 
 #include "driver/led.h"
 #include "titan/logger.h"
@@ -37,6 +38,7 @@ void safety_handle_kill(void) {
     // Note: Any calls made in this function must be safe to be called from interrupts
     // This is because safety_kill_switch_update can be called from interrupts
     hbridge_set_enabled(false);
+    claw_notify_disable();
 
     led_killswitch_set(false);
 }
@@ -61,7 +63,7 @@ void safety_interface_init(void) {
 void safety_interface_tick(void) {}
 
 void safety_interface_deinit(void) {
-    // TODO: Modify this function to add code to be called during safety_deinit
+    claw_notify_disable();
 }
 
 // ========================================

@@ -113,6 +113,10 @@ typedef struct servo {
     uint16_t home_deg;
     uint16_t curr_deg;
 
+    uint16_t voltage;
+    bool voltage_valid;
+    absolute_time_t voltage_read_time;
+
     // TODO: this is cursed
     bool is_sethome_req;
     bool return_home_after_move;

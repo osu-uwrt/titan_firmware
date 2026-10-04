@@ -18,7 +18,13 @@ extern void servo_set_deg_then_home(servo_t *servo, float deg);
 
 extern void servo_read_deg(servo_t *servo);
 
-extern void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms);
+extern bool servo_read_voltage(servo_t *servo);
+
+extern bool servo_get_voltage(servo_t *servo, uint16_t *voltage_out);
+
+extern bool servo_read_position(servo_t *servo, servo_read_cb callback);
+
+extern bool servo_set_motor_speed(servo_t *servo, int16_t speed);
 
 extern void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg);
 

@@ -11,7 +11,8 @@
 #include <string.h>
 
 extern void __boot2_start__(void);
-extern void __boot_trampoline_entry__(void);
+// Use the assembly function symbol so the linker knows this is a Thumb entry point.
+extern void _boot_trampoline(void);
 
 extern const void __flash_app;
 
@@ -41,7 +42,7 @@ void boot_app_attempt(bool mark_watchdog_reset) {
         }
 
         // Call the trampoline. This shouldn't return
-        __boot_trampoline_entry__();
+        _boot_trampoline();
         exit(1);
     }
 

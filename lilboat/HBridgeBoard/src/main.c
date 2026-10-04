@@ -1,4 +1,5 @@
 #include "actuators/actuator.h"
+#include "actuators/claw.h"
 #include "actuators/hiwonder_driver.h"
 #include "actuators/ros_actuators.h"
 #include "hbridge.h"
@@ -34,9 +35,11 @@
 #define LED_UPTIME_INTERVAL_MS 250
 #define ACTUATOR_STATUS_TIME_MS 500
 #define SERVO_TRANSMIT_PERIOD_MS 10
-#define SERVO_PING_PERIOD_MS 1000
-#define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
+#define SERVO_VOLTAGE_PERIOD_MS 1000
 #define SERVO_UPDATE_DEGREES_PERIOD_MS 30
+#define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
+#define CLAW_UPDATE_PERIOD_MS 30
+#define CLAW_TELEMETRY_PERIOD_MS 100
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -46,9 +49,11 @@ absolute_time_t next_status_update = { 0 };
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
 absolute_time_t next_actuator_status = { 0 };
-absolute_time_t next_servo_ping = { 0 };
-absolute_time_t next_cmd_feedback = { 0 };
+absolute_time_t next_servo_voltage = { 0 };
 absolute_time_t next_degree_publish = { 0 };
+absolute_time_t next_cmd_feedback = { 0 };
+absolute_time_t next_claw_update = { 0 };
+absolute_time_t next_claw_telemetry = { 0 };
 
 static repeating_timer_t uart_scheduler_timer;
 
@@ -98,8 +103,9 @@ static void start_ros_timers() {
     next_heartbeat = make_timeout_time_ms(HEARTBEAT_TIME_MS);
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_actuator_status = make_timeout_time_ms(ACTUATOR_STATUS_TIME_MS);
-    next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
     next_degree_publish = make_timeout_time_ms(SERVO_UPDATE_DEGREES_PERIOD_MS);
+    next_cmd_feedback = make_timeout_time_ms(SERVO_UPDATE_CMD_STATUS_PERIOD_MS);
+    next_claw_telemetry = make_timeout_time_ms(CLAW_TELEMETRY_PERIOD_MS);
 }
 
 /**
@@ -144,6 +150,10 @@ static void tick_ros_tasks() {
         RCSOFTRETVCHECK(ros_update_actuator_degrees());
     }
 
+    if (timer_ready(&next_claw_telemetry, CLAW_TELEMETRY_PERIOD_MS, false)) {
+        RCSOFTRETVCHECK(ros_actuators_update_claw_telemetry());
+    }
+
     // TODO: Put any additional ROS tasks added here
 }
 
@@ -174,10 +184,12 @@ static void tick_background_tasks() {
 #endif
 
     // TODO: Put any code that should periodically occur here
-    if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        // servo_ping_all();
-        // servo_read_deg();
-        // servo_set_armed(true);
+    if (timer_ready(&next_servo_voltage, SERVO_VOLTAGE_PERIOD_MS, false)) {
+        servo_read_voltage(claw_get_servo());
+    }
+
+    if (timer_ready(&next_claw_update, CLAW_UPDATE_PERIOD_MS, false)) {
+        claw_update();
     }
 }
 
