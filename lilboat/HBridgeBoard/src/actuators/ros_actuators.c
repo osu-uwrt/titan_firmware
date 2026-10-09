@@ -19,6 +19,7 @@
 #define RAW_POSITION_TOPIC_NAME "state/actuator/claw/raw_position"
 #define VOLTAGE_TOPIC_NAME "state/actuator/claw/voltage_raw"
 #define ARM_SUBSCRIPTION_NAME "command/actuator/arm"
+#define CLAW_ARM_SUBSCRIPTION_NAME "command/actuator/claw/arm"
 #define ACTUATOR_FEEDBACK_MSG_TOPIC_NAME "state/actuator/cmd_feedback"
 #define ACTUATOR_FEEDBACK_STATE_TOPIC_NAME "state/actuator/cmd_status"
 #define DEGREE_PUBLISHER_NAME "state/actuator/degrees"
@@ -26,6 +27,7 @@
 // ROS objects
 static rcl_publisher_t status_publisher;
 static rcl_subscription_t arm_subscription;
+static rcl_subscription_t claw_arm_subscription;
 static rcl_subscription_t position_subscription;
 static rcl_subscription_t tare_subscription;
 static std_msgs__msg__Int32 position_msg;
@@ -33,6 +35,7 @@ static std_msgs__msg__Empty tare_msg;
 static rcl_publisher_t raw_position_publisher;
 static rcl_publisher_t voltage_publisher;
 static std_msgs__msg__Bool actuator_arm_msg;
+static std_msgs__msg__Bool claw_arm_msg;
 static rcl_publisher_t cmd_feedback_publisher;
 static rcl_publisher_t cmd_status_publisher;
 static std_msgs__msg__String cmd_feedback;
@@ -72,8 +75,9 @@ rcl_ret_t ros_actuators_update_status() {
     // std_msgs__msg__Bool busy_msg = { .data = move_active };
     // RCRETCHECK(rcl_publish(&busy_publisher, &busy_msg, NULL));
 
-    riptide_msgs2__msg__ActuatorStatus status_msg;
-    // status_msg.actuators_armed = enabled;
+    riptide_msgs2__msg__ActuatorStatus status_msg = { 0 };
+    status_msg.actuators_armed = claw_grip->desired_armed_state && claw_grip->enabled &&
+                                claw_rack.desired_armed_state && claw_rack.enabled;
     // status_msg.claw_state = 0;
     // status_msg.torpedo_state = torpedo_get_state();
     // status_msg.torpedo_available_count = num_torp;
@@ -126,8 +130,7 @@ static void set_cmd_feedback(bool accepted, const char *message) {
 static void position_subscription_callback(const void *msgin) {
     const std_msgs__msg__Int32 *msg = msgin;
     bool accepted = claw_set_position(msg->data);
-    set_cmd_feedback(accepted, accepted ? "Claw position accepted" :
-        "Claw position rejected: requires arming, fresh feedback, closed-position tare, no pending stop, and target 0..3000");
+    set_cmd_feedback(accepted, claw_get_position_feedback());
 }
 
 static void tare_subscription_callback(__unused const void *msgin) {
@@ -157,12 +160,21 @@ static void arm_subscription_callback(const void *msgin) {
     set_cmd_feedback(cmd_status.data, message);
 }
 
+static void claw_arm_subscription_callback(const void *msgin) {
+    const std_msgs__msg__Bool *msg = msgin;
+    if (!msg->data)
+        claw_stop();
+    servo_set_armed(claw_get_servo(), msg->data);
+
+    set_cmd_feedback(true, msg->data ? "Claw arm requested" : "Claw disarm requested");
+}
+
 // ========================================
 // Initialization
 // ========================================
 
 // Define the number of executor handles required for this file
-const size_t ros_actuators_num_executor_handles = 3;
+const size_t ros_actuators_num_executor_handles = 4;
 
 rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
     RCRETCHECK(rclc_subscription_init_default(&position_subscription, node,
@@ -181,6 +193,10 @@ rcl_ret_t ros_actuators_init(rclc_executor_t *executor, rcl_node_t *node) {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), ARM_SUBSCRIPTION_NAME));
     RCRETCHECK(rclc_executor_add_subscription(executor, &arm_subscription, &actuator_arm_msg,
         arm_subscription_callback, ON_NEW_DATA));
+    RCRETCHECK(rclc_subscription_init_default(&claw_arm_subscription, node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), CLAW_ARM_SUBSCRIPTION_NAME));
+    RCRETCHECK(rclc_executor_add_subscription(executor, &claw_arm_subscription, &claw_arm_msg,
+        claw_arm_subscription_callback, ON_NEW_DATA));
     RCRETCHECK(rclc_publisher_init_default(&cmd_feedback_publisher, node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), ACTUATOR_FEEDBACK_MSG_TOPIC_NAME));
     RCRETCHECK(rclc_publisher_init_default(&cmd_status_publisher, node,
@@ -201,6 +217,7 @@ rcl_ret_t ros_actuators_fini(rcl_node_t *node) {
     RCSOFTCHECK(rcl_publisher_fini(&raw_position_publisher, node));
     RCSOFTCHECK(rcl_publisher_fini(&voltage_publisher, node));
     RCSOFTCHECK(rcl_subscription_fini(&arm_subscription, node));
+    RCSOFTCHECK(rcl_subscription_fini(&claw_arm_subscription, node));
     RCSOFTCHECK(rcl_publisher_fini(&cmd_feedback_publisher, node));
     RCSOFTCHECK(rcl_publisher_fini(&cmd_status_publisher, node));
     RCSOFTCHECK(rcl_publisher_fini(&status_publisher, node));

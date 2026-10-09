@@ -16,6 +16,7 @@ void claw_init(void);
 
 
 bool claw_set_position(int32_t position);
+const char *claw_get_position_feedback(void);
 int32_t claw_get_position(void);
 bool claw_get_raw_position(int16_t *position_out);
 bool claw_get_voltage(uint16_t *voltage_out);

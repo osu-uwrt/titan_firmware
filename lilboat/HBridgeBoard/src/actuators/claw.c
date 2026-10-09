@@ -2,12 +2,11 @@
 
 #include "actuators/actuator.h"
 #include "safety_interface.h"
+#include "titan/logger.h"
 
 #include <stdlib.h>
 
-static const float CLAW_KP = 0.5f;
-static const int16_t CLAW_MAX_SPEED = 500;
-static const int16_t CLAW_MIN_SPEED = 100;
+static const int16_t CLAW_MAX_SPEED = 1000;
 static const int16_t CLAW_TOLERANCE = 10;
 
 static const int32_t CLAW_CLOSED_POSITION = 0;
@@ -26,6 +25,7 @@ static absolute_time_t move_deadline;
 static absolute_time_t progress_deadline;
 static int32_t progress_position;
 static volatile bool disable_requested;
+static const char *position_feedback = "No claw position command received";
 
 static bool feedback_fresh(void) {
     return servo_position_is_valid(&claw.position) &&
@@ -37,9 +37,20 @@ static void stop_locked(void) {
     stop_pending = true;
 }
 
-static bool can_move(void) {
-    return !disable_requested && claw.servo.desired_armed_state &&
-           claw.servo.enabled && feedback_fresh() && !stop_pending;
+static const char *position_rejection_reason(int32_t position) {
+    if (position < CLAW_CLOSED_POSITION || position > CLAW_OPEN_POSITION)
+        return "Claw position rejected: target must be 0..3000";
+    if (disable_requested)
+        return "Claw position rejected: safety disable pending";
+    if (!claw.servo.desired_armed_state)
+        return "Claw position rejected: claw is disarmed; use command/actuator/claw/arm";
+    if (!claw.servo.enabled)
+        return "Claw position rejected: servo has not confirmed arming";
+    if (!feedback_fresh())
+        return "Claw position rejected: no valid position feedback within 200 ms";
+    if (stop_pending)
+        return "Claw position rejected: stop command still pending";
+    return NULL;
 }
 
 static void claw_position_read_cb(ServoPacket_t rx_packet, enum servo_read_err err) {
@@ -51,8 +62,10 @@ static void claw_position_read_cb(ServoPacket_t rx_packet, enum servo_read_err e
 
     if (!feedback_fresh()) {
         servo_position_invalidate(&claw.position);
-        if (claw.moving)
+        if (claw.moving) {
+            LOG_WARN("Claw stopped: position feedback arrived after freshness timeout");
             stop_locked();
+        }
     }
     servo_position_update(&claw.position, raw);
     last_feedback = get_absolute_time();
@@ -81,13 +94,26 @@ static void start_move(void) {
 }
 
 bool claw_set_position(int32_t position) {
-    const bool accepted = can_move() && position >= CLAW_CLOSED_POSITION && position <= CLAW_OPEN_POSITION;
+    const char *reason = position_rejection_reason(position);
+    const bool accepted = reason == NULL;
+    position_feedback = accepted ? "Claw position accepted" : reason;
     if (accepted) {
         claw.target_position = position;
         if (!claw.moving)
             start_move();
+        LOG_INFO("Claw move accepted: target %ld, current %ld", (long) position,
+                 (long) servo_position_get(&claw.position));
+    } else {
+        LOG_WARN("Claw move rejected: target %ld (allowed 0..3000), armed %u, enabled %u, feedback fresh %u, stop pending %u, disable requested %u",
+                 (long) position, (unsigned int) claw.servo.desired_armed_state,
+                 (unsigned int) claw.servo.enabled, (unsigned int) feedback_fresh(),
+                 (unsigned int) stop_pending, (unsigned int) disable_requested);
     }
     return accepted;
+}
+
+const char *claw_get_position_feedback(void) {
+    return position_feedback;
 }
 
 int32_t claw_get_position(void) {
@@ -101,7 +127,7 @@ bool claw_get_raw_position(int16_t *position_out) {
 
     const bool valid = feedback_fresh();
     if (valid)
-        *position_out = claw.position.last_raw_pos;
+        *position_out = claw.position.absolute_pos;
 
     return valid;
 }
@@ -133,6 +159,7 @@ void claw_stop(void) {
 
 void claw_update(void) {
     if (disable_requested) {
+        LOG_WARN("Claw disabled by safety request");
         disable_requested = false;
         stop_locked();
         servo_set_armed(&claw.servo, false);
@@ -141,11 +168,14 @@ void claw_update(void) {
     if (!feedback_fresh()) {
         claw.servo.connected = false;
         servo_position_invalidate(&claw.position);
-        if (claw.moving)
+        if (claw.moving) {
+            LOG_WARN("Claw stopped: position feedback expired");
             stop_locked();
+        }
     }
 
     if (claw.moving && (!claw.servo.desired_armed_state || !claw.servo.enabled)) {
+        LOG_WARN("Claw stopped: servo is disarmed");
         stop_locked();
     }
 
@@ -158,19 +188,21 @@ void claw_update(void) {
 
         const int32_t error = claw.target_position - current;
         if (time_reached(move_deadline) || time_reached(progress_deadline) || abs(error) <= CLAW_TOLERANCE) {
+            if (abs(error) <= CLAW_TOLERANCE)
+                LOG_INFO("Claw reached target: current %ld, target %ld", (long) current,
+                         (long) claw.target_position);
+            else if (time_reached(move_deadline))
+                LOG_WARN("Claw stopped: move timed out at %ld, target %ld", (long) current,
+                         (long) claw.target_position);
+            else
+                LOG_WARN("Claw stopped: no encoder progress for %lu ms, current %ld, target %ld",
+                         (unsigned long) STALL_TIMEOUT_MS, (long) current, (long) claw.target_position);
             stop_locked();
         } else {
-            int32_t speed = (int32_t) (error * CLAW_KP);
-            if (speed > CLAW_MAX_SPEED)
-                speed = CLAW_MAX_SPEED;
-            else if (speed < -CLAW_MAX_SPEED)
-                speed = -CLAW_MAX_SPEED;
-            if (speed > 0 && speed < CLAW_MIN_SPEED)
-                speed = CLAW_MIN_SPEED;
-            else if (speed < 0 && speed > -CLAW_MIN_SPEED)
-                speed = -CLAW_MIN_SPEED;
-
-            servo_set_motor_speed(&claw.servo, speed);
+            if (error > CLAW_TOLERANCE)
+                servo_set_motor_speed(&claw.servo, CLAW_MAX_SPEED);
+            else
+                servo_set_motor_speed(&claw.servo, -CLAW_MAX_SPEED);
         }
     }
 

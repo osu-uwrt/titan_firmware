@@ -59,19 +59,29 @@ static void servo_is_armed_cb(ServoPacket_t rx_packet, enum servo_read_err err) 
     servo_t *servo = rx_packet.servo;
 
     if (err || rx_packet.param_buf[0] != servo->desired_armed_state) {
+        if (err)
+            LOG_WARN("Servo ID %u arm readback failed: error %u, requested %u",
+                     (unsigned int) servo->id, (unsigned int) err,
+                     (unsigned int) servo->desired_armed_state);
+        else
+            LOG_WARN("Servo ID %u arm mismatch: requested %u, reported %u",
+                     (unsigned int) servo->id, (unsigned int) servo->desired_armed_state,
+                     (unsigned int) rx_packet.param_buf[0]);
         if (servo->num_errors < MAX_NUM_ERRORS) {
             servo->num_errors++;
             servo_set_armed(servo, servo->desired_armed_state);
+        } else {
+            LOG_ERROR("Servo ID %u arm confirmation retries exhausted", (unsigned int) servo->id);
         }
         return;
     }
 
     if (rx_packet.param_buf[0]) {
         servo->enabled = true;
-        LOG_INFO("servo enabled");
+        LOG_INFO("Servo ID %u armed: readback confirmed", (unsigned int) servo->id);
     } else {
         servo->enabled = false;
-        LOG_INFO("servo failed to arm");
+        LOG_INFO("Servo ID %u disarmed: readback confirmed", (unsigned int) servo->id);
     }
 }
 
