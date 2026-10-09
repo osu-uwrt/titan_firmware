@@ -21,30 +21,30 @@ include(${REPO_DIR}/global_defs.cmake)
 
 # Define Project
 # TODO: Rename project and executable to your project name
-project(IVCBoard2 C CXX ASM)
+project(ivc_dac C CXX ASM)
 titan_firmware_init()
 
 # Define executable
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.c")
-add_executable(IVCBoard2
+add_executable(ivc_dac
     ${SOURCES}
 )
-target_include_directories(IVCBoard2 PUBLIC include)
+target_include_directories(ivc_dac PUBLIC include)
 
 # Set version: major minor (see titan/version.h for more info)
-titan_generate_version_tag(IVCBoard2 1 0)
+titan_generate_version_tag(ivc_dac 1 0)
 
 # Configure pico-sdk
-pico_enable_stdio_uart(IVCBoard2 1)
-pico_set_program_name(IVCBoard2 "IVCBoard2")  # TODO: Set the project name
+pico_enable_stdio_uart(ivc_dac 1)
+pico_set_program_name(ivc_dac "ivc_dac")  # TODO: Set the project name
 
 # Enable the 'make upload' and 'make info' commands for project
-titan_use_upload_tool(IVCBoard2)
-titan_enable_bootloader(IVCBoard2 can)  # TODO: Select the same transport as below, or remove this line if using USB
+titan_use_upload_tool(ivc_dac)
+titan_enable_bootloader(ivc_dac can)  # TODO: Select the same transport as below, or remove this line if using USB
 
 # Define linking and targets
-pico_add_extra_outputs(IVCBoard2)
-target_link_libraries(IVCBoard2 PUBLIC
+pico_add_extra_outputs(ivc_dac)
+target_link_libraries(ivc_dac PUBLIC
     pico_stdlib     # Pico SDK Standard Library
     driver_led      # Status LED support
     # TODO: Select your transport:
