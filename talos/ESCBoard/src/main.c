@@ -139,7 +139,7 @@ static void thruster_cmd_callback(__unused uint32_t channel, uint8_t *buf, size_
 
     for (size_t i = 0; i < NUM_THRUSTERS; i++) {
         size_t idx = i * 2;
-        thruster_cmds[i] = (buf[idx] << 8) | buf[idx];
+        thruster_cmds[i] = (buf[idx] << 8) | buf[idx + 1];
     }
     core1_update_target_rpm(thruster_cmds);
 
