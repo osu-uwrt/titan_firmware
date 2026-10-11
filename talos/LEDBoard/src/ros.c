@@ -223,29 +223,30 @@ rcl_ret_t ros_init() {
                                            ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, FirmwareStatus),
                                            FIRMWARE_STATUS_PUBLISHER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
+    // RCRETCHECK(rclc_subscription_init_best_effort(
+    //     &killswtich_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool), KILLSWITCH_SUBCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(
-        &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));
+    // RCRETCHECK(rclc_subscription_init_default(
+    //     &led_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, LedCommand), LED_SUBSCRIBER_NAME));
 
-    RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
-                                              ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
-                                              PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
-    RCRETCHECK(rclc_subscription_init_best_effort(
-        &depth_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth), DEPTH_SUBSCRIBER_NAME));
+    // RCRETCHECK(rclc_subscription_init_default(&physkill_notify_subscriber, &node,
+    //                                           ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
+    //                                           PHYSICAL_KILL_NOTIFY_SUBSCRIBER_NAME));
+    // RCRETCHECK(rclc_subscription_init_best_effort(
+    //     &depth_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(riptide_msgs2, msg, Depth), DEPTH_SUBSCRIBER_NAME));
 
     // Executor Initialization
     const int executor_num_handles = 4;
     RCRETCHECK(rclc_executor_init(&executor, &support.context, executor_num_handles, &allocator));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
-                                              &killswitch_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg, &led_subscription_callback,
-                                              ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg,
-                                              &physkill_notify_subscription_callback, ON_NEW_DATA));
-    RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_subscriber, &depth_msg, &depth_subscription_callback,
-                                              ON_NEW_DATA));
+    // RCRETCHECK(rclc_executor_add_subscription(&executor, &killswtich_subscriber, &killswitch_msg,
+    //                                           &killswitch_subscription_callback, ON_NEW_DATA));
+    // RCRETCHECK(rclc_executor_add_subscription(&executor, &led_subscriber, &led_command_msg,
+    // &led_subscription_callback,
+    //                                           ON_NEW_DATA));
+    // RCRETCHECK(rclc_executor_add_subscription(&executor, &physkill_notify_subscriber, &physkill_notify_msg,
+    //                                           &physkill_notify_subscription_callback, ON_NEW_DATA));
+    // RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_subscriber, &depth_msg, &depth_subscription_callback,
+    //   ON_NEW_DATA));
 
     // TODO: Modify this method with node specific objects
 

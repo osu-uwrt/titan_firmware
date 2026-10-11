@@ -35,10 +35,10 @@ typedef struct led_rgb_values_runtime_t led_rgb_values_runtime_t;
  *
  * @note Sets the local persistent driver mode.
  *
- * @param mode (enum) The new mode that you want to replace the old mode with.
- * @param red The new red color value.
- * @param green The new green color value.
- * @param blue The new blue color value.
+ * @param mode[in] (enum) The new mode that you want to replace the old mode with.
+ * @param red[in] The new red color value.
+ * @param green[in] The new green color value.
+ * @param blue[in] The new blue color value.
  */
 void led_set(status_mode mode, uint8_t red, uint8_t green, uint8_t blue);
 
@@ -48,9 +48,9 @@ void led_set(status_mode mode, uint8_t red, uint8_t green, uint8_t blue);
  *
  * @note Flash (on kill switch insertion), not persistent
  *
- * @param red The new red color value.
- * @param green The new green color value.
- * @param blue The new blue color value.
+ * @param red[in] The new red color value.
+ * @param green[in] The new green color value.
+ * @param blue[in] The new blue color value.
  */
 void led_flash(uint8_t red, uint8_t green, uint8_t blue);
 
@@ -60,9 +60,9 @@ void led_flash(uint8_t red, uint8_t green, uint8_t blue);
  *
  * @note Short flash (on vision detection), not persistent. Singleton = brief flash.
  *
- * @param red The new red color value.
- * @param green The new green color value.
- * @param blue The new blue color value.
+ * @param red[in] The new red color value.
+ * @param green[in] The new green color value.
+ * @param blue[in] The new blue color value.
  */
 void led_singleton(uint8_t red, uint8_t green, uint8_t blue);
 
@@ -84,7 +84,7 @@ void ledc_init();
  *
  * @note Use underwater brightness if below threshold
  *
- * @param depth The current depth relative to the top of the water.
+ * @param depth[in] The current depth relative to the top of the water.
  */
 void led_depth_set(float depth);
 

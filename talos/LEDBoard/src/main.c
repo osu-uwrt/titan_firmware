@@ -127,6 +127,8 @@ static void tick_background_tasks() {
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
+
+    // @todo this is the section where I do standard "fake" timers
 #elif MICRO_ROS_TRANSPORT_ETH
     // Update the LED to report ethernet link status
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
@@ -144,7 +146,11 @@ static void tick_background_tasks() {
     }
 #endif
 
-    // TODO: Put any code that should periodically occur here
+    // NOTE: Done in the same order that the ISRs follow
+    update_led_status();
+    handle_singleton_flash();
+    monitor_depth();
+    monitor_temperature();
 }
 
 int main() {

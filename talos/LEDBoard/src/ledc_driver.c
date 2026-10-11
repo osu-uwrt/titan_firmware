@@ -7,6 +7,8 @@
  *
  * @copyright Copyright (c) 2026
  *
+ * @todo Fix ROS callbacks (potentially), and fix callbacks to be "fake" timers and not ISR related.
+ *
  */
 
 #include "ledc_driver.h"
@@ -129,7 +131,7 @@ float curr_al_temp = 0.0f;
  * @note Although pow() does exist, doing integer promotion and bit shifting often is more efficient and faster to
  *       execute.
  *
- * @param x The number that you want to have squared.
+ * @param x[in] The number that you want to have squared.
  * @return (uint) The value that will be the result of that squaring.
  */
 led_force_inline uint _led_square_value(uint x) {
@@ -141,8 +143,8 @@ led_force_inline uint _led_square_value(uint x) {
  *
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
- * @param color The current color value that you have.
- * @param timer The value that will be taken as the time that you want to find the new color at.
+ * @param color[in] The current color value that you have.
+ * @param timer[in] The value that will be taken as the time that you want to find the new color at.
  *
  * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
  */
@@ -155,8 +157,8 @@ led_force_inline uint _calculate_breathe_rising_fade(uint8_t color, uint timer) 
  *
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
- * @param color The current color value that you have.
- * @param timer The value that will be taken as the time that you want to find the new color at.
+ * @param color[in] The current color value that you have.
+ * @param timer[in] The value that will be taken as the time that you want to find the new color at.
  *
  * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
  */
@@ -169,8 +171,8 @@ led_force_inline uint _calculate_flash_rising_fade(uint8_t color, uint timer) {
  *
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
- * @param color The current color value that you have.
- * @param timer The value that will be taken as the time that you want to find the new color at.
+ * @param color[in] The current color value that you have.
+ * @param timer[in] The value that will be taken as the time that you want to find the new color at.
  *
  * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
  */
@@ -183,8 +185,8 @@ led_force_inline uint _calculate_breathe_falling_fade(uint8_t color, uint timer)
  *
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
- * @param color The current color value that you have.
- * @param timer The value that will be taken as the time that you want to find the new color at.
+ * @param color[in] The current color value that you have.
+ * @param timer[in] The value that will be taken as the time that you want to find the new color at.
  *
  * @return uint The next color that would be given the ```timer```'s argued time and the argued ```color``` value.
  */
@@ -199,9 +201,9 @@ led_force_inline uint _calculate_flash_falling_fade(uint8_t color, uint timer) {
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
  * @param obj[in,out] The pointer of the rgb saved values that will be modified.
- * @param red The new red color value.
- * @param green The new green color value.
- * @param blue The new blue color value.
+ * @param red[in] The new red color value.
+ * @param green[in] The new green color value.
+ * @param blue[in] The new blue color value.
  */
 led_force_inline void _update_saved_rgb_values(led_rgb_values_saved_t *obj, uint8_t red, uint8_t green, uint8_t blue) {
     obj->red = red;
@@ -214,7 +216,7 @@ led_force_inline void _update_saved_rgb_values(led_rgb_values_saved_t *obj, uint
  *
  * @note Internal function. The exact implementation is subject to change if deemed worthy.
  *
- * @param current_temperature The current temperature that is recorded from the Aluminum LED board.
+ * @param current_temperature[in] The current temperature that is recorded from the Aluminum LED board.
  *
  * @return float The temperature factor that will affect the lights, unclamped.
  */
@@ -227,12 +229,8 @@ led_force_inline float _led_calculate_new_tmp_factor(float current_temperature) 
  * @brief Callback function that overlooks and handles LED RGB values based of the led_mode, the definitions of the
  *        different rising and falling methods, the current temperature of the LED aluminum board, and the current
  *        underwater depth.
- *
- * @note param ```rt``` is unused.
- *
- * @return Always returns @c true to indicate a successful packet transfer.
  */
-static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *rt) {
+static void update_led_status(void) {
     uint red, green, blue;
 
     if (led_mode == MODE_SOLID) {
@@ -332,12 +330,8 @@ static bool __time_critical_func(update_led_status)(__unused repeating_timer_t *
 
 /**
  * @brief Callback function to monitor the current depth and set to low brightness if we lose depth.
- *
- * @note param ```rt``` is unused.
- *
- * @return Always returns @c true to indicate a successful packet transfer.
  */
-static bool monitor_depth(__unused repeating_timer_t *rt) {
+static void monitor_depth(void) {
     // Set to low brightness if we lose depth
     depth_stale = !got_new_depth;
     got_new_depth = false;
@@ -347,12 +341,8 @@ static bool monitor_depth(__unused repeating_timer_t *rt) {
 
 /**
  * @brief Callback function to set the singleton flash for the LED Board.
- *
- * @note param ```rt``` is unused.
- *
- * @return Always returns @c true to indicate a successful packet transfer.
  */
-static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
+static void handle_singleton_flash(void) {
     if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
         return true;
 
@@ -374,16 +364,12 @@ static bool handle_singleton_flash(__unused repeating_timer_t *rt) {
 }
 
 /**
- * @brief Callback function for getting the current temperature of the Aluminum LED board.
+ * @brief Timer Callback Function for getting the current temperature of the Aluminum LED board.
  *
  * @note Get aluminum board thermistor temps and raise/lower faults accordingly
  *       Also adjusts peak current based on temp.
- *
- * @note param ```rt``` is unused.
- *
- * @return Always returns @c true to indicate a successful packet transfer.
  */
-static bool monitor_temperature(__unused repeating_timer_t *rt) {
+static void monitor_temperature(void) {
     curr_al_temp = al_read_temp();
 
     if (curr_al_temp > MAX_OPERATING_TEMPERATURE_C) {
@@ -421,19 +407,20 @@ void ledc_init() {
 
     add_repeating_timer_ms(CONTROLLER_WATCHDOG_PERIOD_MS, controller_satisfy_watchdog, NULL,
                            &controller_watchdog_timer);
-    hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
-    add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
-    add_repeating_timer_ms(DEPTH_MONITOR_PERIOD_MS, monitor_depth, NULL, &depth_monitor_timer);
-    hard_assert(
-        add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL, &temperature_monitor_timer));
+    // hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
+    // add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
+    // add_repeating_timer_ms(DEPTH_MONITOR_PERIOD_MS, monitor_depth, NULL, &depth_monitor_timer);
+    // hard_assert(
+    //     add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL,
+    //     &temperature_monitor_timer));
 }
 
 void led_set(status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
-    uint32_t prev_interrupts = save_and_disable_interrupts();
+    // uint32_t prev_interrupts = save_and_disable_interrupts();
     led_timer = 0;
     led_mode = mode;
     _update_saved_rgb_values(rgb_target, red, green, blue);
-    restore_interrupts(prev_interrupts);
+    // restore_interrupts(prev_interrupts);
 }
 
 void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
