@@ -57,7 +57,7 @@ static uint8_t calculate_checksum(ServoPacket_t *packet) {
 static void on_packet_received(__unused enum async_uart_rx_err error, uint8_t *raw_packet, __unused size_t len) {
     // Any operatiosn on raw_packet are invalid if error is set, so check that first
     if (error != ASYNC_UART_RX_OK) {
-        LOG_ERROR("Async UART reported RX error: %u\n", error);
+        // LOG_ERROR("Async UART reported RX error: %u\n", error);
         ServoPacket_t dummy_packet;
         most_recent_sent.on_read(dummy_packet, SERVO_INTERNAL_UART_ERROR);
         packet_in_flight = false;
@@ -123,9 +123,13 @@ void send_packet(ServoPacket_t packet) {
     raw_packet[4] = packet.command;
 
     // TODO: replace with memcpy?
-    for (uint8_t i = 0; i < 7 - 3; i++) {
+    /*
+    for (uint8_t i = 0; i < packet.command_length - 3; i++) {
         raw_packet[i + 5] = packet.param_buf[i];
     }
+    */
+
+    memcpy(&raw_packet[5], packet.param_buf, packet.command_length - 3);
 
     raw_packet[packet_size - 1] = calculate_checksum(&packet);
 
@@ -134,8 +138,9 @@ void send_packet(ServoPacket_t packet) {
 }
 
 bool enqueue_packet(ServoPacket_t packet) {
-    if (QUEUE_FULL(&tx_queue))
+    if (QUEUE_FULL(&tx_queue)) {
         return false;
+    }
 
     ServoPacket_t *entry = QUEUE_CUR_WRITE_ENTRY(&tx_queue);
     // This copy is generally safe since there are no (non-function) pointers in ServoPacket

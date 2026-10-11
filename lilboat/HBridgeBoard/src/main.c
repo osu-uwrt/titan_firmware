@@ -1,4 +1,5 @@
 #include "actuators/actuator.h"
+#include "actuators/async_uart.h"
 #include "actuators/hiwonder_driver.h"
 #include "actuators/ros_actuators.h"
 #include "hbridge.h"
@@ -37,6 +38,7 @@
 #define SERVO_PING_PERIOD_MS 1000
 #define SERVO_UPDATE_CMD_STATUS_PERIOD_MS 100
 #define SERVO_UPDATE_DEGREES_PERIOD_MS 30
+#define SERVO_READ_POSITION_MS 20
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -49,9 +51,9 @@ absolute_time_t next_actuator_status = { 0 };
 absolute_time_t next_servo_ping = { 0 };
 absolute_time_t next_cmd_feedback = { 0 };
 absolute_time_t next_degree_publish = { 0 };
+absolute_time_t next_position_read = { 0 };
 
 static repeating_timer_t uart_scheduler_timer;
-
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
  *
@@ -175,9 +177,21 @@ static void tick_background_tasks() {
 
     // TODO: Put any code that should periodically occur here
     if (timer_ready(&next_servo_ping, SERVO_PING_PERIOD_MS, false)) {
-        // servo_ping_all();
-        // servo_read_deg();
+        servo_ping_all();
+        // servo_read_deg(&claw_grip);
         // servo_set_armed(true);
+        // servo_continuous_move_ms(&claw_grip, 100, 10000);
+
+        // servo_ping(&claw_grip);
+    }
+
+    if (timer_ready(&next_position_read, SERVO_READ_POSITION_MS, false)) {
+        /*
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            servo_read_continuous(servos[i]);
+        }
+        */
+        servo_read_continuous(&claw_grip);
     }
 }
 
@@ -238,8 +252,22 @@ int main() {
     //   20ms of time worst case before the watchdog fires (as the ROS timeout is 30ms)
     // Meaning, don't block, either poll it in the background task or send it to an interrupt
     bool ros_initialized = false;
+
+    servo_set_absolute_home(&claw_grip, true);
+    servo_continuous_move_deg(&claw_grip, 360, 200);
+
+    /*
+    servo_config.servo_info[0].id = 5;
+    servo_config.servo_info[1].id = 4;
+    servo_config.servo_info[0].absolute_pos = 0;
+    servo_config.servo_info[1].absolute_pos = 0;
+
+    write_to_flash(&servo_config);
+    */
+
     while (true) {
-        // Do background tasks
+        //  Do background tasks
+        // servo_continuous_move_deg(&claw_grip, 360, 1000);
         tick_background_tasks();
 
         // Handle ROS state logic

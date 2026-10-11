@@ -2,11 +2,16 @@
 #define ACTUATOR_H
 
 #include "hiwonder_driver.h"
+#include "persistence.h"
 
 #include "pico/stdlib.h"
 
+#define NUM_SERVOS 2
+
 #define SERVO_MIN_DEG 0
 #define SERVO_MAX_DEG 240
+
+#define UNITS_PER_DEGREE 65536.0f / 360.0f
 
 extern void servo_ping(servo_t *servo);
 
@@ -21,6 +26,10 @@ extern void servo_read_deg(servo_t *servo);
 extern void servo_continuous_move_ms(servo_t *servo, int16_t speed, uint32_t ms);
 
 extern void servo_continuous_set_deg(servo_t *servo, int16_t speed, float deg);
+
+extern void servo_continuous_move_deg(servo_t *servo, int32_t target_deg, int16_t speed);
+
+extern void servo_read_continuous(servo_t *servo);
 
 extern void servo_set_id(uint8_t old_id, uint8_t new_id);
 
