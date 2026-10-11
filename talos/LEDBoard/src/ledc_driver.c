@@ -7,8 +7,6 @@
  *
  * @copyright Copyright (c) 2026
  *
- * @todo Fix ROS callbacks (potentially), and fix callbacks to be "fake" timers and not ISR related.
- *
  */
 
 #include "ledc_driver.h"
@@ -70,8 +68,10 @@
 // Abstraction of internal implementation of squaring an unsigned integer
 #define SQUARE(x) _led_square_value(x)
 
-static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
-    temperature_monitor_timer;
+// static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
+//     temperature_monitor_timer;
+
+static repeating_timer_t controller_watchdog_timer;
 
 typedef struct led_rgb_values_saved_t {
     uint8_t red;
@@ -225,12 +225,7 @@ led_force_inline float _led_calculate_new_tmp_factor(float current_temperature) 
            (MAX_OPERATING_TEMPERATURE_C * 1.0f) / (MAX_OPERATING_TEMPERATURE_C - BASE_OPERATING_TEMPERATURE_C);
 }
 
-/**
- * @brief Callback function that overlooks and handles LED RGB values based of the led_mode, the definitions of the
- *        different rising and falling methods, the current temperature of the LED aluminum board, and the current
- *        underwater depth.
- */
-static void update_led_status(void) {
+void update_led_status() {
     uint red, green, blue;
 
     if (led_mode == MODE_SOLID) {
@@ -324,27 +319,17 @@ static void update_led_status(void) {
 
     // Transmit data
     led_set_rgb(red, green, blue, max_brightness * temp_adjust);
-
-    return true;
 }
 
-/**
- * @brief Callback function to monitor the current depth and set to low brightness if we lose depth.
- */
-static void monitor_depth(void) {
+void monitor_depth() {
     // Set to low brightness if we lose depth
     depth_stale = !got_new_depth;
     got_new_depth = false;
-
-    return true;
 }
 
-/**
- * @brief Callback function to set the singleton flash for the LED Board.
- */
-static void handle_singleton_flash(void) {
+void handle_singleton_flash() {
     if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
-        return true;
+        return;
 
     if (is_in_singleton) {  // Set back to pre-flash color
         led_set_rgb(rgb_last->red, rgb_last->green, rgb_last->blue, last_max_brightness);
@@ -359,17 +344,9 @@ static void handle_singleton_flash(void) {
     // Reset state and counter
     do_singleton = false;
     next_singleton = LOOPS_PER_SINGLETON;
-
-    return true;
 }
 
-/**
- * @brief Timer Callback Function for getting the current temperature of the Aluminum LED board.
- *
- * @note Get aluminum board thermistor temps and raise/lower faults accordingly
- *       Also adjusts peak current based on temp.
- */
-static void monitor_temperature(void) {
+void monitor_temperature() {
     curr_al_temp = al_read_temp();
 
     if (curr_al_temp > MAX_OPERATING_TEMPERATURE_C) {
@@ -380,8 +357,6 @@ static void monitor_temperature(void) {
         safety_lower_fault(FAULT_LED_OVERTEMP);
         em_overtemp = false;
     }
-
-    return true;
 }
 
 void ledc_init() {

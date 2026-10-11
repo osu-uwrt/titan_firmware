@@ -123,8 +123,16 @@ static void tick_background_tasks() {
     // Tick canbus heartbeat/control interface
     canbus_tick();
 
+    // NOTE: Done in the same order that the ISRs follow
+    // Do if statement timer thing above
+
     // Update LED to report canbus status
     if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+        update_led_status();
+        handle_singleton_flash();
+        monitor_depth();
+        monitor_temperature();
+
         led_network_online_set(canbus_check_online());
     }
 
@@ -145,12 +153,6 @@ static void tick_background_tasks() {
         led_update_pins();
     }
 #endif
-
-    // NOTE: Done in the same order that the ISRs follow
-    update_led_status();
-    handle_singleton_flash();
-    monitor_depth();
-    monitor_temperature();
 }
 
 int main() {

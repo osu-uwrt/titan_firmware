@@ -88,4 +88,29 @@ void ledc_init();
  */
 void led_depth_set(float depth);
 
+/**
+ * @brief Callback function that overlooks and handles LED RGB values based of the led_mode, the definitions of the
+ *        different rising and falling methods, the current temperature of the LED aluminum board, and the current
+ *        underwater depth.
+ */
+void update_led_status();
+
+/**
+ * @brief Callback function to monitor the current depth and set to low brightness if we lose depth.
+ */
+void monitor_depth();
+
+/**
+ * @brief Callback function to set the singleton flash for the LED Board.
+ */
+void handle_singleton_flash();
+
+/**
+ * @brief Timer Callback Function for getting the current temperature of the Aluminum LED board.
+ *
+ * @note Get aluminum board thermistor temps and raise/lower faults accordingly
+ *       Also adjusts peak current based on temp.
+ */
+void monitor_temperature();
+
 #endif
