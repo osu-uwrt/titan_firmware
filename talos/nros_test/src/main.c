@@ -102,8 +102,24 @@ void sub_cb(std_msgs__msg__UInt8_t *thing) {
     printf("got data: %hhu\n", dropoff);
 }
 
+void fw_status_cb(riptide_msgs2__msg__FirmwareStatus_t *s) {
+    printf("board_name: %s\n", s->board_name);
+    printf("bus_id: %hhu\n", s->bus_id);
+    printf("bus_id: %hhu\n", s->client_id);
+    printf("bus_id: %d\n", s->faults);
+    printf("bus_id: %d\n", s->kill_switches_asserting_kill);
+    printf("bus_id: %d\n", s->kill_switches_enabled);
+    printf("bus_id: %d\n", s->kill_switches_needs_update);
+    printf("bus_id: %d\n", s->kill_switches_timed_out);
+    printf("bus_id: %d\n", s->uptime_ms);
+    printf("bus_id: %hhu\n", s->version_major);
+    printf("bus_id: %hhu\n", s->version_minor);
+    printf("bus_id: %hhu\n", s->version_release_type);
+}
+
 void init_data() {
     nros_set_bit_sub_subscriber_cb(sub_cb);
+    nros_set_nros_fw_status_test_topic_subscriber_cb(fw_status_cb);
 }
 
 int main() {

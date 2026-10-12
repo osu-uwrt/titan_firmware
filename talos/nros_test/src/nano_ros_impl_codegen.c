@@ -21,8 +21,21 @@ bool nros_publish_firmware_status(const riptide_msgs2__msg__FirmwareStatus_t *ms
     return nros_publish(FIRMWARE_STATUS_ID, (nros_serialize_fn) riptide_msgs2__msg__FirmwareStatus__serialize, msg);
 }
 
-const uint8_t nros_topic_count = 3u;
-const nros_topic_t nros_topics[3] = {
+static void (*nros_fw_status_test_topic_cb)(const riptide_msgs2__msg__FirmwareStatus_t *) = NULL;
+
+static void nros_nros_fw_status_test_topic_subscriber_handler(ucdrBuffer *buf) {
+    riptide_msgs2__msg__FirmwareStatus_t msg;
+    if (riptide_msgs2__msg__FirmwareStatus__deserialize(buf, &msg) && nros_fw_status_test_topic_cb) {
+        nros_fw_status_test_topic_cb(&msg);
+    }
+}
+
+void nros_set_nros_fw_status_test_topic_subscriber_cb(void (*cb)(const riptide_msgs2__msg__FirmwareStatus_t *msg)) {
+    nros_fw_status_test_topic_cb = cb;
+}
+
+const uint8_t nros_topic_count = 4u;
+const nros_topic_t nros_topics[4] = {
     {
         .topic_id = IMU_DATA_ID,
         .topic_name = "imu_data",
@@ -41,5 +54,10 @@ const nros_topic_t nros_topics[3] = {
         .topic_type = "riptide_msgs2/msg/FirmwareStatus",
         .cb = NULL,
     },
+    {
+        .topic_id = NROS_FW_STATUS_TEST_TOPIC_ID,
+        .topic_name = "nros_fw_status_test_topic",
+        .topic_type = "riptide_msgs2/msg/FirmwareStatus",
+        .cb = nros_nros_fw_status_test_topic_subscriber_handler,
+    },
 };
-

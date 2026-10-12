@@ -1,34 +1,34 @@
 #include "nano_ros_codegen.h"
 
-bool builtin_interfaces__msg__Time__serialize(ucdrBuffer* buf, const builtin_interfaces__msg__Time_t* msg) {
+bool builtin_interfaces__msg__Time__serialize(ucdrBuffer *buf, const builtin_interfaces__msg__Time_t *msg) {
     bool ok = true;
     ok &= ucdr_serialize_int32_t(buf, msg->sec);
     ok &= ucdr_serialize_uint32_t(buf, msg->nanosec);
     return ok;
 }
 
-bool builtin_interfaces__msg__Time__deserialize(ucdrBuffer* buf, builtin_interfaces__msg__Time_t* msg) {
+bool builtin_interfaces__msg__Time__deserialize(ucdrBuffer *buf, builtin_interfaces__msg__Time_t *msg) {
     bool ok = true;
     ok &= ucdr_deserialize_int32_t(buf, &msg->sec);
     ok &= ucdr_deserialize_uint32_t(buf, &msg->nanosec);
     return ok;
 }
 
-bool std_msgs__msg__Header__serialize(ucdrBuffer* buf, const std_msgs__msg__Header_t* msg) {
+bool std_msgs__msg__Header__serialize(ucdrBuffer *buf, const std_msgs__msg__Header_t *msg) {
     bool ok = true;
     ok &= builtin_interfaces__msg__Time__serialize(buf, &msg->stamp);
     ok &= ucdr_serialize_string(buf, msg->frame_id);
     return ok;
 }
 
-bool std_msgs__msg__Header__deserialize(ucdrBuffer* buf, std_msgs__msg__Header_t* msg) {
+bool std_msgs__msg__Header__deserialize(ucdrBuffer *buf, std_msgs__msg__Header_t *msg) {
     bool ok = true;
     ok &= builtin_interfaces__msg__Time__deserialize(buf, &msg->stamp);
     ok &= ucdr_deserialize_string(buf, msg->frame_id, sizeof(msg->frame_id));
     return ok;
 }
 
-bool geometry_msgs__msg__Quaternion__serialize(ucdrBuffer* buf, const geometry_msgs__msg__Quaternion_t* msg) {
+bool geometry_msgs__msg__Quaternion__serialize(ucdrBuffer *buf, const geometry_msgs__msg__Quaternion_t *msg) {
     bool ok = true;
     ok &= ucdr_serialize_double(buf, msg->x);
     ok &= ucdr_serialize_double(buf, msg->y);
@@ -37,7 +37,7 @@ bool geometry_msgs__msg__Quaternion__serialize(ucdrBuffer* buf, const geometry_m
     return ok;
 }
 
-bool geometry_msgs__msg__Quaternion__deserialize(ucdrBuffer* buf, geometry_msgs__msg__Quaternion_t* msg) {
+bool geometry_msgs__msg__Quaternion__deserialize(ucdrBuffer *buf, geometry_msgs__msg__Quaternion_t *msg) {
     bool ok = true;
     ok &= ucdr_deserialize_double(buf, &msg->x);
     ok &= ucdr_deserialize_double(buf, &msg->y);
@@ -46,7 +46,7 @@ bool geometry_msgs__msg__Quaternion__deserialize(ucdrBuffer* buf, geometry_msgs_
     return ok;
 }
 
-bool geometry_msgs__msg__Vector3__serialize(ucdrBuffer* buf, const geometry_msgs__msg__Vector3_t* msg) {
+bool geometry_msgs__msg__Vector3__serialize(ucdrBuffer *buf, const geometry_msgs__msg__Vector3_t *msg) {
     bool ok = true;
     ok &= ucdr_serialize_double(buf, msg->x);
     ok &= ucdr_serialize_double(buf, msg->y);
@@ -54,7 +54,7 @@ bool geometry_msgs__msg__Vector3__serialize(ucdrBuffer* buf, const geometry_msgs
     return ok;
 }
 
-bool geometry_msgs__msg__Vector3__deserialize(ucdrBuffer* buf, geometry_msgs__msg__Vector3_t* msg) {
+bool geometry_msgs__msg__Vector3__deserialize(ucdrBuffer *buf, geometry_msgs__msg__Vector3_t *msg) {
     bool ok = true;
     ok &= ucdr_deserialize_double(buf, &msg->x);
     ok &= ucdr_deserialize_double(buf, &msg->y);
@@ -62,7 +62,7 @@ bool geometry_msgs__msg__Vector3__deserialize(ucdrBuffer* buf, geometry_msgs__ms
     return ok;
 }
 
-bool sensor_msgs__msg__Imu__serialize(ucdrBuffer* buf, const sensor_msgs__msg__Imu_t* msg) {
+bool sensor_msgs__msg__Imu__serialize(ucdrBuffer *buf, const sensor_msgs__msg__Imu_t *msg) {
     bool ok = true;
     ok &= std_msgs__msg__Header__serialize(buf, &msg->header);
     ok &= geometry_msgs__msg__Quaternion__serialize(buf, &msg->orientation);
@@ -74,7 +74,7 @@ bool sensor_msgs__msg__Imu__serialize(ucdrBuffer* buf, const sensor_msgs__msg__I
     return ok;
 }
 
-bool sensor_msgs__msg__Imu__deserialize(ucdrBuffer* buf, sensor_msgs__msg__Imu_t* msg) {
+bool sensor_msgs__msg__Imu__deserialize(ucdrBuffer *buf, sensor_msgs__msg__Imu_t *msg) {
     bool ok = true;
     ok &= std_msgs__msg__Header__deserialize(buf, &msg->header);
     ok &= geometry_msgs__msg__Quaternion__deserialize(buf, &msg->orientation);
@@ -86,19 +86,19 @@ bool sensor_msgs__msg__Imu__deserialize(ucdrBuffer* buf, sensor_msgs__msg__Imu_t
     return ok;
 }
 
-bool std_msgs__msg__UInt8__serialize(ucdrBuffer* buf, const std_msgs__msg__UInt8_t* msg) {
+bool std_msgs__msg__UInt8__serialize(ucdrBuffer *buf, const std_msgs__msg__UInt8_t *msg) {
     bool ok = true;
     ok &= ucdr_serialize_uint8_t(buf, msg->data);
     return ok;
 }
 
-bool std_msgs__msg__UInt8__deserialize(ucdrBuffer* buf, std_msgs__msg__UInt8_t* msg) {
+bool std_msgs__msg__UInt8__deserialize(ucdrBuffer *buf, std_msgs__msg__UInt8_t *msg) {
     bool ok = true;
     ok &= ucdr_deserialize_uint8_t(buf, &msg->data);
     return ok;
 }
 
-bool riptide_msgs2__msg__FirmwareStatus__serialize(ucdrBuffer* buf, const riptide_msgs2__msg__FirmwareStatus_t* msg) {
+bool riptide_msgs2__msg__FirmwareStatus__serialize(ucdrBuffer *buf, const riptide_msgs2__msg__FirmwareStatus_t *msg) {
     bool ok = true;
     ok &= ucdr_serialize_string(buf, msg->board_name);
     ok &= ucdr_serialize_uint8_t(buf, msg->bus_id);
@@ -115,7 +115,7 @@ bool riptide_msgs2__msg__FirmwareStatus__serialize(ucdrBuffer* buf, const riptid
     return ok;
 }
 
-bool riptide_msgs2__msg__FirmwareStatus__deserialize(ucdrBuffer* buf, riptide_msgs2__msg__FirmwareStatus_t* msg) {
+bool riptide_msgs2__msg__FirmwareStatus__deserialize(ucdrBuffer *buf, riptide_msgs2__msg__FirmwareStatus_t *msg) {
     bool ok = true;
     ok &= ucdr_deserialize_string(buf, msg->board_name, sizeof(msg->board_name));
     ok &= ucdr_deserialize_uint8_t(buf, &msg->bus_id);
@@ -131,4 +131,3 @@ bool riptide_msgs2__msg__FirmwareStatus__deserialize(ucdrBuffer* buf, riptide_ms
     ok &= ucdr_deserialize_uint32_t(buf, &msg->kill_switches_timed_out);
     return ok;
 }
-

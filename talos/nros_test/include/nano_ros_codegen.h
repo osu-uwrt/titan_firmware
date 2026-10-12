@@ -7,6 +7,7 @@
 #define IMU_DATA_ID 127u
 #define BIT_SUB_ID 0u
 #define FIRMWARE_STATUS_ID 128u
+#define NROS_FW_STATUS_TEST_TOPIC_ID 1u
 
 typedef struct {
     int32_t sec;
@@ -63,6 +64,7 @@ typedef struct {
 bool nros_publish_imu_data(const sensor_msgs__msg__Imu_t *msg);
 void nros_set_bit_sub_subscriber_cb(void (*cb)(const std_msgs__msg__UInt8_t *msg));
 bool nros_publish_firmware_status(const riptide_msgs2__msg__FirmwareStatus_t *msg);
+void nros_set_nros_fw_status_test_topic_subscriber_cb(void (*cb)(const riptide_msgs2__msg__FirmwareStatus_t *msg));
 bool builtin_interfaces__msg__Time__serialize(ucdrBuffer* buf, const builtin_interfaces__msg__Time_t* msg);
 bool builtin_interfaces__msg__Time__deserialize(ucdrBuffer* buf, builtin_interfaces__msg__Time_t* msg);
 bool std_msgs__msg__Header__serialize(ucdrBuffer* buf, const std_msgs__msg__Header_t* msg);
