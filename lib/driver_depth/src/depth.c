@@ -205,6 +205,10 @@ double depth_read(void) {
     return (depth_pressure - surface_pressure) / (FLUID_DENSITY * 9.80665);
 }
 
+double pressure_read(void) {
+    return depth_pressure;
+}
+
 bool depth_reading_valid(void) {
     return depth_initialized && !time_reached(depth_current_read_timeout);
 }

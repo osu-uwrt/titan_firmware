@@ -103,6 +103,7 @@ static void tick_ros_tasks() {
     if (depth_set_on_read) {
         depth_set_on_read = false;
         RCSOFTRETVCHECK(ros_update_depth_publisher());
+        RCSOFTRETVCHECK(ros_update_pressure_publisher());
     }
 
     if (depth_reading_valid() && timer_ready(&next_water_temp_publish, WATER_TEMP_PUBLISH_INTERVAL_MS, false)) {
