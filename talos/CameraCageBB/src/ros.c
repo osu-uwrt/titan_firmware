@@ -45,6 +45,8 @@
 #define LEAK_PUBLISHER_NAME "state/leak"
 
 bool ros_connected = false;
+// True once this session has an offset to ROS time
+bool time_synced = false;
 
 // Core Variables
 rcl_node_t node;
@@ -258,10 +260,27 @@ static inline void nanos_to_timespec(int64_t time_nanos, struct timespec *ts) {
     ts->tv_nsec = time_nanos % 1000000000;
 }
 
+bool ros_sync_time(void) {
+    // A failed sync keeps the previous offset, so only the first sync matters for stamp validity
+    if (rmw_uros_sync_session(ROS_TIMESYNC_TIMEOUT_TIME_MS) == RMW_RET_OK) {
+        if (!time_synced) {
+            LOG_INFO("Synchronized to ROS time");
+        }
+        time_synced = true;
+    }
+    else {
+        LOG_DEBUG("ROS time sync failed");
+    }
+
+    return time_synced;
+}
+
 rcl_ret_t ros_update_depth_publisher() {
     if (depth_reading_valid()) {
+        // Stamp with when the pressure was sampled, not when it is published
+        int64_t sample_age_us = absolute_time_diff_us(depth_get_sample_time(), get_absolute_time());
         struct timespec ts;
-        nanos_to_timespec(rmw_uros_epoch_nanos(), &ts);
+        nanos_to_timespec(rmw_uros_epoch_nanos() - sample_age_us * 1000, &ts);
         depth_msg.header.stamp.sec = ts.tv_sec;
         depth_msg.header.stamp.nanosec = ts.tv_nsec;
 
@@ -373,8 +392,8 @@ rcl_ret_t ros_init() {
     depth_msg.header.frame_id.size = strlen(depth_frame);
     depth_msg.variance = depth_variance;
 
-    // Fetch ROS timestamp on ROS init
-    rmw_uros_sync_session(ROS_TIMESYNC_TIMEOUT_TIME_MS);
+    // New session, so the time offset must be synced again before stamps are valid
+    time_synced = false;
 
     return RCL_RET_OK;
 }

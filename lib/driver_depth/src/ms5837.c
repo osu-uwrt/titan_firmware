@@ -44,6 +44,8 @@ static struct depth_state {
     bool reading_d2;
     // Variable to hold the d1 reading from the ADC when reading the D2 value from the sensor
     uint32_t d1_temp;
+    // Time the D1 (pressure) conversion started
+    absolute_time_t d1_start_time;
 } depth_inst = { 0 };
 
 /**
@@ -357,6 +359,11 @@ void ms5837_do_conversion(ms5837_read_cb read_cb, ms5837_error_cb error_cb) {
 static void ms5837_convert_cmd_finished(const struct async_i2c_request *req) {
     struct depth_state *inst = (struct depth_state *) req->user_data;
 
+    // The conversion starts once the command is sent
+    if (!inst->reading_d2) {
+        inst->d1_start_time = get_absolute_time();
+    }
+
     if (add_alarm_in_us(DEPTH_CONVERT_DELAY_US(DEPTH_OVERSAMPLING), ms5837_adc_wait_callback, inst, true) < 0) {
         ms5837_abort_operation(inst, DEPTH_ERROR_ALARM_QUEUE_FULL);
     }
@@ -400,5 +407,7 @@ static void ms5837_adc_read_finished(const struct async_i2c_request *req) {
 
     // Report the conversion data
     inst->performing_operation = false;
-    inst->success_cb.read_cb(pressure, temp);
+    // Pressure is integrated over the D1 conversion, so report the middle of that window
+    absolute_time_t sample_time = delayed_by_us(inst->d1_start_time, DEPTH_CONVERT_TYPICAL_US(DEPTH_OVERSAMPLING) / 2);
+    inst->success_cb.read_cb(pressure, temp, sample_time);
 }

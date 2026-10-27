@@ -1,6 +1,8 @@
 #ifndef DRIVER__DEPTH_SENSOR_H_
 #define DRIVER__DEPTH_SENSOR_H_
 
+#include "pico/time.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -77,6 +79,16 @@ extern volatile bool depth_set_on_read;
  * @return double The raw depth reading
  */
 double depth_read(void);
+
+/**
+ * @brief Returns the time the current depth reading was sampled.
+ * This is the middle of the pressure conversion, which is earlier than when the reading becomes available.
+ *
+ * @attention depth_reading_valid must return true before calling this function
+ *
+ * @return absolute_time_t The sample time of the reading returned by depth_read
+ */
+absolute_time_t depth_get_sample_time(void);
 
 /**
  * @brief Returns the current temperature read from the depth sensor.

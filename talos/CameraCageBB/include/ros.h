@@ -90,6 +90,14 @@ rcl_ret_t ros_heartbeat_pulse(uint8_t client_id);
 
 rcl_ret_t ros_update_firmware_status(uint8_t client_id);
 
+/**
+ * @brief Syncs the micro-ROS session clock to ROS time.
+ * The microcontroller clock drifts from the agent, so this must be called periodically.
+ *
+ * @return true if the session has been synced since ROS init
+ */
+bool ros_sync_time(void);
+
 rcl_ret_t ros_update_depth_publisher();
 
 rcl_ret_t ros_update_water_temp_publisher();

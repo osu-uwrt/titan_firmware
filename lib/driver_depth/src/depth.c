@@ -83,7 +83,8 @@ static int zero_count;
  * @param pressure The pressure reading
  * @param temperature The temperature reading
  */
-static void depth_zero_read_cb(int32_t pressure, __unused int32_t temperature) {
+static void depth_zero_read_cb(int32_t pressure, __unused int32_t temperature,
+                               __unused absolute_time_t sample_time) {
     zero_count++;
     if (zero_count <= 40) {
         // First 20 readings aren't taken into account
@@ -143,6 +144,10 @@ static int32_t depth_pressure;
  */
 static int32_t depth_temp;
 /**
+ * @brief The time the last pressure reading was sampled
+ */
+static absolute_time_t depth_sample_time;
+/**
  * @brief The timeout of the last reading for when it will be invalid
  */
 static absolute_time_t depth_current_read_timeout = { 0 };
@@ -156,10 +161,12 @@ static bool depth_begin_recal = false;
  *
  * @param pressure The pressure reading
  * @param temperature The temperature reading
+ * @param sample_time The time the pressure was sampled
  */
-static void depth_read_cb(int32_t pressure, int32_t temperature) {
+static void depth_read_cb(int32_t pressure, int32_t temperature, absolute_time_t sample_time) {
     depth_pressure = pressure;
     depth_temp = temperature;
+    depth_sample_time = sample_time;
 
     depth_current_read_timeout = make_timeout_time_ms(DEPTH_POLLING_RATE_MS * DEPTH_BAD_READS_FAULT_COUNT);
     depth_num_bad_reads = 0;
@@ -207,6 +214,10 @@ double depth_read(void) {
 
 bool depth_reading_valid(void) {
     return depth_initialized && !time_reached(depth_current_read_timeout);
+}
+
+absolute_time_t depth_get_sample_time(void) {
+    return depth_sample_time;
 }
 
 float depth_get_temperature(void) {

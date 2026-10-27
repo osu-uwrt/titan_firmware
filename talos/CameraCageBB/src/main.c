@@ -23,6 +23,8 @@
 #define WATER_TEMP_PUBLISH_INTERVAL_MS 1000
 #define LED_UPTIME_INTERVAL_MS 250
 #define LEAK_PUBLISH_INTERVAL_MS 1000
+#define TIME_SYNC_INTERVAL_MS 5000
+#define TIME_SYNC_RETRY_MS 250
 
 // Initialize all to nil time
 // For background timers, they will fire immediately
@@ -31,6 +33,7 @@ absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
 absolute_time_t next_water_temp_publish = { 0 };
 absolute_time_t next_leak_publish = { 0 };
+absolute_time_t next_time_sync = { 0 };
 
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
@@ -82,6 +85,8 @@ static void start_ros_timers() {
     next_status_update = make_timeout_time_ms(FIRMWARE_STATUS_TIME_MS);
     next_water_temp_publish = make_timeout_time_ms(WATER_TEMP_PUBLISH_INTERVAL_MS);
     next_leak_publish = make_timeout_time_ms(LEAK_PUBLISH_INTERVAL_MS);
+    // Sync time right away so depth stamps are valid
+    next_time_sync = nil_time;
 }
 
 /**
@@ -89,6 +94,12 @@ static void start_ros_timers() {
  */
 static void tick_ros_tasks() {
     uint8_t client_id = CAN_BUS_CLIENT_ID;
+
+    // Resync before the clock drifts too far from ROS time, retry quickly until the first sync succeeds
+    if (time_reached(next_time_sync)) {
+        bool synced = ros_sync_time();
+        next_time_sync = make_timeout_time_ms(synced ? TIME_SYNC_INTERVAL_MS : TIME_SYNC_RETRY_MS);
+    }
 
     if (timer_ready(&next_heartbeat, HEARTBEAT_TIME_MS, true)) {
         // RCSOFTRETVCHECK is used as important logs should occur within ros.c,

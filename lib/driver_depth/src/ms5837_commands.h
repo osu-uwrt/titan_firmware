@@ -19,6 +19,8 @@
 #define DEPTH_PROM_ID_MASK 0b0000111111100000
 
 #define DEPTH_RESET_DELAY_MS 10
+// Typical ADC conversion time, used to find the middle of the pressure sampling window
+#define DEPTH_CONVERT_TYPICAL_US(oversample) (2 * (1 << (8 + (oversample))))
 #define DEPTH_CONVERT_DELAY_US(oversample) (((5 * (1 << (8 + DEPTH_OVERSAMPLING))) / 2) + 2000)
 
 #define DEPTH_OVERSAMPLING 5
