@@ -2,6 +2,7 @@
 #include "nano_ros_codegen.h"
 #include "protocol.h"
 #include "safety_interface.h"
+#include "transport_can.h"
 #include "transport_usb.h"
 
 #include "pico/stdlib.h"
@@ -16,6 +17,9 @@
 absolute_time_t next_pub = { 0 };
 
 transport_data_t tspt_data = { .err_code = 0, .timeout = 50 };
+
+transport_data_t can_tspt_data = { .err_code = 0, .timeout = 1000 };
+
 nros_transport_t transport = { .init = transport_usb_init,
                                .open = transport_usb_open,
                                .close = transport_usb_close,
@@ -23,6 +27,12 @@ nros_transport_t transport = { .init = transport_usb_init,
                                .read = transport_usb_read,
                                .user_data = (void *) &tspt_data };
 
+nros_transport_t can_transport = { .init = transport_can_init,
+                                   .open = transport_can_open,
+                                   .close = transport_can_close,
+                                   .write = transport_can_write,
+                                   .read = transport_can_read,
+                                   .user_data = (void *) &can_tspt_data };
 bool should_pub = false;
 nros_frame_header_t header = { .topic_id = 5, .type = 0x02, .length = 0 };
 riptide_msgs2__msg__FirmwareStatus_t fw = {
@@ -137,7 +147,7 @@ int main() {
     // Initialize safety before entering main loop
     // This makes the watchdog timer much more strict, as we aren't initializing hardware which might block for a while
     safety_init();
-    nros_init(&transport, false);
+    nros_init(&can_transport, false);
 
     // Enter main loop
     while (true) {
@@ -158,7 +168,7 @@ int main() {
         }
 
         nros_spin();
-        // Tick safety
+        //   Tick safety
         safety_tick();
     }
 
