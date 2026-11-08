@@ -5,6 +5,7 @@
 #include "transport_can.h"
 #include "transport_usb.h"
 
+#include "driver/canbus.h"
 #include "pico/stdlib.h"
 #include "titan/logger.h"
 #include "titan/version.h"
@@ -18,7 +19,7 @@ absolute_time_t next_pub = { 0 };
 
 transport_data_t tspt_data = { .err_code = 0, .timeout = 50 };
 
-transport_data_t can_tspt_data = { .err_code = 0, .timeout = 1000 };
+can_transport_data_t can_tspt_data = { .client_id = CAN_BUS_CLIENT_ID, .err_code = 0, .timeout = 1000 };
 
 nros_transport_t transport = { .init = transport_usb_init,
                                .open = transport_usb_open,
@@ -33,8 +34,12 @@ nros_transport_t can_transport = { .init = transport_can_init,
                                    .write = transport_can_write,
                                    .read = transport_can_read,
                                    .user_data = (void *) &can_tspt_data };
+
 bool should_pub = false;
+bool got_subscription = false;
+
 nros_frame_header_t header = { .topic_id = 5, .type = 0x02, .length = 0 };
+
 riptide_msgs2__msg__FirmwareStatus_t fw = {
     .board_name = { 'j', 'e', 'f', 'f', '\0' },
     .bus_id = 12,
@@ -49,6 +54,9 @@ riptide_msgs2__msg__FirmwareStatus_t fw = {
     .version_minor = 1,
     .version_release_type = 5,
 };
+
+std_msgs__msg__UInt8_t num_subscription_callbacks = { .data = 0 };
+
 uint8_t dropoff = 0;
 
 /**
@@ -109,10 +117,12 @@ static void tick_background_tasks() {
 
 void sub_cb(std_msgs__msg__UInt8_t *thing) {
     dropoff = thing->data;
+    got_subscription = true;
     printf("got data: %hhu\n", dropoff);
 }
 
 void fw_status_cb(riptide_msgs2__msg__FirmwareStatus_t *s) {
+    got_subscription = true;
     printf("board_name: %s\n", s->board_name);
     printf("bus_id: %hhu\n", s->bus_id);
     printf("bus_id: %hhu\n", s->client_id);
@@ -147,7 +157,9 @@ int main() {
     // Initialize safety before entering main loop
     // This makes the watchdog timer much more strict, as we aren't initializing hardware which might block for a while
     safety_init();
-    nros_init(&can_transport, false);
+
+    // nros_init(&transport, true);  // usb init
+    nros_init(&can_transport, false);  // can init
 
     // Enter main loop
     while (true) {
@@ -167,8 +179,15 @@ int main() {
             // printf("published\n");
         }
 
+        if (got_subscription) {
+            got_subscription = false;
+            num_subscription_callbacks.data++;
+            nros_publish_subscription_confirmation((const std_msgs__msg__UInt8_t *) &num_subscription_callbacks);
+        }
+
         nros_spin();
-        //   Tick safety
+        canbus_tick();
+        //    Tick safety
         safety_tick();
     }
 

@@ -35,6 +35,10 @@ add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../projects/nano_ros/libnanoros
     ${CMAKE_CURRENT_BINARY_DIR}/libnanoros
 )
+nano_ros_generate(nros_test ros.toml
+    USER_MSGS /home/blake/osu-uwrt/development/software/src/riptide_core/      # where riptide_msgs2/ lives
+    ROS_PREFIX /opt/ros/humble/share            # optional if you build with ROS sourced
+)
 
 
 # Set version: major minor (see titan/version.h for more info)
@@ -48,9 +52,9 @@ pico_set_program_name(nros_test "nros_test")  # TODO: Set the project name
 # Enable the 'make upload' and 'make info' commands for project
 titan_use_upload_tool(nros_test)
 titan_enable_bootloader(nros_test can)  # TODO: Enable and select transport if using bootloader
-
 # Define linking and targets
 pico_add_extra_outputs(nros_test)
+
 target_link_libraries(nros_test PUBLIC
     titan_dual_stdio_usb
     pico_stdlib     # Pico SDK Standard Library

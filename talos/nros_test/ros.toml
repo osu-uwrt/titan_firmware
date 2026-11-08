@@ -1,0 +1,29 @@
+[board]
+name = "foo_board"
+transport = "can" # can be usb or can
+
+[[topics]]
+name = "imu_data"
+topic_type = "publisher"
+msg_type = "sensor_msgs/msg/Imu"
+qos = "sensor_data"
+
+[[topics]]
+name = "bit_sub"
+topic_type = "subscriber"
+msg_type = "std_msgs/msg/UInt8"
+
+[[topics]]
+name = "firmware_status"
+topic_type = "publisher"
+msg_type = "riptide_msgs2/msg/FirmwareStatus"
+
+[[topics]]
+name = "nros_fw_status_test_topic"
+topic_type = "subscriber"
+msg_type = "riptide_msgs2/msg/FirmwareStatus"
+
+[[topics]]
+name = "subscription_confirmation"
+topic_type = "publisher"
+msg_type = "std_msgs/msg/UInt8"

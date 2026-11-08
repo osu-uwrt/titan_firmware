@@ -46,13 +46,17 @@ size_t transport_can_write(const uint8_t *buf, size_t len, void *ctx) {
 }
 
 size_t transport_can_read(uint8_t *buf, size_t len, void *ctx) {
-    absolute_time_t timeout_time = make_timeout_time_ms(t->timeout);
-    while (!canbus_msg_read_available()) {
-        if (time_reached(timeout_time) || !canbus_initialized) {
-            t->err_code = 1;
-            return 0;
-        }
+    // absolute_time_t timeout_time = make_timeout_time_ms(t->timeout);
+    //  while (!canbus_msg_read_available()) {
+    //      if (time_reached(timeout_time) || !canbus_initialized) {
+    //          t->err_code = 1;
+    //          return 0;
+    //      }
+    //  }
+    if (!canbus_msg_read_available()) {
+        return 0;
     }
+    return canbus_msg_read(buf, len);
 
     size_t rx_len = canbus_msg_read(buf, len);
 
