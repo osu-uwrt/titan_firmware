@@ -31,6 +31,10 @@
 #define THERMISTOR_B_25_85 3730.0
 #define THERMISTOR_NOMINAL_TEMP 298.15
 
+// my changes:
+#define ALPHA 0.05f  // arbitrary value
+// #define MAX(L, R) ((L) > (R)) ? L : R
+
 const uint led_r_path[2] = { LEDC1, BUCK1 };
 const uint led_g_path[2] = { LEDC1, BUCK2 };
 const uint led_b_path[2] = { LEDC2, BUCK2 };
@@ -195,12 +199,29 @@ void buck_set_peak_current(uint controller, uint buck, uint current) {
     spi_write(controller, 0x02, correct_parity_bit(spi_val, false), &gs);
 }
 
+// I think this one needs updated to the patent
+// uint is a lot of data that could be uint8_t or shrunk down
 static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
-    *w = MIN(*r, MIN(*g, *b));
+    // old code:
+    // why did this not complain when compiling and using the old code?
+    // *w = MIN(*r, MIN(*g, *b));
 
-    *r -= *w;
-    *g -= *w;
-    *b -= *w;
+    // *r -= *w;
+    // *g -= *w;
+    // *b -= *w;
+
+    // float -> higher ints?
+
+    uint min = MIN(*r, MIN(*g, *b));
+    uint max = MAX(*r, MAX(*g, *b));
+    float saturation = (max == 0) ? 0 : ((max - min) / max);
+
+    // red, green, blue stay unchanged due to the documentation
+
+    float temporary_white_value = ((1 - saturation) * (1 - ALPHA) + ALPHA) * max;  // value is between [0,1]
+    // the previous comment is a lie, it is between [0,max] but the paper said so
+
+    *w = (uint) temporary_white_value;
 }
 
 void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {

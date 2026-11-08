@@ -31,8 +31,6 @@
 //
 
 #define CONTROLLER_WATCHDOG_PERIOD_MS 3
-#define DEPTH_MONITOR_PERIOD_MS 1000
-#define TEMPERATURE_MONITOR_PERIOD_MS 1000
 #define PEAK_CURRENT_STAGGER_MS 10
 
 #define LED_UPDATE_INTERVAL_MS 50
@@ -46,7 +44,8 @@
 #define LED_FLASH_PULSE_COUNT 2
 
 #define SINGLETON_FLASH_PERIOD_MS 10
-#define LOOPS_PER_SINGLETON 5  // Number of main loops until the next singleton is allowed
+#define LOOPS_PER_SINGLETON 5                  // Number of main loops until the next singleton is allowed
+#define TEMP_AND_DEPTH_MONITOR_PERIOD_MS 1000  // seems a little high
 
 //
 // Depth brightness adjustment
@@ -68,27 +67,21 @@
 // Abstraction of internal implementation of squaring an unsigned integer
 #define SQUARE(x) _led_square_value(x)
 
-// static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
-//     temperature_monitor_timer;
+static repeating_timer_t status_update_timer, controller_watchdog_timer, depth_monitor_timer, singleton_flash_timer,
+    temperature_monitor_timer;
 
 static repeating_timer_t controller_watchdog_timer;
 
-typedef struct led_rgb_values_saved_t {
+typedef struct led_rgb_t {
     uint8_t red;
     uint8_t green;
     uint8_t blue;
-} led_rgb_values_saved_t;
-
-typedef struct led_rgb_values_runtime_t {
-    uint red;
-    uint green;
-    uint blue;
-} led_rgb_values_runtime_t;
+} led_rgb_t;
 
 // LED state config
 volatile bool led_enabled;
 enum status_mode led_mode;
-static led_rgb_values_saved_t *rgb_target;
+static led_rgb_t rgb_target;
 
 uint led_timer;
 
@@ -96,16 +89,16 @@ uint led_timer;
 volatile bool flash_active;  // Volatile as this is used to protect the flashing state, rather than disabling interrupts
 uint flash_timer;
 uint flash_count;
-static led_rgb_values_saved_t *rgb_flash_target;
+static led_rgb_t rgb_flash_target;
 
 // Short singleton flash (vision detections)
 volatile bool do_singleton;
 uint next_singleton = LOOPS_PER_SINGLETON;
 bool is_in_singleton = false;
-static led_rgb_values_saved_t *rgb_singleton_target;
+static led_rgb_t rgb_singleton_target;
 
 // Track the last values set by the driver so they can be restored later
-static led_rgb_values_saved_t *rgb_last;
+static led_rgb_t rgb_last;
 float last_max_brightness;
 
 // Depth status
@@ -205,7 +198,7 @@ led_force_inline uint _calculate_flash_falling_fade(uint8_t color, uint timer) {
  * @param green[in] The new green color value.
  * @param blue[in] The new blue color value.
  */
-led_force_inline void _update_saved_rgb_values(led_rgb_values_saved_t *obj, uint8_t red, uint8_t green, uint8_t blue) {
+led_force_inline void _update_rgb_struct_vals(led_rgb_t *obj, uint8_t red, uint8_t green, uint8_t blue) {
     obj->red = red;
     obj->green = green;
     obj->blue = blue;
@@ -226,75 +219,35 @@ led_force_inline float _led_calculate_new_tmp_factor(float current_temperature) 
 }
 
 void update_led_status() {
-    uint red, green, blue;
+    // this works:
+    // led_set_rgb(255, 255, 255, 255);
 
-    if (led_mode == MODE_SOLID) {
-        red = rgb_target->red;
-        green = rgb_target->green;
-        blue = rgb_target->blue;
-    }
-    else if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
-        uint flash_period = (led_mode == MODE_FAST_FLASH ? LED_FAST_FLASH_PERIOD : LED_SLOW_FLASH_PERIOD);
-        if (led_timer % flash_period < (flash_period / 2)) {
-            red = rgb_target->red;
-            green = rgb_target->green;
-            blue = rgb_target->blue;
-        }
-        else {
-            // Set blank
-            red = green = blue = 0;
-        }
-    }
-    else if (led_mode == MODE_BREATH) {
-        if (led_timer % LED_TIMER_PERIOD_TICKS < (LED_TIMER_PERIOD_TICKS / 2)) {
-            red = _calculate_breathe_rising_fade(rgb_target->red, led_timer);
-            green = _calculate_breathe_rising_fade(rgb_target->green, led_timer);
-            blue = _calculate_breathe_rising_fade(rgb_target->blue, led_timer);
-        }
-        else {
-            red = _calculate_breathe_falling_fade(rgb_target->red, led_timer);
-            green = _calculate_breathe_falling_fade(rgb_target->green, led_timer);
-            blue = _calculate_breathe_falling_fade(rgb_target->blue, led_timer);
-        }
-        red = SQUARE(red);
-        green = SQUARE(green);
-        blue = SQUARE(blue);
-    }
-    else {
-        // Set blank
-        red = blue = green = 0;
-    }
-    led_timer = (led_timer + 1) % LED_TIMER_PERIOD_TICKS;  // Tick the timer
+    // debugging stuff
+    // led_enabled = true;
+    // led_mode = MODE_SLOW_FLASH;
+    led_rgb_t runtime_led_values = { 255, 0, 255 };
 
-    // Handle quick flash requests
-    if (flash_active) {
-        // First compute color for this round of flashing
-        if (flash_timer % LED_FLASH_PULSE_PERIOD < (LED_FLASH_PULSE_PERIOD / 2)) {
-            red = _calculate_flash_rising_fade(rgb_flash_target->red, flash_timer);
-            green = _calculate_flash_rising_fade(rgb_flash_target->green, flash_timer);
-            blue = _calculate_flash_rising_fade(rgb_flash_target->blue, flash_timer);
-        }
-        else {
-            red = _calculate_flash_falling_fade(rgb_flash_target->red, flash_timer);
-            green = _calculate_flash_falling_fade(rgb_flash_target->green, flash_timer);
-            blue = _calculate_flash_falling_fade(rgb_flash_target->blue, flash_timer);
-        }
+    // if (led_enabled == false) {
+    //     runtime_led_values = (led_rgb_t) { 0 };
+    // }
+    // else {
+    //     if (led_mode == MODE_SOLID) {
+    //         runtime_led_values = (led_rgb_t) { rgb_target.red, rgb_target.green, rgb_target.blue };
+    //     }
 
-        // Then compute the next timer and count values
-        flash_timer++;
-        if (flash_timer >= LED_FLASH_PULSE_PERIOD) {
-            flash_timer = 0;
-            flash_count++;
-            if (flash_count >= LED_FLASH_PULSE_COUNT) {
-                flash_active = false;
-            }
-        }
-    }
+    //     if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
+    //         uint flash_period = (led_mode == MODE_FAST_FLASH) ? LED_FAST_FLASH_PERIOD : LED_SLOW_FLASH_PERIOD;
 
-    // Clear color output if LEDs are disabled
-    if (!led_enabled) {
-        red = green = blue = 0;
-    }
+    //         if (led_timer % flash_period < (flash_period / 2)) {
+    //             runtime_led_values = (led_rgb_t) { rgb_target.red, rgb_target.green, rgb_target.blue };
+    //         }
+    //         else {
+    //             runtime_led_values = (led_rgb_t) { 0 };
+    //         }
+    //     }
+
+    //     led_timer = (led_timer + 1) % LED_TIMER_PERIOD_TICKS;
+    // }
 
     // Use brightness dictated by depth management
     float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
@@ -309,16 +262,129 @@ void update_led_status() {
     if (em_overtemp)
         max_brightness = 0.0f;
 
-    _update_saved_rgb_values(rgb_last, red, green, blue);
+    _update_rgb_struct_vals(&rgb_last, runtime_led_values.red, runtime_led_values.green, runtime_led_values.blue);
 
     last_max_brightness = max_brightness;
 
-    // Allow singleton flashes every LOOPS_PER_SINGLETON iterations
-    if (next_singleton > 0)
-        next_singleton--;
+    led_set_rgb(runtime_led_values.red, runtime_led_values.green, runtime_led_values.blue, max_brightness);
 
-    // Transmit data
-    led_set_rgb(red, green, blue, max_brightness * temp_adjust);
+    // if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
+    //     uint flash_period = (led_mode == MODE_FAST_FLASH) ? LED_FAST_FLASH_PERIOD ? LED_SLOW_FLASH_PERIOD;
+
+    //     if (led_timer % flash_period < (flash_period / 2)) {
+    //         runtime_led_values = (led_rgb_t) { rgb_target.red, rgb_target.green, rgb_target.blue };
+    //     }
+    //     else {
+    //         runtime_led_values = (led_rgb_t) { 0 };
+    //     }
+    // }
+
+    // if (led_mode == MODE_BREATH) {
+    //     if (led_timer % LED_TIMER_PERIOD_TICKS < (LED_TIMER_PERIOD_TICKS / 2)) {
+    //         runtime_led_values = (led_rgb_t) { _calculate_breathe_rising_fade(rgb_target.red, led_timer),
+    //                                            _calculate_breathe_rising_fade(rgb_target.green, led_timer),
+    //                                            _calculate_breathe_rising_fade(rgb_target.blue, led_timer) };
+    //     }
+    //     else {
+    //         runtime_led_values = (led_rgb_t) { _calculate_breathe_falling_fade(rgb_target.red, led_timer),
+    //                                            _calculate_breathe_falling_fade(rgb_target.green, led_timer),
+    //                                            _calculate_breathe_falling_fade(rgb_target.blue, led_timer) };
+    //     }
+    //     runtime_led_values = (led_rgb_t) { SQUARE(runtime_led_values.red), SQUARE(runtime_led_values.green),
+    //                                        SQUARE(runtime_led_values.blue) };
+    // }
+
+    // if (led_mode == MODE_SOLID) {
+    //     red = rgb_target->red;
+    //     green = rgb_target->green;
+    //     blue = rgb_target->blue;
+    // }
+    // else if (led_mode == MODE_FAST_FLASH || led_mode == MODE_SLOW_FLASH) {
+    //     uint flash_period = (led_mode == MODE_FAST_FLASH ? LED_FAST_FLASH_PERIOD : LED_SLOW_FLASH_PERIOD);
+    //     if (led_timer % flash_period < (flash_period / 2)) {
+    //         red = rgb_target->red;
+    //         green = rgb_target->green;
+    //         blue = rgb_target->blue;
+    //     }
+    //     else {
+    //         // Set blank
+    //         red = green = blue = 0;
+    //     }
+    // }
+    // else if (led_mode == MODE_BREATH) {
+    //     if (led_timer % LED_TIMER_PERIOD_TICKS < (LED_TIMER_PERIOD_TICKS / 2)) {
+    //         red = _calculate_breathe_rising_fade(rgb_target->red, led_timer);
+    //         green = _calculate_breathe_rising_fade(rgb_target->green, led_timer);
+    //         blue = _calculate_breathe_rising_fade(rgb_target->blue, led_timer);
+    //     }
+    //     else {
+    //         red = _calculate_breathe_falling_fade(rgb_target->red, led_timer);
+    //         green = _calculate_breathe_falling_fade(rgb_target->green, led_timer);
+    //         blue = _calculate_breathe_falling_fade(rgb_target->blue, led_timer);
+    //     }
+    //     red = SQUARE(red);
+    //     green = SQUARE(green);
+    //     blue = SQUARE(blue);
+    // }
+    // else {
+    //     // Set blank
+    //     red = blue = green = 0;  // this seems a little silly
+    // }
+    // led_timer = (led_timer + 1) % LED_TIMER_PERIOD_TICKS;  // Tick the timer
+
+    // // Handle quick flash requests
+    // if (flash_active) {
+    //     // First compute color for this round of flashing
+    //     if (flash_timer % LED_FLASH_PULSE_PERIOD < (LED_FLASH_PULSE_PERIOD / 2)) {
+    //         red = _calculate_flash_rising_fade(rgb_flash_target->red, flash_timer);
+    //         green = _calculate_flash_rising_fade(rgb_flash_target->green, flash_timer);
+    //         blue = _calculate_flash_rising_fade(rgb_flash_target->blue, flash_timer);
+    //     }
+    //     else {
+    //         red = _calculate_flash_falling_fade(rgb_flash_target->red, flash_timer);
+    //         green = _calculate_flash_falling_fade(rgb_flash_target->green, flash_timer);
+    //         blue = _calculate_flash_falling_fade(rgb_flash_target->blue, flash_timer);
+    //     }
+
+    //     // Then compute the next timer and count values
+    //     flash_timer++;
+    //     if (flash_timer >= LED_FLASH_PULSE_PERIOD) {
+    //         flash_timer = 0;
+    //         flash_count++;
+    //         if (flash_count >= LED_FLASH_PULSE_COUNT) {
+    //             flash_active = false;
+    //         }
+    //     }
+    // }
+
+    // // Clear color output if LEDs are disabled
+    // if (!led_enabled) {
+    //     red = green = blue = 0;
+    // }
+
+    // // Use brightness dictated by depth management
+    // float max_brightness = is_underwater && !depth_stale ? WATER_MAX_BRIGHTNESS : BENCH_MAX_BRIGHTNESS;
+
+    // // Scale brightness based on temperature
+    // float temp_adjust = _led_calculate_new_tmp_factor(curr_al_temp);
+    // // Clamp to [0, 1]
+    // temp_adjust = temp_adjust < 0.0f ? 0.0f : temp_adjust;
+    // temp_adjust = temp_adjust > 1.0f ? 1.0f : temp_adjust;
+
+    // // Turn off LEDs if temp exceeds max
+    // if (em_overtemp)
+    //     max_brightness = 0.0f;
+
+    // _update_rgb_struct_vals(rgb_last, red, green, blue);
+
+    // last_max_brightness = max_brightness;
+
+    // // Allow singleton flashes every LOOPS_PER_SINGLETON iterations
+    // if (next_singleton > 0)
+    //     next_singleton--;
+
+    // // Transmit data
+    // led_set_rgb(red, green, blue, max_brightness * temp_adjust);
 }
 
 void monitor_depth() {
@@ -328,20 +394,37 @@ void monitor_depth() {
 }
 
 void handle_singleton_flash() {
-    if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
+    // if (next_singleton > 0 || !do_singleton)  // Singleton not allowed
+    //     return;
+
+    // if (is_in_singleton) {  // Set back to pre-flash color
+    //     led_set_rgb(rgb_last->red, rgb_last->green, rgb_last->blue, last_max_brightness);
+    //     is_in_singleton = false;
+    // }
+    // else {  // Set to flash color, to be reset the next loop
+    //     led_set_rgb(rgb_singleton_target->red, rgb_singleton_target->green, rgb_singleton_target->blue,
+    //                 last_max_brightness);
+    //     is_in_singleton = true;
+    // }
+
+    // // Reset state and counter
+    // do_singleton = false;
+    // next_singleton = LOOPS_PER_SINGLETON;
+
+    // literally nothing changed
+    if (next_singleton > 0 || !do_singleton)
         return;
 
-    if (is_in_singleton) {  // Set back to pre-flash color
-        led_set_rgb(rgb_last->red, rgb_last->green, rgb_last->blue, last_max_brightness);
+    if (is_in_singleton) {
+        led_set_rgb(rgb_last.red, rgb_last.green, rgb_last.blue, last_max_brightness);
         is_in_singleton = false;
     }
-    else {  // Set to flash color, to be reset the next loop
-        led_set_rgb(rgb_singleton_target->red, rgb_singleton_target->green, rgb_singleton_target->blue,
+    else {
+        led_set_rgb(rgb_singleton_target.red, rgb_singleton_target.green, rgb_singleton_target.blue,
                     last_max_brightness);
         is_in_singleton = true;
     }
 
-    // Reset state and counter
     do_singleton = false;
     next_singleton = LOOPS_PER_SINGLETON;
 }
@@ -382,25 +465,33 @@ void ledc_init() {
 
     add_repeating_timer_ms(CONTROLLER_WATCHDOG_PERIOD_MS, controller_satisfy_watchdog, NULL,
                            &controller_watchdog_timer);
-    // hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
-    // add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
+
+    hard_assert(add_repeating_timer_ms(LED_UPDATE_INTERVAL_MS, update_led_status, NULL, &status_update_timer));
+
+    add_repeating_timer_ms(SINGLETON_FLASH_PERIOD_MS, handle_singleton_flash, NULL, &singleton_flash_timer);
     // add_repeating_timer_ms(DEPTH_MONITOR_PERIOD_MS, monitor_depth, NULL, &depth_monitor_timer);
+
     // hard_assert(
     //     add_repeating_timer_ms(TEMPERATURE_MONITOR_PERIOD_MS, monitor_temperature, NULL,
     //     &temperature_monitor_timer));
+
+    add_repeating_timer_ms(TEMP_AND_DEPTH_MONITOR_PERIOD_MS, monitor_depth, NULL, &depth_monitor_timer);
+
+    hard_assert(add_repeating_timer_ms(TEMP_AND_DEPTH_MONITOR_PERIOD_MS, monitor_temperature, NULL,
+                                       &temperature_monitor_timer));
 }
 
 void led_set(status_mode mode, uint8_t red, uint8_t green, uint8_t blue) {
     // uint32_t prev_interrupts = save_and_disable_interrupts();
     led_timer = 0;
     led_mode = mode;
-    _update_saved_rgb_values(rgb_target, red, green, blue);
+    _update_rgb_struct_vals(&rgb_target, red, green, blue);
     // restore_interrupts(prev_interrupts);
 }
 
 void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
     flash_active = false;
-    _update_saved_rgb_values(rgb_flash_target, red, green, blue);
+    _update_rgb_struct_vals(&rgb_flash_target, red, green, blue);
     flash_timer = 0;
     flash_count = 0;
     flash_active = true;
@@ -408,7 +499,7 @@ void led_flash(uint8_t red, uint8_t green, uint8_t blue) {
 
 void led_singleton(uint8_t red, uint8_t green, uint8_t blue) {
     do_singleton = false;
-    _update_saved_rgb_values(rgb_singleton_target, red, green, blue);
+    _update_rgb_struct_vals(&rgb_singleton_target, red, green, blue);
     do_singleton = true;
 }
 

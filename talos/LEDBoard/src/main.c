@@ -35,8 +35,16 @@
 // For ros timers, they will be reset before being ticked by start_ros_timers
 absolute_time_t next_heartbeat = { 0 };
 absolute_time_t next_status_update = { 0 };
-absolute_time_t next_led_update = { 0 };
+absolute_time_t next_led_can_update = { 0 };
 absolute_time_t next_connect_ping = { 0 };
+
+#define TEMP_AND_DEPTH_MONITOR_PERIOD_MS 1000
+#define LED_UPDATE_INTERVAL_MS 50
+#define SINGLETON_FLASH_PERIOD_MS 10
+
+absolute_time_t next_led_update = { 0 };
+absolute_time_t next_depth_and_temp_update = { 0 };
+absolute_time_t next_singleton_led_update = { 0 };
 
 /**
  * @brief Check if a timer is ready. If so advance it to the next interval.
@@ -114,8 +122,6 @@ static void tick_ros_tasks() {
     if (timer_ready(&next_status_update, FIRMWARE_STATUS_TIME_MS, true)) {
         RCSOFTRETVCHECK(ros_update_firmware_status(client_id));
     }
-
-    // TODO: Put any additional ROS tasks added here
 }
 
 static void tick_background_tasks() {
@@ -123,23 +129,15 @@ static void tick_background_tasks() {
     // Tick canbus heartbeat/control interface
     canbus_tick();
 
-    // NOTE: Done in the same order that the ISRs follow
-    // Do if statement timer thing above
-
     // Update LED to report canbus status
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
-        update_led_status();
-        handle_singleton_flash();
-        monitor_depth();
-        monitor_temperature();
-
+    if (timer_ready(&next_led_can_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(canbus_check_online());
     }
 
     // @todo this is the section where I do standard "fake" timers
 #elif MICRO_ROS_TRANSPORT_ETH
     // Update the LED to report ethernet link status
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    if (timer_ready(&next_led_can_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_network_online_set(ethernet_check_online());
     }
 
@@ -149,10 +147,26 @@ static void tick_background_tasks() {
 #else
     // Update the LED (so it can alternate between colors if a fault is present)
     // This is only required if CAN transport is disabled, as the led_network_online_set will update the LEDs for us
-    if (timer_ready(&next_led_update, LED_UPTIME_INTERVAL_MS, false)) {
+    if (timer_ready(&next_led_can_update, LED_UPTIME_INTERVAL_MS, false)) {
         led_update_pins();
     }
 #endif
+
+    if (timer_ready(&next_depth_and_temp_update, TEMP_AND_DEPTH_MONITOR_PERIOD_MS, true)) {
+        monitor_depth();
+        monitor_temperature();
+    }
+
+    // this is boot looping
+    // (if the previous singleton_flash is missed timer fault then this would be affected too)
+    // if (timer_ready(&next_led_update, LED_UPDATE_INTERVAL_MS, true)) {
+    //     update_led_status();
+    // }
+
+    // green -> red flash cycle, missed timer fault
+    // if (timer_ready(&next_singleton_led_update, SINGLETON_FLASH_PERIOD_MS, true)) {
+    //     handle_singleton_flash();
+    // }
 }
 
 int main() {

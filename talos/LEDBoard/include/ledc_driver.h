@@ -22,12 +22,7 @@ typedef enum status_mode { MODE_SOLID, MODE_SLOW_FLASH, MODE_FAST_FLASH, MODE_BR
 /**
  * @brief Opaque Pointer for saving certain states of the RGB values without affecting new updated values.
  */
-typedef struct led_rgb_values_saved_t led_rgb_values_saved_t;
-
-/**
- * @brief Opaque Pointer for holding updating runtime LED RGB values.
- */
-typedef struct led_rgb_values_runtime_t led_rgb_values_runtime_t;
+typedef struct led_rgb_t led_rgb_t;
 
 /**
  * @brief Replaces the current driver mode to the one described in @c mode and updates the @c rgb_target member
