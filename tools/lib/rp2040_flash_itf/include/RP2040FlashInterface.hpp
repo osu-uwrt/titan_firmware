@@ -2,6 +2,7 @@
 
 #include <array>
 #include <bitset>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
