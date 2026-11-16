@@ -333,7 +333,7 @@ static int cmdList() {
         std::cout << "  " << std::left << std::setw(12) << bus.name << " " << bus.description << std::endl;
     }
 
-    std::cout << std::endl << "USB CAN adapters (bring one up with canmore-can up <spec>):" << std::endl;
+    std::cout << std::endl << "USB CAN adapters (bring one up with canmore_can up <spec>):" << std::endl;
     libusb_context *ctx;
     bool any = false;
     if (libusb_init(&ctx) == 0) {
@@ -426,7 +426,7 @@ static int cmdUp(const std::string &spec, std::string name, const std::string &l
                 std::cout << report.substr(3);
                 return 0;
             }
-            std::cerr << (report.empty() ? "canmore-can up exited without reporting\n" : report);
+            std::cerr << (report.empty() ? "canmore_can up exited without reporting\n" : report);
             return 1;
         }
 
@@ -471,7 +471,7 @@ static int cmdUp(const std::string &spec, std::string name, const std::string &l
         report(true, name + " is up: " + bus.describe() + "\n  served as " + entry.spec + " (pid " +
                          std::to_string(getpid()) + ")\n  use it as " + name +
                          " (upload_tool and canmore_cli find it, micro_ros_agent can -D " + name +
-                         "); take it down with canmore-can down " + name + "\n");
+                         "); take it down with canmore_can down " + name + "\n");
 
         PollGroup group;
         group.addFd(stop);
@@ -482,7 +482,7 @@ static int cmdUp(const std::string &spec, std::string name, const std::string &l
         CANRegistry::remove(name);
     } catch (std::exception &e) {
         CANRegistry::remove(name);
-        report(false, std::string("canmore-can up ") + spec + ": " + e.what() + "\n");
+        report(false, std::string("canmore_can up ") + spec + ": " + e.what() + "\n");
         return 1;
     }
     return 0;
@@ -496,7 +496,7 @@ static int cmdDown(const std::string &name) {
     else {
         CANRegistry::Entry entry;
         if (!CANRegistry::lookup(name, entry)) {
-            std::cerr << name << " isn't up (see canmore-can list)" << std::endl;
+            std::cerr << name << " isn't up (see canmore_can list)" << std::endl;
             return 1;
         }
         entries.push_back(entry);
@@ -629,7 +629,7 @@ int main(int argc, char **argv) {
             return cmdBridge(args[0], args[1]);
         }
     } catch (std::exception &e) {
-        std::cerr << "canmore-can " << cmd << ": " << e.what() << std::endl;
+        std::cerr << "canmore_can " << cmd << ": " << e.what() << std::endl;
         return 1;
     }
 
