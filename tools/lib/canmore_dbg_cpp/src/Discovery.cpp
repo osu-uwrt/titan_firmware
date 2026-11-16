@@ -1,7 +1,7 @@
 #include "canmore_cpp/Discovery.hpp"
+#include "canmore_cpp/FdCompat.hpp"
 
 #include <poll.h>
-#include <sys/eventfd.h>
 #include <unistd.h>
 
 using namespace Canmore;
@@ -34,10 +34,7 @@ void Discovery::startSocketThread(int socketFd) {
     // Set thread to start, or else it will think it should stop
     threadStopFlag.test_and_set();
     // Using eventfd since it can be polled along with the socket fd
-    threadEventFd = eventfd(0, EFD_NONBLOCK);
-    if (threadEventFd < 0) {
-        throw std::system_error(errno, std::generic_category(), "eventfd");
-    }
+    threadEventFd = FdCompat::createEvent();
     thread = std::thread(&Discovery::socketThread, this);
 }
 
@@ -59,11 +56,8 @@ void Discovery::socketThread() {
 
         // eventFd ready
         if (fds[0].revents & POLLIN) {
-            uint64_t data;
-            if (read(threadEventFd, &data, sizeof(data)) != sizeof(data)) {
-                throw std::system_error(errno, std::generic_category(), "eventFd read");
-            }
-            // Discard data, it's just to wake up the thread
+            // Discard it, it's just to wake up the thread
+            FdCompat::clearEvent(threadEventFd);
         }
         else if (fds[0].revents) {
             throw std::runtime_error("Poll rerpoted error event on eventfd: " + std::to_string(fds[0].revents));
@@ -79,8 +73,7 @@ void Discovery::socketThread() {
 }
 
 void Discovery::notifyEventFd() {
-    uint64_t data = 1;
-    if (write(threadEventFd, &data, sizeof(data)) != sizeof(data)) {
+    if (!FdCompat::notifyEvent(threadEventFd)) {
         throw std::system_error(errno, std::generic_category(), "eventfd write");
     }
 }

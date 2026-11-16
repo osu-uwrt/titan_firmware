@@ -2,6 +2,7 @@
 
 #include "TerminalDraw.hpp"
 #include "canmore_cpp/Canmore.hpp"
+#include "canmore_cpp/FdCompat.hpp"
 
 #include <arpa/inet.h>
 #include <cstring>
@@ -12,6 +13,11 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
+
+// glibc only
+#ifndef UINT64_WIDTH
+#define UINT64_WIDTH 64
+#endif
 
 static_assert(EINVAL == 0x16, "EINVAL does not match expected value");
 #define ERR_STR_EINVAL "E16"
@@ -732,7 +738,7 @@ class GDBServerListener {
 public:
     GDBServerListener(uint16_t port, std::shared_ptr<GDBPacketHandler> handler): handler(handler), socketFd(-1) {
         // Open socket
-        if ((socketFd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0) {
+        if ((socketFd = Canmore::FdCompat::openSocket(AF_INET, SOCK_STREAM, 0, true)) < 0) {
             throw std::system_error(errno, std::generic_category(), "TCP Socket Create");
         }
 
@@ -770,7 +776,7 @@ public:
                 int newFd;
                 sockaddr addr;
                 socklen_t addrlen = sizeof(addr);
-                if ((newFd = accept4(socketFd, &addr, &addrlen, SOCK_CLOEXEC | SOCK_NONBLOCK)) < 0) {
+                if ((newFd = Canmore::FdCompat::acceptSocket(socketFd, &addr, &addrlen, true)) < 0) {
                     throw std::system_error(errno, std::generic_category(), "TCP Socket Accept4");
                 }
                 return std::make_unique<GDBServerSocket>(handler, newFd, addr);

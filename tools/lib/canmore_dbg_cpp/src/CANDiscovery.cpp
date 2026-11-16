@@ -2,19 +2,24 @@
 #include "canmore_cpp/Discovery.hpp"
 
 #include <fcntl.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
 
+#ifdef __linux__
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#endif
+
 using namespace Canmore;
 
 // ========================================
 // CANDiscovery
 // ========================================
+
+#ifdef __linux__
 
 CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
     // Lookup socket name (to report for each CAN device)
@@ -100,6 +105,19 @@ void CANDiscovery::handleSocketData(int socketFd) {
 
     reportDiscoveredDevice(device);
 }
+
+#else
+
+// No socketcan here, so there's nothing to discover over CAN
+CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
+    throw std::runtime_error("CAN discovery is only supported on Linux");
+}
+
+void CANDiscovery::handleSocketData(int socketFd) {
+    (void) socketFd;
+}
+
+#endif
 
 // ========================================
 // CAN Device ID/Mode Switching

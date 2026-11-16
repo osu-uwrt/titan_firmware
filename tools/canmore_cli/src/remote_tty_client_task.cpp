@@ -2,13 +2,13 @@
 #include "TerminalDraw.hpp"
 
 #include "canmore/remote_tty_interface.h"
+#include "canmore_cpp/FdCompat.hpp"
 
 #include <iostream>
 #include <signal.h>
 #include <sstream>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -28,10 +28,7 @@ void RemoteTTYStdioManager::winchHandlerStatic(int sig) {
 
 RemoteTTYStdioManager::RemoteTTYStdioManager(RemoteTTYStdioHandler &handler, unsigned int maxInputSize):
     handler_(handler), maxInputSize_(maxInputSize) {
-    winchEventFd_ = eventfd(0, EFD_NONBLOCK);
-    if (winchEventFd_ < 0) {
-        throw std::system_error(errno, std::generic_category(), "eventfd");
-    }
+    winchEventFd_ = Canmore::FdCompat::createEvent();
 
     stdinPollDescriptor_ = Canmore::PollFDDescriptor::create(*this, STDIN_FILENO, POLLIN);
     winchEventPollDescriptor_ = Canmore::PollFDDescriptor::create(*this, winchEventFd_, POLLIN);
@@ -63,8 +60,7 @@ void RemoteTTYStdioManager::initTerm() {
 
     // Clear the window change eventFd counter for window change events if there's any residual data in it
     // We set it to nonblocking, so it's fine to just do this. Ignore errors since this will give EAGAIN if its empty
-    uint64_t garbageData;
-    read(winchEventFd_, &garbageData, sizeof(garbageData));
+    Canmore::FdCompat::clearEvent(winchEventFd_);
 
     // Set up the window size change signal handler
     oldWinchReceiver_ = winchReceiver;
@@ -125,8 +121,7 @@ void RemoteTTYStdioManager::populateFds(std::vector<std::weak_ptr<Canmore::PollF
 void RemoteTTYStdioManager::winchHandler() {
     // We need to use an eventfd since the signal can interrupt whenever
     // Just post to the eventfd and let the poll event loop actually handle the event
-    uint64_t data = 1;
-    if (write(winchEventFd_, &data, sizeof(data)) != sizeof(data)) {
+    if (!Canmore::FdCompat::notifyEvent(winchEventFd_)) {
         int writeErrno = errno;
         const char *errmsg = "Exception in Signal Handler! Failed to write winch event fd: ";
         write(STDERR_FILENO, errmsg, strlen(errmsg));
@@ -161,10 +156,7 @@ void RemoteTTYStdioManager::handleEvent(const pollfd &fd) {
         }
     }
     else if (fd.fd == winchEventFd_ && (fd.revents & POLLIN) != 0) {
-        uint64_t data;
-        if (read(winchEventFd_, &data, sizeof(data)) != sizeof(data)) {
-            throw std::system_error(errno, std::generic_category(), "winch eventfd read");
-        }
+        Canmore::FdCompat::clearEvent(winchEventFd_);
 
         struct winsize w;
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w)) {

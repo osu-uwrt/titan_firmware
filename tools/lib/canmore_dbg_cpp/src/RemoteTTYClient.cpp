@@ -1,8 +1,8 @@
 #include "canmore_cpp/RemoteTTYClient.hpp"
 
-#include <sys/timerfd.h>
+#include "canmore_cpp/FdCompat.hpp"
+
 #include <system_error>
-#include <time.h>
 #include <unistd.h>
 
 using namespace Canmore;
@@ -10,10 +10,7 @@ using namespace Canmore;
 RemoteTTYClient::RemoteTTYClient(RemoteTTYClientEventHandler &handler_, int ifIndex, uint8_t clientId):
     CANSocket(ifIndex), clientId(clientId), handler_(handler_), txScheduler_(*this), rxScheduler_(*this) {
     // Create the timer fd so we can properly time the receiver callback
-    timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-    if (timerFd_ < 0) {
-        throw std::system_error(errno, std::generic_category(), "timerfd_create");
-    }
+    timerFd_ = FdCompat::createTimer();
 
     timerPollDescriptor_ = PollFDDescriptor::create(*this, timerFd_, POLLIN);
 
@@ -130,11 +127,8 @@ void RemoteTTYClient::populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &
 void RemoteTTYClient::handleEvent(const pollfd &fd) {
     // If it's our timer fd, handle it
     if (fd.fd == timerFd_) {
-        // Read the timer fd, we don't care about the data since it's only a single shot timer
-        uint8_t buf[8];
-        if (read(timerFd_, buf, sizeof(buf)) < 0) {
-            throw std::system_error(errno, std::generic_category(), "timerFd read");
-        }
+        // Clear the timer fd, we don't care about the data since it's only a single shot timer
+        FdCompat::clearEvent(timerFd_);
 
         // Only tick if we're not disconnected_
         if (!disconnected_) {
@@ -174,11 +168,5 @@ void RemoteTTYClient::handleControlCommand(uint16_t cmd, const std::span<const u
 void RemoteTTYClient::tickRxScheduler() {
     // Schedule the timer to fire for the time requested by the rxScheduler_
     long nextTimerFireMs = (long) rxScheduler_.handleTimer();
-    itimerspec nextFire = { .it_interval = { .tv_sec = 0, .tv_nsec = 0 },
-                            .it_value = { .tv_sec = nextTimerFireMs / 1000,
-                                          .tv_nsec = (nextTimerFireMs % 1000) * 1000000 } };
-
-    if (timerfd_settime(timerFd_, 0, &nextFire, NULL) < 0) {
-        throw std::system_error(errno, std::generic_category(), "timerfd_settime");
-    }
+    FdCompat::setTimer(timerFd_, nextTimerFireMs);
 }

@@ -1,11 +1,10 @@
 #include "canmore_cpp/DebugClient.hpp"
 #include "canmore_cpp/Discovery.hpp"
+#include "canmore_cpp/FdCompat.hpp"
 
 #include "canmore/ethernet_defs.h"
 
 #include <fcntl.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -21,7 +20,7 @@ using namespace Canmore;
 EthernetDiscovery::EthernetDiscovery() {
     // Open socket
     int socketFd;
-    if ((socketFd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0) {
+    if ((socketFd = FdCompat::openSocket(AF_INET, SOCK_DGRAM, 0, true)) < 0) {
         throw std::system_error(errno, std::generic_category(), "socket");
     }
 
