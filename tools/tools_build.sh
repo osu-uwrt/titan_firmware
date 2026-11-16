@@ -23,7 +23,7 @@ build_tool() {
     mkdir build/
     pushd build/
     cmake .. -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
-    cmake --build . --config Release -- -j $(nproc)
+    cmake --build . --config Release -- -j $(getconf _NPROCESSORS_ONLN)
     cmake --install .
     popd
 }

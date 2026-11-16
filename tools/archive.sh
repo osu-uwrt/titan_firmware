@@ -104,7 +104,7 @@ for target in $images; do
     mkdir build
     pushd build > /dev/null
     cmake ..
-    make -j$(nproc)
+    make -j$(getconf _NPROCESSORS_ONLN)
     popd > /dev/null
     popd > /dev/null
 done
