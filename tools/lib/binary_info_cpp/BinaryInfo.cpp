@@ -21,6 +21,7 @@
 #include <memory>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <vector>
 
 #undef assert

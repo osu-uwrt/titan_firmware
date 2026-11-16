@@ -35,8 +35,8 @@ class TerminalOverride {
 private:
     static bool initialized;
     struct termios oldt;
-    sighandler_t oldIntHandler;
-    sighandler_t oldWinchHandler;
+    void (*oldIntHandler)(int);
+    void (*oldWinchHandler)(int);
 
 public:
     TerminalOverride() {
