@@ -22,6 +22,20 @@ local plguin_info = {
 
 set_plugin_info(plguin_info)
 
+-- Wireshark 4.2+ has Lua 5.3+, which dropped bit32, so make one from the integer operators
+-- (in a string so this still parses on older Lua)
+if bit32 == nil then
+    bit32 = load([[
+        local m = 0xFFFFFFFF
+        return {
+            band = function(a, b) return (a & b) & m end,
+            bxor = function(a, b) return (a ~ b) & m end,
+            lshift = function(a, n) return (a << n) & m end,
+            rshift = function(a, n) return (a & m) >> n end,
+        }
+    ]])()
+end
+
 function bitfield(value, offset, len)
     return bit32.band(bit32.rshift(value, offset), bit32.lshift(1, len) - 1)
 end
