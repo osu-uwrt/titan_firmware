@@ -1,17 +1,8 @@
+#include "canmore_cpp/CANTransport.hpp"
 #include "canmore_cpp/DebugClient.hpp"
 #include "canmore_cpp/Discovery.hpp"
 
-#include <fcntl.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <unistd.h>
-
-#ifdef __linux__
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#endif
 
 using namespace Canmore;
 
@@ -19,63 +10,58 @@ using namespace Canmore;
 // CANDiscovery
 // ========================================
 
-#ifdef __linux__
+namespace Canmore {
 
-CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
-    // Lookup socket name (to report for each CAN device)
-    char nameBuf[IF_NAMESIZE];
-    if (if_indextoname(ifIndex, nameBuf) != nameBuf) {
-        throw std::system_error(errno, std::generic_category(), "if_indextoname");
-    }
-    interfaceName.assign(nameBuf);
-
-    // Open socket
-    int socketFd;
-    if ((socketFd = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW)) < 0) {
-        throw std::system_error(errno, std::generic_category(), "socket");
+// Listens for heartbeats on the bus, on whichever backend it is
+class CANDiscoveryListener : public CANTransport {
+public:
+    CANDiscoveryListener(CANDiscovery &discovery, const std::string &canInterface):
+        CANTransport(canInterface), discovery(discovery) {
+        // Configure filter to listen to all heartbeats
+        struct can_filter rfilter[] = { { .can_id = CANMORE_CALC_UTIL_ID_C2A(0, CANMORE_CHAN_HEARTBEAT),
+                                          .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG |
+                                                       CANMORE_CALC_FILTER_MASK(false, true, true, true)) } };
+        setRxFilters(std::span<can_filter> { rfilter });
     }
 
-    // Bind to requested interface
-    struct sockaddr_can addr = {};
-    addr.can_family = AF_CAN;
-    addr.can_ifindex = ifIndex;
+protected:
+    void handleFrame(const CANFrame &frame) override { discovery.handleHeartbeat(frame); }
 
-    if (bind(socketFd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        close(socketFd);
-        throw std::system_error(errno, std::generic_category(), "CAN bind");
+private:
+    CANDiscovery &discovery;
+};
+
+}  // namespace Canmore
+
+CANDiscovery::CANDiscovery(const std::string &canInterface): canInterface(canInterface) {
+    listener = std::make_unique<CANDiscoveryListener>(*this, canInterface);
+
+    // We've set up the transport, ready to start processing heartbeats
+    // Discovery closes the fd it's given, so it gets its own copy
+    int fd = dup(listener->getPollFd());
+    if (fd < 0) {
+        throw std::system_error(errno, std::generic_category(), "dup");
     }
+    startSocketThread(fd);
+}
 
-    // Configure filter to listen to all heartbeats
-    struct can_filter rfilter[] = { { .can_id = CANMORE_CALC_UTIL_ID_C2A(0, CANMORE_CHAN_HEARTBEAT),
-                                      .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG |
-                                                   CANMORE_CALC_FILTER_MASK(false, true, true, true)) } };
-    if (setsockopt(socketFd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0) {
-        close(socketFd);
-        throw std::system_error(errno, std::generic_category(), "CAN setsockopt");
-    }
-
-    // We've set up the socket, ready to start processing heartbeats
-    startSocketThread(socketFd);
+CANDiscovery::~CANDiscovery() {
+    // The thread calls into the listener, so stop it before the listener goes
+    stopSocketThread();
 }
 
 void CANDiscovery::handleSocketData(int socketFd) {
-    struct can_frame frame;
-    ssize_t ret = read(socketFd, &frame, sizeof(frame));
-    if (ret != sizeof(frame)) {
-        if (errno == EAGAIN) {
-            return;  // No data to be received
-        }
-        else {
-            throw std::system_error(errno, std::generic_category(), "CAN read");
-        }
-    }
+    (void) socketFd;
+    listener->handlePollFd();
+}
 
-    if (frame.can_dlc != sizeof(canmore_heartbeat_t)) {
+void CANDiscovery::handleHeartbeat(const CANFrame &frame) {
+    if (frame.len != sizeof(canmore_heartbeat_t)) {
         // Unexpected length (probably bad packet, ignore it)
         return;
     }
 
-    canmore_id_t id = { .identifier = frame.can_id };
+    canmore_id_t id = { .identifier = frame.id };
     uint8_t clientId = id.pkt_std.client_id;
     canmore_heartbeat_t heartbeatData = { .data = frame.data[0] };
 
@@ -100,24 +86,11 @@ void CANDiscovery::handleSocketData(int socketFd) {
         device = std::static_pointer_cast<Device>(std::make_shared<CANLinuxDevice>(*this, clientId, heartbeatData));
     }
     else {
-        device = std::make_shared<Device>(interfaceName, clientId, heartbeatData);
+        device = std::make_shared<Device>(canInterface, clientId, heartbeatData);
     }
 
     reportDiscoveredDevice(device);
 }
-
-#else
-
-// No socketcan here, so there's nothing to discover over CAN
-CANDiscovery::CANDiscovery(int ifIndex): ifIndex(ifIndex) {
-    throw std::runtime_error("CAN discovery is only supported on Linux");
-}
-
-void CANDiscovery::handleSocketData(int socketFd) {
-    (void) socketFd;
-}
-
-#endif
 
 // ========================================
 // CAN Device ID/Mode Switching
@@ -126,7 +99,7 @@ void CANDiscovery::handleSocketData(int socketFd) {
 uint64_t CANNormalDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             auto debugClient = DebugClient(interface);
             cachedFlashId.doubleword = debugClient.getFlashId();
             isFlashIdCached = true;
@@ -141,7 +114,7 @@ uint64_t CANNormalDevice::getFlashId() {
 std::string CANNormalDevice::getAppVersion() {
     if (!isAppVersionCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             auto debugClient = DebugClient(interface);
             cachedAppVersion = debugClient.getVersion();
             isAppVersionCached = true;
@@ -154,12 +127,12 @@ std::string CANNormalDevice::getAppVersion() {
 }
 
 std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     auto debugClient = DebugClient(interface);
     debugClient.enterBootloader();
 
     // Get a discovery context to wait for bootloader
-    auto discovery = CANDiscovery::create(ifIndex);
+    auto discovery = CANDiscovery::create(canInterface);
     std::shared_ptr<BootloaderDevice> dev =
         discovery->waitForDevice<BootloaderDevice>(clientId, CAN_MODE_SWITCH_TIMEOUT_MS);
 
@@ -170,14 +143,14 @@ std::shared_ptr<BootloaderClient> CANNormalDevice::switchToBootloaderMode() {
 }
 
 std::shared_ptr<DebugClient> CANNormalDevice::getClient() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     return std::make_shared<DebugClient>(interface);
 }
 
 uint64_t CANBootloaderDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
@@ -200,7 +173,7 @@ uint64_t CANBootloaderDevice::getFlashId() {
 std::string CANBootloaderDevice::getBLVersion() {
     if (!isBLVersionCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             RegisterPage mcuCtrlPage(interface, CANMORE_CONTROL_INTERFACE_MODE_BOOTLOADER,
                                      CANMORE_BL_MCU_CONTROL_PAGE_NUM);
 
@@ -221,18 +194,18 @@ std::string CANBootloaderDevice::getBLVersion() {
 }
 
 std::shared_ptr<BootloaderClient> CANBootloaderDevice::getClient() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     return std::make_shared<BootloaderClient>(interface);
 }
 
 std::shared_ptr<BootloaderClient> CANBootDelayDevice::enterBootloader() {
     const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     interface->sendRaw(enterBootloaderMagic);
 
     // Get a discovery context to wait for bootloader
-    auto discovery = CANDiscovery::create(ifIndex);
+    auto discovery = CANDiscovery::create(canInterface);
     std::shared_ptr<BootloaderDevice> dev =
         discovery->waitForDevice<BootloaderDevice>(clientId, CAN_MODE_SWITCH_TIMEOUT_MS);
 
@@ -246,14 +219,14 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t 
     const std::vector<uint8_t> enterBootloaderMagic = CANMORE_CONTROL_INTERFACE_BOOTLOADER_REQUEST;
 
     // Get a discovery context to wait for next boot delay
-    auto discovery = CANDiscovery::create(ifIndex);
+    auto discovery = CANDiscovery::create(canInterface);
     auto bdDev = discovery->waitForDevice<BootDelayDevice>(clientId, timeoutMs);
     if (!bdDev) {
         throw BootloaderError("Failed to discover boot delay device again within timeout");
     }
 
     // Send the command to enter bootloader
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     interface->sendRaw(enterBootloaderMagic);
 
     // Wait for it to come back in bootlodaer mode
@@ -269,7 +242,7 @@ std::shared_ptr<BootloaderClient> CANBootDelayDevice::waitForBootloader(int64_t 
 uint64_t CANLinuxDevice::getFlashId() {
     if (!isFlashIdCached) {
         try {
-            auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+            auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
             auto linuxClient = LinuxClient(interface);
             cachedFlashId.doubleword = linuxClient.getFlashId();
             isFlashIdCached = true;
@@ -282,6 +255,6 @@ uint64_t CANLinuxDevice::getFlashId() {
 }
 
 std::shared_ptr<LinuxClient> CANLinuxDevice::getClient() {
-    auto interface = RegMappedCANClient::create(ifIndex, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
+    auto interface = RegMappedCANClient::create(canInterface, clientId, CANMORE_CHAN_CONTROL_INTERFACE);
     return std::make_shared<LinuxClient>(interface);
 }

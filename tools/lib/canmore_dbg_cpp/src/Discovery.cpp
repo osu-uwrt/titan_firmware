@@ -11,6 +11,15 @@ using namespace Canmore;
 Discovery::Discovery(): socketFd(-1), threadEventFd(-1) {}
 
 Discovery::~Discovery() {
+    stopSocketThread();
+
+    if (socketFd >= 0) {
+        close(socketFd);
+        socketFd = -1;
+    }
+}
+
+void Discovery::stopSocketThread() {
     if (thread.joinable()) {
         // eventFd must exist if the thread was created
         threadStopFlag.clear();
@@ -19,11 +28,6 @@ Discovery::~Discovery() {
         thread.join();
         close(threadEventFd);
         threadEventFd = -1;
-    }
-
-    if (socketFd >= 0) {
-        close(socketFd);
-        socketFd = -1;
     }
 }
 

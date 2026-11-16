@@ -4,16 +4,9 @@
 #include <chrono>
 #include <cxxabi.h>
 #include <iostream>
-#include <net/if.h>
 #include <thread>
 
 using namespace Canmore;
-
-bool isValidCANDevice(const char *name) {
-    if (name[0] == 'v')
-        name++;
-    return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' && (name[3] >= '0' && name[3] <= '9'));
-}
 
 int main(int argc, char **argv) {
     if (argc == 2) {
@@ -38,15 +31,12 @@ int main(int argc, char **argv) {
         discoverySources.push_back(EthernetDiscovery::create());
 
         // Discover all CAN interfaces
-        struct if_nameindex *if_nidxs, *intf;
-        if_nidxs = if_nameindex();
-        if (if_nidxs != NULL) {
-            for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++) {
-                if (isValidCANDevice(intf->if_name)) {
-                    discoverySources.push_back(CANDiscovery::create(intf->if_index));
-                }
+        for (auto &dev : enumerateCANDevices(true)) {
+            try {
+                discoverySources.push_back(CANDiscovery::create(dev.spec));
+            } catch (std::exception &e) {
+                std::cerr << "Skipping CAN bus " << dev.name << ": " << e.what() << std::endl;
             }
-            if_freenameindex(if_nidxs);
         }
 
         if (argc < 3) {

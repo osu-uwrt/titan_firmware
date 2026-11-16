@@ -178,9 +178,8 @@ void RemoteTTYStdioManager::handleEvent(const pollfd &fd) {
 RemoteTTYClientTask::RemoteTTYClientTask(std::shared_ptr<Canmore::LinuxClient> linuxRegClient,
                                          std::shared_ptr<Canmore::RegMappedCANClient> canClient, const std::string &cmd,
                                          bool useUploadWorkingDir):
-    linuxRegClient_(linuxRegClient),
-    client_(*this, canClient->ifIndex, canClient->clientId), stdioManager_(*this, client_.getMaxFrameSize()), cmd_(cmd),
-    useUploadWorkingDir_(useUploadWorkingDir) {}
+    linuxRegClient_(linuxRegClient), client_(*this, canClient->interface, canClient->clientId),
+    stdioManager_(*this, client_.getMaxFrameSize()), cmd_(cmd), useUploadWorkingDir_(useUploadWorkingDir) {}
 
 void RemoteTTYClientTask::run() {
     if (linuxRegClient_->remoteTtyEnabled()) {

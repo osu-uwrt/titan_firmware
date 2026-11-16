@@ -6,8 +6,8 @@
 
 using namespace Canmore;
 
-ImageReceiver::ImageReceiver(int ifIndex, uint8_t clientId, ImageReceiverHandler &handler):
-    Canmore::CANSocket(ifIndex), clientId(clientId), handler_(handler) {
+ImageReceiver::ImageReceiver(const std::string &canInterface, uint8_t clientId, ImageReceiverHandler &handler):
+    Canmore::CANTransport(canInterface), clientId(clientId), handler_(handler) {
     // Register to receive stream frames and the last frame
     struct can_filter rfilter[] = { { .can_id = CANMORE_CAMERA_FEED_CALC_LAST_FRAME_ID(clientId),
                                       .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CANMORE_CAMERA_FEED_STD_ID_MASK) },
@@ -23,7 +23,10 @@ ImageReceiver::~ImageReceiver() {
     transmitFrameNoexcept(CANMORE_CAMERA_FEED_CALC_CTRL_ID(clientId), cmd.data, CANMORE_CAMERA_FEED_CMD_MAX_LEN);
 }
 
-void ImageReceiver::handleFrame(canid_t can_id, const std::span<const uint8_t> &data) {
+void ImageReceiver::handleFrame(const CANFrame &frame) {
+    canid_t can_id = frame.id;
+    auto data = frame.payload();
+
     bool isExtended = (can_id & CAN_EFF_FLAG) != 0;
     canmore_id_t id = { .identifier = can_id };
 

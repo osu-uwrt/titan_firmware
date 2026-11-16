@@ -33,7 +33,8 @@ class CameraSocketListener : protected Canmore::ImageReceiverHandler, protected 
     friend class TCPSocketServer;
 
 public:
-    CameraSocketListener(uint16_t port, int canIfIndex, uint8_t canClientId, bool loopbackOnly = false);
+    CameraSocketListener(uint16_t port, const std::string &canInterface, uint8_t canClientId,
+                         bool loopbackOnly = false);
     ~CameraSocketListener();
 
     void run();

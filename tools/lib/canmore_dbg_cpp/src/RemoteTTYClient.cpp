@@ -7,14 +7,15 @@
 
 using namespace Canmore;
 
-RemoteTTYClient::RemoteTTYClient(RemoteTTYClientEventHandler &handler_, int ifIndex, uint8_t clientId):
-    CANSocket(ifIndex), clientId(clientId), handler_(handler_), txScheduler_(*this), rxScheduler_(*this) {
+RemoteTTYClient::RemoteTTYClient(RemoteTTYClientEventHandler &handler_, const std::string &canInterface,
+                                 uint8_t clientId):
+    CANTransport(canInterface), clientId(clientId), handler_(handler_), txScheduler_(*this), rxScheduler_(*this) {
     // Create the timer fd so we can properly time the receiver callback
     timerFd_ = FdCompat::createTimer();
 
     timerPollDescriptor_ = PollFDDescriptor::create(*this, timerFd_, POLLIN);
 
-    // Configure the CANSocket to receive all packets for the remote tty interface
+    // Configure the CANTransport to receive all packets for the remote tty interface
     // The remote tty interface only uses extended frame packets, so we just watch for those
     struct can_filter rfilter[] = { { .can_id = CAN_EFF_FLAG | CANMORE_REMOTE_TTY_CALC_ID_C2A(clientId, 0, 0),
                                       .can_mask = (CAN_EFF_FLAG | CAN_RTR_FLAG | CANMORE_REMOTE_TTY_ID_MASK) } };
@@ -66,7 +67,10 @@ void RemoteTTYClient::stdinWrite(const std::span<const uint8_t> &data) {
     }
 }
 
-void RemoteTTYClient::handleFrame(canid_t can_id, const std::span<const uint8_t> &data) {
+void RemoteTTYClient::handleFrame(const CANFrame &frame) {
+    canid_t can_id = frame.id;
+    auto data = frame.payload();
+
     // Extract subch and seqCmd
     uint8_t subch = (can_id >> CANMORE_REMOTE_TTY_ID_SUBCH_OFFSET) & ((1 << CANMORE_REMOTE_TTY_ID_SUBCH_LENGTH) - 1);
     uint16_t seqCmd =
@@ -117,8 +121,8 @@ void RemoteTTYClient::transmitAck(uint16_t seqNum) {
 }
 
 void RemoteTTYClient::populateFds(std::vector<std::weak_ptr<PollFDDescriptor>> &descriptors) {
-    // Register the CANSocket fds
-    CANSocket::populateFds(descriptors);
+    // Register the CANTransport fds
+    CANTransport::populateFds(descriptors);
 
     // Also register our timer fd
     descriptors.push_back(timerPollDescriptor_);
@@ -136,9 +140,9 @@ void RemoteTTYClient::handleEvent(const pollfd &fd) {
             tickRxScheduler();
         }
     }
-    // If not, forward it up to the CANSocket
+    // If not, forward it up to the CANTransport
     else {
-        CANSocket::handleEvent(fd);
+        CANTransport::handleEvent(fd);
     }
 }
 

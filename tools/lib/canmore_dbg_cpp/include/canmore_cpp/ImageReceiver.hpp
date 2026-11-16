@@ -1,5 +1,5 @@
 #pragma once
-#include "canmore_cpp/CANSocket.hpp"
+#include "canmore_cpp/CANTransport.hpp"
 
 #include <vector>
 
@@ -11,16 +11,16 @@ protected:
     virtual void handleJpeg(const std::span<const uint8_t> &data) = 0;
 };
 
-class ImageReceiver : public CANSocket {
+class ImageReceiver : public CANTransport {
 public:
     /**
      * @brief Construct a new Canmore Image Receiver object
      *
-     * @param ifIndex The interface index to bind to
+     * @param canInterface The CAN bus to bind to (see CANTransport for the spec)
      * @param clientId The client ID this image transmitter belongs to
      * @param handler The handler to call with the JPEG upon successful reception
      */
-    ImageReceiver(int ifIndex, uint8_t clientId, ImageReceiverHandler &handler);
+    ImageReceiver(const std::string &canInterface, uint8_t clientId, ImageReceiverHandler &handler);
     ~ImageReceiver();
 
     /**
@@ -61,7 +61,7 @@ public:
     const uint8_t clientId;
 
 protected:
-    void handleFrame(canid_t can_id, const std::span<const uint8_t> &data) override;
+    void handleFrame(const CANFrame &frame) override;
 
 private:
     ImageReceiverHandler &handler_;

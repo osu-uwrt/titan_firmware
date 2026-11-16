@@ -1,18 +1,14 @@
 #include "UploadTool.hpp"
+#include "canmore_cpp/CANTransport.hpp"
 #include "canmore_cpp/Discovery.hpp"
 #include "pico_usb/USBDiscovery.hpp"
 
 #include <cxxabi.h>
 #include <iostream>
 #include <memory>
-#include <net/if.h>
 #include <string.h>
 #include <thread>
 #include <vector>
-
-bool isValidCANDevice(const char *name) {
-    return (name[0] == 'c' && name[1] == 'a' && name[2] == 'n' && (name[3] >= '0' && name[3] <= '9'));
-}
 
 static const char *const positionalArgsNames[] = { "uf2" };
 
@@ -208,15 +204,12 @@ int main(int argc, char **argv) {
             discoverySources.push_back(PicoUSB::USBDiscovery::create());
 
             // Discover all CAN interfaces
-            struct if_nameindex *if_nidxs, *intf;
-            if_nidxs = if_nameindex();
-            if (if_nidxs != NULL) {
-                for (intf = if_nidxs; intf->if_index != 0 || intf->if_name != NULL; intf++) {
-                    if (isValidCANDevice(intf->if_name)) {
-                        discoverySources.push_back(Canmore::CANDiscovery::create(intf->if_index));
-                    }
+            for (auto &dev : Canmore::enumerateCANDevices()) {
+                try {
+                    discoverySources.push_back(Canmore::CANDiscovery::create(dev.spec));
+                } catch (std::exception &e) {
+                    std::cerr << "Skipping CAN bus " << dev.name << ": " << e.what() << std::endl;
                 }
-                if_freenameindex(if_nidxs);
             }
         }
 

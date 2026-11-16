@@ -1,6 +1,6 @@
 #pragma once
 
-#include "canmore_cpp/CANSocket.hpp"
+#include "canmore_cpp/CANTransport.hpp"
 #include "canmore_cpp/RemoteTTYStream.hpp"
 
 #include "canmore/remote_tty_interface.h"
@@ -16,9 +16,9 @@ protected:
     virtual void handleStdinReady() = 0;
 };
 
-class RemoteTTYClient : public CANSocket, public RemoteTTYStreamRXCallback, public RemoteTTYStreamTXCallback {
+class RemoteTTYClient : public CANTransport, public RemoteTTYStreamRXCallback, public RemoteTTYStreamTXCallback {
 public:
-    RemoteTTYClient(RemoteTTYClientEventHandler &handler, int ifIndex, uint8_t clientId);
+    RemoteTTYClient(RemoteTTYClientEventHandler &handler, const std::string &canInterface, uint8_t clientId);
     ~RemoteTTYClient();
 
     void disconnect(bool isError);
@@ -44,7 +44,7 @@ public:
 
 protected:
     // Handle callback interfaces
-    void handleFrame(canid_t can_id, const std::span<const uint8_t> &data) override;
+    void handleFrame(const CANFrame &frame) override;
     void transmitStreamPacket(uint8_t streamId, uint16_t seqNum, const std::span<const uint8_t> &data) override;
     void notifyBufferAvailable() override;
     void transmitAck(uint16_t seqNum) override;

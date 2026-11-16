@@ -206,8 +206,8 @@ void TCPSocketServer::handleEvent(const pollfd &fd) {
     }
 }
 
-CameraSocketListener::CameraSocketListener(uint16_t port, int canIfIndex, uint8_t canClientId, bool loopbackOnly):
-    imageRx_(canIfIndex, canClientId, *this) {
+CameraSocketListener::CameraSocketListener(uint16_t port, const std::string &canInterface, uint8_t canClientId,
+                                           bool loopbackOnly): imageRx_(canInterface, canClientId, *this) {
     sockFd_ = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
     if (sockFd_ <= 0) {
         throw std::system_error(errno, std::generic_category(), "socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)");

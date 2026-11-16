@@ -212,6 +212,9 @@ protected:
     // Called after initializing socketFd with a valid file descriptor (for select)
     void startSocketThread(int socketFd);
 
+    // Stops the socket thread, for children whose destructor tears down what handleSocketData uses. Safe to call twice
+    void stopSocketThread();
+
     // Reports that a device has been discovered by the receiving socket
     void reportDiscoveredDevice(const std::shared_ptr<Device> &device);
 
@@ -258,36 +261,44 @@ public:
 // ========================================
 
 struct CANDiscoveryKey {
-    int ifIndex;
-    CANDiscoveryKey(int ifIndex): ifIndex(ifIndex) {}
-    bool operator==(const CANDiscoveryKey &other) const { return ifIndex == other.ifIndex; }
+    std::string canInterface;
+    CANDiscoveryKey(const std::string &canInterface): canInterface(canInterface) {}
+    bool operator==(const CANDiscoveryKey &other) const { return canInterface == other.canInterface; }
 };
 
 struct CANDiscoveryKeyHasher {
-    std::size_t operator()(const CANDiscoveryKey &k) const { return std::hash<int>()(k.ifIndex); }
+    std::size_t operator()(const CANDiscoveryKey &k) const { return std::hash<std::string>()(k.canInterface); }
 };
+
+class CANDiscoveryListener;
 
 class CANDiscovery : public Discovery, public SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher> {
 public:
     friend class SocketSingleton<CANDiscovery, CANDiscoveryKey, CANDiscoveryKeyHasher>;
 
-    int getInterfaceNum() { return ifIndex; }
-    std::string getInterfaceName() override { return interfaceName; }
+    // The CANTransport spec of the bus
+    std::string getInterfaceSpec() { return canInterface; }
+    std::string getInterfaceName() override { return canInterface; }
+
+    ~CANDiscovery();
 
 protected:
     void handleSocketData(int socketFd) override;
 
 private:
-    CANDiscovery(int ifIndex);
-    int ifIndex;
-    std::string interfaceName;
+    friend class CANDiscoveryListener;
+    CANDiscovery(const std::string &canInterface);
+    std::string canInterface;
+    std::unique_ptr<CANDiscoveryListener> listener;
+
+    void handleHeartbeat(const CANFrame &frame);
 };
 
 class CANNormalDevice : public NormalDevice {
 public:
     CANNormalDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         NormalDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
-        ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false), isAppVersionCached(false) {}
+        canInterface(parentInterface.getInterfaceSpec()), isFlashIdCached(false), isAppVersionCached(false) {}
 
     std::string getAppVersion() override;
     uint64_t getFlashId() override;
@@ -295,7 +306,7 @@ public:
     std::shared_ptr<DebugClient> getClient() override;
 
 private:
-    int ifIndex;
+    std::string canInterface;
     union flash_id cachedFlashId;
     bool isFlashIdCached;
     std::string cachedAppVersion;
@@ -306,14 +317,14 @@ class CANBootloaderDevice : public BootloaderDevice {
 public:
     CANBootloaderDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         BootloaderDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
-        ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false), isBLVersionCached(false) {}
+        canInterface(parentInterface.getInterfaceSpec()), isFlashIdCached(false), isBLVersionCached(false) {}
 
     std::string getBLVersion() override;
     uint64_t getFlashId() override;
     std::shared_ptr<BootloaderClient> getClient() override;
 
 private:
-    int ifIndex;
+    std::string canInterface;
     union flash_id cachedFlashId;
     bool isFlashIdCached;
     std::string cachedBLVersion;
@@ -324,26 +335,26 @@ class CANBootDelayDevice : public BootDelayDevice {
 public:
     CANBootDelayDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         BootDelayDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
-        ifIndex(parentInterface.getInterfaceNum()) {}
+        canInterface(parentInterface.getInterfaceSpec()) {}
 
     std::shared_ptr<BootloaderClient> enterBootloader() override;
     std::shared_ptr<BootloaderClient> waitForBootloader(int64_t timeoutMs) override;
 
 private:
-    int ifIndex;
+    std::string canInterface;
 };
 
 class CANLinuxDevice : public LinuxDevice {
 public:
     CANLinuxDevice(CANDiscovery &parentInterface, uint8_t clientId, canmore_heartbeat_t heartbeatData):
         LinuxDevice(parentInterface.getInterfaceName(), clientId, heartbeatData),
-        ifIndex(parentInterface.getInterfaceNum()), isFlashIdCached(false) {}
+        canInterface(parentInterface.getInterfaceSpec()), isFlashIdCached(false) {}
 
     uint64_t getFlashId() override;
     std::shared_ptr<LinuxClient> getClient() override;
 
 private:
-    int ifIndex;
+    std::string canInterface;
     union flash_id cachedFlashId;
     bool isFlashIdCached;
 };

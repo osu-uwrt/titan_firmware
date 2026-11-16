@@ -241,7 +241,7 @@ public:
             }
 
             interface.writeLine(COLOR_NAME "Listening for connections on port " + std::to_string(port) + COLOR_RESET);
-            CameraSocketListener listener(port, canClient->ifIndex, canClient->clientId);
+            CameraSocketListener listener(port, canClient->interface, canClient->clientId);
             listener.run();
             interface.writeLine(COLOR_NAME "Server Stopped" COLOR_RESET);
         }
