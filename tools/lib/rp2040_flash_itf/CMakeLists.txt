@@ -6,12 +6,30 @@ set(DEVICE_DEFINITIONS_DIR ${REPO_DIR}/tools )
 set(DEVICE_DEFINITIONS_GEN_OUT "${CMAKE_CURRENT_BINARY_DIR}/DeviceList.o" )
 
 # Generate object file containing embedded device definitions
-add_custom_command(
-    OUTPUT ${DEVICE_DEFINITIONS_GEN_OUT}
-    COMMAND ${CMAKE_LINKER} --relocatable --format binary --output ${DEVICE_DEFINITIONS_GEN_OUT} ${DEVICE_DEFINITIONS_FILE}
-    WORKING_DIRECTORY ${DEVICE_DEFINITIONS_DIR}
-    DEPENDS ${DEVICE_DEFINITIONS_DIR}/${DEVICE_DEFINITIONS_FILE}
-)
+if(APPLE)
+    # Apple's ld can't read raw binaries, so .incbin it into an object with the same symbol names instead
+    set(DEVICE_DEFINITIONS_ASM "${CMAKE_CURRENT_BINARY_DIR}/DeviceList.S")
+    file(WRITE ${DEVICE_DEFINITIONS_ASM}
+        ".const\n"
+        ".globl _binary_DeviceList_jsonc_start\n"
+        "_binary_DeviceList_jsonc_start:\n"
+        ".incbin \"${DEVICE_DEFINITIONS_DIR}/${DEVICE_DEFINITIONS_FILE}\"\n"
+        ".globl _binary_DeviceList_jsonc_end\n"
+        "_binary_DeviceList_jsonc_end:\n"
+    )
+    add_custom_command(
+        OUTPUT ${DEVICE_DEFINITIONS_GEN_OUT}
+        COMMAND ${CMAKE_C_COMPILER} -c ${DEVICE_DEFINITIONS_ASM} -o ${DEVICE_DEFINITIONS_GEN_OUT}
+        DEPENDS ${DEVICE_DEFINITIONS_DIR}/${DEVICE_DEFINITIONS_FILE}
+    )
+else()
+    add_custom_command(
+        OUTPUT ${DEVICE_DEFINITIONS_GEN_OUT}
+        COMMAND ${CMAKE_LINKER} --relocatable --format binary --output ${DEVICE_DEFINITIONS_GEN_OUT} ${DEVICE_DEFINITIONS_FILE}
+        WORKING_DIRECTORY ${DEVICE_DEFINITIONS_DIR}
+        DEPENDS ${DEVICE_DEFINITIONS_DIR}/${DEVICE_DEFINITIONS_FILE}
+    )
+endif()
 add_custom_target(device_definitions ALL DEPENDS ${DEVICE_DEFINITIONS_GEN_OUT} )
 
 # Define cmake library
