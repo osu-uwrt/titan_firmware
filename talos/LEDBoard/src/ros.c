@@ -247,6 +247,9 @@ rcl_ret_t ros_init() {
     RCRETCHECK(rclc_executor_add_subscription(&executor, &depth_subscriber, &depth_msg, &depth_subscription_callback,
                                               ON_NEW_DATA));
 
+    // TESTING ROS STUFF:
+    // wasn't there more here?
+
     // TODO: Modify this method with node specific objects
 
     // Note: Code in executor callbacks should be kept to a minimum

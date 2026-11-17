@@ -12,6 +12,7 @@
 #ifndef LEDC_DRIVER_H_
 #define LEDC_DRIVER_H_
 
+// #include "stdio.h"
 #include "pico/types.h"
 
 /**
@@ -95,10 +96,11 @@ void update_led_status();
  */
 void monitor_depth();
 
-/**
- * @brief Callback function to set the singleton flash for the LED Board.
- */
-void handle_singleton_flash();
+// /**
+//  * @brief Callback function to set the singleton flash for the LED Board.
+//  */
+// void handle_singleton_flash();
+// bool handle_singleton_flash(__unused repeating_timer_t *t);
 
 /**
  * @brief Timer Callback Function for getting the current temperature of the Aluminum LED board.

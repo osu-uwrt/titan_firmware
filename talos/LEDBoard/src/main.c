@@ -40,7 +40,8 @@ absolute_time_t next_connect_ping = { 0 };
 
 #define TEMP_AND_DEPTH_MONITOR_PERIOD_MS 1000
 #define LED_UPDATE_INTERVAL_MS 50
-#define SINGLETON_FLASH_PERIOD_MS 10
+// #define SINGLETON_FLASH_PERIOD_MS 10
+#define SINGLETON_FLASH_PERIOD_MS 200
 
 absolute_time_t next_led_update = { 0 };
 absolute_time_t next_depth_and_temp_update = { 0 };
@@ -157,16 +158,9 @@ static void tick_background_tasks() {
         monitor_temperature();
     }
 
-    // this is boot looping
-    // (if the previous singleton_flash is missed timer fault then this would be affected too)
-    // if (timer_ready(&next_led_update, LED_UPDATE_INTERVAL_MS, true)) {
-    //     update_led_status();
-    // }
-
-    // green -> red flash cycle, missed timer fault
-    // if (timer_ready(&next_singleton_led_update, SINGLETON_FLASH_PERIOD_MS, true)) {
-    //     handle_singleton_flash();
-    // }
+    if (timer_ready(&next_led_update, LED_UPDATE_INTERVAL_MS, true)) {
+        update_led_status();
+    }
 }
 
 int main() {

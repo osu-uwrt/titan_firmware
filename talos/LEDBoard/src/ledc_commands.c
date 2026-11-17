@@ -203,7 +203,6 @@ void buck_set_peak_current(uint controller, uint buck, uint current) {
 // uint is a lot of data that could be uint8_t or shrunk down
 static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
     // old code:
-    // why did this not complain when compiling and using the old code?
     // *w = MIN(*r, MIN(*g, *b));
 
     // *r -= *w;
@@ -224,8 +223,10 @@ static void rgb_to_rgbw(uint *r, uint *g, uint *b, uint *w) {
     *w = (uint) temporary_white_value;
 }
 
-void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {
-    uint w;
+// void led_set_rgb(uint r, uint g, uint b, float maxBrightness) {
+//     uint w;
+void led_set_rgb(uint8_t r, uint8_t g, uint8_t b, float maxBrightness) {
+    uint8_t w;
     rgb_to_rgbw(&r, &g, &b, &w);
 
     buck_set_brightness(led_r_path[0], led_r_path[1], r * (1023.0 / 255.0) * maxBrightness);
