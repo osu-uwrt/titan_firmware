@@ -5,4 +5,4 @@ if [ -z "$2" ]; then
     exit 1
 fi
 
-gdb -q "$1" -ex "printf \"Full Build Tag: %s\n\n\", FULL_BUILD_TAG" -ex "x /s $2" -ex "quit"
+"${GDB:-$(command -v gdb-multiarch || echo arm-none-eabi-gdb)}" -q "$1" -ex "printf \"Full Build Tag: %s\n\n\", FULL_BUILD_TAG" -ex "x /s $2" -ex "quit"
