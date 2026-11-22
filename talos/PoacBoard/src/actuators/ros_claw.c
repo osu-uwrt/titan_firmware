@@ -30,13 +30,16 @@ static std_msgs__msg__String cmd_feedback;
 static std_msgs__msg__Bool cmd_status;
 static bool new_cmd = false;
 
+static absolute_time_t move_end_time;
+static int32_t latest_command;
+
 // Debug ROS interface
 static rcl_subscription_t move_time_subscription;
 static std_msgs__msg__Float32 move_time_msg;
 static rcl_publisher_t degree_publisher;
 
 // Servo objects
-#define CLAW_SERVO_ID 3
+#define CLAW_SERVO_ID 5
 #define CLAW_HOME_DEG 0
 
 servo_t claw_servo;
@@ -48,17 +51,22 @@ servo_t claw_servo;
 // Actuator Functions
 // ========================================
 
-// uint8_t claw_grip_get_state() {
-//     if (!claw_grip.connected) {
-//         return riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
-//     }
-//     else if (!claw_grip.enabled) {
-//         return riptide_msgs2__msg__ActuatorStatus__CLAW_DISARMED;
-//     }
-//     else {
-//         return riptide_msgs2__msg__ActuatorStatus__CLAW_SPOON_CLOSED;
-//     }
-// }
+uint8_t claw_get_state() {
+    if (!claw_servo.connected) {
+        return riptide_msgs2__msg__ActuatorStatus__CLAW_ERROR;
+    }
+    else if (!claw_servo.enabled) {
+        return riptide_msgs2__msg__ActuatorStatus__CLAW_DISARMED;
+    }
+    else if (to_ms_since_boot(get_absolute_time()) < move_end_time) {
+        return latest_command < 0 ? riptide_msgs2__msg__ActuatorStatus__CLAW_CLOSING :
+                                    riptide_msgs2__msg__ActuatorStatus__CLAW_OPENING;
+    }
+    else {
+        // Just for now, message will get redone for real deployment
+        return riptide_msgs2__msg__ActuatorStatus__CLAW_OPENED;
+    }
+}
 
 static bool actuators_arm(const char **errMsgOut) {
     // Make sure a kill switch interrupt won't fire in between checking conditions and arming
@@ -101,6 +109,7 @@ static bool actuators_arm(const char **errMsgOut) {
 }
 
 static bool claw_move_time(const char **errMsgOut, int32_t time_ms) {
+    move_end_time = to_ms_since_boot(get_absolute_time()) + abs(time_ms);
     servo_continuous_move_ms(&claw_servo, SERVO_MAX_SPEED * (time_ms / abs(time_ms)), abs(time_ms));
     return true;
 }

@@ -2,6 +2,7 @@
 
 #include "actuators/actuator.h"
 #include "actuators/hiwonder_driver.h"
+#include "actuators/ros_claw.h"
 // #include "ros_internal.h"
 #include "safety_interface.h"
 
@@ -83,7 +84,7 @@ static bool new_cmd = false;
 #define MARKER_1_DEG 0
 
 // Servo objects
-#define TORP_SERVO_ID 1
+#define TORP_SERVO_ID 2
 #define TORP_HOME_DEG 120
 
 static servo_t torp_servo;
@@ -385,7 +386,7 @@ rcl_ret_t ros_actuators_update_status(void) {
 
     riptide_msgs2__msg__ActuatorStatus status_msg;
     status_msg.actuators_armed = torp_servo.enabled;
-    status_msg.claw_state = 0;
+    status_msg.claw_state = claw_get_state();
     status_msg.torpedo_state = torpedo_get_state();
     status_msg.torpedo_available_count = num_torp;
     status_msg.dropper_state = dropper_get_state();

@@ -13,4 +13,6 @@ extern void claw_init_servo();
 
 extern void claw_ping_servo();
 
+extern uint8_t claw_get_state();
+
 #endif  // ROS_CLAW_H
