@@ -19,7 +19,7 @@ absolute_time_t next_pub = { 0 };
 
 transport_data_t tspt_data = { .err_code = 0, .timeout = 50 };
 
-can_transport_data_t can_tspt_data = { .client_id = CAN_BUS_CLIENT_ID, .err_code = 0, .timeout = 1000 };
+can_transport_data_t can_tspt_data = { .client_id = 1, .err_code = 0, .timeout = 1000 };
 
 nros_transport_t transport = { .init = transport_usb_init,
                                .open = transport_usb_open,
@@ -187,7 +187,7 @@ int main() {
 
         nros_spin();
         canbus_tick();
-        //    Tick safety
+        //     Tick safety
         safety_tick();
     }
 
