@@ -25,9 +25,7 @@ void buck_set_peak_current(uint controller, uint buck, uint current);
 void init_spi_and_gpio();
 void register_canmore_commands();
 
-// void led_set_rgb(uint r, uint g, uint b, float maxBrightness);
-
-void led_set_rgb(uint8_t r, uint8_t g, uint8_t b, float maxBrightness);
+void led_set_rgb(uint r, uint g, uint b, float maxBrightness);
 
 float al_read_temp();
 
